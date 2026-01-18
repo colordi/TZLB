@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 林业调查工作单助手</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob"></div>
+    </div>
+
+    <div class="container">
+        <h1>🌲 派单生成助手</h1>
+
+        <div class="config-section">
+            <div class="input-group">
+                <label>害虫类型</label>
+                <select id="pestType">
+                    <option value="美国白蛾">美国白蛾</option>
+                    <option value="杨树食叶害虫">杨树食叶害虫</option>
+                    <option value="松材线虫">松材线虫</option>
+                    <option value="其它">其它</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="paste-container">
+            <div class="paste-area" id="pasteArea">
+                <label>📋 点击此处并按 Ctrl+V 从 Excel 粘贴多行数据</label>
+                <textarea id="hiddenPasteInput" style="position: absolute; opacity: 0;"></textarea>
+            </div>
+        </div>
+
+        <div class="data-table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>调查日期</th>
+                        <th>区域</th>
+                        <th>乡镇/街道</th>
+                        <th>点位编号</th>
+                        <th>点位名</th>
+                        <th>发生位置</th>
+                        <th>地块类型</th>
+                        <th>危害寄主</th>
+                        <th>受害株数</th>
+                        <th>网幕数</th>
+                        <th>巡查是否剪网</th>
+                        <th>剪网是否彻底</th>
+                        <th>详细情况描述</th>
+                        <th>图片（最多4张）</th>
+                        <th style="width: 50px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- 表单行将通过 JS 动态添加 -->
+                </tbody>
+            </table>
+            <button class="btn-add" onclick="addRow()">+ 添加一行调查数据</button>
+        </div>
+
+        <div class="actions">
+            <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
+        </div>
+
+        <div id="statusMsg" class="status-msg"></div>
+    </div>
+
+    <script>
+        const FIELDS = [
+            "survey_date", "region", "town_or_street", "location_id",
+            "location_name", "occurrence_position", "land_type", "host_plant",
+            "damaged_count", "web_count", "is_clipped", "is_thorough", "description"
+        ];
+
+        const DEFAULT_ROW = {
+            survey_date: new Date().toISOString().split('T')[0],
+            region: "某区域",
+            town_or_street: "某乡镇",
+            location_id: "L001",
+            location_name: "某地点",
+            occurrence_position: "发生位置",
+            land_type: "地块类型",
+            host_plant: "寄主植物",
+            damaged_count: "0",
+            web_count: "0",
+            is_clipped: "是",
+            is_thorough: "是",
+            description: "无"
+        };
+
+        // 用于存储每行的图片数据 (Base64)
+        const rowImagesMap = new Map();
+        let rowIdCounter = 0;
+
+        // 日期格式转换函数：兼容多种 Excel 导出格式
+        function parseDate(dateStr) {
+            if (!dateStr) return "";
+
+            // 如果已经是 yyyy-mm-dd 格式，直接返回
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                return dateStr;
+            }
+
+            // 处理 yyyy/mm/dd 或 yyyy.mm.dd 格式
+            let match = dateStr.match(/^(\d{4})[\/\.\-](\d{1,2})[\/\.\-](\d{1,2})/);
+            if (match) {
+                const [_, year, month, day] = match;
+                return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+
+            // 处理 dd/mm/yyyy 或 mm/dd/yyyy 格式（假设为 mm/dd/yyyy，美国格式）
+            match = dateStr.match(/^(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{4})/);
+            if (match) {
+                const [_, first, second, year] = match;
+                // 假设第一部分是月份，第二部分是日期（美国格式）
+                return `${year}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`;
+            }
+
+            // 处理 Excel 序列号（数字日期，如 44927 代表 2023-01-01）
+            const numDate = parseFloat(dateStr);
+            if (!isNaN(numDate) && numDate > 30000 && numDate < 60000) {
+                // Excel 序列号转换为 JavaScript 日期
+                const excelEpoch = new Date(1899, 11, 30); // Excel 的起始日期
+                const jsDate = new Date(excelEpoch.getTime() + numDate * 24 * 60 * 60 * 1000);
+                const year = jsDate.getFullYear();
+                const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+                const day = String(jsDate.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // 尝试用 Date 对象解析
+            const parsed = new Date(dateStr);
+            if (!isNaN(parsed.getTime())) {
+                const year = parsed.getFullYear();
+                const month = String(parsed.getMonth() + 1).padStart(2, '0');
+                const day = String(parsed.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            // 无法解析，返回原值
+            return dateStr;
+        }
+
+        function addRow(data = DEFAULT_ROW) {
+            const tr = document.createElement("tr");
+            const rowId = `row_${rowIdCounter++}`;
+            tr.setAttribute("data-row-id", rowId);
+            rowImagesMap.set(rowId, []);
+
+            FIELDS.forEach(field => {
+                const td = document.createElement("td");
+                const value = field === "survey_date" ? parseDate(data[field] || '') : (data[field] || '');
+
+                if (field === "description") {
+                    // 描述字段使用 textarea 以支持长文本
+                    const textarea = document.createElement("textarea");
+                    textarea.setAttribute("data-key", field);
+                    textarea.rows = 2;
+                    textarea.value = value; // 使用 .value 安全赋值，避免 HTML 注入
+                    td.appendChild(textarea);
+                } else if (field === "survey_date") {
+                    const input = document.createElement("input");
+                    input.type = "date";
+                    input.setAttribute("data-key", field);
+                    input.value = value;
+                    td.appendChild(input);
+                } else {
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.setAttribute("data-key", field);
+                    input.value = value; // 使用 .value 安全赋值
+                    td.appendChild(input);
+                }
+                tr.appendChild(td);
+            });
+
+
+            // 图片上传列
+            const imgTd = document.createElement("td");
+            imgTd.className = "image-upload-cell";
+            imgTd.innerHTML = `
+                <div class="image-preview-container" id="preview_${rowId}"></div>
+                <label class="btn-upload-label">
+                    📷 选择图片
+                    <input type="file" accept="image/*" multiple style="display:none" 
+                           onchange="handleImageUpload(this, '${rowId}')">
+                </label>
+            `;
+            tr.appendChild(imgTd);
+
+            // 删除按钮列
+            const delTd = document.createElement("td");
+            delTd.innerHTML = `<button class="btn-delete" onclick="deleteRow(this, '${rowId}')">✕</button>`;
+            tr.appendChild(delTd);
+
+            document.getElementById("dataTableBody").appendChild(tr);
+        }
+
+
+        function deleteRow(btn, rowId) {
+            rowImagesMap.delete(rowId);
+            btn.closest('tr').remove();
+        }
+
+        function handleImageUpload(input, rowId) {
+            const files = Array.from(input.files).slice(0, 4); // 最多 4 张
+            const previewContainer = document.getElementById(`preview_${rowId}`);
+            const existingImages = rowImagesMap.get(rowId) || [];
+
+            // 限制总数最多 4 张
+            const remainingSlots = 4 - existingImages.length;
+            const filesToProcess = files.slice(0, remainingSlots);
+
+            filesToProcess.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const base64 = e.target.result;
+                    existingImages.push(base64);
+                    rowImagesMap.set(rowId, existingImages);
+
+                    // 创建预览缩略图
+                    const thumb = document.createElement("div");
+                    thumb.className = "image-thumb";
+                    thumb.innerHTML = `
+                        <img src="${base64}" alt="预览">
+                        <span class="remove-thumb" onclick="removeImage('${rowId}', ${existingImages.length - 1}, this)">✕</span>
+                    `;
+                    previewContainer.appendChild(thumb);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // 清空 input 以便重复选择
+            input.value = "";
+        }
+
+        function removeImage(rowId, index, btn) {
+            const images = rowImagesMap.get(rowId);
+            if (images) {
+                images.splice(index, 1);
+                rowImagesMap.set(rowId, images);
+            }
+            btn.closest('.image-thumb').remove();
+
+            // 重新渲染预览以更新索引
+            const previewContainer = document.getElementById(`preview_${rowId}`);
+            previewContainer.innerHTML = '';
+            images.forEach((base64, i) => {
+                const thumb = document.createElement("div");
+                thumb.className = "image-thumb";
+                thumb.innerHTML = `
+                    <img src="${base64}" alt="预览">
+                    <span class="remove-thumb" onclick="removeImage('${rowId}', ${i}, this)">✕</span>
+                `;
+                previewContainer.appendChild(thumb);
+            });
+        }
+
+        // 处理粘贴功能
+        document.getElementById("pasteArea").addEventListener("click", () => {
+            document.getElementById("hiddenPasteInput").focus();
+        });
+
+        document.getElementById("hiddenPasteInput").addEventListener("paste", (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if (!text) return;
+
+            const rows = text.split(/\r?\n/).filter(line => line.trim() !== "");
+            rows.forEach(line => {
+                const cells = line.split('\t');
+                const rowData = {};
+                FIELDS.forEach((field, index) => {
+                    rowData[field] = cells[index] || "";
+                });
+                addRow(rowData);
+            });
+        });
+
+        async function generateDocs() {
+            const btn = document.querySelector(".btn-generate");
+            const status = document.getElementById("statusMsg");
+
+            const tableRows = document.querySelectorAll("#dataTableBody tr");
+            const records = Array.from(tableRows).map(tr => {
+                const record = {};
+                // 同时获取 input 和 textarea 的值
+                tr.querySelectorAll("input[data-key], textarea[data-key]").forEach(el => {
+                    record[el.getAttribute("data-key")] = el.value;
+                });
+                // 附加该行的图片数据
+                const rowId = tr.getAttribute("data-row-id");
+                record.images = rowImagesMap.get(rowId) || [];
+                return record;
+            });
+
+            if (records.length === 0) {
+                alert("请至少添加一行数据！");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "正在飞速生成中...";
+            status.textContent = "🚚 正在处理您的请求，请稍候...";
+            status.style.color = "white";
+
+            try {
+                const response = await fetch("/api/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pest_type: document.getElementById("pestType").value,
+                        records: records
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    status.textContent = `✅ 成功生成 ${result.files.length} 份工作单！文件已保存至 output 目录。`;
+                    status.style.color = "#2ecc71";
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                status.textContent = `❌ 失败了: ${err.message}`;
+                status.style.color = "#e74c3c";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "🚀 批量生成工作单";
+            }
+        }
+
+        // 默认初始化一行
+        addRow();
+    </script>
+</body>
+
+</html>
