@@ -19,49 +19,42 @@
         <div class="config-section">
             <div class="input-group">
                 <label>害虫类型</label>
-                <select id="pestType">
+                <select id="pestType" onchange="handlePestTypeChange()">
                     <option value="美国白蛾">美国白蛾</option>
                     <option value="杨树食叶害虫">杨树食叶害虫</option>
                     <option value="松材线虫">松材线虫</option>
+                    <option value="春尺蠖">春尺蠖</option>
                     <option value="其它">其它</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>统防任务</label>
+                <select id="taskType">
+                    <option value="">（空白）</option>
+                    <option value="第一代">第一代</option>
+                    <option value="第二代">第二代</option>
+                    <option value="第三代">第三代</option>
+                    <option value="越冬代">越冬代</option>
                 </select>
             </div>
         </div>
 
-        <div class="paste-container">
-            <div class="paste-area" id="pasteArea">
-                <label>📋 点击此处并按 Ctrl+V 从 Excel 粘贴多行数据</label>
-                <textarea id="hiddenPasteInput" style="position: absolute; opacity: 0;"></textarea>
+        <!-- AI文本解析区域 -->
+        <div class="ai-parse-section">
+            <div class="ai-parse-header">
+                <label>📝 粘贴调查记录文本（支持自由格式）</label>
+                <button class="btn-ai-parse" onclick="parseTextWithAI()">🤖 AI智能解析</button>
             </div>
+            <textarea id="aiTextInput" class="ai-text-input"
+                placeholder="在此粘贴调查记录文本，例如：&#10;2025年1月15日，在某镇的道路绿化带发现美国白蛾网幕3个，受害杨树5株，点位编号L001...&#10;&#10;AI将自动识别并提取信息填充到下方表格中"></textarea>
+            <div id="aiParseStatus" class="ai-parse-status"></div>
         </div>
 
-        <div class="data-table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>调查日期</th>
-                        <th>区域</th>
-                        <th>乡镇/街道</th>
-                        <th>点位编号</th>
-                        <th>点位名</th>
-                        <th>发生位置</th>
-                        <th>地块类型</th>
-                        <th>危害寄主</th>
-                        <th>受害株数</th>
-                        <th>网幕数</th>
-                        <th>巡查是否剪网</th>
-                        <th>剪网是否彻底</th>
-                        <th>详细情况描述</th>
-                        <th>图片（最多4张）</th>
-                        <th style="width: 50px;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="dataTableBody">
-                    <!-- 表单行将通过 JS 动态添加 -->
-                </tbody>
-            </table>
-            <button class="btn-add" onclick="addRow()">+ 添加一行调查数据</button>
+        <!-- 卡片式数据容器 -->
+        <div class="records-container" id="recordsContainer">
+            <!-- 记录卡片将通过 JS 动态添加 -->
         </div>
+        <button class="btn-add" onclick="addRow()">+ 添加一行调查数据</button>
 
         <div class="actions">
             <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
@@ -71,26 +64,48 @@
     </div>
 
     <script>
-        const FIELDS = [
-            "survey_date", "region", "town_or_street", "location_id",
-            "location_name", "occurrence_position", "land_type", "host_plant",
-            "damaged_count", "web_count", "is_clipped", "is_thorough", "description"
+        // 字段配置：分两行布局
+        const FIELDS_ROW1 = [
+            { key: "survey_date", label: "调查日期", type: "date" },
+            { key: "region", label: "区域", type: "select", options: ["乡镇", "城区"] },
+            { key: "town_or_street", label: "乡镇/街道", type: "text" },
+            { key: "location_id", label: "点位编号", type: "text" },
+            { key: "location_name", label: "点位名", type: "text" },
+            { key: "occurrence_position", label: "发生位置", type: "text" }
         ];
+
+        const FIELDS_ROW2 = [
+            { key: "land_type", label: "地块类型", type: "text", hideable: true },
+            { key: "host_plant", label: "危害寄主", type: "text", hideable: true },
+            { key: "damaged_count", label: "受害株数", type: "text", hideable: true },
+            { key: "web_count", label: "网幕数", type: "text", hideable: true },
+            { key: "description", label: "详细情况描述", type: "textarea", wide: true },
+            { key: "note", label: "备注", type: "text" }
+        ];
+
+        const ALL_FIELDS = [...FIELDS_ROW1, ...FIELDS_ROW2];
+
+        // 春尺蠖模式下需要隐藏的字段及其默认值
+        const CHUNCHIHU_HIDDEN_FIELDS = {
+            "land_type": "平原造林",
+            "host_plant": "杨树",
+            "damaged_count": "0",
+            "web_count": "0"
+        };
 
         const DEFAULT_ROW = {
             survey_date: new Date().toISOString().split('T')[0],
-            region: "某区域",
-            town_or_street: "某乡镇",
-            location_id: "L001",
-            location_name: "某地点",
-            occurrence_position: "发生位置",
-            land_type: "地块类型",
-            host_plant: "寄主植物",
+            region: "乡镇",
+            town_or_street: "",
+            location_id: "",
+            location_name: "",
+            occurrence_position: "",
+            land_type: "",
+            host_plant: "",
             damaged_count: "0",
             web_count: "0",
-            is_clipped: "是",
-            is_thorough: "是",
-            description: "无"
+            description: "",
+            note: ""
         };
 
         // 用于存储每行的图片数据 (Base64)
@@ -146,65 +161,151 @@
             return dateStr;
         }
 
-        function addRow(data = DEFAULT_ROW) {
-            const tr = document.createElement("tr");
-            const rowId = `row_${rowIdCounter++}`;
-            tr.setAttribute("data-row-id", rowId);
-            rowImagesMap.set(rowId, []);
+        // 创建输入元素的辅助函数
+        function createInputElement(fieldConfig, value) {
+            const { key, type, options, wide } = fieldConfig;
+            let element;
 
-            FIELDS.forEach(field => {
-                const td = document.createElement("td");
-                const value = field === "survey_date" ? parseDate(data[field] || '') : (data[field] || '');
+            if (type === "textarea") {
+                element = document.createElement("textarea");
+                element.rows = 2;
+                element.value = value || '';
+            } else if (type === "select") {
+                element = document.createElement("select");
+                options.forEach(opt => {
+                    const option = document.createElement("option");
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (opt === value) option.selected = true;
+                    element.appendChild(option);
+                });
+            } else if (type === "date") {
+                element = document.createElement("input");
+                element.type = "date";
+                element.value = parseDate(value || '');
+            } else {
+                element = document.createElement("input");
+                element.type = "text";
+                element.value = value || '';
+            }
 
-                if (field === "description") {
-                    // 描述字段使用 textarea 以支持长文本
-                    const textarea = document.createElement("textarea");
-                    textarea.setAttribute("data-key", field);
-                    textarea.rows = 2;
-                    textarea.value = value; // 使用 .value 安全赋值，避免 HTML 注入
-                    td.appendChild(textarea);
-                } else if (field === "survey_date") {
-                    const input = document.createElement("input");
-                    input.type = "date";
-                    input.setAttribute("data-key", field);
-                    input.value = value;
-                    td.appendChild(input);
-                } else {
-                    const input = document.createElement("input");
-                    input.type = "text";
-                    input.setAttribute("data-key", field);
-                    input.value = value; // 使用 .value 安全赋值
-                    td.appendChild(input);
-                }
-                tr.appendChild(td);
-            });
-
-
-            // 图片上传列
-            const imgTd = document.createElement("td");
-            imgTd.className = "image-upload-cell";
-            imgTd.innerHTML = `
-                <div class="image-preview-container" id="preview_${rowId}"></div>
-                <label class="btn-upload-label">
-                    📷 选择图片
-                    <input type="file" accept="image/*" multiple style="display:none" 
-                           onchange="handleImageUpload(this, '${rowId}')">
-                </label>
-            `;
-            tr.appendChild(imgTd);
-
-            // 删除按钮列
-            const delTd = document.createElement("td");
-            delTd.innerHTML = `<button class="btn-delete" onclick="deleteRow(this, '${rowId}')">✕</button>`;
-            tr.appendChild(delTd);
-
-            document.getElementById("dataTableBody").appendChild(tr);
+            element.setAttribute("data-key", key);
+            if (wide) element.classList.add("wide-input");
+            return element;
         }
 
+        function addRow(data = DEFAULT_ROW) {
+            const card = document.createElement("div");
+            card.className = "record-card";
+            const rowId = `row_${rowIdCounter++}`;
+            card.setAttribute("data-row-id", rowId);
+            rowImagesMap.set(rowId, []);
+
+            // 卡片头部：显示行号
+            const cardHeader = document.createElement("div");
+            cardHeader.className = "card-header";
+            cardHeader.innerHTML = `<span class="row-number">第 <strong>--</strong> 条记录</span>`;
+            card.appendChild(cardHeader);
+
+            // 第一行字段
+            const row1 = document.createElement("div");
+            row1.className = "card-row";
+            FIELDS_ROW1.forEach(fieldConfig => {
+                const fieldDiv = document.createElement("div");
+                fieldDiv.className = `field-group field-${fieldConfig.key}`;
+
+                const label = document.createElement("label");
+                label.textContent = fieldConfig.label;
+                fieldDiv.appendChild(label);
+
+                const input = createInputElement(fieldConfig, data[fieldConfig.key]);
+                fieldDiv.appendChild(input);
+                row1.appendChild(fieldDiv);
+            });
+            card.appendChild(row1);
+
+            // 第二行字段
+            const row2 = document.createElement("div");
+            row2.className = "card-row";
+            FIELDS_ROW2.forEach(fieldConfig => {
+                const fieldDiv = document.createElement("div");
+                fieldDiv.className = `field-group field-${fieldConfig.key}`;
+                if (fieldConfig.wide) fieldDiv.classList.add("wide-field");
+                if (fieldConfig.hideable) fieldDiv.classList.add("hideable");
+
+                const label = document.createElement("label");
+                label.textContent = fieldConfig.label;
+                fieldDiv.appendChild(label);
+
+                const input = createInputElement(fieldConfig, data[fieldConfig.key]);
+                fieldDiv.appendChild(input);
+                row2.appendChild(fieldDiv);
+            });
+            card.appendChild(row2);
+
+            // 图片上传和删除按钮行
+            const actionsRow = document.createElement("div");
+            actionsRow.className = "card-actions";
+            actionsRow.innerHTML = `
+                <div class="image-upload-section">
+                    <div class="image-preview-container" id="preview_${rowId}"></div>
+                    <label class="btn-upload-label">
+                        📷 选择图片（最多4张）
+                        <input type="file" accept="image/*" multiple style="display:none" 
+                               onchange="handleImageUpload(this, '${rowId}')">
+                    </label>
+                </div>
+                <button class="btn-delete" onclick="deleteRow(this, '${rowId}')">🗑️ 删除此记录</button>
+            `;
+            card.appendChild(actionsRow);
+
+            document.getElementById("recordsContainer").appendChild(card);
+
+            // 如果当前是春尺蠖模式，需要隐藏并设置默认值
+            if (document.getElementById("pestType").value === "春尺蠖") {
+                applyChunchihuMode(card);
+            }
+
+            // 更新所有行号
+            updateRowNumbers();
+        }
+
+        function applyChunchihuMode(card) {
+            Object.keys(CHUNCHIHU_HIDDEN_FIELDS).forEach(field => {
+                const fieldDiv = card.querySelector(`.field-${field}`);
+                const input = card.querySelector(`[data-key="${field}"]`);
+                if (fieldDiv && input) {
+                    fieldDiv.style.display = "none";
+                    input.value = CHUNCHIHU_HIDDEN_FIELDS[field];
+                }
+            });
+        }
+
+        function removeChunchihuMode(card) {
+            Object.keys(CHUNCHIHU_HIDDEN_FIELDS).forEach(field => {
+                const fieldDiv = card.querySelector(`.field-${field}`);
+                if (fieldDiv) {
+                    fieldDiv.style.display = "";
+                }
+            });
+        }
 
         function deleteRow(btn, rowId) {
             rowImagesMap.delete(rowId);
-            btn.closest('tr').remove();
+            btn.closest('.record-card').remove();
+            // 更新所有行号
+            updateRowNumbers();
+        }
+
+        // 更新所有卡片的行号显示
+        function updateRowNumbers() {
+            const cards = document.querySelectorAll("#recordsContainer .record-card");
+            cards.forEach((card, index) => {
+                const rowNumber = card.querySelector(".row-number strong");
+                if (rowNumber) {
+                    rowNumber.textContent = String(index + 1).padStart(3, '0');
+                }
+            });
         }
 
         function handleImageUpload(input, rowId) {
@@ -261,40 +362,63 @@
             });
         }
 
-        // 处理粘贴功能
-        document.getElementById("pasteArea").addEventListener("click", () => {
-            document.getElementById("hiddenPasteInput").focus();
-        });
+        // AI智能解析文本
+        async function parseTextWithAI() {
+            const textInput = document.getElementById("aiTextInput");
+            const statusDiv = document.getElementById("aiParseStatus");
+            const text = textInput.value.trim();
 
-        document.getElementById("hiddenPasteInput").addEventListener("paste", (e) => {
-            e.preventDefault();
-            const text = (e.clipboardData || window.clipboardData).getData('text');
-            if (!text) return;
+            if (!text) {
+                statusDiv.textContent = "⚠️ 请先输入需要解析的文本";
+                statusDiv.className = "ai-parse-status error";
+                return;
+            }
 
-            const rows = text.split(/\r?\n/).filter(line => line.trim() !== "");
-            rows.forEach(line => {
-                const cells = line.split('\t');
-                const rowData = {};
-                FIELDS.forEach((field, index) => {
-                    rowData[field] = cells[index] || "";
+            statusDiv.textContent = "🔄 AI正在解析中，请稍候...";
+            statusDiv.className = "ai-parse-status loading";
+
+            try {
+                const response = await fetch("/api/parse-text", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text })
                 });
-                addRow(rowData);
-            });
-        });
+
+                const result = await response.json();
+
+                if (result.success && result.records) {
+                    // 将解析结果添加到表格
+                    result.records.forEach(record => {
+                        addRow(record);
+                    });
+
+                    statusDiv.textContent = `✅ 成功解析 ${result.records.length} 条记录！`;
+                    statusDiv.className = "ai-parse-status success";
+
+                    // 清空输入框
+                    textInput.value = "";
+                } else {
+                    throw new Error(result.error || "解析失败");
+                }
+            } catch (err) {
+                statusDiv.textContent = `❌ ${err.message}`;
+                statusDiv.className = "ai-parse-status error";
+            }
+        }
 
         async function generateDocs() {
             const btn = document.querySelector(".btn-generate");
             const status = document.getElementById("statusMsg");
 
-            const tableRows = document.querySelectorAll("#dataTableBody tr");
-            const records = Array.from(tableRows).map(tr => {
+            const cards = document.querySelectorAll("#recordsContainer .record-card");
+            const records = Array.from(cards).map(card => {
                 const record = {};
-                // 同时获取 input 和 textarea 的值
-                tr.querySelectorAll("input[data-key], textarea[data-key]").forEach(el => {
+                // 获取所有 input, textarea, select 的值
+                card.querySelectorAll("input[data-key], textarea[data-key], select[data-key]").forEach(el => {
                     record[el.getAttribute("data-key")] = el.value;
                 });
                 // 附加该行的图片数据
-                const rowId = tr.getAttribute("data-row-id");
+                const rowId = card.getAttribute("data-row-id");
                 record.images = rowImagesMap.get(rowId) || [];
                 return record;
             });
@@ -315,6 +439,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         pest_type: document.getElementById("pestType").value,
+                        task_type: document.getElementById("taskType").value,
                         records: records
                     })
                 });
@@ -333,6 +458,21 @@
                 btn.disabled = false;
                 btn.textContent = "🚀 批量生成工作单";
             }
+        }
+
+        // 处理害虫类型切换
+        function handlePestTypeChange() {
+            const pestType = document.getElementById("pestType").value;
+            const isChunchihu = pestType === "春尺蠖";
+
+            // 处理每一个卡片
+            document.querySelectorAll("#recordsContainer .record-card").forEach(card => {
+                if (isChunchihu) {
+                    applyChunchihuMode(card);
+                } else {
+                    removeChunchihuMode(card);
+                }
+            });
         }
 
         // 默认初始化一行

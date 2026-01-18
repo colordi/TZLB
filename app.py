@@ -55,16 +55,15 @@ def save_base64_images(base64_list: list[str], row_id: str) -> list[Path]:
     return paths
 
 def map_images_to_context(doc: DocxTemplate, image_paths: list[Path], region: str | None) -> dict:
+    """将图片路径映射到模板上下文中的img1-img4占位符"""
     placeholders = ["img1", "img2", "img3", "img4"]
     ctx = {name: "" for name in placeholders}
-    start_index = 1 if region == "乡镇" else 0
     
     inline_images = [InlineImage(doc, str(p), width=Mm(IMAGE_WIDTH_MM)) for p in image_paths[:MAX_IMAGES]]
     for i, img in enumerate(inline_images):
-        slot = i + start_index
-        if slot >= len(placeholders):
+        if i >= len(placeholders):
             break
-        ctx[placeholders[slot]] = img
+        ctx[placeholders[i]] = img
     return ctx
 
 def cleanup_temp_images(paths: list[Path]):
@@ -80,13 +79,49 @@ def cleanup_temp_images(paths: list[Path]):
 def index():
     return render_template("index.html")
 
+@app.route("/api/parse-text", methods=["POST"])
+def parse_text():
+    """使用AI解析自由文本为结构化数据"""
+    try:
+        from ai_parser import parse_text_with_gemini
+        
+        data = request.json
+        text = data.get("text", "").strip()
+        
+        if not text:
+            return jsonify({"success": False, "error": "请输入需要解析的文本"}), 400
+        
+        records = parse_text_with_gemini(text)
+        return jsonify({"success": True, "records": records})
+        
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": f"解析失败: {str(e)}"}), 500
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
     all_temp_files = []  # 用于记录所有临时文件以便清理
+    
+    # 前端字段名 -> Word模板变量名的映射
+    FIELD_MAPPING = {
+        "pest_type": "pest",           # 害虫类型 -> 危害虫种
+        "task_type": "task",           # 统防任务
+        "host_plant": "host",          # 危害寄主
+        "damaged_count": "affected_plants_count",  # 受害株数
+        "land_type": "plot_type",      # 地块类型 -> 绿地性质
+        "web_count": "screen_count",   # 网幕数 -> 网幕个数
+        "description": "detailed_description",  # 描述 -> 详细描述
+        "note": "note",                # 备注
+    }
+    
     try:
         data = request.json
         records = data.get("records", [])
         pest_type = data.get("pest_type", "其它")
+        task_type = data.get("task_type", "")
         
         generated_files = []
         for idx, row in enumerate(records):
@@ -94,19 +129,32 @@ def generate():
             # 合并数据（排除 images 字段）
             context = {k: v for k, v in row.items() if k != "images"}
             context["pest_type"] = pest_type
+            context["task_type"] = task_type
+            
+            # 自动生成序号（001, 002, 003...）
+            context["serial_number"] = str(idx + 1).zfill(3)
+            
+            # 应用字段映射：将前端字段名转换为Word模板变量名
+            for frontend_key, template_key in FIELD_MAPPING.items():
+                if frontend_key in context:
+                    context[template_key] = context[frontend_key]
             
             # 优先使用用户上传的图片
             uploaded_images = row.get("images", [])
+            print(f"[DEBUG] Row {idx}: received {len(uploaded_images)} images")
             if uploaded_images:
                 row_id = f"row_{idx}_{uuid.uuid4().hex[:8]}"
                 image_paths = save_base64_images(uploaded_images, row_id)
+                print(f"[DEBUG] Row {idx}: saved {len(image_paths)} images to temp")
                 all_temp_files.extend(image_paths)
             else:
                 # 回退到基于 location_id 查找图片的旧逻辑
                 location_id = context.get("location_id")
                 image_paths = find_image_paths(location_id)
             
+            print(f"[DEBUG] Row {idx}: image_paths = {image_paths}")
             context.update(map_images_to_context(doc, image_paths, context.get("region")))
+            print(f"[DEBUG] Row {idx}: context img keys = {[k for k in context if k.startswith('img')]}")
             
             doc.render(context)
             
