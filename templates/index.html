@@ -20,6 +20,7 @@
             <div class="input-group">
                 <label>害虫类型</label>
                 <select id="pestType" onchange="handlePestTypeChange()">
+                    <option value="" disabled selected>请选择害虫类型</option>
                     <option value="美国白蛾">美国白蛾</option>
                     <option value="杨树食叶害虫">杨树食叶害虫</option>
                     <option value="松材线虫">松材线虫</option>
@@ -89,7 +90,7 @@
         const CHUNCHIHU_HIDDEN_FIELDS = {
             "land_type": "平原造林",
             "host_plant": "杨树",
-            "damaged_count": "0",
+            "damaged_count": "10",
             "web_count": "0"
         };
 
@@ -102,7 +103,7 @@
             occurrence_position: "",
             land_type: "",
             host_plant: "",
-            damaged_count: "0",
+            damaged_count: "10",
             web_count: "0",
             description: "",
             note: ""
@@ -367,9 +368,17 @@
             const textInput = document.getElementById("aiTextInput");
             const statusDiv = document.getElementById("aiParseStatus");
             const text = textInput.value.trim();
+            const pestType = document.getElementById("pestType").value;  // 获取当前害虫类型
+
+            // 检查是否已选择害虫类型
+            if (!pestType) {
+                statusDiv.textContent = "⚠️ 请先选择害虫类型";
+                statusDiv.className = "ai-parse-status error";
+                return;
+            }
 
             if (!text) {
-                statusDiv.textContent = "⚠️ 请先输入需要解析的文本";
+                statusDiv.textContent = "⚠️ 请输入需要解析的文本";
                 statusDiv.className = "ai-parse-status error";
                 return;
             }
@@ -381,7 +390,7 @@
                 const response = await fetch("/api/parse-text", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text })
+                    body: JSON.stringify({ text, pest_type: pestType })  // 传递害虫类型
                 });
 
                 const result = await response.json();
@@ -475,8 +484,7 @@
             });
         }
 
-        // 默认初始化一行
-        addRow();
+        // 页面初始化（不再默认添加空白行）
     </script>
 </body>
 

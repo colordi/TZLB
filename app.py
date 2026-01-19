@@ -83,15 +83,16 @@ def index():
 def parse_text():
     """使用AI解析自由文本为结构化数据"""
     try:
-        from ai_parser import parse_text_with_gemini
+        from ai_parser import parse_text_with_ai
         
         data = request.json
         text = data.get("text", "").strip()
+        pest_type = data.get("pest_type", "")  # 获取害虫类型
         
         if not text:
             return jsonify({"success": False, "error": "请输入需要解析的文本"}), 400
         
-        records = parse_text_with_gemini(text)
+        records = parse_text_with_ai(text, pest_type)
         return jsonify({"success": True, "records": records})
         
     except ValueError as e:

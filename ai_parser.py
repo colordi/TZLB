@@ -24,7 +24,7 @@ FIELDS_SCHEMA = {
 
 
 def build_prompt(text: str) -> str:
-    """构建AI解析的提示词"""
+    """构建AI解析的提示词（通用）"""
     fields_desc = "\n".join([f"- {k}: {v}" for k, v in FIELDS_SCHEMA.items()])
     
     prompt = f"""你是一个专业的林业调查数据提取助手。请从以下文本中提取林业调查记录信息。
@@ -50,18 +50,72 @@ def build_prompt(text: str) -> str:
     return prompt
 
 
-def parse_text_with_ai(text: str) -> list[dict]:
+def build_chunchihu_prompt(text: str, today_date: str) -> str:
+    """构建春尺蠖专用的提示词
+    
+    春尺蠖调查只需要提取：location_id 和描述内容
+    其他字段自动设为空白或默认值
+    """
+    prompt = f"""你是一个专业的林业调查数据提取助手，专门处理春尺蠖调查记录。
+
+## 输入格式说明
+用户输入的文本可能包含多条调查记录，每条记录通常是一行或用逗号/换行分隔，包含：
+- 点位编号（如yf0083、YF0109、L001等，可能是小写）
+- 幼虫数量描述（平均多少头、最多多少头）
+- 是否需要防治
+
+## 你的任务
+1. **识别点位编号**：从文本中提取点位编号，并统一转换为大写（如yf0109→YF0109）
+2. **标准化描述内容**：将用户的口语化描述转换为固定格式：
+   - 格式："{today_date}调查：平均每标准枝上发现春尺蠖X头，最多Y头，需开展防治。"
+   - 其中X是平均数量，Y是最多数量
+   - 如果没有提到具体数量，使用"若干"
+   - 如果用户没有提到是否防治，请在文末添加"需开展防治。"
+
+## 输出要求
+返回JSON数组，每条记录包含以下字段：
+- location_id: 点位编号（必须大写）
+- description: 标准化描述（固定格式）
+- survey_date: "{today_date}"
+- region, town_or_street, location_name, occurrence_position, land_type, host_plant, damaged_count, web_count, note: 全部为空字符串
+
+## 用户输入
+---
+{text}
+---
+
+## 输出示例
+[{{"location_id": "YF0109", "description": "{today_date}调查：平均每标准枝上发现春尺蠖30头，最多50头，需开展防治。", "survey_date": "{today_date}", "region": "", "town_or_street": "", "location_name": "", "occurrence_position": "", "land_type": "", "host_plant": "", "damaged_count": "", "web_count": "", "note": ""}}]
+
+请直接返回JSON数组，不要包含任何解释文字。
+"""
+    return prompt
+
+
+def parse_text_with_ai(text: str, pest_type: str = "") -> list[dict]:
     """
     使用OpenAI兼容API解析文本
     
     Args:
         text: 用户输入的自由文本
+        pest_type: 害虫类型（如"春尺蠖"时使用专用解析逻辑）
         
     Returns:
         解析后的记录列表
     """
+    from datetime import date
+    
     if not API_KEY or API_KEY == "your-api-key-here":
         raise ValueError("请先在 config.py 中配置有效的 API_KEY")
+    
+    # 获取当天日期
+    today_date = date.today().strftime("%Y-%m-%d")
+    
+    # 根据害虫类型选择提示词
+    if pest_type == "春尺蠖":
+        prompt_content = build_chunchihu_prompt(text, today_date)
+    else:
+        prompt_content = build_prompt(text)
     
     # 构建OpenAI兼容的API端点
     base_url = API_BASE_URL.rstrip("/")
@@ -81,7 +135,7 @@ def parse_text_with_ai(text: str) -> list[dict]:
             },
             {
                 "role": "user",
-                "content": build_prompt(text)
+                "content": prompt_content
             }
         ],
         "temperature": 0.1,
