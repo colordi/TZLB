@@ -2,17 +2,25 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from pathlib import Path
+from datetime import datetime
 import re
 import uuid
 import base64
 import tempfile
 import os
+from chunchihuo_reports_db import (
+    init_chunchihuo_reports_db,
+    insert_chunchihuo_record,
+    insert_chunchihuo_records_batch
+)
 
 app = Flask(__name__)
 
 # 基础配置
 BASE_DIR = Path(__file__).parent
-TEMPLATE_PATH = BASE_DIR / "工作单模板.docx"
+TEMPLATE_DIR = BASE_DIR / "templates"
+GENERAL_TEMPLATE_PATH = TEMPLATE_DIR / "工作单模板.docx"
+CHUNCHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "春尺蠖工作单模板.docx"
 IMAGES_DIR = BASE_DIR / "images"
 OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp_images"
@@ -23,6 +31,9 @@ IMAGE_WIDTH_MM = 70
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# 初始化春尺蠖数据库
+init_chunchihuo_reports_db()
 
 def extract_number_from_name(path: Path) -> int:
     m = re.search(r"-(\d+)", path.stem)
@@ -102,12 +113,75 @@ def parse_text():
     except Exception as e:
         return jsonify({"success": False, "error": f"解析失败: {str(e)}"}), 500
 
+@app.route("/api/save-to-db", methods=["POST"])
+def save_to_db():
+    """手动保存数据到数据库（仅春尺蠖）"""
+    try:
+        data = request.json
+        records = data.get("records", [])
+        pest_type = data.get("pest_type", "")
+
+        # 仅支持春尺蠖
+        if pest_type != "春尺蠖":
+            return jsonify({
+                "success": False,
+                "error": "仅支持春尺蠖数据保存到数据库"
+            }), 400
+
+        if not records:
+            return jsonify({
+                "success": False,
+                "error": "没有数据需要保存"
+            }), 400
+
+        # 必填字段验证
+        required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
+        validation_errors = []
+
+        for idx, record in enumerate(records):
+            record_num = idx + 1
+            for field in required_fields:
+                value = record.get(field, "")
+                if not value or (isinstance(value, str) and value.strip() == ""):
+                    field_labels = {
+                        "town_or_street": "乡镇/街道",
+                        "location_id": "点位编号",
+                        "location_name": "点位名称",
+                        "survey_date": "调查日期",
+                        "description": "详细情况描述"
+                    }
+                    validation_errors.append(f"第 {record_num} 条记录：{field_labels[field]} 不能为空")
+
+        if validation_errors:
+            return jsonify({
+                "success": False,
+                "error": "请填写以下必填字段：\n" + "\n".join(validation_errors)
+            }), 400
+
+        # 批量保存到数据库
+        success_count, fail_count, errors = insert_chunchihuo_records_batch(
+            records,
+            replace_on_conflict=True
+        )
+
+        return jsonify({
+            "success": True,
+            "saved": success_count,
+            "failed": fail_count,
+            "total": len(records),
+            "errors": errors
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
     all_temp_files = []  # 用于记录所有临时文件以便清理
     
-    # 前端字段名 -> Word模板变量名的映射
-    FIELD_MAPPING = {
+    # 通用模板：前端字段名 -> Word模板变量名的映射
+    GENERAL_FIELD_MAPPING = {
         "pest_type": "pest",           # 害虫类型 -> 危害虫种
         "task_type": "task",           # 统防任务
         "host_plant": "host",          # 危害寄主
@@ -117,16 +191,52 @@ def generate():
         "description": "detailed_description",  # 描述 -> 详细描述
         "note": "note",                # 备注
     }
+
+    # 春尺蠖模板：前端字段名 -> Word模板变量名的映射
+    CHUNCHIHUO_FIELD_MAPPING = {
+        "description": "detailed_description",  # 描述 -> 详细描述
+        # 其他字段（location_id, location_name, survey_date, town_or_street, note）直接匹配，不需要映射
+    }
     
     try:
         data = request.json
         records = data.get("records", [])
         pest_type = data.get("pest_type", "其它")
         task_type = data.get("task_type", "")
-        
+
+        # 必填字段验证
+        required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
+        validation_errors = []
+
+        for idx, record in enumerate(records):
+            record_num = idx + 1
+            for field in required_fields:
+                value = record.get(field, "")
+                if not value or (isinstance(value, str) and value.strip() == ""):
+                    field_labels = {
+                        "town_or_street": "乡镇/街道",
+                        "location_id": "点位编号",
+                        "location_name": "点位名称",
+                        "survey_date": "调查日期",
+                        "description": "详细情况描述"
+                    }
+                    validation_errors.append(f"第 {record_num} 条记录：{field_labels[field]} 不能为空")
+
+        if validation_errors:
+            return jsonify({
+                "success": False,
+                "error": "请填写以下必填字段：\n" + "\n".join(validation_errors)
+            }), 400
+
         generated_files = []
+        db_save_results = []  # 记录数据库保存结果
         for idx, row in enumerate(records):
-            doc = DocxTemplate(TEMPLATE_PATH)
+            # 根据害虫类型选择模板
+            if pest_type == "春尺蠖":
+                template_path = CHUNCHIHUO_TEMPLATE_PATH
+            else:
+                template_path = GENERAL_TEMPLATE_PATH
+            doc = DocxTemplate(template_path)
             # 合并数据（排除 images 字段）
             context = {k: v for k, v in row.items() if k != "images"}
             context["pest_type"] = pest_type
@@ -134,9 +244,15 @@ def generate():
             
             # 自动生成序号（001, 002, 003...）
             context["serial_number"] = str(idx + 1).zfill(3)
-            
+
+            # 根据害虫类型选择字段映射
+            if pest_type == "春尺蠖":
+                field_mapping = CHUNCHIHUO_FIELD_MAPPING
+            else:
+                field_mapping = GENERAL_FIELD_MAPPING
+
             # 应用字段映射：将前端字段名转换为Word模板变量名
-            for frontend_key, template_key in FIELD_MAPPING.items():
+            for frontend_key, template_key in field_mapping.items():
                 if frontend_key in context:
                     context[template_key] = context[frontend_key]
             
@@ -165,15 +281,39 @@ def generate():
             date = context.get("survey_date", "无日期")
             sn = context.get("location_id") or context.get("serial_number") or str(uuid.uuid4())[:8]
             
-            filename = f"2025林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
+            current_year = datetime.now().year
+            filename = f"{current_year}林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
             output_path = OUTPUT_DIR / filename
             doc.save(output_path)
             generated_files.append(filename)
+
+            # 如果是春尺蠖，自动保存到数据库
+            if pest_type == "春尺蠖":
+                success, msg = insert_chunchihuo_record(row, replace_on_conflict=True)
+                db_save_results.append({
+                    "record_num": idx + 1,
+                    "location_id": row.get("location_id", "未知"),
+                    "success": success,
+                    "message": msg
+                })
         
         # 清理临时文件
         cleanup_temp_images(all_temp_files)
-            
-        return jsonify({"success": True, "files": generated_files})
+
+        # 构建返回结果
+        result = {
+            "success": True,
+            "files": generated_files
+        }
+
+        # 如果是春尺蠖，添加数据库保存结果
+        if pest_type == "春尺蠖" and db_save_results:
+            db_success_count = sum(1 for r in db_save_results if r["success"])
+            result["db_saved"] = db_success_count
+            result["db_total"] = len(db_save_results)
+            result["db_results"] = db_save_results
+
+        return jsonify(result)
     except Exception as e:
         # 出错时也清理临时文件
         cleanup_temp_images(all_temp_files)

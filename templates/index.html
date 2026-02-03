@@ -18,16 +18,16 @@
 
         <div class="config-section">
             <div class="input-group">
-                <label>害虫类型</label>
-                <select id="pestType" onchange="handlePestTypeChange()">
-                    <option value="" disabled selected>请选择害虫类型</option>
-                    <option value="美国白蛾">美国白蛾</option>
-                    <option value="杨树食叶害虫">杨树食叶害虫</option>
-                    <option value="松材线虫">松材线虫</option>
-                    <option value="春尺蠖">春尺蠖</option>
-                    <option value="其它">其它</option>
-                </select>
-            </div>
+	                <label>害虫类型</label>
+	                <select id="pestType" onchange="handlePestTypeChange()">
+	                    <option value="" disabled selected>请选择害虫类型</option>
+	                    <option value="春尺蠖">春尺蠖</option>
+	                    <option value="美国白蛾">美国白蛾</option>
+	                    <option value="杨树食叶害虫">杨树食叶害虫</option>
+	                    <option value="松材线虫">松材线虫</option>
+	                    <option value="其它">其它</option>
+	                </select>
+	            </div>
             <div class="input-group">
                 <label>统防任务</label>
                 <select id="taskType">
@@ -59,6 +59,7 @@
 
         <div class="actions">
             <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
+            <button class="btn-save-db" id="btnSaveDb" onclick="saveToDatabase()" style="display:none">💾 保存到数据库</button>
         </div>
 
         <div id="statusMsg" class="status-msg"></div>
@@ -66,55 +67,92 @@
 
     <script>
         // 字段配置：分两行布局
-        const FIELDS_ROW1 = [
-            { key: "survey_date", label: "调查日期", type: "date" },
-            { key: "region", label: "区域", type: "select", options: ["乡镇", "城区"] },
-            { key: "town_or_street", label: "乡镇/街道", type: "text" },
-            { key: "location_id", label: "点位编号", type: "text" },
-            { key: "location_name", label: "点位名", type: "text" },
-            { key: "occurrence_position", label: "发生位置", type: "text" }
-        ];
+	        const FIELDS_ROW1 = [
+	            { key: "survey_date", label: "调查日期", type: "date" },
+	            { key: "region", label: "区域", type: "select", options: ["乡镇", "城区"] },
+	            { key: "town_or_street", label: "乡镇/街道", type: "text" },
+	            { key: "location_id", label: "点位编号", type: "text" },
+	            { key: "location_name", label: "点位名称", type: "text" },
+	            { key: "occurrence_position", label: "发生位置", type: "text" }
+	        ];
 
-        const FIELDS_ROW2 = [
-            { key: "land_type", label: "地块类型", type: "text", hideable: true },
-            { key: "host_plant", label: "危害寄主", type: "text", hideable: true },
-            { key: "damaged_count", label: "受害株数", type: "text", hideable: true },
-            { key: "web_count", label: "网幕数", type: "text", hideable: true },
-            { key: "description", label: "详细情况描述", type: "textarea", wide: true },
-            { key: "note", label: "备注", type: "text" }
-        ];
+	        const FIELDS_ROW2 = [
+	            { key: "land_type", label: "地块类型", type: "text", hideable: true },
+	            { key: "host_plant", label: "危害寄主", type: "text", hideable: true },
+	            { key: "damaged_count", label: "受害株数", type: "text", hideable: true },
+	            { key: "web_count", label: "网幕数", type: "text", hideable: true },
+	            { key: "total_insect_count", label: "总虫口数", type: "number", hideable: true },
+	            { key: "damage_level", label: "受害程度", type: "text", hideable: true },
+	            { key: "report_time", label: "上报时间", type: "text", hideable: true, placeholder: "自动生成" },
+	            { key: "description", label: "详细情况描述", type: "textarea", wide: true },
+	            { key: "note", label: "备注", type: "text", hideable: true }
+	        ];
 
-        const ALL_FIELDS = [...FIELDS_ROW1, ...FIELDS_ROW2];
+	        const ALL_FIELDS = [...FIELDS_ROW1, ...FIELDS_ROW2];
 
-        // 春尺蠖模式下需要隐藏的字段及其默认值
-        const CHUNCHIHU_HIDDEN_FIELDS = {
-            "land_type": "平原造林",
-            "host_plant": "杨树",
-            "damaged_count": "10",
-            "web_count": "0"
-        };
+	        // 默认模式（非春尺蠖）显示字段
+	        const DEFAULT_VISIBLE_FIELD_KEYS = new Set([
+	            "survey_date",
+	            "region",
+	            "town_or_street",
+	            "location_id",
+	            "location_name",
+	            "occurrence_position",
+	            "land_type",
+	            "host_plant",
+	            "damaged_count",
+	            "web_count",
+	            "description",
+	            "note"
+	        ]);
 
-        const DEFAULT_ROW = {
-            survey_date: new Date().toISOString().split('T')[0],
-            region: "乡镇",
-            town_or_street: "",
-            location_id: "",
-            location_name: "",
-            occurrence_position: "",
-            land_type: "",
-            host_plant: "",
-            damaged_count: "10",
-            web_count: "0",
-            description: "",
-            note: ""
-        };
+	        // 春尺蠖上报单模式：显示字段与数据库（chunchihuo_reports）保持一致
+	        const CHUNCHIHUO_VISIBLE_FIELD_KEYS = new Set([
+	            "survey_date",
+	            "region",
+	            "town_or_street",
+	            "location_id",
+	            "location_name",
+	            "occurrence_position",
+	            "land_type",
+	            "total_insect_count",
+	            "damage_level",
+	            "report_time",
+	            "description"
+	        ]);
+
+	        // 春尺蠖模式下，仍保留但不展示的字段默认值（用于不影响现有工作单生成逻辑）
+	        const CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS = {
+	            "host_plant": "杨树",
+	            "damaged_count": "10",
+	            "web_count": "0",
+	            "note": ""
+	        };
+
+	        const DEFAULT_ROW = {
+	            survey_date: new Date().toISOString().split('T')[0],
+	            region: "乡镇",
+	            town_or_street: "",
+	            location_id: "",
+	            location_name: "",
+	            occurrence_position: "",
+	            land_type: "",
+	            host_plant: "",
+	            damaged_count: "10",
+	            web_count: "0",
+	            total_insect_count: "",
+	            damage_level: "",
+	            report_time: "",
+	            description: "",
+	            note: ""
+	        };
 
         // 用于存储每行的图片数据 (Base64)
         const rowImagesMap = new Map();
         let rowIdCounter = 0;
 
         // 日期格式转换函数：兼容多种 Excel 导出格式
-        function parseDate(dateStr) {
+	        function parseDate(dateStr) {
             if (!dateStr) return "";
 
             // 如果已经是 yyyy-mm-dd 格式，直接返回
@@ -159,41 +197,59 @@
             }
 
             // 无法解析，返回原值
-            return dateStr;
-        }
+	            return dateStr;
+	        }
 
-        // 创建输入元素的辅助函数
-        function createInputElement(fieldConfig, value) {
-            const { key, type, options, wide } = fieldConfig;
-            let element;
+	        // 获取当前本地时间字符串（YYYY-MM-DD HH:MM:SS）
+	        function getCurrentDateTimeString() {
+	            const now = new Date();
+	            const year = now.getFullYear();
+	            const month = String(now.getMonth() + 1).padStart(2, '0');
+	            const day = String(now.getDate()).padStart(2, '0');
+	            const hours = String(now.getHours()).padStart(2, '0');
+	            const minutes = String(now.getMinutes()).padStart(2, '0');
+	            const seconds = String(now.getSeconds()).padStart(2, '0');
+	            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+	        }
 
-            if (type === "textarea") {
-                element = document.createElement("textarea");
-                element.rows = 2;
-                element.value = value || '';
-            } else if (type === "select") {
-                element = document.createElement("select");
-                options.forEach(opt => {
-                    const option = document.createElement("option");
-                    option.value = opt;
-                    option.textContent = opt;
-                    if (opt === value) option.selected = true;
-                    element.appendChild(option);
-                });
-            } else if (type === "date") {
-                element = document.createElement("input");
-                element.type = "date";
-                element.value = parseDate(value || '');
-            } else {
-                element = document.createElement("input");
-                element.type = "text";
-                element.value = value || '';
-            }
+	        // 创建输入元素的辅助函数
+	        function createInputElement(fieldConfig, value) {
+	            const { key, type, options, wide, placeholder } = fieldConfig;
+	            let element;
 
-            element.setAttribute("data-key", key);
-            if (wide) element.classList.add("wide-input");
-            return element;
-        }
+	            if (type === "textarea") {
+	                element = document.createElement("textarea");
+	                element.rows = 2;
+	                element.value = value || '';
+	            } else if (type === "select") {
+	                element = document.createElement("select");
+	                options.forEach(opt => {
+	                    const option = document.createElement("option");
+	                    option.value = opt;
+	                    option.textContent = opt;
+	                    if (opt === value) option.selected = true;
+	                    element.appendChild(option);
+	                });
+	            } else if (type === "date") {
+	                element = document.createElement("input");
+	                element.type = "date";
+	                element.value = parseDate(value || '');
+	            } else if (type === "number") {
+	                element = document.createElement("input");
+	                element.type = "number";
+	                element.step = "1";
+	                element.value = value || '';
+	            } else {
+	                element = document.createElement("input");
+	                element.type = "text";
+	                element.value = value || '';
+	            }
+
+	            element.setAttribute("data-key", key);
+	            if (placeholder) element.placeholder = placeholder;
+	            if (wide) element.classList.add("wide-input");
+	            return element;
+	        }
 
         function addRow(data = DEFAULT_ROW) {
             const card = document.createElement("div");
@@ -260,36 +316,53 @@
             `;
             card.appendChild(actionsRow);
 
-            document.getElementById("recordsContainer").appendChild(card);
+	            document.getElementById("recordsContainer").appendChild(card);
 
-            // 如果当前是春尺蠖模式，需要隐藏并设置默认值
-            if (document.getElementById("pestType").value === "春尺蠖") {
-                applyChunchihuMode(card);
-            }
+	            // 根据当前害虫类型调整显示字段
+	            applyPestTypeMode(card, document.getElementById("pestType").value);
 
-            // 更新所有行号
-            updateRowNumbers();
-        }
+	            // 更新所有行号
+	            updateRowNumbers();
+	        }
 
-        function applyChunchihuMode(card) {
-            Object.keys(CHUNCHIHU_HIDDEN_FIELDS).forEach(field => {
-                const fieldDiv = card.querySelector(`.field-${field}`);
-                const input = card.querySelector(`[data-key="${field}"]`);
-                if (fieldDiv && input) {
-                    fieldDiv.style.display = "none";
-                    input.value = CHUNCHIHU_HIDDEN_FIELDS[field];
-                }
-            });
-        }
+	        function applyFieldVisibility(card, visibleFieldKeys) {
+	            ALL_FIELDS.forEach(fieldConfig => {
+	                const fieldDiv = card.querySelector(`.field-${fieldConfig.key}`);
+	                if (!fieldDiv) return;
+	                fieldDiv.style.display = visibleFieldKeys.has(fieldConfig.key) ? "" : "none";
+	            });
+	        }
 
-        function removeChunchihuMode(card) {
-            Object.keys(CHUNCHIHU_HIDDEN_FIELDS).forEach(field => {
-                const fieldDiv = card.querySelector(`.field-${field}`);
-                if (fieldDiv) {
-                    fieldDiv.style.display = "";
-                }
-            });
-        }
+	        function applyChunchihuoMode(card) {
+	            applyFieldVisibility(card, CHUNCHIHUO_VISIBLE_FIELD_KEYS);
+
+	            // 上报时间：自动生成（可展示但不建议手改）
+	            const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
+	            if (reportTimeInput) {
+	                if (!reportTimeInput.value) reportTimeInput.value = getCurrentDateTimeString();
+	                reportTimeInput.disabled = true;
+	            }
+
+	            // 保留但不展示的字段，设置默认值以不影响现有工作单生成逻辑
+	            Object.keys(CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS).forEach(field => {
+	                const input = card.querySelector(`[data-key="${field}"]`);
+	                if (input && !input.value) input.value = CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS[field];
+	            });
+	        }
+
+	        function applyDefaultMode(card) {
+	            applyFieldVisibility(card, DEFAULT_VISIBLE_FIELD_KEYS);
+	            const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
+	            if (reportTimeInput) reportTimeInput.disabled = false;
+	        }
+
+	        function applyPestTypeMode(card, pestType) {
+	            if (pestType === "春尺蠖") {
+	                applyChunchihuoMode(card);
+	            } else {
+	                applyDefaultMode(card);
+	            }
+	        }
 
         function deleteRow(btn, rowId) {
             rowImagesMap.delete(rowId);
@@ -415,6 +488,90 @@
             }
         }
 
+        // 保存到数据库（仅春尺蠖）
+        async function saveToDatabase() {
+            const btn = document.querySelector(".btn-save-db");
+            const status = document.getElementById("statusMsg");
+            const pestType = document.getElementById("pestType").value;
+
+            if (pestType !== "春尺蠖") {
+                alert("仅支持春尺蠖数据保存到数据库");
+                return;
+            }
+
+            const cards = document.querySelectorAll("#recordsContainer .record-card");
+            const records = Array.from(cards).map(card => {
+                const record = {};
+                card.querySelectorAll("input[data-key], textarea[data-key], select[data-key]").forEach(el => {
+                    record[el.getAttribute("data-key")] = el.value;
+                });
+                return record;
+            });
+
+            if (records.length === 0) {
+                alert("请至少添加一行数据！");
+                return;
+            }
+
+            // 必填字段验证
+            const requiredFields = [
+                { key: "town_or_street", label: "乡镇/街道" },
+                { key: "location_id", label: "点位编号" },
+                { key: "location_name", label: "点位名称" },
+                { key: "survey_date", label: "调查日期" },
+                { key: "description", label: "详细情况描述" }
+            ];
+
+            const errors = [];
+            records.forEach((record, index) => {
+                const recordNum = index + 1;
+                requiredFields.forEach(field => {
+                    const value = record[field.key];
+                    if (!value || value.trim() === "") {
+                        errors.push(`第 ${recordNum} 条记录：${field.label} 不能为空`);
+                    }
+                });
+            });
+
+            if (errors.length > 0) {
+                alert("⚠️ 请填写以下必填字段：\n\n" + errors.join("\n"));
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "正在保存中...";
+            status.textContent = "💾 正在保存到数据库，请稍候...";
+            status.style.color = "white";
+
+            try {
+                const response = await fetch("/api/save-to-db", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pest_type: pestType,
+                        records: records
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    status.textContent = `✅ 成功保存 ${result.saved} 条记录到数据库！`;
+                    status.style.color = "#2ecc71";
+                    if (result.failed > 0) {
+                        status.textContent += `\n⚠️ ${result.failed} 条记录保存失败`;
+                    }
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                status.textContent = `❌ 保存失败: ${err.message}`;
+                status.style.color = "#e74c3c";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "💾 保存到数据库";
+            }
+        }
+
         async function generateDocs() {
             const btn = document.querySelector(".btn-generate");
             const status = document.getElementById("statusMsg");
@@ -434,6 +591,31 @@
 
             if (records.length === 0) {
                 alert("请至少添加一行数据！");
+                return;
+            }
+
+            // 必填字段验证
+            const requiredFields = [
+                { key: "town_or_street", label: "乡镇/街道" },
+                { key: "location_id", label: "点位编号" },
+                { key: "location_name", label: "点位名称" },
+                { key: "survey_date", label: "调查日期" },
+                { key: "description", label: "详细情况描述" }
+            ];
+
+            const errors = [];
+            records.forEach((record, index) => {
+                const recordNum = index + 1;
+                requiredFields.forEach(field => {
+                    const value = record[field.key];
+                    if (!value || value.trim() === "") {
+                        errors.push(`第 ${recordNum} 条记录：${field.label} 不能为空`);
+                    }
+                });
+            });
+
+            if (errors.length > 0) {
+                alert("⚠️ 请填写以下必填字段：\n\n" + errors.join("\n"));
                 return;
             }
 
@@ -470,19 +652,22 @@
         }
 
         // 处理害虫类型切换
-        function handlePestTypeChange() {
-            const pestType = document.getElementById("pestType").value;
-            const isChunchihu = pestType === "春尺蠖";
+	        function handlePestTypeChange() {
+	            const pestType = document.getElementById("pestType").value;
 
-            // 处理每一个卡片
-            document.querySelectorAll("#recordsContainer .record-card").forEach(card => {
-                if (isChunchihu) {
-                    applyChunchihuMode(card);
-                } else {
-                    removeChunchihuMode(card);
-                }
-            });
-        }
+	            // 处理每一个卡片
+	            document.querySelectorAll("#recordsContainer .record-card").forEach(card => {
+	                applyPestTypeMode(card, pestType);
+	            });
+
+	            // 控制"保存到数据库"按钮的显示
+	            const btnSaveDb = document.getElementById("btnSaveDb");
+	            if (pestType === "春尺蠖") {
+	                btnSaveDb.style.display = "";
+	            } else {
+	                btnSaveDb.style.display = "none";
+	            }
+	        }
 
         // 页面初始化（不再默认添加空白行）
     </script>
