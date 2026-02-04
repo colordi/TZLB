@@ -50,15 +50,15 @@ def build_prompt(text: str) -> str:
     return prompt
 
 
-def build_chunchihuo_prompt(text: str, today_date: str) -> str:
-    """构建春尺蠖专用的提示词
+def build_chihuo_prompt(text: str, today_date: str, pest_name: str) -> str:
+    """构建尺蠖类专用的提示词
 
-    春尺蠖调查提取规则：
+    尺蠖调查提取规则：
     - 必须提取：点位编号、虫口数量
     - 智能提取：日期、地理位置、其他数据库字段
     - 虫口数量计算：平均数 × 5（因为调查5棵树）
     """
-    prompt = f"""你是一个专业的林业调查数据提取助手，专门处理春尺蠖调查记录。
+    prompt = f"""你是一个专业的林业调查数据提取助手，专门处理{pest_name}调查记录。
 
 ## 输入格式说明
 用户输入的文本通常是简短的点位+数量描述，例如：
@@ -81,15 +81,15 @@ def build_chunchihuo_prompt(text: str, today_date: str) -> str:
 
 ### 2. 虫口数量 - 必须提取
 - 识别"平均X头"和"最多Y头"
-- **total_insect_count = 平均数 × 5**（因为春尺蠖调查固定调查5棵树）
+- **total_insect_count = 平均数 × 5**（因为尺蠖调查固定调查5棵树）
 - 如果只有平均数，就用平均数×5
 - 如果只有最多数，就用最多数×5
 - 如果两个都有，优先使用平均数×5
 
 ### 3. 描述（description）
-- 生成标准格式："{today_date}调查：平均每标准枝上发现春尺蠖X头，最多Y头，需开展防治。"
-- 如果只有平均数："{today_date}调查：平均每标准枝上发现春尺蠖X头，需开展防治。"
-- 如果只有最多数："{today_date}调查：最多每标准枝上发现春尺蠖Y头，需开展防治。"
+- 生成标准格式："{today_date}调查：平均每标准枝上发现{pest_name}X头，最多Y头，需开展防治。"
+- 如果只有平均数："{today_date}调查：平均每标准枝上发现{pest_name}X头，需开展防治。"
+- 如果只有最多数："{today_date}调查：最多每标准枝上发现{pest_name}Y头，需开展防治。"
 
 ### 4. 调查日期（survey_date）
 - 如果文本中有日期信息，提取并格式化为YYYY-MM-DD
@@ -112,7 +112,6 @@ def build_chunchihuo_prompt(text: str, today_date: str) -> str:
 - occurrence_position: 提取具体发生位置描述（如"道路绿化带"、"平原造林"等）
 
 ### 6. 其他字段 - 智能提取
-- land_type: 地块类型（如"平原造林"、"道路绿化"等）
 - damage_level: 受害程度（如"轻度"、"中度"、"重度"等）
 - report_time: 留空（由系统自动生成）
 
@@ -126,7 +125,6 @@ def build_chunchihuo_prompt(text: str, today_date: str) -> str:
 - town_or_street: 乡镇/街道名称
 - location_name: 点位名称
 - occurrence_position: 发生位置
-- land_type: 地块类型
 - damage_level: 受害程度
 - report_time: 空字符串
 
@@ -138,8 +136,8 @@ def build_chunchihuo_prompt(text: str, today_date: str) -> str:
 ## 输出示例
 输入："yf0083平均30头最多50头，yf0109平均25头"
 输出：[
-  {{"location_id": "YF0083", "total_insect_count": 150, "description": "{today_date}调查：平均每标准枝上发现春尺蠖30头，最多50头，需开展防治。", "survey_date": "{today_date}", "region": "", "town_or_street": "", "location_name": "", "occurrence_position": "", "land_type": "", "damage_level": "", "report_time": ""}},
-  {{"location_id": "YF0109", "total_insect_count": 125, "description": "{today_date}调查：平均每标准枝上发现春尺蠖25头，需开展防治。", "survey_date": "{today_date}", "region": "", "town_or_street": "", "location_name": "", "occurrence_position": "", "land_type": "", "damage_level": "", "report_time": ""}}
+  {{"location_id": "YF0083", "total_insect_count": 150, "description": "{today_date}调查：平均每标准枝上发现{pest_name}30头，最多50头，需开展防治。", "survey_date": "{today_date}", "region": "", "town_or_street": "", "location_name": "", "occurrence_position": "", "damage_level": "", "report_time": ""}},
+  {{"location_id": "YF0109", "total_insect_count": 125, "description": "{today_date}调查：平均每标准枝上发现{pest_name}25头，需开展防治。", "survey_date": "{today_date}", "region": "", "town_or_street": "", "location_name": "", "occurrence_position": "", "damage_level": "", "report_time": ""}}
 ]
 
 请直接返回JSON数组，不要包含任何解释文字。
@@ -167,8 +165,8 @@ def parse_text_with_ai(text: str, pest_type: str = "") -> list[dict]:
     today_date = date.today().strftime("%Y-%m-%d")
     
     # 根据害虫类型选择提示词
-    if pest_type == "春尺蠖":
-        prompt_content = build_chunchihuo_prompt(text, today_date)
+    if pest_type in {"春尺蠖", "国槐尺蠖"}:
+        prompt_content = build_chihuo_prompt(text, today_date, pest_type)
     else:
         prompt_content = build_prompt(text)
     

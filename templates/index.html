@@ -4,24 +4,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2025 林业调查工作单助手</title>
+    <title>林业调查工作单助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=ZCOOL+XiaoWei&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
     <div class="background-blobs">
-        <div class="blob"></div>
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
     </div>
 
     <div class="container">
-        <h1>🌲 派单生成助手</h1>
+        <div class="page-header">
+            <div class="header-top">
+                <span class="tag" id="yearTag">2025 · 林业调查</span>
+                <span class="tag ghost">派单生成</span>
+            </div>
+            <h1>派单生成助手</h1>
+            <p class="subtitle">将调查文本与现场记录快速转为结构化工作单，支持 AI 解析、图片留存与批量导出。</p>
+            <div class="header-meta">
+                <span>AI 解析</span>
+                <span>批量输出</span>
+                <span>现场留痕</span>
+            </div>
+        </div>
 
+        <div class="section-title">基础配置</div>
         <div class="config-section">
             <div class="input-group">
 	                <label>害虫类型</label>
 	                <select id="pestType" onchange="handlePestTypeChange()">
 	                    <option value="" disabled selected>请选择害虫类型</option>
 	                    <option value="春尺蠖">春尺蠖</option>
+	                    <option value="国槐尺蠖">国槐尺蠖</option>
 	                    <option value="美国白蛾">美国白蛾</option>
 	                    <option value="杨树食叶害虫">杨树食叶害虫</option>
 	                    <option value="松材线虫">松材线虫</option>
@@ -41,6 +61,7 @@
         </div>
 
         <!-- AI文本解析区域 -->
+        <div class="section-title">智能解析</div>
         <div class="ai-parse-section">
             <div class="ai-parse-header">
                 <label>📝 粘贴调查记录文本（支持自由格式）</label>
@@ -52,20 +73,29 @@
         </div>
 
         <!-- 卡片式数据容器 -->
+        <div class="section-title">调查记录</div>
+        <div class="records-toolbar">
+            <button class="btn-add" onclick="addRow()">+ 添加一行调查数据</button>
+            <div class="actions">
+                <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
+                <button class="btn-save-db" id="btnSaveDb" onclick="saveToDatabase()" style="display:none">💾 保存到数据库</button>
+                <a class="btn-view" href="/records">📚 查看数据库</a>
+            </div>
+        </div>
         <div class="records-container" id="recordsContainer">
             <!-- 记录卡片将通过 JS 动态添加 -->
-        </div>
-        <button class="btn-add" onclick="addRow()">+ 添加一行调查数据</button>
-
-        <div class="actions">
-            <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
-            <button class="btn-save-db" id="btnSaveDb" onclick="saveToDatabase()" style="display:none">💾 保存到数据库</button>
         </div>
 
         <div id="statusMsg" class="status-msg"></div>
     </div>
 
     <script>
+        const yearTag = document.getElementById("yearTag");
+        if (yearTag) {
+            yearTag.textContent = `${new Date().getFullYear()} · 林业调查`;
+        }
+        document.title = `${new Date().getFullYear()} 林业调查工作单助手`;
+
         // 字段配置：分两行布局
 	        const FIELDS_ROW1 = [
 	            { key: "survey_date", label: "调查日期", type: "date" },
@@ -114,20 +144,23 @@
 	            "location_id",
 	            "location_name",
 	            "occurrence_position",
-	            "land_type",
 	            "total_insect_count",
 	            "damage_level",
 	            "report_time",
 	            "description"
 	        ]);
 
-	        // 春尺蠖模式下，仍保留但不展示的字段默认值（用于不影响现有工作单生成逻辑）
-	        const CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS = {
-	            "host_plant": "杨树",
-	            "damaged_count": "10",
-	            "web_count": "0",
-	            "note": ""
-	        };
+        // 春尺蠖模式下不再预填隐藏字段默认值
+        const CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS = {};
+
+	        const CHUNCHIHUO_REMOVED_FIELD_KEYS = new Set([
+	            "land_type",
+	            "host_plant",
+	            "damaged_count",
+	            "web_count"
+	        ]);
+
+	        const CHI_HUO_PEST_TYPES = new Set(["春尺蠖", "国槐尺蠖"]);
 
 	        const DEFAULT_ROW = {
 	            survey_date: new Date().toISOString().split('T')[0],
@@ -146,6 +179,16 @@
 	            description: "",
 	            note: ""
 	        };
+
+	        function stripChihuoFields(record) {
+	            CHUNCHIHUO_REMOVED_FIELD_KEYS.forEach(key => {
+	                if (key in record) delete record[key];
+	            });
+	        }
+
+	        function isChihuoType(pestType) {
+	            return CHI_HUO_PEST_TYPES.has(pestType);
+	        }
 
         // 用于存储每行的图片数据 (Base64)
         const rowImagesMap = new Map();
@@ -357,7 +400,7 @@
 	        }
 
 	        function applyPestTypeMode(card, pestType) {
-	            if (pestType === "春尺蠖") {
+	            if (isChihuoType(pestType)) {
 	                applyChunchihuoMode(card);
 	            } else {
 	                applyDefaultMode(card);
@@ -471,6 +514,9 @@
                 if (result.success && result.records) {
                     // 将解析结果添加到表格
                     result.records.forEach(record => {
+                        if (isChihuoType(pestType)) {
+                            stripChihuoFields(record);
+                        }
                         addRow(record);
                     });
 
@@ -488,14 +534,14 @@
             }
         }
 
-        // 保存到数据库（仅春尺蠖）
+        // 保存到数据库（仅尺蠖类）
         async function saveToDatabase() {
             const btn = document.querySelector(".btn-save-db");
             const status = document.getElementById("statusMsg");
             const pestType = document.getElementById("pestType").value;
 
-            if (pestType !== "春尺蠖") {
-                alert("仅支持春尺蠖数据保存到数据库");
+            if (!isChihuoType(pestType)) {
+                alert("仅支持春尺蠖/国槐尺蠖数据保存到数据库");
                 return;
             }
 
@@ -505,6 +551,9 @@
                 card.querySelectorAll("input[data-key], textarea[data-key], select[data-key]").forEach(el => {
                     record[el.getAttribute("data-key")] = el.value;
                 });
+                if (isChihuoType(pestType)) {
+                    stripChihuoFields(record);
+                }
                 return record;
             });
 
@@ -586,6 +635,9 @@
                 // 附加该行的图片数据
                 const rowId = card.getAttribute("data-row-id");
                 record.images = rowImagesMap.get(rowId) || [];
+                if (isChihuoType(document.getElementById("pestType").value)) {
+                    stripChihuoFields(record);
+                }
                 return record;
             });
 
@@ -662,7 +714,7 @@
 
 	            // 控制"保存到数据库"按钮的显示
 	            const btnSaveDb = document.getElementById("btnSaveDb");
-	            if (pestType === "春尺蠖") {
+	            if (isChihuoType(pestType)) {
 	                btnSaveDb.style.display = "";
 	            } else {
 	                btnSaveDb.style.display = "none";

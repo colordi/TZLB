@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>林业调查数据库</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=ZCOOL+XiaoWei&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="container">
+        <div class="page-header">
+            <div class="header-top">
+                <span class="tag" id="yearTag">2025 · 林业调查</span>
+                <span class="tag ghost">数据库可视化</span>
+            </div>
+            <h1>数据库记录</h1>
+            <p class="subtitle">按虫种分开展示，字段不混用。当前默认展示全部虫种的分栏记录。</p>
+            <div class="header-meta">
+                <span id="totalCount">共 0 条</span>
+                <span>只读预览</span>
+                <span>CSV 导出</span>
+            </div>
+        </div>
+
+        <div class="records-actions">
+            <a class="btn-view" href="/">返回首页</a>
+        </div>
+
+        <div id="pestSections" class="pest-sections"></div>
+
+        <div id="recordsStatus" class="status-msg"></div>
+    </div>
+
+    <script>
+        const yearTag = document.getElementById("yearTag");
+        if (yearTag) {
+            yearTag.textContent = `${new Date().getFullYear()} · 林业调查`;
+        }
+        document.title = `${new Date().getFullYear()} 林业调查数据库`;
+
+        const pestSections = document.getElementById("pestSections");
+        const recordsStatus = document.getElementById("recordsStatus");
+        const totalCount = document.getElementById("totalCount");
+
+        function setStatus(message) {
+            recordsStatus.textContent = message;
+        }
+
+        function createTable(fields, records) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "data-table-wrapper";
+
+            const table = document.createElement("table");
+            const thead = document.createElement("thead");
+            const headRow = document.createElement("tr");
+            fields.forEach((field) => {
+                const th = document.createElement("th");
+                th.textContent = field.label;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+
+            const tbody = document.createElement("tbody");
+            records.forEach((record) => {
+                const row = document.createElement("tr");
+                fields.forEach((field) => {
+                    const td = document.createElement("td");
+                    const value = record[field.key];
+                    td.textContent = value === undefined || value === null ? "" : value;
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            wrapper.appendChild(table);
+            return wrapper;
+        }
+
+        function renderPestSection(pest) {
+            const section = document.createElement("section");
+            section.className = "pest-section";
+
+            const header = document.createElement("div");
+            header.className = "pest-header";
+
+            const title = document.createElement("div");
+            title.className = "pest-title";
+            title.textContent = pest.pest_type;
+
+            const meta = document.createElement("div");
+            meta.className = "pest-meta";
+            meta.textContent = `共 ${pest.total || 0} 条`;
+
+            const actions = document.createElement("div");
+            actions.className = "pest-actions";
+
+            const exportLink = document.createElement("a");
+            exportLink.className = "btn-export";
+            exportLink.href = `/api/records/export?pest_type=${encodeURIComponent(pest.pest_type)}`;
+            exportLink.textContent = "导出 CSV";
+
+            actions.appendChild(exportLink);
+            header.appendChild(title);
+            header.appendChild(meta);
+            header.appendChild(actions);
+            section.appendChild(header);
+
+            if (pest.total === 0) {
+                const empty = document.createElement("div");
+                empty.className = "pest-empty";
+                empty.textContent = "暂无记录";
+                section.appendChild(empty);
+            } else {
+                section.appendChild(createTable(pest.fields, pest.records));
+            }
+
+            pestSections.appendChild(section);
+        }
+
+        async function loadRecords() {
+            setStatus("正在加载数据库记录...");
+            try {
+                const response = await fetch("/api/records");
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || "加载失败");
+                }
+                const pests = result.pests || [];
+                const total = result.total || 0;
+                totalCount.textContent = `共 ${total} 条`;
+                pestSections.innerHTML = "";
+
+                if (pests.length === 0) {
+                    setStatus("当前数据库暂无记录。可先在首页保存数据。");
+                    return;
+                }
+
+                pests.forEach(renderPestSection);
+                setStatus("");
+            } catch (error) {
+                setStatus(`加载失败：${error.message}`);
+            }
+        }
+
+        loadRecords();
+    </script>
+</body>
+
+</html>

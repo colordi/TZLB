@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from pathlib import Path
@@ -8,10 +8,19 @@ import uuid
 import base64
 import tempfile
 import os
+import csv
+import io
 from chunchihuo_reports_db import (
     init_chunchihuo_reports_db,
     insert_chunchihuo_record,
-    insert_chunchihuo_records_batch
+    insert_chunchihuo_records_batch,
+    fetch_chunchihuo_records
+)
+from guohuaichihuo_reports_db import (
+    init_guohuaichihuo_reports_db,
+    insert_guohuaichihuo_record,
+    insert_guohuaichihuo_records_batch,
+    fetch_guohuaichihuo_records
 )
 
 app = Flask(__name__)
@@ -21,6 +30,7 @@ BASE_DIR = Path(__file__).parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 GENERAL_TEMPLATE_PATH = TEMPLATE_DIR / "工作单模板.docx"
 CHUNCHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "春尺蠖工作单模板.docx"
+GUOHUAICHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "国槐尺蠖工作单模板.docx"
 IMAGES_DIR = BASE_DIR / "images"
 OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp_images"
@@ -34,6 +44,8 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # 初始化春尺蠖数据库
 init_chunchihuo_reports_db()
+# 初始化国槐尺蠖数据库
+init_guohuaichihuo_reports_db()
 
 def extract_number_from_name(path: Path) -> int:
     m = re.search(r"-(\d+)", path.stem)
@@ -86,9 +98,131 @@ def cleanup_temp_images(paths: list[Path]):
         except Exception:
             pass
 
+
+def resolve_year(survey_date: str | None) -> str:
+    """从调查日期中提取年份，失败则回退到当前年份。"""
+    if survey_date:
+        match = re.match(r"(\\d{4})", str(survey_date))
+        if match:
+            return match.group(1)
+    return str(datetime.now().year)
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/records")
+def records_page():
+    """数据库可视化页面（统一入口，包含所有害虫类别）。"""
+    return render_template("records.html")
+
+
+PEST_DEFINITIONS = [
+    {
+        "pest_type": "春尺蠖",
+        "fields": [
+            {"key": "survey_date", "label": "调查日期"},
+            {"key": "region", "label": "区域"},
+            {"key": "town_or_street", "label": "乡镇/街道"},
+            {"key": "location_id", "label": "点位编号"},
+            {"key": "location_name", "label": "点位名称"},
+            {"key": "occurrence_position", "label": "发生位置"},
+            {"key": "total_insect_count", "label": "总虫口数"},
+            {"key": "damage_level", "label": "受害程度"},
+            {"key": "report_time", "label": "上报时间"},
+            {"key": "description", "label": "详细情况描述"}
+        ],
+        "fetcher": fetch_chunchihuo_records
+    },
+    {
+        "pest_type": "国槐尺蠖",
+        "fields": [
+            {"key": "survey_date", "label": "调查日期"},
+            {"key": "region", "label": "区域"},
+            {"key": "town_or_street", "label": "乡镇/街道"},
+            {"key": "location_id", "label": "点位编号"},
+            {"key": "location_name", "label": "点位名称"},
+            {"key": "occurrence_position", "label": "发生位置"},
+            {"key": "total_insect_count", "label": "总虫口数"},
+            {"key": "damage_level", "label": "受害程度"},
+            {"key": "report_time", "label": "上报时间"},
+            {"key": "description", "label": "详细情况描述"}
+        ],
+        "fetcher": fetch_guohuaichihuo_records
+    }
+]
+
+CHI_HUO_PEST_TYPES = {"春尺蠖", "国槐尺蠖"}
+CHI_HUO_REMOVED_FIELDS = {"land_type", "host_plant", "damaged_count", "web_count"}
+
+
+def sanitize_chihuo_record(record: dict) -> dict:
+    """移除尺蠖类不再使用的字段。"""
+    return {key: value for key, value in record.items() if key not in CHI_HUO_REMOVED_FIELDS}
+
+
+def sanitize_chihuo_records(records: list[dict]) -> list[dict]:
+    """批量移除尺蠖类不再使用的字段。"""
+    return [sanitize_chihuo_record(record) for record in records]
+
+
+def fetch_all_records_grouped() -> list[dict]:
+    """按虫种获取记录（字段不混用，前端按虫种分表展示）。"""
+    groups = []
+    for pest in PEST_DEFINITIONS:
+        records = pest["fetcher"]()
+        groups.append({
+            "pest_type": pest["pest_type"],
+            "fields": pest["fields"],
+            "records": records,
+            "total": len(records)
+        })
+    return groups
+
+
+@app.route("/api/records", methods=["GET"])
+def get_records():
+    """获取数据库记录（按虫种分组返回）。"""
+    try:
+        groups = fetch_all_records_grouped()
+        total = sum(group["total"] for group in groups)
+        return jsonify({
+            "success": True,
+            "total": total,
+            "pests": groups
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/records/export", methods=["GET"])
+def export_records_csv():
+    """导出数据库记录为 CSV（按虫种导出，字段不混用）。"""
+    try:
+        pest_type = request.args.get("pest_type", "").strip()
+        matched = [p for p in PEST_DEFINITIONS if p["pest_type"] == pest_type]
+        if not matched:
+            if not pest_type and len(PEST_DEFINITIONS) == 1:
+                matched = [PEST_DEFINITIONS[0]]
+            else:
+                return jsonify({"success": False, "error": "请指定有效的 pest_type 参数"}), 400
+        pest = matched[0]
+        records = pest["fetcher"]()
+        fields = pest["fields"]
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([field["label"] for field in fields])
+        for row in records:
+            writer.writerow([row.get(field["key"], "") for field in fields])
+
+        csv_content = "\ufeff" + output.getvalue()
+        filename = f"林业调查数据库_{pest['pest_type']}_{datetime.now().strftime('%Y%m%d')}.csv"
+        response = Response(csv_content, mimetype="text/csv; charset=utf-8-sig")
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/parse-text", methods=["POST"])
 def parse_text():
@@ -121,11 +255,11 @@ def save_to_db():
         records = data.get("records", [])
         pest_type = data.get("pest_type", "")
 
-        # 仅支持春尺蠖
-        if pest_type != "春尺蠖":
+        # 仅支持尺蠖类
+        if pest_type not in CHI_HUO_PEST_TYPES:
             return jsonify({
                 "success": False,
-                "error": "仅支持春尺蠖数据保存到数据库"
+                "error": "仅支持春尺蠖/国槐尺蠖数据保存到数据库"
             }), 400
 
         if not records:
@@ -133,6 +267,9 @@ def save_to_db():
                 "success": False,
                 "error": "没有数据需要保存"
             }), 400
+
+        if pest_type in CHI_HUO_PEST_TYPES:
+            records = sanitize_chihuo_records(records)
 
         # 必填字段验证
         required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
@@ -159,10 +296,16 @@ def save_to_db():
             }), 400
 
         # 批量保存到数据库
-        success_count, fail_count, errors = insert_chunchihuo_records_batch(
-            records,
-            replace_on_conflict=True
-        )
+        if pest_type == "春尺蠖":
+            success_count, fail_count, errors = insert_chunchihuo_records_batch(
+                records,
+                replace_on_conflict=True
+            )
+        else:
+            success_count, fail_count, errors = insert_guohuaichihuo_records_batch(
+                records,
+                replace_on_conflict=True
+            )
 
         return jsonify({
             "success": True,
@@ -204,6 +347,9 @@ def generate():
         pest_type = data.get("pest_type", "其它")
         task_type = data.get("task_type", "")
 
+        if pest_type in CHI_HUO_PEST_TYPES:
+            records = sanitize_chihuo_records(records)
+
         # 必填字段验证
         required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
         validation_errors = []
@@ -234,6 +380,8 @@ def generate():
             # 根据害虫类型选择模板
             if pest_type == "春尺蠖":
                 template_path = CHUNCHIHUO_TEMPLATE_PATH
+            elif pest_type == "国槐尺蠖":
+                template_path = GUOHUAICHIHUO_TEMPLATE_PATH
             else:
                 template_path = GENERAL_TEMPLATE_PATH
             doc = DocxTemplate(template_path)
@@ -241,12 +389,13 @@ def generate():
             context = {k: v for k, v in row.items() if k != "images"}
             context["pest_type"] = pest_type
             context["task_type"] = task_type
+            context["year"] = resolve_year(context.get("survey_date"))
             
             # 自动生成序号（001, 002, 003...）
             context["serial_number"] = str(idx + 1).zfill(3)
 
             # 根据害虫类型选择字段映射
-            if pest_type == "春尺蠖":
+            if pest_type in CHI_HUO_PEST_TYPES:
                 field_mapping = CHUNCHIHUO_FIELD_MAPPING
             else:
                 field_mapping = GENERAL_FIELD_MAPPING
@@ -287,9 +436,12 @@ def generate():
             doc.save(output_path)
             generated_files.append(filename)
 
-            # 如果是春尺蠖，自动保存到数据库
-            if pest_type == "春尺蠖":
-                success, msg = insert_chunchihuo_record(row, replace_on_conflict=True)
+            # 如果是尺蠖类，自动保存到数据库
+            if pest_type in CHI_HUO_PEST_TYPES:
+                if pest_type == "春尺蠖":
+                    success, msg = insert_chunchihuo_record(row, replace_on_conflict=True)
+                else:
+                    success, msg = insert_guohuaichihuo_record(row, replace_on_conflict=True)
                 db_save_results.append({
                     "record_num": idx + 1,
                     "location_id": row.get("location_id", "未知"),
@@ -306,8 +458,8 @@ def generate():
             "files": generated_files
         }
 
-        # 如果是春尺蠖，添加数据库保存结果
-        if pest_type == "春尺蠖" and db_save_results:
+        # 如果是尺蠖类，添加数据库保存结果
+        if pest_type in CHI_HUO_PEST_TYPES and db_save_results:
             db_success_count = sum(1 for r in db_save_results if r["success"])
             result["db_saved"] = db_success_count
             result["db_total"] = len(db_save_results)

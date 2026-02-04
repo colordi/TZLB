@@ -1,9 +1,9 @@
 """
-春尺蠖上报单 SQLite 数据库初始化脚本
+国槐尺蠖上报单 SQLite 数据库初始化脚本
 
 说明：
 - 本脚本仅负责创建数据库文件与表结构，不包含任何 Web/API 逻辑。
-- 默认数据库位置：data/chunchihuo_reports.sqlite3
+- 默认数据库位置：data/guohuaichihuo_reports.sqlite3
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_DB_PATH = BASE_DIR / "data" / "chunchihuo_reports.sqlite3"
+DEFAULT_DB_PATH = BASE_DIR / "data" / "guohuaichihuo_reports.sqlite3"
 
 
-def init_chunchihuo_reports_db(db_path: str | Path = DEFAULT_DB_PATH) -> Path:
-    """初始化春尺蠖上报单数据库（创建库文件、建表、索引）。
+def init_guohuaichihuo_reports_db(db_path: str | Path = DEFAULT_DB_PATH) -> Path:
+    """初始化国槐尺蠖上报单数据库（创建库文件、建表、索引）。
 
     Args:
         db_path: SQLite 数据库文件路径（可传字符串或 Path）。
@@ -31,7 +31,7 @@ def init_chunchihuo_reports_db(db_path: str | Path = DEFAULT_DB_PATH) -> Path:
     with sqlite3.connect(db_path) as conn:
         conn.executescript(
             """
-            CREATE TABLE IF NOT EXISTS chunchihuo_reports (
+            CREATE TABLE IF NOT EXISTS guohuaichihuo_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 survey_date TEXT NOT NULL,
                 region TEXT,
@@ -45,65 +45,21 @@ def init_chunchihuo_reports_db(db_path: str | Path = DEFAULT_DB_PATH) -> Path:
                 description TEXT,
                 UNIQUE(survey_date, location_id)
             );
-            """
-        )
 
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='chunchihuo_reports'"
-        )
-        if cursor.fetchone():
-            columns = [row[1] for row in conn.execute("PRAGMA table_info(chunchihuo_reports)")]
-            if "land_type" in columns:
-                conn.executescript(
-                    """
-                    BEGIN;
-                    DROP TABLE IF EXISTS chunchihuo_reports_new;
-                    CREATE TABLE chunchihuo_reports_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        survey_date TEXT NOT NULL,
-                        region TEXT,
-                        town_or_street TEXT,
-                        location_id TEXT NOT NULL,
-                        location_name TEXT,
-                        occurrence_position TEXT,
-                        total_insect_count INTEGER,
-                        damage_level TEXT,
-                        report_time TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-                        description TEXT,
-                        UNIQUE(survey_date, location_id)
-                    );
-                    INSERT INTO chunchihuo_reports_new (
-                        id, survey_date, region, town_or_street, location_id,
-                        location_name, occurrence_position, total_insect_count,
-                        damage_level, report_time, description
-                    )
-                    SELECT
-                        id, survey_date, region, town_or_street, location_id,
-                        location_name, occurrence_position, total_insect_count,
-                        damage_level, report_time, description
-                    FROM chunchihuo_reports;
-                    DROP TABLE chunchihuo_reports;
-                    ALTER TABLE chunchihuo_reports_new RENAME TO chunchihuo_reports;
-                    COMMIT;
-                    """
-                )
-
-        conn.executescript(
-            """
-            CREATE INDEX IF NOT EXISTS idx_chunchihuo_reports_report_time
-            ON chunchihuo_reports(report_time);
+            CREATE INDEX IF NOT EXISTS idx_guohuaichihuo_reports_report_time
+            ON guohuaichihuo_reports(report_time);
             """
         )
 
     return db_path
 
 
-def insert_chunchihuo_record(
+def insert_guohuaichihuo_record(
     record: dict,
     db_path: str | Path = DEFAULT_DB_PATH,
     replace_on_conflict: bool = True
 ) -> tuple[bool, str]:
-    """插入单条春尺蠖调查记录到数据库。
+    """插入单条国槐尺蠖调查记录到数据库。
 
     Args:
         record: 记录字典，必须包含 survey_date 和 location_id
@@ -116,11 +72,9 @@ def insert_chunchihuo_record(
     """
     db_path = Path(db_path)
 
-    # 验证必填字段
     if not record.get("survey_date") or not record.get("location_id"):
         return False, "缺少必填字段：survey_date 或 location_id"
 
-    # 准备插入语句
     insert_mode = "INSERT OR REPLACE" if replace_on_conflict else "INSERT OR IGNORE"
 
     try:
@@ -128,7 +82,7 @@ def insert_chunchihuo_record(
             cursor = conn.cursor()
             cursor.execute(
                 f"""
-                {insert_mode} INTO chunchihuo_reports (
+                {insert_mode} INTO guohuaichihuo_reports (
                     survey_date, region, town_or_street, location_id,
                     location_name, occurrence_position,
                     total_insect_count, damage_level, description
@@ -150,19 +104,18 @@ def insert_chunchihuo_record(
 
             if cursor.rowcount > 0:
                 return True, "记录已保存"
-            else:
-                return False, "记录已存在（未更新）"
+            return False, "记录已存在（未更新）"
 
     except sqlite3.Error as e:
         return False, f"数据库错误: {str(e)}"
 
 
-def insert_chunchihuo_records_batch(
+def insert_guohuaichihuo_records_batch(
     records: list[dict],
     db_path: str | Path = DEFAULT_DB_PATH,
     replace_on_conflict: bool = True
 ) -> tuple[int, int, list[str]]:
-    """批量插入春尺蠖调查记录。
+    """批量插入国槐尺蠖调查记录。
 
     Args:
         records: 记录列表
@@ -177,7 +130,7 @@ def insert_chunchihuo_records_batch(
     errors = []
 
     for idx, record in enumerate(records):
-        success, msg = insert_chunchihuo_record(record, db_path, replace_on_conflict)
+        success, msg = insert_guohuaichihuo_record(record, db_path, replace_on_conflict)
         if success:
             success_count += 1
         else:
@@ -187,11 +140,11 @@ def insert_chunchihuo_records_batch(
     return success_count, fail_count, errors
 
 
-def fetch_chunchihuo_records(
+def fetch_guohuaichihuo_records(
     db_path: str | Path = DEFAULT_DB_PATH,
     order_by: str = "report_time DESC"
 ) -> list[dict]:
-    """获取春尺蠖数据库记录（用于可视化展示）。
+    """获取国槐尺蠖数据库记录（用于可视化展示）。
 
     Args:
         db_path: 数据库路径
@@ -208,7 +161,7 @@ def fetch_chunchihuo_records(
         cursor.execute(
             f"""
             SELECT
-                '春尺蠖' AS pest_type,
+                '国槐尺蠖' AS pest_type,
                 survey_date,
                 region,
                 town_or_street,
@@ -219,7 +172,7 @@ def fetch_chunchihuo_records(
                 damage_level,
                 report_time,
                 description
-            FROM chunchihuo_reports
+            FROM guohuaichihuo_reports
             ORDER BY {order_by}
             """
         )
@@ -228,7 +181,7 @@ def fetch_chunchihuo_records(
 
 
 def main() -> None:
-    db_path = init_chunchihuo_reports_db()
+    db_path = init_guohuaichihuo_reports_db()
     print(f"✅ 已初始化数据库: {db_path}")
 
 
