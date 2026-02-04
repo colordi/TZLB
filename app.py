@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, send_file
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import quote
 import re
 import uuid
 import base64
@@ -10,6 +11,7 @@ import tempfile
 import os
 import csv
 import io
+import zipfile
 from chunchihuo_reports_db import (
     init_chunchihuo_reports_db,
     insert_chunchihuo_record,
@@ -425,13 +427,15 @@ def generate():
             doc.render(context)
             
             # 生成文件名
-            town = context.get("town_or_street", "未知")
-            loc = context.get("location_name", "未命名")
-            date = context.get("survey_date", "无日期")
+            town = context.get("town_or_street") or "未知"
+            loc = context.get("location_name") or "未命名"
+            date = context.get("survey_date") or "无日期"
             sn = context.get("location_id") or context.get("serial_number") or str(uuid.uuid4())[:8]
-            
+
             current_year = datetime.now().year
             filename = f"{current_year}林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
+            print(f"[DEBUG] Generated filename: {filename}")
+            print(f"[DEBUG] town={town}, loc={loc}, date={date}, sn={sn}")
             output_path = OUTPUT_DIR / filename
             doc.save(output_path)
             generated_files.append(filename)
@@ -452,24 +456,47 @@ def generate():
         # 清理临时文件
         cleanup_temp_images(all_temp_files)
 
-        # 构建返回结果
-        result = {
-            "success": True,
-            "files": generated_files
-        }
+        # 根据生成的文件数量决定返回方式
+        if len(generated_files) == 1:
+            # 单个文件：直接返回文件下载
+            file_path = OUTPUT_DIR / generated_files[0]
+            filename = generated_files[0]
+            # 对文件名进行URL编码
+            encoded_filename = quote(filename)
+            response = send_file(
+                file_path,
+                as_attachment=True,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            # 使用RFC 5987标准：filename*=UTF-8''encoded_name
+            response.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
+            return response
+        else:
+            # 多个文件：打包成 ZIP 后返回
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for filename in generated_files:
+                    file_path = OUTPUT_DIR / filename
+                    zip_file.write(file_path, filename)
 
-        # 如果是尺蠖类，添加数据库保存结果
-        if pest_type in CHI_HUO_PEST_TYPES and db_save_results:
-            db_success_count = sum(1 for r in db_save_results if r["success"])
-            result["db_saved"] = db_success_count
-            result["db_total"] = len(db_save_results)
-            result["db_results"] = db_save_results
+            zip_buffer.seek(0)
+            current_year = datetime.now().year
+            zip_filename = f"{current_year}林业工作单批量导出_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
 
-        return jsonify(result)
+            # 对文件名进行URL编码
+            encoded_zip_filename = quote(zip_filename)
+            response = send_file(
+                zip_buffer,
+                as_attachment=True,
+                mimetype='application/zip'
+            )
+            # 使用RFC 5987标准：filename*=UTF-8''encoded_name
+            response.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_zip_filename}"
+            return response
     except Exception as e:
         # 出错时也清理临时文件
         cleanup_temp_images(all_temp_files)
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001)

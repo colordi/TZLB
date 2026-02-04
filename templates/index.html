@@ -687,12 +687,44 @@
                     })
                 });
 
-                const result = await response.json();
-                if (result.success) {
-                    status.textContent = `✅ 成功生成 ${result.files.length} 份工作单！文件已保存至 output 目录。`;
-                    status.style.color = "#2ecc71";
+                if (!response.ok) {
+                    // 如果响应不成功，尝试解析错误信息
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || "生成失败");
+                }
+
+                // 检查响应类型
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    // JSON 响应（错误情况）
+                    const result = await response.json();
+                    throw new Error(result.error || "生成失败");
                 } else {
-                    throw new Error(result.error);
+                    // 文件响应（成功情况）
+                    const blob = await response.blob();
+                    const contentDisposition = response.headers.get("content-disposition");
+                    let filename = "工作单.docx";
+
+                    // 从响应头中提取文件名
+                    if (contentDisposition) {
+                        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+                        if (matches != null && matches[1]) {
+                            filename = matches[1].replace(/['"]/g, '');
+                        }
+                    }
+
+                    // 创建下载链接并触发下载
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    status.textContent = `✅ 成功生成工作单！文件已开始下载。`;
+                    status.style.color = "#2ecc71";
                 }
             } catch (err) {
                 status.textContent = `❌ 失败了: ${err.message}`;
