@@ -10,23 +10,12 @@ import base64
 import csv
 import io
 import zipfile
-from chunchihuo_reports_db import (
-    init_chunchihuo_reports_db,
-    insert_chunchihuo_record,
-    insert_chunchihuo_records_batch,
-    fetch_chunchihuo_records
-)
-from guohuaichihuo_reports_db import (
-    init_guohuaichihuo_reports_db,
-    insert_guohuaichihuo_record,
-    insert_guohuaichihuo_records_batch,
-    fetch_guohuaichihuo_records
-)
-from qitahaichong_reports_db import (
-    init_qitahaichong_reports_db,
-    insert_qitahaichong_record,
-    insert_qitahaichong_records_batch,
-    fetch_qitahaichong_records
+from pest_db import (
+    init_all_pest_dbs,
+    insert_pest_record,
+    insert_pest_records_batch,
+    fetch_pest_records,
+    PEST_DB_CONFIGS,
 )
 
 app = Flask(__name__)
@@ -34,26 +23,26 @@ app = Flask(__name__)
 # 基础配置
 BASE_DIR = Path(__file__).parent
 TEMPLATE_DIR = BASE_DIR / "templates"
-CHUNCHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "春尺蠖工作单模板.docx"
-GUOHUAICHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "国槐尺蠖工作单模板.docx"
-QITAHAICHONG_TEMPLATE_PATH = TEMPLATE_DIR / "其他害虫工作单模板.docx"
 IMAGES_DIR = BASE_DIR / "images"
 OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp_images"
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
 
+# 害虫类型 → 模板路径映射
+TEMPLATE_PATHS = {
+    "春尺蠖": TEMPLATE_DIR / "春尺蠖工作单模板.docx",
+    "国槐尺蠖": TEMPLATE_DIR / "国槐尺蠖工作单模板.docx",
+    "其他害虫": TEMPLATE_DIR / "其他害虫工作单模板.docx",
+}
+
 # 确保目录存在
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# 初始化春尺蠖数据库
-init_chunchihuo_reports_db()
-# 初始化国槐尺蠖数据库
-init_guohuaichihuo_reports_db()
-# 初始化其他害虫数据库
-init_qitahaichong_reports_db()
+# 初始化所有害虫数据库
+init_all_pest_dbs()
 
 def extract_number_from_name(path: Path) -> int:
     m = re.search(r"-(\d+)", path.stem)
@@ -110,7 +99,7 @@ def cleanup_temp_images(paths: list[Path]):
 def resolve_year(survey_date: str | None) -> str:
     """从调查日期中提取年份，失败则回退到当前年份。"""
     if survey_date:
-        match = re.match(r"(\\d{4})", str(survey_date))
+        match = re.match(r"(\d{4})", str(survey_date))
         if match:
             return match.group(1)
     return str(datetime.now().year)
@@ -126,62 +115,35 @@ def records_page():
     return render_template("records.html")
 
 
-PEST_DEFINITIONS = [
-    {
-        "pest_type": "春尺蠖",
-        "fields": [
-            {"key": "survey_date", "label": "调查日期"},
-            {"key": "region", "label": "区域"},
-            {"key": "town_or_street", "label": "乡镇/街道"},
-            {"key": "location_id", "label": "点位编号"},
-            {"key": "location_name", "label": "点位名称"},
-            {"key": "occurrence_position", "label": "发生位置"},
-            {"key": "total_insect_count", "label": "总虫口数"},
-            {"key": "damage_level", "label": "受害程度"},
-            {"key": "report_time", "label": "上报时间"},
-            {"key": "description", "label": "详细情况描述"}
-        ],
-        "fetcher": fetch_chunchihuo_records
-    },
-    {
-        "pest_type": "国槐尺蠖",
-        "fields": [
-            {"key": "survey_date", "label": "调查日期"},
-            {"key": "region", "label": "区域"},
-            {"key": "town_or_street", "label": "乡镇/街道"},
-            {"key": "location_id", "label": "点位编号"},
-            {"key": "location_name", "label": "点位名称"},
-            {"key": "occurrence_position", "label": "发生位置"},
-            {"key": "total_insect_count", "label": "总虫口数"},
-            {"key": "damage_level", "label": "受害程度"},
-            {"key": "report_time", "label": "上报时间"},
-            {"key": "description", "label": "详细情况描述"}
-        ],
-        "fetcher": fetch_guohuaichihuo_records
-    },
-    {
-        "pest_type": "其他害虫",
-        "fields": [
-            {"key": "survey_date", "label": "调查日期"},
-            {"key": "region", "label": "区域"},
-            {"key": "town_or_street", "label": "乡镇/街道"},
-            {"key": "location_id", "label": "点位编号"},
-            {"key": "location_name", "label": "点位名称"},
-            {"key": "occurrence_position", "label": "发生位置"},
-            {"key": "pest_name", "label": "害虫类别"},
-            {"key": "plot_type", "label": "绿化性质"},
-            {"key": "land_type", "label": "地块类型"},
-            {"key": "host_plant", "label": "危害寄主"},
-            {"key": "report_time", "label": "上报时间"},
-            {"key": "description", "label": "详细情况描述"}
-        ],
-        "fetcher": fetch_qitahaichong_records
-    }
-]
+# 字段 key → 中文标签映射
+_FIELD_LABELS = {
+    "survey_date": "调查日期", "region": "区域",
+    "town_or_street": "乡镇/街道", "location_id": "点位编号",
+    "location_name": "点位名称", "occurrence_position": "发生位置",
+    "total_insect_count": "总虫口数", "damage_level": "受害程度",
+    "report_time": "上报时间", "description": "详细情况描述",
+    "pest_name": "害虫类别", "plot_type": "绿化性质",
+    "host_plant": "危害寄主",
+}
+
+def _build_pest_definitions() -> list[dict]:
+    """从 PEST_DB_CONFIGS 自动构建前端展示定义，避免手工维护。"""
+    definitions = []
+    for pest_type, config in PEST_DB_CONFIGS.items():
+        # 展示字段 = 业务字段 + report_time（去掉 report_time 已在业务字段外）
+        display_keys = list(config.fields) + ["report_time"]
+        fields = [{"key": k, "label": _FIELD_LABELS.get(k, k)} for k in display_keys]
+        definitions.append({
+            "pest_type": pest_type,
+            "fields": fields,
+        })
+    return definitions
+
+PEST_DEFINITIONS = _build_pest_definitions()
 
 CHI_HUO_PEST_TYPES = {"春尺蠖", "国槐尺蠖"}
 QITA_HAICHONG_PEST_TYPES = {"其他害虫"}
-CHI_HUO_REMOVED_FIELDS = {"land_type", "host_plant", "damaged_count", "web_count"}
+CHI_HUO_REMOVED_FIELDS = {"host_plant", "damaged_count", "web_count"}
 
 
 def sanitize_chihuo_record(record: dict) -> dict:
@@ -194,11 +156,32 @@ def sanitize_chihuo_records(records: list[dict]) -> list[dict]:
     return [sanitize_chihuo_record(record) for record in records]
 
 
+# 必填字段及其中文标签
+REQUIRED_FIELDS = [
+    ("town_or_street", "乡镇/街道"),
+    ("location_id", "点位编号"),
+    ("location_name", "点位名称"),
+    ("survey_date", "调查日期"),
+    ("description", "详细情况描述"),
+]
+
+
+def validate_required_fields(records: list[dict]) -> list[str]:
+    """验证记录列表中的必填字段，返回错误消息列表（空列表表示通过）。"""
+    errors = []
+    for idx, record in enumerate(records):
+        for field_key, field_label in REQUIRED_FIELDS:
+            value = record.get(field_key, "")
+            if not value or (isinstance(value, str) and not value.strip()):
+                errors.append(f"第 {idx + 1} 条记录：{field_label} 不能为空")
+    return errors
+
+
 def fetch_all_records_grouped() -> list[dict]:
     """按虫种获取记录（字段不混用，前端按虫种分表展示）。"""
     groups = []
     for pest in PEST_DEFINITIONS:
-        records = pest["fetcher"]()
+        records = fetch_pest_records(pest["pest_type"])
         groups.append({
             "pest_type": pest["pest_type"],
             "fields": pest["fields"],
@@ -264,8 +247,8 @@ def parse_text():
         if not text:
             return jsonify({"success": False, "error": "请输入需要解析的文本"}), 400
 
-        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
-            return jsonify({"success": False, "error": "仅支持春尺蠖/国槐尺蠖/其他害虫解析"}), 400
+        if pest_type not in PEST_DB_CONFIGS:
+            return jsonify({"success": False, "error": f"不支持的害虫类型: {pest_type}"}), 400
         
         records = parse_text_with_ai(text, pest_type)
         return jsonify({"success": True, "records": records})
@@ -279,17 +262,16 @@ def parse_text():
 
 @app.route("/api/save-to-db", methods=["POST"])
 def save_to_db():
-    """手动保存数据到数据库（仅春尺蠖）"""
+    """手动保存数据到数据库"""
     try:
         data = request.json
         records = data.get("records", [])
         pest_type = data.get("pest_type", "")
 
-        # 仅支持尺蠖类和其他害虫
-        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
+        if pest_type not in PEST_DB_CONFIGS:
             return jsonify({
                 "success": False,
-                "error": "仅支持春尺蠖/国槐尺蠖/其他害虫数据保存到数据库"
+                "error": f"不支持的害虫类型: {pest_type}"
             }), 400
 
         if not records:
@@ -302,45 +284,17 @@ def save_to_db():
             records = sanitize_chihuo_records(records)
 
         # 必填字段验证
-        required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
-        validation_errors = []
-
-        for idx, record in enumerate(records):
-            record_num = idx + 1
-            for field in required_fields:
-                value = record.get(field, "")
-                if not value or (isinstance(value, str) and value.strip() == ""):
-                    field_labels = {
-                        "town_or_street": "乡镇/街道",
-                        "location_id": "点位编号",
-                        "location_name": "点位名称",
-                        "survey_date": "调查日期",
-                        "description": "详细情况描述"
-                    }
-                    validation_errors.append(f"第 {record_num} 条记录：{field_labels[field]} 不能为空")
-
+        validation_errors = validate_required_fields(records)
         if validation_errors:
             return jsonify({
                 "success": False,
                 "error": "请填写以下必填字段：\n" + "\n".join(validation_errors)
             }), 400
 
-        # 批量保存到数据库
-        if pest_type == "春尺蠖":
-            success_count, fail_count, errors = insert_chunchihuo_records_batch(
-                records,
-                replace_on_conflict=True
-            )
-        elif pest_type == "国槐尺蠖":
-            success_count, fail_count, errors = insert_guohuaichihuo_records_batch(
-                records,
-                replace_on_conflict=True
-            )
-        elif pest_type in QITA_HAICHONG_PEST_TYPES:
-            success_count, fail_count, errors = insert_qitahaichong_records_batch(
-                records,
-                replace_on_conflict=True
-            )
+        # 统一批量保存
+        success_count, fail_count, errors = insert_pest_records_batch(
+            pest_type, records, replace_on_conflict=True
+        )
 
         return jsonify({
             "success": True,
@@ -354,169 +308,132 @@ def save_to_db():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# 前端字段名 → Word模板变量名的映射
+_DOC_FIELD_MAPPING = {
+    "description": "detailed_description",
+}
+
+
+def _render_single_doc(
+    template_path: Path,
+    row: dict,
+    idx: int,
+    pest_type: str,
+    task_type: str,
+    all_temp_files: list[Path],
+) -> str:
+    """渲染单条记录为 Word 文档，返回生成的文件名。"""
+    doc = DocxTemplate(template_path)
+
+    # 构建模板上下文（排除 images 字段）
+    context = {k: v for k, v in row.items() if k != "images"}
+    context["pest_type"] = pest_type
+    context["task_type"] = task_type
+    context["year"] = resolve_year(context.get("survey_date"))
+    context["serial_number"] = str(idx + 1).zfill(3)
+
+    # 字段映射：前端字段名 → Word模板变量名
+    for frontend_key, template_key in _DOC_FIELD_MAPPING.items():
+        if frontend_key in context:
+            context[template_key] = context[frontend_key]
+
+    # 处理图片：优先用户上传，回退到 location_id 匹配
+    uploaded_images = row.get("images", [])
+    if uploaded_images:
+        row_id = f"row_{idx}_{uuid.uuid4().hex[:8]}"
+        image_paths = save_base64_images(uploaded_images, row_id)
+        all_temp_files.extend(image_paths)
+    else:
+        image_paths = find_image_paths(context.get("location_id"))
+
+    context.update(map_images_to_context(doc, image_paths, context.get("region")))
+    doc.render(context)
+
+    # 生成文件名并保存
+    town = context.get("town_or_street") or "未知"
+    loc = context.get("location_name") or "未命名"
+    date = context.get("survey_date") or "无日期"
+    sn = context.get("location_id") or context.get("serial_number") or str(uuid.uuid4())[:8]
+
+    current_year = datetime.now().year
+    filename = f"{current_year}林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
+    doc.save(OUTPUT_DIR / filename)
+    return filename
+
+
+def _build_file_response(generated_files: list[str]) -> Response:
+    """根据文件数量构建下载响应（单文件直下 / 多文件 ZIP 打包）。"""
+    if len(generated_files) == 1:
+        filename = generated_files[0]
+        encoded = quote(filename)
+        response = send_file(
+            OUTPUT_DIR / filename,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded}"
+        return response
+
+    # 多文件打包 ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename in generated_files:
+            zf.write(OUTPUT_DIR / filename, filename)
+    zip_buffer.seek(0)
+
+    current_year = datetime.now().year
+    zip_filename = f"{current_year}林业工作单批量导出_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    encoded = quote(zip_filename)
+    response = send_file(
+        zip_buffer,
+        as_attachment=True,
+        download_name=zip_filename,
+        mimetype="application/zip",
+    )
+    response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded}"
+    return response
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate():
-    all_temp_files = []  # 用于记录所有临时文件以便清理
-    
-    # 尺蠖模板：前端字段名 -> Word模板变量名的映射
-    CHI_HUO_FIELD_MAPPING = {
-        "description": "detailed_description",  # 描述 -> 详细描述
-        # 其他字段（location_id, location_name, survey_date, town_or_street, note）直接匹配，不需要映射
-    }
-    
+    all_temp_files: list[Path] = []
     try:
         data = request.json
         records = data.get("records", [])
         pest_type = data.get("pest_type", "")
         task_type = data.get("task_type", "")
 
-        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
-            return jsonify({"success": False, "error": "仅支持春尺蠖/国槐尺蠖/其他害虫生成工作单"}), 400
+        if pest_type not in PEST_DB_CONFIGS:
+            return jsonify({"success": False, "error": f"不支持的害虫类型: {pest_type}"}), 400
 
         if pest_type in CHI_HUO_PEST_TYPES:
             records = sanitize_chihuo_records(records)
 
-        # 必填字段验证
-        required_fields = ["town_or_street", "location_id", "location_name", "survey_date", "description"]
-        validation_errors = []
-
-        for idx, record in enumerate(records):
-            record_num = idx + 1
-            for field in required_fields:
-                value = record.get(field, "")
-                if not value or (isinstance(value, str) and value.strip() == ""):
-                    field_labels = {
-                        "town_or_street": "乡镇/街道",
-                        "location_id": "点位编号",
-                        "location_name": "点位名称",
-                        "survey_date": "调查日期",
-                        "description": "详细情况描述"
-                    }
-                    validation_errors.append(f"第 {record_num} 条记录：{field_labels[field]} 不能为空")
-
+        validation_errors = validate_required_fields(records)
         if validation_errors:
             return jsonify({
                 "success": False,
                 "error": "请填写以下必填字段：\n" + "\n".join(validation_errors)
             }), 400
 
+        template_path = TEMPLATE_PATHS.get(pest_type)
+        if not template_path:
+            return jsonify({"success": False, "error": f"未找到 {pest_type} 的工作单模板"}), 400
+
+        # 逐条渲染文档并保存到数据库
         generated_files = []
-        db_save_results = []  # 记录数据库保存结果
         for idx, row in enumerate(records):
-            # 根据害虫类型选择模板
-            if pest_type == "春尺蠖":
-                template_path = CHUNCHIHUO_TEMPLATE_PATH
-            elif pest_type == "国槐尺蠖":
-                template_path = GUOHUAICHIHUO_TEMPLATE_PATH
-            else:
-                template_path = QITAHAICHONG_TEMPLATE_PATH
-            doc = DocxTemplate(template_path)
-            # 合并数据（排除 images 字段）
-            context = {k: v for k, v in row.items() if k != "images"}
-            context["pest_type"] = pest_type
-            context["task_type"] = task_type
-            context["year"] = resolve_year(context.get("survey_date"))
-            
-            # 自动生成序号（001, 002, 003...）
-            context["serial_number"] = str(idx + 1).zfill(3)
-
-            # 应用字段映射：将前端字段名转换为Word模板变量名
-            for frontend_key, template_key in CHI_HUO_FIELD_MAPPING.items():
-                if frontend_key in context:
-                    context[template_key] = context[frontend_key]
-            
-            # 优先使用用户上传的图片
-            uploaded_images = row.get("images", [])
-            print(f"[DEBUG] Row {idx}: received {len(uploaded_images)} images")
-            if uploaded_images:
-                row_id = f"row_{idx}_{uuid.uuid4().hex[:8]}"
-                image_paths = save_base64_images(uploaded_images, row_id)
-                print(f"[DEBUG] Row {idx}: saved {len(image_paths)} images to temp")
-                all_temp_files.extend(image_paths)
-            else:
-                # 回退到基于 location_id 查找图片的旧逻辑
-                location_id = context.get("location_id")
-                image_paths = find_image_paths(location_id)
-            
-            print(f"[DEBUG] Row {idx}: image_paths = {image_paths}")
-            context.update(map_images_to_context(doc, image_paths, context.get("region")))
-            print(f"[DEBUG] Row {idx}: context img keys = {[k for k in context if k.startswith('img')]}")
-            
-            doc.render(context)
-            
-            # 生成文件名
-            town = context.get("town_or_street") or "未知"
-            loc = context.get("location_name") or "未命名"
-            date = context.get("survey_date") or "无日期"
-            sn = context.get("location_id") or context.get("serial_number") or str(uuid.uuid4())[:8]
-
-            current_year = datetime.now().year
-            filename = f"{current_year}林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
-            print(f"[DEBUG] Generated filename: {filename}")
-            print(f"[DEBUG] town={town}, loc={loc}, date={date}, sn={sn}")
-            output_path = OUTPUT_DIR / filename
-            doc.save(output_path)
+            filename = _render_single_doc(
+                template_path, row, idx, pest_type, task_type, all_temp_files
+            )
             generated_files.append(filename)
+            insert_pest_record(pest_type, row, replace_on_conflict=True)
 
-            # 如果是尺蠖类或其他害虫，自动保存到数据库
-            if pest_type in CHI_HUO_PEST_TYPES or pest_type in QITA_HAICHONG_PEST_TYPES:
-                if pest_type == "春尺蠖":
-                    success, msg = insert_chunchihuo_record(row, replace_on_conflict=True)
-                elif pest_type == "国槐尺蠖":
-                    success, msg = insert_guohuaichihuo_record(row, replace_on_conflict=True)
-                else:
-                    success, msg = insert_qitahaichong_record(row, replace_on_conflict=True)
-                db_save_results.append({
-                    "record_num": idx + 1,
-                    "location_id": row.get("location_id", "未知"),
-                    "success": success,
-                    "message": msg
-                })
-        
-        # 清理临时文件
         cleanup_temp_images(all_temp_files)
+        return _build_file_response(generated_files)
 
-        # 根据生成的文件数量决定返回方式
-        if len(generated_files) == 1:
-            # 单个文件：直接返回文件下载
-            file_path = OUTPUT_DIR / generated_files[0]
-            filename = generated_files[0]
-            # 对文件名进行URL编码
-            encoded_filename = quote(filename)
-            response = send_file(
-                file_path,
-                as_attachment=True,
-                download_name=filename,
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
-            # 使用RFC 5987标准：filename*=UTF-8''encoded_name
-            response.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
-            return response
-        else:
-            # 多个文件：打包成 ZIP 后返回
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                for filename in generated_files:
-                    file_path = OUTPUT_DIR / filename
-                    zip_file.write(file_path, filename)
-
-            zip_buffer.seek(0)
-            current_year = datetime.now().year
-            zip_filename = f"{current_year}林业工作单批量导出_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-
-            # 对文件名进行URL编码
-            encoded_zip_filename = quote(zip_filename)
-            response = send_file(
-                zip_buffer,
-                as_attachment=True,
-                download_name=zip_filename,
-                mimetype='application/zip'
-            )
-            # 使用RFC 5987标准：filename*=UTF-8''encoded_name
-            response.headers['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_zip_filename}"
-            return response
     except Exception as e:
-        # 出错时也清理临时文件
         cleanup_temp_images(all_temp_files)
         return jsonify({"success": False, "error": str(e)}), 500
 

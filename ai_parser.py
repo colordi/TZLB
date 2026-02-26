@@ -3,64 +3,72 @@ AI文本解析模块
 使用OpenAI兼容API将自由文本解析为结构化的调查数据
 """
 import json
+import re
+from datetime import date
+
 import requests
+
 from config import API_KEY, API_BASE_URL, MODEL_NAME
+from pest_db import PEST_DB_CONFIGS
 
-# 需要提取的字段定义
-FIELDS_SCHEMA = {
-    "survey_date": "调查日期（格式：YYYY-MM-DD）",
-    "region": "区域（乡镇/城区）",
-    "town_or_street": "乡镇或街道名称",
-    "location_id": "点位编号",
-    "location_name": "点位名称",
-    "occurrence_position": "发生位置（具体地点描述）",
-    "plot_type": "绿化性质（如公园、道路、庭院等）",
-    "land_type": "地块类型（如平原造林、道路绿化等）",
-    "pest_name": "害虫类别（如美国白蛾等）",
-    "host_plant": "危害寄主（如杨树、柳树等）",
-    "damaged_count": "受害株数（数字）",
-    "web_count": "网幕数（数字）",
-    "description": "详细情况描述",
-    "note": "备注信息"
-}
+# 尺蠖类害虫类型（与 app.py 中 CHI_HUO_PEST_TYPES 对应）
+_CHI_HUO_TYPES = {"春尺蠖", "国槐尺蠖"}
 
 
-def build_prompt(text: str) -> str:
-    """构建AI解析的提示词（通用）"""
-    fields_desc = "\n".join([f"- {k}: {v}" for k, v in FIELDS_SCHEMA.items()])
-    
-    prompt = f"""你是一个专业的林业调查数据提取助手。请从以下文本中提取林业调查记录信息。
+# ── Prompt 构建 ──────────────────────────────────────────────
 
-需要提取的字段：
-{fields_desc}
+def _build_qitahaichong_prompt(text: str, today_date: str) -> str:
+    """构建其他害虫专用的提示词（独立函数，替代脆弱的 str.replace 注入）。"""
+    return f"""你是一个专业的林业调查数据提取助手，专门处理其他害虫调查记录。
 
-规则：
-1. 如果文本包含多条记录，请分别提取每条记录
-2. 无法识别的字段请留空字符串
-3. 日期请统一格式化为 YYYY-MM-DD
-4. 数字字段请提取纯数字
-5. 返回JSON数组格式
+## 输入格式说明
+用户输入的文本是林业调查的现场记录，可能包含以下信息：
+- 调查日期、地理位置（乡镇、街道、具体地点）
+- 点位编号、点位名称
+- 害虫类别（如美国白蛾、杨扇舟蛾、天牛等）
+- 绿化性质（如公园、道路、庭院等）
+- 危害寄主（如杨树、柳树、国槐等）
+- 受害株数、网幕数等
+- 详细情况描述
 
-用户输入的文本：
+## 提取规则
+1. **必须提取**：点位编号（location_id）、害虫类别（pest_name）
+2. 日期格式化为 YYYY-MM-DD；如果没有日期信息，使用"{today_date}"
+3. 无法识别的字段填空字符串
+4. **不需要提取**：总虫口数（total_insect_count）和受害程度（damage_level）
+5. 如果文本包含多条记录，分别提取
+
+## 输出字段
+返回JSON数组，每条记录包含：
+- survey_date: 调查日期（YYYY-MM-DD）
+- region: 区域（"乡镇"或"城区"或""）
+- town_or_street: 乡镇/街道名称
+- location_id: 点位编号
+- location_name: 点位名称
+- occurrence_position: 发生位置
+- plot_type: 绿化性质
+- host_plant: 危害寄主
+- pest_name: 害虫类别
+- description: 详细情况描述
+
+## 用户输入
 ---
 {text}
 ---
 
-请直接返回JSON数组，不要包含其他解释文字。格式示例：
-[{{"survey_date": "2025-01-18", "region": "乡镇", "town_or_street": "某镇", ...}}]
+请直接返回JSON数组，不要包含任何解释文字。
 """
-    return prompt
 
 
-def build_chihuo_prompt(text: str, today_date: str, pest_name: str) -> str:
-    """构建尺蠖类专用的提示词
+def _build_chihuo_prompt(text: str, today_date: str, pest_name: str) -> str:
+    """构建尺蠖类专用的提示词。
 
     尺蠖调查提取规则：
     - 必须提取：点位编号、虫口数量
     - 智能提取：日期、地理位置、其他数据库字段
     - 虫口数量计算：平均数 × 5（因为调查5棵树）
     """
-    prompt = f"""你是一个专业的林业调查数据提取助手，专门处理{pest_name}调查记录。
+    return f"""你是一个专业的林业调查数据提取助手，专门处理{pest_name}调查记录。
 
 ## 输入格式说明
 用户输入的文本通常是简短的点位+数量描述，例如：
@@ -144,47 +152,84 @@ def build_chihuo_prompt(text: str, today_date: str, pest_name: str) -> str:
 
 请直接返回JSON数组，不要包含任何解释文字。
 """
-    return prompt
 
+
+# ── 响应解析工具 ─────────────────────────────────────────────
+
+def _strip_markdown_fences(text: str) -> str:
+    """清理 AI 返回文本中可能包裹的 markdown 代码块标记。"""
+    text = text.strip()
+    # 去除开头的 ```json 或 ```
+    text = re.sub(r"^```(?:json|JSON)?\s*\n?", "", text)
+    # 去除结尾的 ```
+    text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
+
+
+def _extract_content(response: requests.Response) -> str:
+    """从 API 响应中提取生成的文本内容。
+
+    兼容两种格式：
+    - 标准 JSON 响应
+    - SSE 流式响应（某些 API 代理不遵守 stream=False，仍返回 data: 格式）
+    """
+    raw = response.text.strip()
+
+    # SSE 流式格式：以 "data:" 开头
+    if raw.startswith("data:"):
+        content_parts = []
+        for line in raw.split("\n"):
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            data_str = line[5:].strip()
+            if not data_str or data_str == "[DONE]":
+                continue
+            try:
+                data_obj = json.loads(data_str)
+                if "choices" in data_obj and data_obj["choices"]:
+                    choice = data_obj["choices"][0]
+                    if "delta" in choice and "content" in choice.get("delta", {}):
+                        content_parts.append(choice["delta"]["content"])
+                    elif "message" in choice and "content" in choice.get("message", {}):
+                        content_parts.append(choice["message"]["content"])
+            except json.JSONDecodeError:
+                continue
+        return "".join(content_parts)
+
+    # 标准 JSON 响应
+    result = response.json()
+    return result["choices"][0]["message"]["content"]
+
+
+# ── 主函数 ────────────────────────────────────────────────────
 
 def parse_text_with_ai(text: str, pest_type: str = "") -> list[dict]:
-    """
-    使用OpenAI兼容API解析文本
-    
+    """使用OpenAI兼容API解析文本为结构化调查记录。
+
     Args:
         text: 用户输入的自由文本
-        pest_type: 害虫类型（如"春尺蠖"时使用专用解析逻辑）
-        
+        pest_type: 害虫类型（需为 PEST_DB_CONFIGS 中已注册的类型）
+
     Returns:
         解析后的记录列表
     """
-    from datetime import date
-    
     if not API_KEY or API_KEY == "your-api-key-here":
         raise ValueError("请先在 config.py 中配置有效的 API_KEY")
-    
-    # 获取当天日期
+
     today_date = date.today().strftime("%Y-%m-%d")
-    
+
     # 根据害虫类型选择提示词
-    if pest_type in {"春尺蠖", "国槐尺蠖"}:
-        prompt_content = build_chihuo_prompt(text, today_date, pest_type)
+    if pest_type in _CHI_HUO_TYPES:
+        prompt_content = _build_chihuo_prompt(text, today_date, pest_type)
     elif pest_type == "其他害虫":
-        # 其他害虫使用通用提取并在原通用prompt上稍作增补说明，以更好提取新增字段
-        base_prompt = build_prompt(text)
-        prompt_content = base_prompt.replace("规则：", f"规则：\n0. 此为【{pest_type}】调查记录提取，请特别注意提取'绿化性质'（plot_type）、'地块类型'（land_type）、'害虫类别'（pest_name）和'危害寄主'（host_plant）。并且忽略总虫口数与受害程度的提取。")
+        prompt_content = _build_qitahaichong_prompt(text, today_date)
     else:
-        prompt_content = build_prompt(text)
-    
-    # 构建OpenAI兼容的API端点
-    base_url = API_BASE_URL.rstrip("/")
-    url = f"{base_url}/chat/completions"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    
+        raise ValueError(f"不支持的害虫类型: {pest_type}")
+
+    # 调用 API
+    url = f"{API_BASE_URL.rstrip('/')}/chat/completions"
+
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -199,85 +244,47 @@ def parse_text_with_ai(text: str, pest_type: str = "") -> list[dict]:
         ],
         "temperature": 0.1,
         "max_tokens": 4096,
-        "stream": False  # 禁用流式响应
+        "stream": False,
     }
-    
+
     try:
         response = requests.post(
             url,
-            headers=headers,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {API_KEY}",
+            },
             json=payload,
-            timeout=120
+            timeout=120,
         )
         response.raise_for_status()
-        
-        response_text = response.text.strip()
-        
-        # 处理SSE流式响应格式（以 data: 开头）
-        if response_text.startswith("data:"):
-            # 解析流式响应，合并所有data块的内容
-            content_parts = []
-            for line in response_text.split("\n"):
-                line = line.strip()
-                if line.startswith("data:"):
-                    data_str = line[5:].strip()
-                    if data_str and data_str != "[DONE]":
-                        try:
-                            data_obj = json.loads(data_str)
-                            # 提取delta或message中的content
-                            if "choices" in data_obj and len(data_obj["choices"]) > 0:
-                                choice = data_obj["choices"][0]
-                                if "delta" in choice and "content" in choice["delta"]:
-                                    content_parts.append(choice["delta"]["content"])
-                                elif "message" in choice and "content" in choice["message"]:
-                                    content_parts.append(choice["message"]["content"])
-                        except json.JSONDecodeError:
-                            continue
-            generated_text = "".join(content_parts)
-        else:
-            # 标准JSON响应
-            result = response.json()
-            generated_text = result["choices"][0]["message"]["content"]
-        
-        # 清理可能的markdown代码块标记
-        generated_text = generated_text.strip()
-        if generated_text.startswith("```json"):
-            generated_text = generated_text[7:]
-        if generated_text.startswith("```"):
-            generated_text = generated_text[3:]
-        if generated_text.endswith("```"):
-            generated_text = generated_text[:-3]
-        generated_text = generated_text.strip()
-        
-        # 解析JSON
+
+        generated_text = _extract_content(response)
+        generated_text = _strip_markdown_fences(generated_text)
+
         records = json.loads(generated_text)
-        
+
         # 确保返回的是列表
         if isinstance(records, dict):
             records = [records]
-            
+
         return records
-        
+
     except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"API请求失败: {str(e)}")
+        raise RuntimeError(f"API请求失败: {e}")
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"AI返回的数据格式错误: {str(e)}")
+        raise RuntimeError(f"AI返回的数据格式错误: {e}")
     except (KeyError, IndexError) as e:
-        raise RuntimeError(f"解析AI响应失败: {str(e)}")
-
-
-# 保持向后兼容的别名
-parse_text_with_gemini = parse_text_with_ai
+        raise RuntimeError(f"解析AI响应失败: {e}")
 
 
 if __name__ == "__main__":
-    # 测试代码
     test_text = """
     2025年1月15日，在某镇的道路绿化带发现美国白蛾网幕3个，
     受害杨树5株，点位编号L001，已进行剪除处理。
     """
     try:
-        result = parse_text_with_ai(test_text)
+        result = parse_text_with_ai(test_text, "其他害虫")
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as e:
         print(f"错误: {e}")
