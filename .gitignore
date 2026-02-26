@@ -1,5 +1,4 @@
 *.DS_Store
-*.docx
 *.doc
 
 # SQLite 数据库（本地数据）

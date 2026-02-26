@@ -14,7 +14,9 @@ FIELDS_SCHEMA = {
     "location_id": "点位编号",
     "location_name": "点位名称",
     "occurrence_position": "发生位置（具体地点描述）",
+    "plot_type": "绿化性质（如公园、道路、庭院等）",
     "land_type": "地块类型（如平原造林、道路绿化等）",
+    "pest_name": "害虫类别（如美国白蛾等）",
     "host_plant": "危害寄主（如杨树、柳树等）",
     "damaged_count": "受害株数（数字）",
     "web_count": "网幕数（数字）",
@@ -167,6 +169,10 @@ def parse_text_with_ai(text: str, pest_type: str = "") -> list[dict]:
     # 根据害虫类型选择提示词
     if pest_type in {"春尺蠖", "国槐尺蠖"}:
         prompt_content = build_chihuo_prompt(text, today_date, pest_type)
+    elif pest_type == "其他害虫":
+        # 其他害虫使用通用提取并在原通用prompt上稍作增补说明，以更好提取新增字段
+        base_prompt = build_prompt(text)
+        prompt_content = base_prompt.replace("规则：", f"规则：\n0. 此为【{pest_type}】调查记录提取，请特别注意提取'绿化性质'（plot_type）、'地块类型'（land_type）、'害虫类别'（pest_name）和'危害寄主'（host_plant）。并且忽略总虫口数与受害程度的提取。")
     else:
         prompt_content = build_prompt(text)
     

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response, send_file
+from flask import Flask, render_template, request, jsonify, Response, send_file
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from pathlib import Path
@@ -7,8 +7,6 @@ from urllib.parse import quote
 import re
 import uuid
 import base64
-import tempfile
-import os
 import csv
 import io
 import zipfile
@@ -24,15 +22,21 @@ from guohuaichihuo_reports_db import (
     insert_guohuaichihuo_records_batch,
     fetch_guohuaichihuo_records
 )
+from qitahaichong_reports_db import (
+    init_qitahaichong_reports_db,
+    insert_qitahaichong_record,
+    insert_qitahaichong_records_batch,
+    fetch_qitahaichong_records
+)
 
 app = Flask(__name__)
 
 # 基础配置
 BASE_DIR = Path(__file__).parent
 TEMPLATE_DIR = BASE_DIR / "templates"
-GENERAL_TEMPLATE_PATH = TEMPLATE_DIR / "工作单模板.docx"
 CHUNCHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "春尺蠖工作单模板.docx"
 GUOHUAICHIHUO_TEMPLATE_PATH = TEMPLATE_DIR / "国槐尺蠖工作单模板.docx"
+QITAHAICHONG_TEMPLATE_PATH = TEMPLATE_DIR / "其他害虫工作单模板.docx"
 IMAGES_DIR = BASE_DIR / "images"
 OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp_images"
@@ -48,6 +52,8 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 init_chunchihuo_reports_db()
 # 初始化国槐尺蠖数据库
 init_guohuaichihuo_reports_db()
+# 初始化其他害虫数据库
+init_qitahaichong_reports_db()
 
 def extract_number_from_name(path: Path) -> int:
     m = re.search(r"-(\d+)", path.stem)
@@ -152,10 +158,29 @@ PEST_DEFINITIONS = [
             {"key": "description", "label": "详细情况描述"}
         ],
         "fetcher": fetch_guohuaichihuo_records
+    },
+    {
+        "pest_type": "其他害虫",
+        "fields": [
+            {"key": "survey_date", "label": "调查日期"},
+            {"key": "region", "label": "区域"},
+            {"key": "town_or_street", "label": "乡镇/街道"},
+            {"key": "location_id", "label": "点位编号"},
+            {"key": "location_name", "label": "点位名称"},
+            {"key": "occurrence_position", "label": "发生位置"},
+            {"key": "pest_name", "label": "害虫类别"},
+            {"key": "plot_type", "label": "绿化性质"},
+            {"key": "land_type", "label": "地块类型"},
+            {"key": "host_plant", "label": "危害寄主"},
+            {"key": "report_time", "label": "上报时间"},
+            {"key": "description", "label": "详细情况描述"}
+        ],
+        "fetcher": fetch_qitahaichong_records
     }
 ]
 
 CHI_HUO_PEST_TYPES = {"春尺蠖", "国槐尺蠖"}
+QITA_HAICHONG_PEST_TYPES = {"其他害虫"}
 CHI_HUO_REMOVED_FIELDS = {"land_type", "host_plant", "damaged_count", "web_count"}
 
 
@@ -238,6 +263,9 @@ def parse_text():
         
         if not text:
             return jsonify({"success": False, "error": "请输入需要解析的文本"}), 400
+
+        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
+            return jsonify({"success": False, "error": "仅支持春尺蠖/国槐尺蠖/其他害虫解析"}), 400
         
         records = parse_text_with_ai(text, pest_type)
         return jsonify({"success": True, "records": records})
@@ -257,11 +285,11 @@ def save_to_db():
         records = data.get("records", [])
         pest_type = data.get("pest_type", "")
 
-        # 仅支持尺蠖类
-        if pest_type not in CHI_HUO_PEST_TYPES:
+        # 仅支持尺蠖类和其他害虫
+        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
             return jsonify({
                 "success": False,
-                "error": "仅支持春尺蠖/国槐尺蠖数据保存到数据库"
+                "error": "仅支持春尺蠖/国槐尺蠖/其他害虫数据保存到数据库"
             }), 400
 
         if not records:
@@ -303,8 +331,13 @@ def save_to_db():
                 records,
                 replace_on_conflict=True
             )
-        else:
+        elif pest_type == "国槐尺蠖":
             success_count, fail_count, errors = insert_guohuaichihuo_records_batch(
+                records,
+                replace_on_conflict=True
+            )
+        elif pest_type in QITA_HAICHONG_PEST_TYPES:
+            success_count, fail_count, errors = insert_qitahaichong_records_batch(
                 records,
                 replace_on_conflict=True
             )
@@ -325,20 +358,8 @@ def save_to_db():
 def generate():
     all_temp_files = []  # 用于记录所有临时文件以便清理
     
-    # 通用模板：前端字段名 -> Word模板变量名的映射
-    GENERAL_FIELD_MAPPING = {
-        "pest_type": "pest",           # 害虫类型 -> 危害虫种
-        "task_type": "task",           # 统防任务
-        "host_plant": "host",          # 危害寄主
-        "damaged_count": "affected_plants_count",  # 受害株数
-        "land_type": "plot_type",      # 地块类型 -> 绿地性质
-        "web_count": "screen_count",   # 网幕数 -> 网幕个数
-        "description": "detailed_description",  # 描述 -> 详细描述
-        "note": "note",                # 备注
-    }
-
-    # 春尺蠖模板：前端字段名 -> Word模板变量名的映射
-    CHUNCHIHUO_FIELD_MAPPING = {
+    # 尺蠖模板：前端字段名 -> Word模板变量名的映射
+    CHI_HUO_FIELD_MAPPING = {
         "description": "detailed_description",  # 描述 -> 详细描述
         # 其他字段（location_id, location_name, survey_date, town_or_street, note）直接匹配，不需要映射
     }
@@ -346,8 +367,11 @@ def generate():
     try:
         data = request.json
         records = data.get("records", [])
-        pest_type = data.get("pest_type", "其它")
+        pest_type = data.get("pest_type", "")
         task_type = data.get("task_type", "")
+
+        if pest_type not in CHI_HUO_PEST_TYPES and pest_type not in QITA_HAICHONG_PEST_TYPES:
+            return jsonify({"success": False, "error": "仅支持春尺蠖/国槐尺蠖/其他害虫生成工作单"}), 400
 
         if pest_type in CHI_HUO_PEST_TYPES:
             records = sanitize_chihuo_records(records)
@@ -385,7 +409,7 @@ def generate():
             elif pest_type == "国槐尺蠖":
                 template_path = GUOHUAICHIHUO_TEMPLATE_PATH
             else:
-                template_path = GENERAL_TEMPLATE_PATH
+                template_path = QITAHAICHONG_TEMPLATE_PATH
             doc = DocxTemplate(template_path)
             # 合并数据（排除 images 字段）
             context = {k: v for k, v in row.items() if k != "images"}
@@ -396,14 +420,8 @@ def generate():
             # 自动生成序号（001, 002, 003...）
             context["serial_number"] = str(idx + 1).zfill(3)
 
-            # 根据害虫类型选择字段映射
-            if pest_type in CHI_HUO_PEST_TYPES:
-                field_mapping = CHUNCHIHUO_FIELD_MAPPING
-            else:
-                field_mapping = GENERAL_FIELD_MAPPING
-
             # 应用字段映射：将前端字段名转换为Word模板变量名
-            for frontend_key, template_key in field_mapping.items():
+            for frontend_key, template_key in CHI_HUO_FIELD_MAPPING.items():
                 if frontend_key in context:
                     context[template_key] = context[frontend_key]
             
@@ -440,12 +458,14 @@ def generate():
             doc.save(output_path)
             generated_files.append(filename)
 
-            # 如果是尺蠖类，自动保存到数据库
-            if pest_type in CHI_HUO_PEST_TYPES:
+            # 如果是尺蠖类或其他害虫，自动保存到数据库
+            if pest_type in CHI_HUO_PEST_TYPES or pest_type in QITA_HAICHONG_PEST_TYPES:
                 if pest_type == "春尺蠖":
                     success, msg = insert_chunchihuo_record(row, replace_on_conflict=True)
-                else:
+                elif pest_type == "国槐尺蠖":
                     success, msg = insert_guohuaichihuo_record(row, replace_on_conflict=True)
+                else:
+                    success, msg = insert_qitahaichong_record(row, replace_on_conflict=True)
                 db_save_results.append({
                     "record_num": idx + 1,
                     "location_id": row.get("location_id", "未知"),
@@ -466,6 +486,7 @@ def generate():
             response = send_file(
                 file_path,
                 as_attachment=True,
+                download_name=filename,
                 mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
             # 使用RFC 5987标准：filename*=UTF-8''encoded_name
@@ -488,6 +509,7 @@ def generate():
             response = send_file(
                 zip_buffer,
                 as_attachment=True,
+                download_name=zip_filename,
                 mimetype='application/zip'
             )
             # 使用RFC 5987标准：filename*=UTF-8''encoded_name
