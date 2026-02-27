@@ -42,7 +42,7 @@ class PestDBConfig:
 # 共享字段（春尺蠖 / 国槐尺蠖）
 _CHIHUO_FIELDS = (
     "survey_date", "region", "town_or_street", "location_id",
-    "location_name", "occurrence_position",
+    "location_name", "occurrence_position", "plot_type",
     "total_insect_count", "damage_level", "description",
 )
 
@@ -133,6 +133,15 @@ def init_pest_db(pest_type: str) -> Path:
     with sqlite3.connect(db_path) as conn:
         conn.executescript(create_sql)
         conn.executescript(index_sql)
+        # 迁移：对已存在的老表自动补兄2️⃣新列
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({config.table})")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        for f in config.fields:
+            if f not in existing_cols:
+                col_type = "INTEGER" if f in ("total_insect_count",) else "TEXT"
+                conn.execute(f"ALTER TABLE {config.table} ADD COLUMN {f} {col_type}")
+        conn.commit()
 
     return db_path
 
@@ -225,6 +234,118 @@ def insert_pest_records_batch(
     return success_count, fail_count, errors
 
 
+def upsert_pest_records_batch_preserve_report_time(
+    pest_type: str,
+    records: list[dict],
+) -> tuple[int, int, list[str]]:
+    """批量更新或插入调查记录，支持主键修改与 report_time 编辑。
+
+    规则：
+    - 支持前端提交 _original_survey_date / _original_location_id，用于定位原记录。
+    - 若主键被修改，优先按原主键更新为新主键，避免残留旧记录。
+    - report_time 允许编辑：有值则写入；无值则沿用数据库默认或既有值。
+
+    Returns:
+        (成功数量, 失败数量, 错误消息列表)
+    """
+    config = _get_config(pest_type)
+
+    columns = list(config.fields)
+    columns_sql = ", ".join(columns)
+    placeholders = ", ".join("?" for _ in columns)
+    non_primary_fields = [f for f in columns if f not in ("survey_date", "location_id")]
+    update_non_primary = ", ".join(f"{f}=excluded.{f}" for f in non_primary_fields)
+
+    upsert_with_report_time_sql = (
+        f"INSERT INTO {config.table} ({columns_sql}, report_time) VALUES ({placeholders}, ?) "
+        f"ON CONFLICT(survey_date, location_id) DO UPDATE SET {update_non_primary}, report_time=excluded.report_time"
+    )
+    upsert_without_report_time_sql = (
+        f"INSERT INTO {config.table} ({columns_sql}) VALUES ({placeholders}) "
+        f"ON CONFLICT(survey_date, location_id) DO UPDATE SET {update_non_primary}"
+    )
+    update_by_original_with_report_time_sql = (
+        f"UPDATE {config.table} SET "
+        + ", ".join([f"{f}=?" for f in columns] + ["report_time=?"])
+        + " WHERE survey_date = ? AND location_id = ?"
+    )
+    update_by_original_without_report_time_sql = (
+        f"UPDATE {config.table} SET "
+        + ", ".join(f"{f}=?" for f in columns)
+        + " WHERE survey_date = ? AND location_id = ?"
+    )
+
+    success_count = 0
+    fail_count = 0
+    errors: list[str] = []
+
+    valid_items: list[tuple[int, dict, str, str, str]] = []
+    for idx, record in enumerate(records):
+        survey_date = str(record.get("survey_date", "")).strip()
+        location_id = str(record.get("location_id", "")).strip()
+        if not survey_date or not location_id:
+            fail_count += 1
+            errors.append(f"第 {idx + 1} 条记录: 缺少必填字段：survey_date 或 location_id")
+            continue
+
+        original_survey_date = str(record.get("_original_survey_date", survey_date)).strip() or survey_date
+        original_location_id = str(record.get("_original_location_id", location_id)).strip() or location_id
+        report_time = str(record.get("report_time", "")).strip()
+
+        normalized_record = dict(record)
+        normalized_record["survey_date"] = survey_date
+        normalized_record["location_id"] = location_id
+        valid_items.append((idx, normalized_record, report_time, original_survey_date, original_location_id))
+
+    if not valid_items:
+        return success_count, fail_count, errors
+
+    processed_count = 0
+    try:
+        with sqlite3.connect(config.db_path) as conn:
+            cursor = conn.cursor()
+            for idx, record, report_time, original_survey_date, original_location_id in valid_items:
+                processed_count += 1
+                try:
+                    values = tuple(record.get(f, "") for f in columns)
+                    pk_changed = (
+                        original_survey_date != record["survey_date"]
+                        or original_location_id != record["location_id"]
+                    )
+
+                    if pk_changed:
+                        if report_time:
+                            cursor.execute(
+                                update_by_original_with_report_time_sql,
+                                values + (report_time, original_survey_date, original_location_id),
+                            )
+                        else:
+                            cursor.execute(
+                                update_by_original_without_report_time_sql,
+                                values + (original_survey_date, original_location_id),
+                            )
+                        if cursor.rowcount > 0:
+                            success_count += 1
+                            continue
+
+                    if report_time:
+                        cursor.execute(upsert_with_report_time_sql, values + (report_time,))
+                    else:
+                        cursor.execute(upsert_without_report_time_sql, values)
+                    success_count += 1
+                except sqlite3.Error as e:
+                    fail_count += 1
+                    errors.append(f"第 {idx + 1} 条记录: 数据库写入错误: {e}")
+            conn.commit()
+    except sqlite3.Error as e:
+        pending = len(valid_items) - processed_count
+        if pending > 0:
+            fail_count += pending
+        errors.append(f"数据库批量写入错误: {e}")
+
+    return success_count, fail_count, errors
+
+
 def fetch_pest_records(
     pest_type: str,
     order_by: str = "report_time DESC",
@@ -249,6 +370,35 @@ def fetch_pest_records(
         cursor.execute(f"SELECT {select_str} FROM {config.table} ORDER BY {safe_order}")
         return [dict(row) for row in cursor.fetchall()]
 
+def delete_pest_record(pest_type: str, survey_date: str, location_id: str) -> tuple[bool, str]:
+    """删除指定的害虫记录。
+    
+    Args:
+        pest_type: 害虫类型
+        survey_date: 调查日期 (主键之一)
+        location_id: 点位编号 (主键之二)
+        
+    Returns:
+        (是否成功, 提示信息)
+    """
+    try:
+        config = _get_config(pest_type)
+        if not survey_date or not location_id:
+            return False, "缺少必填的主键：survey_date 或 location_id"
+            
+        with sqlite3.connect(config.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"DELETE FROM {config.table} WHERE survey_date = ? AND location_id = ?",
+                (survey_date, location_id)
+            )
+            conn.commit()
+            if cursor.rowcount > 0:
+                return True, "删除成功"
+            else:
+                return False, "未找到指定的记录"
+    except Exception as e:
+        return False, f"删除发生错误: {str(e)}"
 
 # ── 入口 ────────────────────────────────────────────────────
 

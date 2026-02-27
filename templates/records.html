@@ -14,6 +14,15 @@
 </head>
 
 <body>
+    <!-- 顶部导航栏 -->
+    <nav class="site-nav">
+        <div class="site-nav-inner">
+            <span class="site-nav-brand">🌿 林业调查</span>
+            <a href="/" class="nav-tab">📋 派单生成</a>
+            <a href="/records" class="nav-tab active">📚 数据库</a>
+        </div>
+    </nav>
+
     <div class="background-blobs">
         <div class="blob blob-1"></div>
         <div class="blob blob-2"></div>
@@ -25,20 +34,21 @@
                 <span class="tag" id="yearTag">2025 · 林业调查</span>
                 <span class="tag ghost">数据库可视化</span>
             </div>
-            <h1>数据库记录</h1>
-            <p class="subtitle">按虫种分开展示，字段不混用。当前默认展示全部虫种的分栏记录。</p>
+            <h1>数据库摘要</h1>
+            <p class="subtitle">选择害虫类别以查看或导出详细记录。</p>
             <div class="header-meta">
                 <span id="totalCount">共 0 条</span>
-                <span>只读预览</span>
-                <span>CSV 导出</span>
             </div>
         </div>
 
-        <div class="records-actions">
-            <a class="btn-view" href="/">返回首页</a>
-        </div>
+        <div id="summaryView" class="summary-grid"></div>
 
-        <div id="pestSections" class="pest-sections"></div>
+        <div id="detailView" style="display: none;">
+            <div class="detail-actions">
+                <button class="btn-back" onclick="showSummary()">← 返回概览</button>
+            </div>
+            <div id="pestSections" class="pest-sections"></div>
+        </div>
 
         <div id="recordsStatus" class="status-msg"></div>
     </div>
@@ -58,7 +68,41 @@
             recordsStatus.textContent = message;
         }
 
+        function normalizeCellValue(value) {
+            if (value === undefined || value === null) return "";
+            return String(value).trim();
+        }
+
+        function normalizeDateText(value) {
+            const raw = normalizeCellValue(value);
+            if (!raw) return "";
+            const match = raw.match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D.*)?$/);
+            if (!match) return raw;
+            const yyyy = match[1];
+            const mm = String(parseInt(match[2], 10)).padStart(2, "0");
+            const dd = String(parseInt(match[3], 10)).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function normalizeFieldValue(fieldKey, value) {
+            if (fieldKey === "survey_date" || fieldKey === "report_time") {
+                return normalizeDateText(value);
+            }
+            return normalizeCellValue(value);
+        }
+
+        function getTodayTextDate() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, "0");
+            const dd = String(today.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
         function createTable(fields, records) {
+            const shell = document.createElement("div");
+            shell.className = "table-edit-shell";
+
             const wrapper = document.createElement("div");
             wrapper.className = "data-table-wrapper";
 
@@ -67,27 +111,54 @@
             const headRow = document.createElement("tr");
             fields.forEach((field) => {
                 const th = document.createElement("th");
+                th.setAttribute("data-key", field.key);
                 th.textContent = field.label;
                 headRow.appendChild(th);
             });
             thead.appendChild(headRow);
 
             const tbody = document.createElement("tbody");
-            records.forEach((record) => {
+            records.forEach((record, index) => {
                 const row = document.createElement("tr");
+                row.setAttribute("data-record-index", index);
+                // 标记这是一行已存在于数据库中的真实数据
+                row.setAttribute("data-is-existing", "true");
+                const originalRecord = {};
+
                 fields.forEach((field) => {
                     const td = document.createElement("td");
+                    td.setAttribute("data-key", field.key);
                     const value = record[field.key];
-                    td.textContent = value === undefined || value === null ? "" : value;
+                    const normalized = normalizeFieldValue(field.key, value);
+                    td.textContent = normalized;
+                    originalRecord[field.key] = normalized;
                     row.appendChild(td);
                 });
+                row.setAttribute("data-original-record", JSON.stringify(originalRecord));
                 tbody.appendChild(row);
             });
 
             table.appendChild(thead);
             table.appendChild(tbody);
             wrapper.appendChild(table);
-            return wrapper;
+
+            const rowActionsPanel = document.createElement("aside");
+            rowActionsPanel.className = "row-actions-panel";
+            rowActionsPanel.style.display = "none";
+
+            const rowActionsTitle = document.createElement("div");
+            rowActionsTitle.className = "row-actions-title";
+            rowActionsTitle.textContent = "行操作";
+
+            const rowActionsBody = document.createElement("div");
+            rowActionsBody.className = "row-actions-body";
+
+            rowActionsPanel.appendChild(rowActionsTitle);
+            rowActionsPanel.appendChild(rowActionsBody);
+
+            shell.appendChild(wrapper);
+            shell.appendChild(rowActionsPanel);
+            return shell;
         }
 
         function renderPestSection(pest) {
@@ -108,27 +179,255 @@
             const actions = document.createElement("div");
             actions.className = "pest-actions";
 
+            const btnEdit = document.createElement("button");
+            btnEdit.className = "btn-edit";
+            btnEdit.textContent = "✏️ 开启编辑";
+            btnEdit.onclick = () => toggleEditMode(pest.pest_type, section);
+
+            const btnSave = document.createElement("button");
+            btnSave.className = "btn-save tooltip-save";
+            btnSave.textContent = "💾 保存修改";
+            btnSave.style.display = "none";
+            btnSave.onclick = () => saveEditedRecords(pest.pest_type, section);
+
+            const btnAdd = document.createElement("button");
+            btnAdd.className = "btn-add-row";
+            btnAdd.textContent = "➕ 新增记录";
+            btnAdd.style.display = "none";
+            btnAdd.onclick = () => addNewRecordRow(pest, section);
+
             const exportLink = document.createElement("a");
             exportLink.className = "btn-export";
             exportLink.href = `/api/records/export?pest_type=${encodeURIComponent(pest.pest_type)}`;
             exportLink.textContent = "导出 CSV";
 
+            actions.appendChild(btnEdit);
+            actions.appendChild(btnAdd);
+            actions.appendChild(btnSave);
             actions.appendChild(exportLink);
             header.appendChild(title);
             header.appendChild(meta);
             header.appendChild(actions);
             section.appendChild(header);
 
+            const editGuide = document.createElement("div");
+            editGuide.className = "edit-guide";
+            editGuide.style.display = "none";
+            editGuide.textContent = "编辑模式支持从 Excel/WPS 表格直接粘贴：选中起始单元格后粘贴即可批量填充。";
+            section.appendChild(editGuide);
+
             if (pest.total === 0) {
                 const empty = document.createElement("div");
                 empty.className = "pest-empty";
-                empty.textContent = "暂无记录";
+                empty.textContent = "暂无记录，可开启编辑后新增记录";
                 section.appendChild(empty);
-            } else {
-                section.appendChild(createTable(pest.fields, pest.records));
             }
+            section.appendChild(createTable(pest.fields, pest.records || []));
 
             pestSections.appendChild(section);
+        }
+
+        let allPestsData = [];
+
+        function showSummary() {
+            document.getElementById('summaryView').style.display = 'grid';
+            document.getElementById('detailView').style.display = 'none';
+            document.querySelector('.page-header h1').textContent = '数据库摘要';
+            document.querySelector('.page-header .subtitle').textContent = '选择害虫类别以查看或导出详细记录。';
+        }
+
+        function showDetail(pestType) {
+            document.getElementById('summaryView').style.display = 'none';
+            document.getElementById('detailView').style.display = 'block';
+            document.querySelector('.page-header h1').textContent = `${pestType} 记录`;
+            document.querySelector('.page-header .subtitle').textContent = '字段不混用，当前展示该虫种的详细信息。';
+
+            pestSections.innerHTML = "";
+            const pest = allPestsData.find(p => p.pest_type === pestType);
+            if (pest) {
+                renderPestSection(pest);
+            } else {
+                showSummary();
+                setStatus(`未找到 ${pestType} 的记录，已返回概览。`);
+            }
+        }
+
+        function renderSummaryCard(pest) {
+            const card = document.createElement("div");
+            card.className = "summary-card";
+            card.onclick = () => showDetail(pest.pest_type);
+
+            const icon = document.createElement("div");
+            icon.className = "summary-icon";
+            icon.textContent = "🐞";
+
+            const info = document.createElement("div");
+            info.className = "summary-info";
+
+            const title = document.createElement("div");
+            title.className = "summary-title";
+            title.textContent = pest.pest_type;
+
+            const count = document.createElement("div");
+            count.className = "summary-count";
+            count.innerHTML = `共 <strong>${pest.total || 0}</strong> 条记录`;
+
+            info.appendChild(title);
+            info.appendChild(count);
+
+            const btn = document.createElement("div");
+            btn.className = "summary-btn";
+            btn.textContent = "查看列表 →";
+
+            card.appendChild(icon);
+            card.appendChild(info);
+            card.appendChild(btn);
+
+            document.getElementById('summaryView').appendChild(card);
+        }
+
+        function getPestByType(pestType) {
+            return allPestsData.find((p) => p.pest_type === pestType);
+        }
+
+        function getTableRows(section) {
+            const table = section.querySelector("table");
+            if (!table) return [];
+            return Array.from(table.querySelectorAll("tbody tr"));
+        }
+
+        function syncRowActionHeights(section) {
+            const rows = getTableRows(section);
+            const actionItems = Array.from(section.querySelectorAll(".row-action-item"));
+            if (rows.length !== actionItems.length) return;
+            rows.forEach((row, index) => {
+                actionItems[index].style.height = `${row.getBoundingClientRect().height}px`;
+            });
+        }
+
+        function renderExternalRowActions(pestType, section) {
+            const table = section.querySelector("table");
+            const panel = section.querySelector(".row-actions-panel");
+            const panelBody = panel ? panel.querySelector(".row-actions-body") : null;
+            if (!table || !panel || !panelBody) return;
+
+            if (!table.classList.contains("editing")) {
+                panel.style.display = "none";
+                panelBody.innerHTML = "";
+                return;
+            }
+
+            const rows = getTableRows(section);
+            panelBody.innerHTML = "";
+
+            if (rows.length === 0) {
+                panel.style.display = "none";
+                return;
+            }
+
+            panel.style.display = "flex";
+            rows.forEach((row, index) => {
+                const item = document.createElement("div");
+                item.className = "row-action-item";
+
+                const isExistingRow = row.getAttribute("data-is-existing") === "true";
+                const btn = document.createElement("button");
+                btn.className = "btn-delete-row-outside";
+                btn.textContent = isExistingRow ? `删除 #${index + 1}` : `移除 #${index + 1}`;
+                btn.title = isExistingRow ? "删除该条数据库记录" : "移除该新增行";
+                btn.onclick = async () => {
+                    if (isExistingRow) {
+                        await deleteRecord(pestType, row, false);
+                    } else {
+                        row.remove();
+                    }
+                    renderExternalRowActions(pestType, section);
+                };
+
+                item.appendChild(btn);
+                panelBody.appendChild(item);
+            });
+            syncRowActionHeights(section);
+        }
+
+        function parseClipboardGridText(rawText) {
+            const text = (rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+            const lines = text.split("\n");
+            while (lines.length > 0 && lines[lines.length - 1] === "") {
+                lines.pop();
+            }
+            return lines.map((line) => line.split("\t"));
+        }
+
+        function bindEditGridInteractions(pestType, section) {
+            const table = section.querySelector("table");
+            if (!table) return;
+
+            table.oninput = () => {
+                syncRowActionHeights(section);
+            };
+
+            table.onpaste = (event) => {
+                const target = event.target;
+                if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
+                    return;
+                }
+
+                const text = event.clipboardData?.getData("text/plain") || "";
+                if (!text.includes("\t") && !text.includes("\n")) {
+                    return;
+                }
+
+                const grid = parseClipboardGridText(text);
+                if (grid.length === 0) {
+                    return;
+                }
+
+                const startRow = target.closest("tr");
+                const startCell = target.closest("td[data-key]");
+                if (!startRow || !startCell) {
+                    return;
+                }
+
+                const rowList = getTableRows(section);
+                let startRowIndex = rowList.indexOf(startRow);
+                const startCols = Array.from(startRow.querySelectorAll("td[data-key]"));
+                const startColIndex = startCols.indexOf(startCell);
+                if (startRowIndex < 0 || startColIndex < 0) {
+                    return;
+                }
+
+                event.preventDefault();
+                const pest = getPestByType(pestType);
+                let pastedCells = 0;
+
+                grid.forEach((gridRow, rowOffset) => {
+                    let currentRows = getTableRows(section);
+                    const targetRowIndex = startRowIndex + rowOffset;
+
+                    while (targetRowIndex >= currentRows.length && pest) {
+                        addNewRecordRow(pest, section);
+                        currentRows = getTableRows(section);
+                    }
+
+                    const targetRow = currentRows[targetRowIndex];
+                    if (!targetRow) return;
+
+                    const inputs = Array.from(targetRow.querySelectorAll("td[data-key] input, td[data-key] textarea"));
+                    gridRow.forEach((cellValue, colOffset) => {
+                        const input = inputs[startColIndex + colOffset];
+                        if (!input || input.readOnly) return;
+                        const targetKey = input.closest("td[data-key]")?.getAttribute("data-key") || "";
+                        input.value = normalizeFieldValue(targetKey, cellValue);
+                        pastedCells += 1;
+                    });
+                });
+
+                if (pastedCells > 0) {
+                    showToast(`已粘贴 ${pastedCells} 个单元格`, "success", 1800);
+                }
+                renderExternalRowActions(pestType, section);
+            };
         }
 
         async function loadRecords() {
@@ -140,8 +439,12 @@
                     throw new Error(result.error || "加载失败");
                 }
                 const pests = result.pests || [];
+                allPestsData = pests;
                 const total = result.total || 0;
                 totalCount.textContent = `共 ${total} 条`;
+
+                const summaryView = document.getElementById('summaryView');
+                summaryView.innerHTML = "";
                 pestSections.innerHTML = "";
 
                 if (pests.length === 0) {
@@ -149,11 +452,316 @@
                     return;
                 }
 
-                pests.forEach(renderPestSection);
+                pests.forEach(renderSummaryCard);
                 setStatus("");
             } catch (error) {
                 setStatus(`加载失败：${error.message}`);
             }
+        }
+
+        async function toggleEditMode(pestType, section) {
+            const table = section.querySelector("table");
+            if (!table) return;
+
+            const tableShell = section.querySelector(".table-edit-shell");
+            const isEditing = table.classList.contains("editing");
+            const btnEdit = section.querySelector(".btn-edit");
+            const btnSave = section.querySelector(".btn-save");
+            const btnAdd = section.querySelector(".btn-add-row");
+            const editGuide = section.querySelector(".edit-guide");
+            const emptyHint = section.querySelector(".pest-empty");
+
+            if (isEditing) {
+                // 取消编辑，重新渲染该表格
+                await loadRecords();
+                showDetail(pestType);
+            } else {
+                // 开启编辑
+                table.classList.add("editing");
+                if (tableShell) tableShell.classList.add("is-editing");
+                section.classList.add("section-editing");
+                btnEdit.innerHTML = "❌ 取消编辑";
+                if (btnSave) btnSave.style.display = "inline-block";
+                if (btnAdd) btnAdd.style.display = "inline-block";
+                if (editGuide) editGuide.style.display = "block";
+                if (emptyHint) emptyHint.style.display = "none";
+
+                const tbody = table.querySelector("tbody");
+                const rows = tbody.querySelectorAll("tr");
+
+                rows.forEach(row => {
+                    const tds = row.querySelectorAll("td[data-key]");
+                    tds.forEach(td => {
+                        const key = td.getAttribute("data-key");
+                        const currentText = normalizeFieldValue(key, td.textContent);
+
+                        // 创建输入框
+                        let input;
+                        if (key === "description") {
+                            input = document.createElement("textarea");
+                            input.className = "edit-textarea";
+                            input.value = currentText;
+                        } else {
+                            input = document.createElement("input");
+                            input.type = "text";
+                            input.className = "edit-input";
+                            input.value = currentText;
+                        }
+
+                        td.innerHTML = "";
+                        td.appendChild(input);
+                    });
+                });
+                bindEditGridInteractions(pestType, section);
+                renderExternalRowActions(pestType, section);
+            }
+        }
+
+        function addNewRecordRow(pest, section) {
+            const table = section.querySelector("table");
+            if (!table) return;
+            const tbody = table.querySelector("tbody");
+
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-is-existing", "false");
+
+            pest.fields.forEach(field => {
+                const td = document.createElement("td");
+                td.setAttribute("data-key", field.key);
+
+                let input;
+                if (field.key === "description") {
+                    input = document.createElement("textarea");
+                    input.className = "edit-textarea";
+                } else if (field.key === "survey_date") {
+                    input = document.createElement("input");
+                    input.type = "text";
+                    input.className = "edit-input new-primary-key";
+                    input.placeholder = "YYYY-MM-DD";
+                } else {
+                    input = document.createElement("input");
+                    input.type = "text";
+                    input.className = "edit-input";
+                    if (field.key === "location_id") {
+                        input.classList.add("new-primary-key");
+                        input.placeholder = "必填组合主键";
+                    }
+                }
+
+                // 上报时间默认当天
+                if (field.key === "report_time") {
+                    input.value = getTodayTextDate();
+                    input.placeholder = "YYYY-MM-DD";
+                }
+
+                td.appendChild(input);
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+
+            // 滚动到底部
+            const wrapper = section.querySelector(".data-table-wrapper");
+            if (wrapper) wrapper.scrollTop = wrapper.scrollHeight;
+            const emptyHint = section.querySelector(".pest-empty");
+            if (emptyHint) emptyHint.style.display = "none";
+            renderExternalRowActions(pest.pest_type, section);
+        }
+
+        async function deleteRecord(pestType, row, refreshPanel = true) {
+            // 弹出确认
+            if (!confirm(`确定要删除位于此时的记录吗？此操作不可逆！`)) {
+                return;
+            }
+
+            // 读取主键
+            let surveyDate = "";
+            let locationId = "";
+            const isExistingRow = row.getAttribute("data-is-existing") === "true";
+            if (isExistingRow) {
+                const originalRecordRaw = row.getAttribute("data-original-record");
+                if (originalRecordRaw) {
+                    try {
+                        const originalRecord = JSON.parse(originalRecordRaw);
+                        surveyDate = normalizeFieldValue("survey_date", originalRecord.survey_date);
+                        locationId = normalizeFieldValue("location_id", originalRecord.location_id);
+                    } catch (e) {
+                        surveyDate = "";
+                        locationId = "";
+                    }
+                }
+            }
+
+            if (!surveyDate || !locationId) {
+                row.querySelectorAll("td[data-key]").forEach(td => {
+                    const key = td.getAttribute("data-key");
+                    const input = td.querySelector("input, textarea");
+                    if (key === "survey_date" && input) surveyDate = normalizeFieldValue("survey_date", input.value);
+                    if (key === "location_id" && input) locationId = normalizeFieldValue("location_id", input.value);
+                });
+            }
+
+            if (!surveyDate || !locationId) {
+                showToast("无法获取该行的主键信息，删除失败", "error");
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/delete-record", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pest_type: pestType,
+                        survey_date: surveyDate,
+                        location_id: locationId
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`✅ ${result.message}`);
+                    row.remove();
+                    if (refreshPanel) {
+                        const section = row.closest(".pest-section");
+                        if (section) {
+                            renderExternalRowActions(pestType, section);
+                        }
+                    }
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                showToast(`❌ 删除失败: ${err.message}`, "error");
+            }
+        }
+
+        async function saveEditedRecords(pestType, section) {
+            const table = section.querySelector("table");
+            if (!table) return;
+
+            const tbody = table.querySelector("tbody");
+            const rows = tbody.querySelectorAll("tr");
+            const compiledRecords = [];
+
+            rows.forEach(row => {
+                const isExistingRow = row.getAttribute("data-is-existing") === "true";
+                const tds = row.querySelectorAll("td[data-key]");
+                const record = {};
+                let isEmptyRow = true;
+
+                tds.forEach(td => {
+                    const key = td.getAttribute("data-key");
+                    const input = td.querySelector("input, textarea");
+                    if (key && input) {
+                        const val = normalizeFieldValue(key, input.value);
+                        record[key] = val;
+                        // 忽略某些后台生成/不必须有值的列作为整行是否为空的判定
+                        if (val !== "" && key !== "report_time" && key !== "pest_type") {
+                            isEmptyRow = false;
+                        }
+                    }
+                });
+
+                // 新增行：仅提交非空行
+                if (!isExistingRow) {
+                    if (!isEmptyRow) {
+                        compiledRecords.push(record);
+                    }
+                    return;
+                }
+
+                // 已存在行：仅提交发生变更的记录
+                if (isEmptyRow) {
+                    return;
+                }
+                const originalRecordRaw = row.getAttribute("data-original-record");
+                let originalRecord = {};
+                if (originalRecordRaw) {
+                    try {
+                        originalRecord = JSON.parse(originalRecordRaw);
+                    } catch (e) {
+                        originalRecord = {};
+                    }
+                }
+                const hasChanged = Object.keys(record).some((key) => {
+                    const oldValue = normalizeFieldValue(key, originalRecord[key]);
+                    return oldValue !== record[key];
+                });
+                if (hasChanged) {
+                    record._original_survey_date = normalizeFieldValue("survey_date", originalRecord.survey_date);
+                    record._original_location_id = normalizeFieldValue("location_id", originalRecord.location_id);
+                    compiledRecords.push(record);
+                }
+            });
+
+            if (compiledRecords.length === 0) {
+                showToast("未检测到可保存的修改", "info");
+                return;
+            }
+
+            const btnSave = section.querySelector(".btn-save");
+            btnSave.disabled = true;
+            btnSave.textContent = "保存中...";
+
+            try {
+                const response = await fetch("/api/records/batch-edit", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        pest_type: pestType,
+                        records: compiledRecords
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    if (result.failed > 0) {
+                        showToast(`✅ 已保存 ${result.saved} 条，${result.failed} 条失败`, "warning");
+                    } else {
+                        showToast(`✅ 成功更新 ${result.saved} 条记录！`, "success");
+                    }
+                    // 重新加载数据
+                    await loadRecords();
+                    // 因为重新加载清除了 section，重新切回对应的详情视图
+                    showDetail(pestType);
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (err) {
+                showToast(`❌ 保存失败: ${err.message}`, "error");
+            } finally {
+                btnSave.disabled = false;
+                btnSave.textContent = "💾 保存修改";
+            }
+        }
+
+        // 添加统一的 Toast 提示功能 (与 index.html 一致)
+        function showToast(message, type = 'info', duration = 3000) {
+            let container = document.getElementById('toastContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toastContainer';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            let icon = 'ℹ️';
+            if (type === 'error') icon = '⚠️';
+            else if (type === 'success') icon = '✅';
+            else if (type === 'warning') icon = '🔔';
+
+            toast.innerHTML = `<span style="font-size: 1.1em">${icon}</span> <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                toast.addEventListener('animationend', () => {
+                    toast.remove();
+                });
+            }, duration);
         }
 
         loadRecords();

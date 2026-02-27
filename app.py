@@ -14,7 +14,9 @@ from pest_db import (
     init_all_pest_dbs,
     insert_pest_record,
     insert_pest_records_batch,
+    upsert_pest_records_batch_preserve_report_time,
     fetch_pest_records,
+    delete_pest_record,
     PEST_DB_CONFIGS,
 )
 
@@ -24,7 +26,6 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).parent
 TEMPLATE_DIR = BASE_DIR / "templates"
 IMAGES_DIR = BASE_DIR / "images"
-OUTPUT_DIR = BASE_DIR / "output"
 TEMP_DIR = BASE_DIR / "temp_images"
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
@@ -37,7 +38,6 @@ TEMPLATE_PATHS = {
 }
 
 # 确保目录存在
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -132,6 +132,10 @@ def _build_pest_definitions() -> list[dict]:
     for pest_type, config in PEST_DB_CONFIGS.items():
         # 展示字段 = 业务字段 + report_time（去掉 report_time 已在业务字段外）
         display_keys = list(config.fields) + ["report_time"]
+        if pest_type == "春尺蠖" and "description" in display_keys and "report_time" in display_keys:
+            desc_idx = display_keys.index("description")
+            report_idx = display_keys.index("report_time")
+            display_keys[desc_idx], display_keys[report_idx] = display_keys[report_idx], display_keys[desc_idx]
         fields = [{"key": k, "label": _FIELD_LABELS.get(k, k)} for k in display_keys]
         definitions.append({
             "pest_type": pest_type,
@@ -218,7 +222,7 @@ def export_records_csv():
             else:
                 return jsonify({"success": False, "error": "请指定有效的 pest_type 参数"}), 400
         pest = matched[0]
-        records = pest["fetcher"]()
+        records = fetch_pest_records(pest["pest_type"])
         fields = pest["fields"]
         output = io.StringIO()
         writer = csv.writer(output)
@@ -228,8 +232,12 @@ def export_records_csv():
 
         csv_content = "\ufeff" + output.getvalue()
         filename = f"林业调查数据库_{pest['pest_type']}_{datetime.now().strftime('%Y%m%d')}.csv"
-        response = Response(csv_content, mimetype="text/csv; charset=utf-8-sig")
-        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        safe_filename = f"records_export_{datetime.now().strftime('%Y%m%d')}.csv"
+        encoded_filename = quote(filename)
+        response = Response(csv_content, content_type="text/csv; charset=utf-8")
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_filename}"
+        )
         return response
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -308,6 +316,78 @@ def save_to_db():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/records/batch-edit", methods=["POST"])
+def batch_edit_records():
+    """数据库页面批量编辑保存（更新或插入，保留已有 report_time）。"""
+    try:
+        data = request.json or {}
+        records = data.get("records", [])
+        pest_type = data.get("pest_type", "")
+
+        if pest_type not in PEST_DB_CONFIGS:
+            return jsonify({
+                "success": False,
+                "error": f"不支持的害虫类型: {pest_type}"
+            }), 400
+
+        if not records:
+            return jsonify({
+                "success": False,
+                "error": "没有可保存的变更"
+            }), 400
+
+        if pest_type in CHI_HUO_PEST_TYPES:
+            records = sanitize_chihuo_records(records)
+
+        validation_errors = validate_required_fields(records)
+        if validation_errors:
+            return jsonify({
+                "success": False,
+                "error": "请填写以下必填字段：\n" + "\n".join(validation_errors)
+            }), 400
+
+        success_count, fail_count, errors = upsert_pest_records_batch_preserve_report_time(
+            pest_type, records
+        )
+
+        return jsonify({
+            "success": True,
+            "saved": success_count,
+            "failed": fail_count,
+            "total": len(records),
+            "errors": errors
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/delete-record", methods=["POST"])
+def delete_record():
+    """从数据库删除单条记录"""
+    try:
+        data = request.json
+        pest_type = data.get("pest_type")
+        survey_date = data.get("survey_date")
+        location_id = data.get("location_id")
+        
+        if not pest_type or not survey_date or not location_id:
+            return jsonify({
+                "success": False,
+                "error": "缺少必填参数: pest_type, survey_date, location_id"
+            }), 400
+            
+        success, msg = delete_pest_record(pest_type, survey_date, location_id)
+        
+        if success:
+            return jsonify({"success": True, "message": msg})
+        else:
+            return jsonify({"success": False, "error": msg}), 400
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # 前端字段名 → Word模板变量名的映射
 _DOC_FIELD_MAPPING = {
     "description": "detailed_description",
@@ -320,15 +400,17 @@ def _render_single_doc(
     idx: int,
     pest_type: str,
     task_type: str,
+    task: str,
     all_temp_files: list[Path],
-) -> str:
-    """渲染单条记录为 Word 文档，返回生成的文件名。"""
+) -> tuple[str, io.BytesIO]:
+    """渲染单条记录为 Word 文档，在内存中生成并返回 (文件名, BytesIO)。"""
     doc = DocxTemplate(template_path)
 
     # 构建模板上下文（排除 images 字段）
     context = {k: v for k, v in row.items() if k != "images"}
     context["pest_type"] = pest_type
     context["task_type"] = task_type
+    context["task"] = task
     context["year"] = resolve_year(context.get("survey_date"))
     context["serial_number"] = str(idx + 1).zfill(3)
 
@@ -349,7 +431,7 @@ def _render_single_doc(
     context.update(map_images_to_context(doc, image_paths, context.get("region")))
     doc.render(context)
 
-    # 生成文件名并保存
+    # 构建文件名并写入内存缓冲区
     town = context.get("town_or_street") or "未知"
     loc = context.get("location_name") or "未命名"
     date = context.get("survey_date") or "无日期"
@@ -357,17 +439,19 @@ def _render_single_doc(
 
     current_year = datetime.now().year
     filename = f"{current_year}林业有害生物防治工作单（{town}）-{loc}-{date}-{sn}.docx"
-    doc.save(OUTPUT_DIR / filename)
-    return filename
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return filename, buf
 
 
-def _build_file_response(generated_files: list[str]) -> Response:
-    """根据文件数量构建下载响应（单文件直下 / 多文件 ZIP 打包）。"""
-    if len(generated_files) == 1:
-        filename = generated_files[0]
+def _build_file_response(generated: list[tuple[str, io.BytesIO]]) -> Response:
+    """根据文件数量构建下载响应（单文件直下 / 多文件 ZIP 打包），全部使用内存缓冲区。"""
+    if len(generated) == 1:
+        filename, buf = generated[0]
         encoded = quote(filename)
         response = send_file(
-            OUTPUT_DIR / filename,
+            buf,
             as_attachment=True,
             download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -375,11 +459,11 @@ def _build_file_response(generated_files: list[str]) -> Response:
         response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{encoded}"
         return response
 
-    # 多文件打包 ZIP
+    # 多文件在内存中打包 ZIP
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filename in generated_files:
-            zf.write(OUTPUT_DIR / filename, filename)
+        for filename, buf in generated:
+            zf.writestr(filename, buf.read())
     zip_buffer.seek(0)
 
     current_year = datetime.now().year
@@ -403,6 +487,7 @@ def generate():
         records = data.get("records", [])
         pest_type = data.get("pest_type", "")
         task_type = data.get("task_type", "")
+        task = data.get("task", "")
 
         if pest_type not in PEST_DB_CONFIGS:
             return jsonify({"success": False, "error": f"不支持的害虫类型: {pest_type}"}), 400
@@ -421,17 +506,17 @@ def generate():
         if not template_path:
             return jsonify({"success": False, "error": f"未找到 {pest_type} 的工作单模板"}), 400
 
-        # 逐条渲染文档并保存到数据库
-        generated_files = []
+        # 逐条渲染文档（内存生成）并保存到数据库
+        generated = []
         for idx, row in enumerate(records):
-            filename = _render_single_doc(
-                template_path, row, idx, pest_type, task_type, all_temp_files
+            filename, buf = _render_single_doc(
+                template_path, row, idx, pest_type, task_type, task, all_temp_files
             )
-            generated_files.append(filename)
+            generated.append((filename, buf))
             insert_pest_record(pest_type, row, replace_on_conflict=True)
 
         cleanup_temp_images(all_temp_files)
-        return _build_file_response(generated_files)
+        return _build_file_response(generated)
 
     except Exception as e:
         cleanup_temp_images(all_temp_files)

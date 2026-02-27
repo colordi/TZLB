@@ -14,6 +14,15 @@
 </head>
 
 <body>
+    <!-- 顶部导航栏 -->
+    <nav class="site-nav">
+        <div class="site-nav-inner">
+            <span class="site-nav-brand">🌿 林业调查</span>
+            <a href="/" class="nav-tab active">📋 派单生成</a>
+            <a href="/records" class="nav-tab">📚 数据库</a>
+        </div>
+    </nav>
+
     <div class="background-blobs">
         <div class="blob blob-1"></div>
         <div class="blob blob-2"></div>
@@ -28,9 +37,6 @@
             <h1>派单生成助手</h1>
             <p class="subtitle">将调查文本与现场记录快速转为结构化工作单，支持 AI 解析、图片留存与批量导出。</p>
             <div class="header-meta">
-                <span>AI 解析</span>
-                <span>批量输出</span>
-                <span>现场留痕</span>
             </div>
         </div>
 
@@ -46,13 +52,23 @@
                 </select>
             </div>
             <div class="input-group">
-                <label>统防任务</label>
+                <label>统防任务类型</label>
                 <select id="taskType">
                     <option value="">（空白）</option>
                     <option value="第一代">第一代</option>
                     <option value="第二代">第二代</option>
                     <option value="第三代">第三代</option>
                     <option value="越冬代">越冬代</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>统防任务</label>
+                <select id="task">
+                    <option value="">（空白）</option>
+                    <option value="监测">监测</option>
+                    <option value="防治">防治</option>
+                    <option value="普查">普查</option>
+                    <option value="应急防治">应急防治</option>
                 </select>
             </div>
         </div>
@@ -77,7 +93,6 @@
                 <button class="btn-generate" onclick="generateDocs()">🚀 批量生成工作单</button>
                 <button class="btn-save-db" id="btnSaveDb" onclick="saveToDatabase()" style="display:none">💾
                     保存到数据库</button>
-                <a class="btn-view" href="/records">📚 查看数据库</a>
             </div>
         </div>
         <div class="records-container" id="recordsContainer">
@@ -177,11 +192,11 @@
             { key: "location_id", label: "点位编号", type: "text" },
             { key: "location_name", label: "点位名称", type: "text" },
             { key: "occurrence_position", label: "发生位置", type: "text" },
+            { key: "plot_type", label: "绿化性质", type: "text", hideable: true },
             { key: "pest_name", label: "害虫类别", type: "text", hideable: true }
         ];
 
         const FIELDS_ROW2 = [
-            { key: "plot_type", label: "绿化性质", type: "text", hideable: true },
             { key: "host_plant", label: "危害寄主", type: "text", hideable: true },
             { key: "damaged_count", label: "受害株数", type: "text", hideable: true },
             { key: "web_count", label: "网幕数", type: "text", hideable: true },
@@ -217,6 +232,7 @@
             "location_id",
             "location_name",
             "occurrence_position",
+            "plot_type",
             "total_insect_count",
             "damage_level",
             "report_time",
@@ -474,14 +490,23 @@
         function applyChunchihuoMode(card) {
             applyFieldVisibility(card, CHUNCHIHUO_VISIBLE_FIELD_KEYS);
 
-            // 上报时间：自动生成（可展示但不建议手改）
+            // 上报时间：自动生成
             const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
             if (reportTimeInput) {
                 if (!reportTimeInput.value) reportTimeInput.value = getCurrentDateString();
                 reportTimeInput.disabled = true;
             }
 
-            // 保留但不展示的字段，设置默认值以不影响现有工作单生成逻辑
+            // 地块类型：最标改为“地块类型”，预填并锁定为“平原造林”
+            const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
+            if (plotTypeInput) {
+                if (!plotTypeInput.value) plotTypeInput.value = "平原造林";
+                plotTypeInput.disabled = true;
+                const label = card.querySelector(`.field-plot_type label`);
+                if (label) label.textContent = "地块类型";
+            }
+
+            // 保留但不展示的字段默认值
             Object.keys(CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS).forEach(field => {
                 const input = card.querySelector(`[data-key="${field}"]`);
                 if (input && !input.value) input.value = CHUNCHIHUO_HIDDEN_FIELD_DEFAULTS[field];
@@ -491,11 +516,19 @@
         function applyQitaHaichongMode(card) {
             applyFieldVisibility(card, QITA_HAICHONG_VISIBLE_FIELD_KEYS);
 
-            // 上报时间：自动生成（可展示但不建议手改）
+            // 上报时间：自动生成
             const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
             if (reportTimeInput) {
                 if (!reportTimeInput.value) reportTimeInput.value = getCurrentDateString();
                 reportTimeInput.disabled = true;
+            }
+
+            // 恢复 plot_type 标签为“绿化性质”并解锁
+            const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
+            if (plotTypeInput) {
+                plotTypeInput.disabled = false;
+                const label = card.querySelector(`.field-plot_type label`);
+                if (label) label.textContent = "绿化性质";
             }
         }
 
@@ -503,6 +536,14 @@
             applyFieldVisibility(card, DEFAULT_VISIBLE_FIELD_KEYS);
             const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
             if (reportTimeInput) reportTimeInput.disabled = false;
+
+            // 恢复 plot_type 标签为“绿化性质”并解锁
+            const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
+            if (plotTypeInput) {
+                plotTypeInput.disabled = false;
+                const label = card.querySelector(`.field-plot_type label`);
+                if (label) label.textContent = "绿化性质";
+            }
         }
 
         function applyPestTypeMode(card, pestType) {
@@ -817,6 +858,7 @@
                     body: JSON.stringify({
                         pest_type: document.getElementById("pestType").value,
                         task_type: document.getElementById("taskType").value,
+                        task: document.getElementById("task").value,
                         records: records
                     })
                 });
@@ -881,9 +923,58 @@
             }
         }
 
+        // 统防任务类型和统防任务的初始选项（用于切换回通用模式时恢复）
+        const TASK_TYPE_DEFAULT_OPTIONS = [
+            { value: "", label: "（空白）" },
+            { value: "第一代", label: "第一代" },
+            { value: "第二代", label: "第二代" },
+            { value: "第三代", label: "第三代" },
+            { value: "越冬代", label: "越冬代" },
+        ];
+        const TASK_DEFAULT_OPTIONS = [
+            { value: "", label: "（空白）" },
+            { value: "监测", label: "监测" },
+            { value: "防治", label: "防治" },
+            { value: "普查", label: "普查" },
+            { value: "应急防治", label: "应急防治" },
+        ];
+
+        // 替换下拉框的选项列表并设置选中值
+        function setSelectOptions(selectEl, options, selectedValue) {
+            selectEl.innerHTML = "";
+            options.forEach(opt => {
+                const el = document.createElement("option");
+                el.value = opt.value;
+                el.textContent = opt.label;
+                if (opt.value === selectedValue) el.selected = true;
+                selectEl.appendChild(el);
+            });
+        }
+
         // 处理害虫类型切换
         function handlePestTypeChange() {
             const pestType = document.getElementById("pestType").value;
+            const taskTypeEl = document.getElementById("taskType");
+            const taskEl = document.getElementById("task");
+
+            // 春尺蠖：锁定统防任务类型，替换统防任务选项
+            if (pestType === "春尺蠖") {
+                setSelectOptions(taskTypeEl, [{ value: "春尺蠖防治", label: "春尺蠖防治" }], "春尺蠖防治");
+                taskTypeEl.disabled = true;
+                setSelectOptions(taskEl, [
+                    { value: "", label: "（空白）" },
+                    { value: "2026春尺蠖防治", label: "2026春尺蠖防治" },
+                ], "");
+                taskEl.disabled = false;
+            } else {
+                // 其他虫种：恢复通用选项
+                const currentTaskType = taskTypeEl.value;
+                const currentTask = taskEl.value;
+                setSelectOptions(taskTypeEl, TASK_TYPE_DEFAULT_OPTIONS, currentTaskType);
+                taskTypeEl.disabled = false;
+                setSelectOptions(taskEl, TASK_DEFAULT_OPTIONS, currentTask);
+                taskEl.disabled = false;
+            }
 
             // 处理每一个卡片
             document.querySelectorAll("#recordsContainer .record-card").forEach(card => {
