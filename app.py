@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, send_file
+from flask import Flask, render_template, request, jsonify, Response, send_file, redirect, url_for
 from docxtpl import DocxTemplate, InlineImage
 from docx.shared import Mm
 from pathlib import Path
@@ -10,6 +10,8 @@ import base64
 import csv
 import io
 import zipfile
+import json
+import math
 from pest_db import (
     init_all_pest_dbs,
     insert_pest_record,
@@ -29,6 +31,9 @@ IMAGES_DIR = BASE_DIR / "images"
 TEMP_DIR = BASE_DIR / "temp_images"
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
+TONGZHOU_BOUNDARY_PATH = BASE_DIR / "data" / "通州区边界.geojson"
+TONGZHOU_VILLAGES_PATH = BASE_DIR / "data" / "通州区村界.geojson"
+YANGSHU_POINTS_PATH = BASE_DIR / "data" / "杨树点位.geojson"
 
 # 害虫类型 → 模板路径映射
 TEMPLATE_PATHS = {
@@ -104,6 +109,82 @@ def resolve_year(survey_date: str | None) -> str:
             return match.group(1)
     return str(datetime.now().year)
 
+
+def _is_xy_pair(node) -> bool:
+    return (
+        isinstance(node, list)
+        and len(node) >= 2
+        and isinstance(node[0], (int, float))
+        and isinstance(node[1], (int, float))
+    )
+
+
+def _collect_xy_pairs(node, out: list[list[float]]):
+    if _is_xy_pair(node):
+        out.append([float(node[0]), float(node[1])])
+        return
+    if isinstance(node, list):
+        for item in node:
+            _collect_xy_pairs(item, out)
+
+
+def _mercator_to_wgs84(x: float, y: float) -> list[float]:
+    """将 EPSG:3857 坐标转换为 WGS84 经纬度。"""
+    lon = x / 20037508.34 * 180.0
+    lat = y / 20037508.34 * 180.0
+    lat = 180.0 / math.pi * (2.0 * math.atan(math.exp(lat * math.pi / 180.0)) - math.pi / 2.0)
+    return [lon, lat]
+
+
+def _convert_mercator_coords(node):
+    if _is_xy_pair(node):
+        return _mercator_to_wgs84(float(node[0]), float(node[1]))
+    if isinstance(node, list):
+        return [_convert_mercator_coords(item) for item in node]
+    return node
+
+
+def normalize_geojson_to_wgs84(geojson_obj: dict) -> tuple[dict, bool]:
+    """若检测到米制 Web Mercator 坐标，则转换为 WGS84 经纬度。"""
+    features = geojson_obj.get("features", []) if geojson_obj.get("type") == "FeatureCollection" else []
+    sample_xy: list[list[float]] = []
+    for feature in features[:20]:
+        geometry = feature.get("geometry") or {}
+        coords = geometry.get("coordinates")
+        if coords is not None:
+            _collect_xy_pairs(coords, sample_xy)
+        if len(sample_xy) >= 50:
+            break
+
+    # GeoJSON 正常经纬度范围通常在 [-180, 180], [-90, 90]
+    # 超过该范围基本可判定为 EPSG:3857 米制坐标
+    needs_convert = any(abs(x) > 180 or abs(y) > 90 for x, y in sample_xy)
+    if not needs_convert:
+        return geojson_obj, False
+
+    for feature in features:
+        geometry = feature.get("geometry") or {}
+        if "coordinates" in geometry:
+            geometry["coordinates"] = _convert_mercator_coords(geometry["coordinates"])
+    return geojson_obj, True
+
+
+def normalize_location_id(value: str | None) -> str:
+    """标准化点位编号，便于跨数据源匹配。"""
+    if value is None:
+        return ""
+    return str(value).strip().upper()
+
+
+def get_chunchihuo_location_ids() -> set[str]:
+    """获取春尺蠖数据库中存在的点位编号集合。"""
+    records = fetch_pest_records("春尺蠖")
+    return {
+        normalize_location_id(record.get("location_id"))
+        for record in records
+        if normalize_location_id(record.get("location_id"))
+    }
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -113,6 +194,18 @@ def index():
 def records_page():
     """数据库可视化页面（统一入口，包含所有害虫类别）。"""
     return render_template("records.html")
+
+
+@app.route("/map")
+def map_page():
+    """ESRI XYZ 瓦片地图页面。"""
+    return render_template("map_test.html")
+
+
+@app.route("/map-test")
+def map_test_redirect():
+    """兼容旧链接，重定向到正式地图路由。"""
+    return redirect(url_for("map_page"), code=302)
 
 
 # 字段 key → 中文标签映射
@@ -239,6 +332,108 @@ def export_records_csv():
             f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_filename}"
         )
         return response
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/map/tongzhou-boundary", methods=["GET"])
+def get_tongzhou_boundary():
+    """读取并返回通州区边界 GeoJSON（自动转换到 WGS84）。"""
+    try:
+        if not TONGZHOU_BOUNDARY_PATH.exists():
+            return jsonify({"success": False, "error": "未找到通州区边界文件"}), 404
+
+        with TONGZHOU_BOUNDARY_PATH.open("r", encoding="utf-8") as f:
+            geojson_obj = json.load(f)
+
+        normalized_geojson, converted = normalize_geojson_to_wgs84(geojson_obj)
+        feature_count = len(normalized_geojson.get("features", [])) if normalized_geojson.get("type") == "FeatureCollection" else 0
+
+        return jsonify({
+            "success": True,
+            "name": "通州区边界",
+            "feature_count": feature_count,
+            "converted_from_3857": converted,
+            "data": normalized_geojson,
+        })
+    except json.JSONDecodeError:
+        return jsonify({"success": False, "error": "边界文件不是有效的 GeoJSON"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/map/tongzhou-villages", methods=["GET"])
+def get_tongzhou_villages():
+    """读取并返回通州区村界 GeoJSON（自动转换到 WGS84）。"""
+    try:
+        if not TONGZHOU_VILLAGES_PATH.exists():
+            return jsonify({"success": False, "error": "未找到通州区村界文件"}), 404
+
+        with TONGZHOU_VILLAGES_PATH.open("r", encoding="utf-8") as f:
+            geojson_obj = json.load(f)
+
+        normalized_geojson, converted = normalize_geojson_to_wgs84(geojson_obj)
+        feature_count = len(normalized_geojson.get("features", [])) if normalized_geojson.get("type") == "FeatureCollection" else 0
+
+        return jsonify({
+            "success": True,
+            "name": "通州区村界",
+            "feature_count": feature_count,
+            "converted_from_3857": converted,
+            "data": normalized_geojson,
+        })
+    except json.JSONDecodeError:
+        return jsonify({"success": False, "error": "村界文件不是有效的 GeoJSON"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/map/chunchihuo-points", methods=["GET"])
+def get_chunchihuo_points():
+    """返回仅与春尺蠖数据库记录关联的杨树点位。"""
+    try:
+        if not YANGSHU_POINTS_PATH.exists():
+            return jsonify({"success": False, "error": "未找到杨树点位文件"}), 404
+
+        with YANGSHU_POINTS_PATH.open("r", encoding="utf-8") as f:
+            geojson_obj = json.load(f)
+
+        if geojson_obj.get("type") != "FeatureCollection":
+            return jsonify({"success": False, "error": "杨树点位文件不是 FeatureCollection"}), 400
+
+        all_features = geojson_obj.get("features", [])
+        db_location_ids = get_chunchihuo_location_ids()
+
+        filtered_features = []
+        for feature in all_features:
+            properties = feature.get("properties") or {}
+            point_id_raw = properties.get("编号")
+            point_id = normalize_location_id(point_id_raw)
+            if not point_id or point_id not in db_location_ids:
+                continue
+
+            # 统一补充前端展示所需字段
+            properties["点位编号"] = point_id
+            feature["properties"] = properties
+            filtered_features.append(feature)
+
+        filtered_geojson = {
+            "type": "FeatureCollection",
+            "features": filtered_features,
+        }
+        normalized_geojson, converted = normalize_geojson_to_wgs84(filtered_geojson)
+
+        return jsonify({
+            "success": True,
+            "name": "春尺蠖关联点位",
+            "source_total": len(all_features),
+            "db_location_count": len(db_location_ids),
+            "matched_count": len(filtered_features),
+            "converted_from_3857": converted,
+            "data": normalized_geojson,
+        })
+    except json.JSONDecodeError:
+        return jsonify({"success": False, "error": "杨树点位文件不是有效的 GeoJSON"}), 400
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

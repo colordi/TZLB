@@ -20,6 +20,7 @@
             <span class="site-nav-brand">🌿 林业调查</span>
             <a href="/" class="nav-tab">📋 派单生成</a>
             <a href="/records" class="nav-tab active">📚 数据库</a>
+            <a href="/map" class="nav-tab">🗺️ 地图</a>
         </div>
     </nav>
 
@@ -63,9 +64,15 @@
         const pestSections = document.getElementById("pestSections");
         const recordsStatus = document.getElementById("recordsStatus");
         const totalCount = document.getElementById("totalCount");
+        const MOBILE_BREAKPOINT = 768;
+        const MOBILE_PRIMARY_FIELD_KEYS = ["survey_date", "location_id", "location_name", "description"];
 
         function setStatus(message) {
             recordsStatus.textContent = message;
+        }
+
+        function isMobileViewport() {
+            return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
         }
 
         function normalizeCellValue(value) {
@@ -164,6 +171,7 @@
         function renderPestSection(pest) {
             const section = document.createElement("section");
             section.className = "pest-section";
+            section.setAttribute("data-pest-type", pest.pest_type);
 
             const header = document.createElement("div");
             header.className = "pest-header";
@@ -223,6 +231,28 @@
                 section.appendChild(empty);
             }
             section.appendChild(createTable(pest.fields, pest.records || []));
+
+            const mobileEditShell = document.createElement("div");
+            mobileEditShell.className = "mobile-edit-shell";
+            section.appendChild(mobileEditShell);
+
+            const mobileSaveBar = document.createElement("div");
+            mobileSaveBar.className = "mobile-save-bar";
+            const mobileAddBtn = document.createElement("button");
+            mobileAddBtn.type = "button";
+            mobileAddBtn.className = "mobile-add-btn";
+            mobileAddBtn.textContent = "➕ 新增记录";
+            mobileAddBtn.onclick = () => addNewRecordRow(pest, section);
+
+            const mobileSaveBtn = document.createElement("button");
+            mobileSaveBtn.type = "button";
+            mobileSaveBtn.className = "mobile-save-btn";
+            mobileSaveBtn.textContent = "💾 保存修改";
+            mobileSaveBtn.onclick = () => saveEditedRecords(pest.pest_type, section);
+
+            mobileSaveBar.appendChild(mobileAddBtn);
+            mobileSaveBar.appendChild(mobileSaveBtn);
+            section.appendChild(mobileSaveBar);
 
             pestSections.appendChild(section);
         }
@@ -296,6 +326,159 @@
             return Array.from(table.querySelectorAll("tbody tr"));
         }
 
+        function getFieldDefsByPestType(pestType) {
+            const pest = getPestByType(pestType);
+            return pest ? (pest.fields || []) : [];
+        }
+
+        function getRowInputByKey(row, key) {
+            const cells = Array.from(row.querySelectorAll("td[data-key]"));
+            for (const cell of cells) {
+                if (cell.getAttribute("data-key") === key) {
+                    return cell.querySelector("input, textarea");
+                }
+            }
+            return null;
+        }
+
+        function createMobileFieldNode(fieldDef, sourceInput) {
+            const wrapper = document.createElement("div");
+            wrapper.className = "mobile-field";
+
+            const label = document.createElement("label");
+            label.textContent = fieldDef.label || fieldDef.key;
+            wrapper.appendChild(label);
+
+            let inputEl;
+            if (fieldDef.key === "description") {
+                inputEl = document.createElement("textarea");
+            } else {
+                inputEl = document.createElement("input");
+                inputEl.type = "text";
+            }
+            inputEl.value = sourceInput.value || "";
+            inputEl.placeholder = sourceInput.placeholder || "";
+
+            inputEl.addEventListener("input", () => {
+                sourceInput.value = inputEl.value;
+                sourceInput.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+
+            wrapper.appendChild(inputEl);
+            return wrapper;
+        }
+
+        function renderMobileEditCards(pestType, section) {
+            const mobileShell = section.querySelector(".mobile-edit-shell");
+            if (!mobileShell) return;
+            mobileShell.innerHTML = "";
+
+            const table = section.querySelector("table");
+            if (!table || !table.classList.contains("editing")) {
+                return;
+            }
+
+            const rows = getTableRows(section);
+            const fields = getFieldDefsByPestType(pestType);
+            const fallbackKeys = rows[0]
+                ? Array.from(rows[0].querySelectorAll("td[data-key]"))
+                    .map((td) => td.getAttribute("data-key"))
+                    .filter(Boolean)
+                : [];
+            const orderedFields = fields.length > 0
+                ? fields
+                : fallbackKeys.map((key) => ({ key, label: key }));
+
+            if (rows.length === 0) {
+                const empty = document.createElement("div");
+                empty.className = "pest-empty";
+                empty.textContent = "暂无记录，可点击底部新增记录。";
+                mobileShell.appendChild(empty);
+                return;
+            }
+
+            rows.forEach((row, index) => {
+                const card = document.createElement("article");
+                card.className = "mobile-edit-card";
+
+                const header = document.createElement("div");
+                header.className = "mobile-edit-card-header";
+                const idxText = document.createElement("span");
+                idxText.textContent = `第 ${index + 1} 条`;
+
+                const removeBtn = document.createElement("button");
+                removeBtn.type = "button";
+                removeBtn.className = "mobile-remove-row";
+                const isExistingRow = row.getAttribute("data-is-existing") === "true";
+                removeBtn.textContent = isExistingRow ? "删除" : "移除";
+                removeBtn.onclick = async () => {
+                    if (isExistingRow) {
+                        await deleteRecord(pestType, row, false);
+                    } else {
+                        row.remove();
+                    }
+                    renderExternalRowActions(pestType, section);
+                    renderMobileEditCards(pestType, section);
+                };
+
+                header.appendChild(idxText);
+                header.appendChild(removeBtn);
+                card.appendChild(header);
+
+                const primaryWrap = document.createElement("div");
+                primaryWrap.className = "mobile-edit-primary";
+                const primaryKeys = MOBILE_PRIMARY_FIELD_KEYS
+                    .filter((key) => orderedFields.some((field) => field.key === key));
+                const primaryFieldDefs = orderedFields.filter((field) => primaryKeys.includes(field.key));
+                primaryFieldDefs.forEach((field) => {
+                    const sourceInput = getRowInputByKey(row, field.key);
+                    if (!sourceInput) return;
+                    primaryWrap.appendChild(createMobileFieldNode(field, sourceInput));
+                });
+                card.appendChild(primaryWrap);
+
+                const secondaryFieldDefs = orderedFields.filter((field) => !primaryKeys.includes(field.key));
+                if (secondaryFieldDefs.length > 0) {
+                    const moreWrap = document.createElement("details");
+                    moreWrap.className = "mobile-more-fields";
+                    const summary = document.createElement("summary");
+                    summary.textContent = `更多字段（${secondaryFieldDefs.length}）`;
+                    moreWrap.appendChild(summary);
+
+                    const moreGrid = document.createElement("div");
+                    moreGrid.className = "mobile-more-grid";
+                    secondaryFieldDefs.forEach((field) => {
+                        const sourceInput = getRowInputByKey(row, field.key);
+                        if (!sourceInput) return;
+                        moreGrid.appendChild(createMobileFieldNode(field, sourceInput));
+                    });
+                    moreWrap.appendChild(moreGrid);
+                    card.appendChild(moreWrap);
+                }
+
+                mobileShell.appendChild(card);
+            });
+        }
+
+        function syncEditingActionVisibility(pestType, section) {
+            const table = section.querySelector("table");
+            if (!table) return;
+            const isEditing = table.classList.contains("editing");
+            const btnSave = section.querySelector(".btn-save");
+            const btnAdd = section.querySelector(".btn-add-row");
+            const mobileBar = section.querySelector(".mobile-save-bar");
+            const useMobileEditing = isEditing && isMobileViewport();
+
+            if (btnSave) btnSave.style.display = isEditing && !useMobileEditing ? "inline-block" : "none";
+            if (btnAdd) btnAdd.style.display = isEditing && !useMobileEditing ? "inline-block" : "none";
+            if (mobileBar) mobileBar.style.display = useMobileEditing ? "flex" : "none";
+
+            section.classList.toggle("section-mobile-editing", useMobileEditing);
+            if (useMobileEditing) {
+                renderMobileEditCards(pestType, section);
+            }
+        }
+
         function syncRowActionHeights(section) {
             const rows = getTableRows(section);
             const actionItems = Array.from(section.querySelectorAll(".row-action-item"));
@@ -310,6 +493,11 @@
             const panel = section.querySelector(".row-actions-panel");
             const panelBody = panel ? panel.querySelector(".row-actions-body") : null;
             if (!table || !panel || !panelBody) return;
+            if (isMobileViewport()) {
+                panel.style.display = "none";
+                panelBody.innerHTML = "";
+                return;
+            }
 
             if (!table.classList.contains("editing")) {
                 panel.style.display = "none";
@@ -466,8 +654,6 @@
             const tableShell = section.querySelector(".table-edit-shell");
             const isEditing = table.classList.contains("editing");
             const btnEdit = section.querySelector(".btn-edit");
-            const btnSave = section.querySelector(".btn-save");
-            const btnAdd = section.querySelector(".btn-add-row");
             const editGuide = section.querySelector(".edit-guide");
             const emptyHint = section.querySelector(".pest-empty");
 
@@ -481,8 +667,6 @@
                 if (tableShell) tableShell.classList.add("is-editing");
                 section.classList.add("section-editing");
                 btnEdit.innerHTML = "❌ 取消编辑";
-                if (btnSave) btnSave.style.display = "inline-block";
-                if (btnAdd) btnAdd.style.display = "inline-block";
                 if (editGuide) editGuide.style.display = "block";
                 if (emptyHint) emptyHint.style.display = "none";
 
@@ -513,6 +697,7 @@
                     });
                 });
                 bindEditGridInteractions(pestType, section);
+                syncEditingActionVisibility(pestType, section);
                 renderExternalRowActions(pestType, section);
             }
         }
@@ -565,6 +750,9 @@
             if (wrapper) wrapper.scrollTop = wrapper.scrollHeight;
             const emptyHint = section.querySelector(".pest-empty");
             if (emptyHint) emptyHint.style.display = "none";
+            if (section.classList.contains("section-mobile-editing")) {
+                renderMobileEditCards(pest.pest_type, section);
+            }
             renderExternalRowActions(pest.pest_type, section);
         }
 
@@ -621,8 +809,11 @@
                 if (result.success) {
                     showToast(`✅ ${result.message}`);
                     row.remove();
+                    const section = row.closest(".pest-section");
+                    if (section && section.classList.contains("section-mobile-editing")) {
+                        renderMobileEditCards(pestType, section);
+                    }
                     if (refreshPanel) {
-                        const section = row.closest(".pest-section");
                         if (section) {
                             renderExternalRowActions(pestType, section);
                         }
@@ -700,8 +891,15 @@
             }
 
             const btnSave = section.querySelector(".btn-save");
-            btnSave.disabled = true;
-            btnSave.textContent = "保存中...";
+            const mobileSaveBtn = section.querySelector(".mobile-save-btn");
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.textContent = "保存中...";
+            }
+            if (mobileSaveBtn) {
+                mobileSaveBtn.disabled = true;
+                mobileSaveBtn.textContent = "保存中...";
+            }
 
             try {
                 const response = await fetch("/api/records/batch-edit", {
@@ -730,8 +928,14 @@
             } catch (err) {
                 showToast(`❌ 保存失败: ${err.message}`, "error");
             } finally {
-                btnSave.disabled = false;
-                btnSave.textContent = "💾 保存修改";
+                if (btnSave) {
+                    btnSave.disabled = false;
+                    btnSave.textContent = "💾 保存修改";
+                }
+                if (mobileSaveBtn) {
+                    mobileSaveBtn.disabled = false;
+                    mobileSaveBtn.textContent = "💾 保存修改";
+                }
             }
         }
 
@@ -763,6 +967,15 @@
                 });
             }, duration);
         }
+
+        window.addEventListener("resize", () => {
+            const activeSection = document.querySelector(".pest-section.section-editing");
+            if (!activeSection) return;
+            const pestType = activeSection.getAttribute("data-pest-type") || "";
+            if (!pestType) return;
+            syncEditingActionVisibility(pestType, activeSection);
+            renderExternalRowActions(pestType, activeSection);
+        });
 
         loadRecords();
     </script>

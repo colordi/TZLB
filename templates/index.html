@@ -20,6 +20,7 @@
             <span class="site-nav-brand">🌿 林业调查</span>
             <a href="/" class="nav-tab active">📋 派单生成</a>
             <a href="/records" class="nav-tab">📚 数据库</a>
+            <a href="/map" class="nav-tab">🗺️ 地图</a>
         </div>
     </nav>
 
@@ -72,6 +73,20 @@
                 </select>
             </div>
         </div>
+        <div class="flow-guide" aria-label="操作流程引导">
+            <div class="flow-step">
+                <span class="flow-step-index">1</span>
+                <span>选择虫种</span>
+            </div>
+            <div class="flow-step">
+                <span class="flow-step-index">2</span>
+                <span>录入内容（AI 或手动）</span>
+            </div>
+            <div class="flow-step">
+                <span class="flow-step-index">3</span>
+                <span>生成工作单或保存数据库</span>
+            </div>
+        </div>
 
         <!-- AI文本解析区域 -->
         <div class="section-title">智能解析</div>
@@ -95,6 +110,7 @@
                     保存到数据库</button>
             </div>
         </div>
+        <div class="action-hint warning" id="actionHint">请先在“基础配置”中选择害虫类型，再进行智能解析或新增记录。</div>
         <div class="records-container" id="recordsContainer">
             <!-- 记录卡片将通过 JS 动态添加 -->
             <div id="emptyState" class="empty-state">
@@ -151,6 +167,20 @@
                     toast.remove();
                 });
             }, duration);
+        }
+
+        function setPageStatus(message, type = "info") {
+            const status = document.getElementById("statusMsg");
+            if (!status) return;
+            status.textContent = message || "";
+            const colorMap = {
+                info: "rgba(44, 47, 36, 0.8)",
+                loading: "#1f4a35",
+                success: "#2f7d4f",
+                error: "#c1583a",
+                warning: "#7a4e19"
+            };
+            status.style.color = colorMap[type] || colorMap.info;
         }
 
         // 大图预览 Lightbox 控制
@@ -641,22 +671,25 @@
             const statusDiv = document.getElementById("aiParseStatus");
             const text = textInput.value.trim();
             const pestType = document.getElementById("pestType").value;  // 获取当前害虫类型
+            if (statusDiv) {
+                statusDiv.textContent = "";
+                statusDiv.className = "ai-parse-status";
+            }
 
             // 检查是否已选择害虫类型
             if (!pestType) {
-                statusDiv.textContent = "⚠️ 请先选择害虫类型";
-                statusDiv.className = "ai-parse-status error";
+                showToast("请先选择害虫类型", "warning");
+                setPageStatus("请先选择害虫类型后再执行 AI 解析。", "warning");
                 return;
             }
 
             if (!text) {
-                statusDiv.textContent = "⚠️ 请输入需要解析的文本";
-                statusDiv.className = "ai-parse-status error";
+                showToast("请输入需要解析的文本", "warning");
+                setPageStatus("请先输入调查文本，再执行 AI 解析。", "warning");
                 return;
             }
 
-            statusDiv.textContent = "🔄 AI正在解析中，请稍候...";
-            statusDiv.className = "ai-parse-status loading";
+            setPageStatus("🔄 AI 正在解析文本，请稍候...", "loading");
 
             try {
                 const response = await fetch("/api/parse-text", {
@@ -676,8 +709,8 @@
                         addRow(record);
                     });
 
-                    statusDiv.textContent = `✅ 成功解析 ${result.records.length} 条记录！`;
-                    statusDiv.className = "ai-parse-status success";
+                    showToast(`成功解析 ${result.records.length} 条记录`, "success");
+                    setPageStatus(`✅ 已完成 AI 解析，新增 ${result.records.length} 条记录。`, "success");
 
                     // 清空输入框
                     textInput.value = "";
@@ -685,8 +718,7 @@
                     throw new Error(result.error || "解析失败");
                 }
             } catch (err) {
-                statusDiv.textContent = `❌ ${err.message}`;
-                statusDiv.className = "ai-parse-status error";
+                setPageStatus(`❌ AI 解析失败：${err.message}`, "error");
             }
         }
 
@@ -755,8 +787,7 @@
 
             btn.disabled = true;
             btn.innerHTML = "<span class='spinner' style='border-color: rgba(122,78,25,0.2); border-top-color: #7a4e19;'></span> 正在保存...";
-            status.textContent = "💾 正在保存到数据库，请稍候...";
-            status.style.color = "white";
+            setPageStatus("💾 正在保存到数据库，请稍候...", "loading");
 
             try {
                 const response = await fetch("/api/save-to-db", {
@@ -770,17 +801,15 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    status.textContent = `✅ 成功保存 ${result.saved} 条记录到数据库！`;
-                    status.style.color = "#2ecc71";
+                    setPageStatus(`✅ 成功保存 ${result.saved} 条记录到数据库！`, "success");
                     if (result.failed > 0) {
-                        status.textContent += `\n⚠️ ${result.failed} 条记录保存失败`;
+                        setPageStatus(`✅ 成功保存 ${result.saved} 条，⚠️ ${result.failed} 条失败`, "warning");
                     }
                 } else {
                     throw new Error(result.error);
                 }
             } catch (err) {
-                status.textContent = `❌ 保存失败: ${err.message}`;
-                status.style.color = "#e74c3c";
+                setPageStatus(`❌ 保存失败: ${err.message}`, "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "💾 保存到数据库";
@@ -848,8 +877,7 @@
 
             btn.disabled = true;
             btn.innerHTML = "<span class='spinner'></span> 正在生成...";
-            status.textContent = "🚚 正在处理您的请求，请稍候...";
-            status.style.color = "white";
+            setPageStatus("🚚 正在处理您的请求，请稍候...", "loading");
 
             try {
                 const response = await fetch("/api/generate", {
@@ -911,12 +939,10 @@
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
 
-                    status.textContent = `✅ 成功生成工作单！文件已开始下载。`;
-                    status.style.color = "#2ecc71";
+                    setPageStatus("✅ 成功生成工作单！文件已开始下载。", "success");
                 }
             } catch (err) {
-                status.textContent = `❌ 失败了: ${err.message}`;
-                status.style.color = "#e74c3c";
+                setPageStatus(`❌ 失败了: ${err.message}`, "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "🚀 批量生成工作单";
@@ -997,8 +1023,29 @@
             const disableActions = !pestType;
             const btnAdd = document.querySelector(".btn-add");
             const btnAiParse = document.querySelector(".btn-ai-parse");
+            const btnGenerate = document.querySelector(".btn-generate");
+            const actionHint = document.getElementById("actionHint");
             if (btnAdd) btnAdd.disabled = disableActions;
             if (btnAiParse) btnAiParse.disabled = disableActions;
+            if (btnGenerate) btnGenerate.disabled = disableActions;
+
+            if (disableActions) {
+                if (btnAdd) btnAdd.title = "请先选择害虫类型";
+                if (btnAiParse) btnAiParse.title = "请先选择害虫类型";
+                if (btnGenerate) btnGenerate.title = "请先选择害虫类型";
+                if (actionHint) {
+                    actionHint.className = "action-hint warning";
+                    actionHint.textContent = "请先在“基础配置”中选择害虫类型，再进行智能解析或新增记录。";
+                }
+            } else {
+                if (btnAdd) btnAdd.title = "";
+                if (btnAiParse) btnAiParse.title = "";
+                if (btnGenerate) btnGenerate.title = "";
+                if (actionHint) {
+                    actionHint.className = "action-hint ready";
+                    actionHint.textContent = `当前已选择：${pestType}。下一步可用 AI 解析或手动新增记录，然后生成工作单或保存数据库。`;
+                }
+            }
         }
 
         // 页面初始化（不再默认添加空白行）

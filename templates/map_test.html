@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>林业调查地图</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+</head>
+
+<body class="map-page">
+    <nav class="site-nav">
+        <div class="site-nav-inner">
+            <span class="site-nav-brand">🌿 林业调查</span>
+            <a href="/" class="nav-tab">📋 派单生成</a>
+            <a href="/records" class="nav-tab">📚 数据库</a>
+            <a href="/map" class="nav-tab active">🗺️ 地图</a>
+        </div>
+    </nav>
+
+    <div class="background-blobs" aria-hidden="true">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="container map-container">
+        <div class="page-header map-page-header">
+            <div class="header-top">
+                <span class="tag" id="yearTag">2025 · 林业调查</span>
+                <span class="tag ghost">地图巡查</span>
+            </div>
+            <h1>通州区地图巡查</h1>
+            <p class="subtitle">默认展示行政边界，可一键切换巡查模式与全量模式，支持按需加载村界和点位图层。</p>
+            <div class="map-status-row">
+                <span class="map-status-tag">瓦片：World_Imagery</span>
+                <span class="map-status-tag">边界：通州区边界.geojson</span>
+                <span class="map-status-tag">村界：通州区村界.geojson</span>
+                <span class="map-status-tag">点位：杨树点位（春尺蠖关联）</span>
+                <span class="map-status-main" id="statusText">正在初始化地图...</span>
+            </div>
+        </div>
+
+        <div class="map-mode-bar" role="group" aria-label="地图模式选择">
+            <button type="button" class="map-mode-btn" data-mode="boundary">边界模式</button>
+            <button type="button" class="map-mode-btn" data-mode="patrol">巡查模式</button>
+            <button type="button" class="map-mode-btn" data-mode="full">全量模式</button>
+        </div>
+
+        <details class="map-advanced-panel">
+            <summary>高级图层开关</summary>
+            <div class="map-layer-controls">
+                <label class="map-layer-item" title="边界为主图层，固定显示">
+                    <input type="checkbox" id="toggleBoundary" checked disabled>
+                    通州区边界（固定）
+                </label>
+                <label class="map-layer-item">
+                    <input type="checkbox" id="toggleVillages">
+                    村界标注（缩放到 13 级及以上可见）
+                </label>
+                <label class="map-layer-item">
+                    <input type="checkbox" id="togglePoints">
+                    杨树点位（仅春尺蠖数据库关联）
+                </label>
+            </div>
+        </details>
+
+        <section class="map-shell">
+            <div id="map"></div>
+            <div class="map-tools-row">
+                <button type="button" class="map-aux-btn" id="resetViewBtn">重置到边界范围</button>
+                <div class="map-coords" id="coordsText">当前中心：--，缩放级别：--</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        const TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+        const BOUNDARY_API_PATH = "api/map/tongzhou-boundary";
+        const VILLAGES_API_PATH = "api/map/tongzhou-villages";
+        const POINTS_API_PATH = "api/map/chunchihuo-points";
+        const MODE_STORAGE_KEY = "tzlb.map.mode";
+        const VILLAGE_LABEL_MIN_ZOOM = 13;
+
+        const MODE_CONFIGS = {
+            boundary: { label: "边界模式", villages: false, points: false },
+            patrol: { label: "巡查模式", villages: false, points: true },
+            full: { label: "全量模式", villages: true, points: true }
+        };
+
+        const BOUNDARY_API_CANDIDATES = Array.from(new Set([
+            new URL(`./${BOUNDARY_API_PATH}`, window.location.href).toString(),
+            new URL(`/${BOUNDARY_API_PATH}`, window.location.origin).toString()
+        ]));
+        const VILLAGES_API_CANDIDATES = Array.from(new Set([
+            new URL(`./${VILLAGES_API_PATH}`, window.location.href).toString(),
+            new URL(`/${VILLAGES_API_PATH}`, window.location.origin).toString()
+        ]));
+        const POINTS_API_CANDIDATES = Array.from(new Set([
+            new URL(`./${POINTS_API_PATH}`, window.location.href).toString(),
+            new URL(`/${POINTS_API_PATH}`, window.location.origin).toString()
+        ]));
+
+        function normalizeMode(mode) {
+            return Object.prototype.hasOwnProperty.call(MODE_CONFIGS, mode) ? mode : "boundary";
+        }
+
+        function loadStoredMode() {
+            try {
+                return normalizeMode(localStorage.getItem(MODE_STORAGE_KEY) || "boundary");
+            } catch (_error) {
+                return "boundary";
+            }
+        }
+
+        function persistMode(mode) {
+            try {
+                localStorage.setItem(MODE_STORAGE_KEY, normalizeMode(mode));
+            } catch (_error) {
+                // 忽略 localStorage 不可用的情况
+            }
+        }
+
+        const yearTag = document.getElementById("yearTag");
+        if (yearTag) {
+            yearTag.textContent = `${new Date().getFullYear()} · 林业调查`;
+        }
+
+        const statusText = document.getElementById("statusText");
+        const coordsText = document.getElementById("coordsText");
+        const toggleBoundaryEl = document.getElementById("toggleBoundary");
+        const toggleVillagesEl = document.getElementById("toggleVillages");
+        const togglePointsEl = document.getElementById("togglePoints");
+        const modeBtnEls = Array.from(document.querySelectorAll(".map-mode-btn"));
+
+        let activeMapMode = loadStoredMode();
+        let tileReady = false;
+        let tileErrorText = "";
+        let boundaryReady = false;
+        let villagesReady = false;
+        let pointsReady = false;
+        let boundaryErrorText = "";
+        let villagesErrorText = "";
+        let pointsErrorText = "";
+        let villagesLoading = false;
+        let pointsLoading = false;
+        let pointsLoadedCount = 0;
+        let limitedBounds = null;
+        let boundaryLayerRef = null;
+        let villagesLayerRef = null;
+        let pointsLayerRef = null;
+
+        const map = L.map("map", {
+            minZoom: 2,
+            maxZoom: 19,
+            zoomControl: true
+        }).setView([39.9042, 116.4074], 11);
+
+        map.createPane("boundaryPane");
+        map.getPane("boundaryPane").style.zIndex = "420";
+        map.createPane("pointsPane");
+        map.getPane("pointsPane").style.zIndex = "430";
+        map.createPane("boundaryLabelPane");
+        map.getPane("boundaryLabelPane").style.zIndex = "640";
+        map.createPane("villageLabelPane");
+        map.getPane("villageLabelPane").style.zIndex = "650";
+        map.createPane("pointLabelPane");
+        map.getPane("pointLabelPane").style.zIndex = "660";
+
+        const esriLayer = L.tileLayer(TILE_URL, {
+            maxZoom: 19,
+            noWrap: true,
+            keepBuffer: 1,
+            attribution: "Tiles &copy; Esri"
+        });
+        esriLayer.addTo(map);
+
+        function updateCenterText() {
+            const center = map.getCenter();
+            coordsText.textContent = `当前中心：${center.lat.toFixed(5)}, ${center.lng.toFixed(5)}，缩放级别：${map.getZoom()}`;
+        }
+
+        function setModeButtonState(mode) {
+            modeBtnEls.forEach((btn) => {
+                const isActive = btn.dataset.mode === mode;
+                btn.classList.toggle("active", isActive);
+                btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+            });
+        }
+
+        function getShouldShowVillagesLayer() {
+            return toggleVillagesEl.checked && map.getZoom() >= VILLAGE_LABEL_MIN_ZOOM;
+        }
+
+        function setLayerVisible(layer, visible) {
+            if (!layer) {
+                return;
+            }
+            const isVisible = map.hasLayer(layer);
+            if (visible && !isVisible) {
+                layer.addTo(map);
+            } else if (!visible && isVisible) {
+                map.removeLayer(layer);
+            }
+        }
+
+        function applyLayerVisibility() {
+            setLayerVisible(boundaryLayerRef, toggleBoundaryEl.checked);
+            setLayerVisible(villagesLayerRef, getShouldShowVillagesLayer());
+            setLayerVisible(pointsLayerRef, togglePointsEl.checked);
+        }
+
+        function ensureOptionalLayersLoaded() {
+            if (toggleVillagesEl.checked && !villagesReady && !villagesLoading) {
+                loadTongzhouVillages();
+            }
+            if (togglePointsEl.checked && !pointsReady && !pointsLoading) {
+                loadChunchihuoPoints();
+            }
+        }
+
+        function updateStatusText() {
+            if (window.location.protocol === "file:") {
+                statusText.textContent = "当前是本地文件访问，请通过 Flask 路由打开 /map。";
+                return;
+            }
+
+            const modeLabel = MODE_CONFIGS[activeMapMode].label;
+            const errors = [];
+            if (tileErrorText) {
+                errors.push(`瓦片：${tileErrorText}`);
+            }
+            if (boundaryErrorText) {
+                errors.push(`边界：${boundaryErrorText}`);
+            }
+            if (toggleVillagesEl.checked && villagesErrorText) {
+                errors.push(`村界：${villagesErrorText}`);
+            }
+            if (togglePointsEl.checked && pointsErrorText) {
+                errors.push(`点位：${pointsErrorText}`);
+            }
+            if (errors.length > 0) {
+                statusText.textContent = `模式：${modeLabel}｜异常：${errors.join("；")}`;
+                return;
+            }
+
+            const loadingParts = [];
+            if (!tileReady) {
+                loadingParts.push("瓦片");
+            }
+            if (!boundaryReady) {
+                loadingParts.push("边界");
+            }
+            if (toggleVillagesEl.checked && !villagesReady) {
+                loadingParts.push("村界");
+            }
+            if (togglePointsEl.checked && !pointsReady) {
+                loadingParts.push("点位");
+            }
+            if (loadingParts.length > 0) {
+                const loadingPointCount = togglePointsEl.checked ? pointsLoadedCount : 0;
+                statusText.textContent = `模式：${modeLabel}｜加载：${loadingParts.join("、")}｜点位：${loadingPointCount}`;
+                return;
+            }
+
+            const shown = ["通州区边界"];
+            const tips = [];
+            if (toggleVillagesEl.checked) {
+                if (getShouldShowVillagesLayer()) {
+                    shown.push("村界标注");
+                } else {
+                    tips.push("放大查看村名");
+                }
+            }
+            if (togglePointsEl.checked) {
+                shown.push("关联点位");
+            }
+            const pointCount = togglePointsEl.checked ? pointsLoadedCount : 0;
+            const tipText = tips.length > 0 ? `｜提示：${tips.join("；")}` : "";
+            statusText.textContent = `模式：${modeLabel}｜显示：${shown.join("、")}｜点位：${pointCount}${tipText}`;
+        }
+
+        function deriveModeFromAdvancedToggles() {
+            if (toggleVillagesEl.checked && togglePointsEl.checked) {
+                return "full";
+            }
+            if (!toggleVillagesEl.checked && togglePointsEl.checked) {
+                return "patrol";
+            }
+            return "boundary";
+        }
+
+        function syncAdvancedToggleRules(changedKey) {
+            if (changedKey === "villages" && toggleVillagesEl.checked) {
+                togglePointsEl.checked = true;
+            }
+            if (changedKey === "points" && !togglePointsEl.checked) {
+                toggleVillagesEl.checked = false;
+            }
+        }
+
+        function applyMode(mode, persist = true) {
+            activeMapMode = normalizeMode(mode);
+            const config = MODE_CONFIGS[activeMapMode];
+            toggleBoundaryEl.checked = true;
+            toggleVillagesEl.checked = config.villages;
+            togglePointsEl.checked = config.points;
+            setModeButtonState(activeMapMode);
+            if (persist) {
+                persistMode(activeMapMode);
+            }
+            ensureOptionalLayersLoaded();
+            applyLayerVisibility();
+            updateStatusText();
+        }
+
+        function handleAdvancedToggleChange(changedKey) {
+            syncAdvancedToggleRules(changedKey);
+            activeMapMode = deriveModeFromAdvancedToggles();
+            setModeButtonState(activeMapMode);
+            persistMode(activeMapMode);
+            ensureOptionalLayersLoaded();
+            applyLayerVisibility();
+            updateStatusText();
+        }
+
+        function applyBoundaryLimits(bounds) {
+            if (!bounds || !bounds.isValid()) {
+                return;
+            }
+            limitedBounds = bounds.pad(0.02);
+
+            map.setMaxBounds(limitedBounds);
+            map.options.maxBoundsViscosity = 1.0;
+
+            const zoomToContainBounds = map.getBoundsZoom(limitedBounds, false);
+            map.setMinZoom(Math.max(2, zoomToContainBounds));
+
+            esriLayer.options.bounds = limitedBounds;
+            esriLayer.options.noWrap = true;
+            esriLayer.redraw();
+
+            map.fitBounds(limitedBounds, { padding: [20, 20] });
+            map.panInsideBounds(limitedBounds, { animate: false });
+        }
+
+        async function fetchMapPayload(urlCandidates, datasetName) {
+            let lastError = null;
+            for (const url of urlCandidates) {
+                try {
+                    const resp = await fetch(url, {
+                        cache: "no-store",
+                        credentials: "same-origin"
+                    });
+                    if (!resp.ok) {
+                        throw new Error(`接口返回 ${resp.status} (${url})`);
+                    }
+                    const result = await resp.json();
+                    if (!result.success || !result.data) {
+                        throw new Error(result.error || `${datasetName}数据格式异常 (${url})`);
+                    }
+                    return result;
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+            throw lastError || new Error(`无法访问${datasetName}接口`);
+        }
+
+        async function loadTongzhouBoundary() {
+            if (window.location.protocol === "file:") {
+                boundaryErrorText = "当前是本地文件访问，请通过 Flask 路由打开 /map。";
+                updateStatusText();
+                return;
+            }
+
+            updateStatusText();
+            try {
+                const result = await fetchMapPayload(BOUNDARY_API_CANDIDATES, "边界");
+
+                boundaryLayerRef = L.geoJSON(result.data, {
+                    pane: "boundaryPane",
+                    interactive: false,
+                    style: {
+                        color: "#ff8a00",
+                        weight: 2.6,
+                        opacity: 1,
+                        fillColor: "#ff8a00",
+                        fillOpacity: 0.18
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const region = (feature.properties || {})["区域"] || "未知区域";
+                        layer.bindTooltip(region, {
+                            permanent: true,
+                            direction: "center",
+                            pane: "boundaryLabelPane",
+                            className: "boundary-label"
+                        });
+                    }
+                });
+
+                const bounds = boundaryLayerRef.getBounds();
+                if (bounds && bounds.isValid()) {
+                    applyBoundaryLimits(bounds);
+                }
+
+                boundaryReady = true;
+                boundaryErrorText = "";
+                applyLayerVisibility();
+                updateStatusText();
+            } catch (err) {
+                boundaryReady = false;
+                boundaryErrorText = err instanceof Error ? err.message : "未知错误";
+                console.error("通州区边界加载失败", err);
+                updateStatusText();
+            }
+        }
+
+        async function loadTongzhouVillages() {
+            if (window.location.protocol === "file:") {
+                villagesErrorText = "当前是本地文件访问，请通过 Flask 路由打开 /map。";
+                updateStatusText();
+                return;
+            }
+
+            updateStatusText();
+            if (villagesReady || villagesLoading) {
+                applyLayerVisibility();
+                return;
+            }
+            try {
+                villagesLoading = true;
+                const result = await fetchMapPayload(VILLAGES_API_CANDIDATES, "村界");
+                villagesLayerRef = L.geoJSON(result.data, {
+                    interactive: false,
+                    style: {
+                        color: "#000000",
+                        weight: 0,
+                        opacity: 0,
+                        fillOpacity: 0
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const villageName = (feature.properties || {})["村名"] || "未知村";
+                        layer.bindTooltip(villageName, {
+                            permanent: true,
+                            direction: "center",
+                            pane: "villageLabelPane",
+                            className: "village-label"
+                        });
+                    }
+                });
+
+                villagesReady = true;
+                villagesErrorText = "";
+                applyLayerVisibility();
+                updateStatusText();
+            } catch (err) {
+                villagesReady = false;
+                villagesErrorText = err instanceof Error ? err.message : "未知错误";
+                console.error("通州区村界加载失败", err);
+                updateStatusText();
+            } finally {
+                villagesLoading = false;
+            }
+        }
+
+        function buildPointPopup(properties) {
+            const pointId = properties?.["点位编号"] || properties?.["编号"] || "未知编号";
+            const town = properties?.["乡镇"] || "-";
+            const village = properties?.["村"] || "-";
+            return `点位编号：${pointId}<br>乡镇：${town}<br>村：${village}`;
+        }
+
+        async function loadChunchihuoPoints() {
+            if (window.location.protocol === "file:") {
+                pointsErrorText = "当前是本地文件访问，请通过 Flask 路由打开 /map。";
+                updateStatusText();
+                return;
+            }
+
+            updateStatusText();
+            if (pointsReady || pointsLoading) {
+                applyLayerVisibility();
+                return;
+            }
+            try {
+                pointsLoading = true;
+                const result = await fetchMapPayload(POINTS_API_CANDIDATES, "关联点位");
+                pointsLoadedCount = Number(result.matched_count || 0);
+
+                pointsLayerRef = L.geoJSON(result.data, {
+                    pane: "pointsPane",
+                    pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {
+                        radius: 6,
+                        color: "#ff8a00",
+                        weight: 1.8,
+                        fillColor: "#ffb347",
+                        fillOpacity: 0.95
+                    }),
+                    onEachFeature: (feature, layer) => {
+                        const properties = feature.properties || {};
+                        const pointId = properties["点位编号"] || properties["编号"] || "未知编号";
+                        layer.bindPopup(buildPointPopup(properties));
+                        layer.bindTooltip(pointId, {
+                            permanent: true,
+                            direction: "top",
+                            offset: [0, -8],
+                            pane: "pointLabelPane",
+                            className: "point-id-label"
+                        });
+                    }
+                });
+
+                pointsReady = true;
+                pointsErrorText = "";
+                applyLayerVisibility();
+                updateStatusText();
+            } catch (err) {
+                pointsReady = false;
+                pointsErrorText = err instanceof Error ? err.message : "未知错误";
+                console.error("春尺蠖关联点位加载失败", err);
+                updateStatusText();
+            } finally {
+                pointsLoading = false;
+            }
+        }
+
+        esriLayer.on("load", () => {
+            tileReady = true;
+            tileErrorText = "";
+            updateStatusText();
+            updateCenterText();
+        });
+
+        esriLayer.on("tileerror", () => {
+            tileErrorText = "瓦片加载异常，请检查网络或服务状态";
+            updateStatusText();
+        });
+
+        map.on("moveend", updateCenterText);
+        map.on("zoomend", () => {
+            applyLayerVisibility();
+            updateCenterText();
+            updateStatusText();
+        });
+
+        document.getElementById("resetViewBtn").addEventListener("click", () => {
+            if (limitedBounds && limitedBounds.isValid()) {
+                map.fitBounds(limitedBounds, { padding: [20, 20] });
+                return;
+            }
+            map.setView([39.9042, 116.4074], 11);
+        });
+
+        modeBtnEls.forEach((btn) => {
+            btn.addEventListener("click", () => {
+                applyMode(btn.dataset.mode, true);
+            });
+        });
+
+        toggleVillagesEl.addEventListener("change", () => {
+            handleAdvancedToggleChange("villages");
+        });
+        togglePointsEl.addEventListener("change", () => {
+            handleAdvancedToggleChange("points");
+        });
+
+        applyMode(activeMapMode, false);
+        updateStatusText();
+        loadTongzhouBoundary();
+        ensureOptionalLayersLoaded();
+    </script>
+</body>
+
+</html>

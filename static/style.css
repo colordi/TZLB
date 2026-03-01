@@ -1,5 +1,6 @@
 :root {
     --ink: #2c2f24;
+    --text-dark: #2c2f24;
     --forest: #1f4a35;
     --moss: #6e8c5a;
     --moss-strong: #3f6b4e;
@@ -10,6 +11,19 @@
     --accent-strong: #c1583a;
     --shadow: 0 24px 60px rgba(30, 40, 28, 0.16);
     --radius: 20px;
+    --space-1: 6px;
+    --space-2: 10px;
+    --space-3: 14px;
+    --space-4: 18px;
+    --space-5: 24px;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --elev-1: 0 8px 18px rgba(30, 40, 28, 0.08);
+    --elev-2: 0 16px 32px rgba(30, 40, 28, 0.12);
+    --font-sm: 0.86rem;
+    --font-md: 0.95rem;
+    --font-lg: 1.08rem;
 }
 
 * {
@@ -191,6 +205,38 @@ body::after {
     color: rgba(31, 74, 53, 0.7);
 }
 
+.flow-guide {
+    margin: 4px 0 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.flow-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(31, 74, 53, 0.18);
+    background: rgba(31, 74, 53, 0.07);
+    font-size: 0.84rem;
+    color: rgba(31, 74, 53, 0.9);
+}
+
+.flow-step-index {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #2c5e44, #5e8267);
+}
+
 .config-section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -339,6 +385,27 @@ option {
 .records-toolbar .actions {
     margin-top: 0;
     justify-content: flex-end;
+}
+
+.action-hint {
+    margin: 2px 0 10px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px dashed rgba(44, 47, 36, 0.18);
+}
+
+.action-hint.warning {
+    color: #7a4e19;
+    background: rgba(215, 155, 68, 0.12);
+    border-color: rgba(215, 155, 68, 0.35);
+}
+
+.action-hint.ready {
+    color: #1f4a35;
+    background: rgba(111, 140, 90, 0.12);
+    border-color: rgba(63, 107, 78, 0.3);
 }
 
 .record-card {
@@ -1125,6 +1192,14 @@ td textarea {
     box-shadow: 0 2px 8px rgba(31, 74, 53, 0.1);
 }
 
+.nav-tab:focus-visible,
+button:focus-visible,
+a.btn-export:focus-visible,
+.map-mode-btn:focus-visible {
+    outline: 2px solid rgba(31, 74, 53, 0.6);
+    outline-offset: 2px;
+}
+
 /* 页面顶部预留导航栏高度（约 58px） */
 body {
     padding-top: 94px;
@@ -1371,7 +1446,7 @@ td[data-key="description"] .edit-textarea {
 
 .btn-add-row {
     background: rgba(44, 47, 36, 0.08);
-    color: var(--text-dark);
+    color: var(--ink);
     padding: 10px 18px;
     border: 1px dashed rgba(44, 47, 36, 0.34);
     border-radius: 999px;
@@ -1561,4 +1636,353 @@ td[data-key="description"] .edit-textarea {
     color: var(--forest);
     border-color: rgba(63, 107, 78, 0.5);
     box-shadow: 0 4px 12px rgba(31, 74, 53, 0.1);
+}
+
+/* --- 地图页面（map-page） --- */
+body.map-page {
+    align-items: flex-start;
+}
+
+.map-page .map-container {
+    max-width: 1180px;
+    padding-bottom: 30px;
+}
+
+.map-page-header {
+    margin-bottom: 14px;
+}
+
+.map-status-row {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.map-status-tag {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(31, 74, 53, 0.18);
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: rgba(255, 255, 255, 0.72);
+    color: rgba(31, 74, 53, 0.86);
+    font-size: 0.8rem;
+}
+
+.map-status-main {
+    color: rgba(44, 47, 36, 0.8);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.map-mode-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.map-mode-btn {
+    border: 1px solid rgba(31, 74, 53, 0.24);
+    background: rgba(255, 255, 255, 0.78);
+    color: rgba(31, 74, 53, 0.86);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.map-mode-btn:hover {
+    background: rgba(111, 140, 90, 0.12);
+}
+
+.map-mode-btn.active {
+    color: #fff;
+    border-color: rgba(31, 74, 53, 0.75);
+    background: linear-gradient(135deg, #1f4a35, #3f6b4e);
+    box-shadow: 0 10px 18px rgba(31, 74, 53, 0.24);
+}
+
+.map-advanced-panel {
+    border: 1px solid rgba(44, 47, 36, 0.14);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.64);
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+
+.map-advanced-panel > summary {
+    cursor: pointer;
+    color: rgba(31, 74, 53, 0.85);
+    font-size: 0.86rem;
+    font-weight: 600;
+    user-select: none;
+}
+
+.map-layer-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.map-layer-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(44, 47, 36, 0.82);
+    font-size: 0.86rem;
+}
+
+.map-layer-item input {
+    margin: 0;
+    accent-color: #1f6843;
+}
+
+.map-shell {
+    border: 1px solid rgba(44, 47, 36, 0.16);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.78);
+    padding: 12px;
+    box-shadow: var(--elev-1);
+}
+
+#map {
+    width: 100%;
+    height: 72vh;
+    min-height: 420px;
+    border: 1px solid rgba(44, 47, 36, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.map-tools-row {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.map-aux-btn {
+    border: 1px solid rgba(31, 74, 53, 0.24);
+    background: rgba(111, 140, 90, 0.12);
+    color: #1f4a35;
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.map-aux-btn:hover {
+    background: rgba(111, 140, 90, 0.2);
+}
+
+.map-coords {
+    color: rgba(44, 47, 36, 0.7);
+    font-size: 0.84rem;
+}
+
+.boundary-label,
+.village-label,
+.point-id-label {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    white-space: nowrap;
+    font-weight: 700;
+    padding: 0;
+}
+
+.boundary-label {
+    color: #ff8a00;
+    font-size: 14px;
+    text-shadow:
+        -1px -1px 0 #ffffff,
+        1px -1px 0 #ffffff,
+        -1px 1px 0 #ffffff,
+        1px 1px 0 #ffffff,
+        0 0 2px #ffffff;
+}
+
+.village-label {
+    color: #1f66d1;
+    font-size: 12px;
+    text-shadow:
+        -1px -1px 0 #ffffff,
+        1px -1px 0 #ffffff,
+        -1px 1px 0 #ffffff,
+        1px 1px 0 #ffffff;
+}
+
+.point-id-label {
+    color: #000000;
+    font-size: 12px;
+    text-shadow:
+        -1px -1px 0 #ffffff,
+        1px -1px 0 #ffffff,
+        -1px 1px 0 #ffffff,
+        1px 1px 0 #ffffff;
+}
+
+@media (max-width: 768px) {
+    .map-page .map-container {
+        padding: 20px 14px 22px;
+    }
+
+    #map {
+        height: 62vh;
+        min-height: 340px;
+    }
+
+    .map-tools-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* --- 数据库移动端卡片编辑 --- */
+.mobile-edit-shell {
+    display: none;
+}
+
+.mobile-save-bar {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .section-mobile-editing {
+        padding-bottom: 86px;
+    }
+
+    .section-mobile-editing .table-edit-shell {
+        display: none !important;
+    }
+
+    .section-mobile-editing .mobile-edit-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 6px;
+    }
+
+    .mobile-edit-card {
+        border: 1px solid rgba(44, 47, 36, 0.14);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        box-shadow: 0 8px 18px rgba(30, 40, 28, 0.08);
+    }
+
+    .mobile-edit-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 0.82rem;
+        color: rgba(44, 47, 36, 0.72);
+    }
+
+    .mobile-edit-primary {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .mobile-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .mobile-field label {
+        font-size: 0.76rem;
+        color: rgba(44, 47, 36, 0.66);
+    }
+
+    .mobile-field input,
+    .mobile-field textarea {
+        padding: 9px 10px;
+        border: 1px solid rgba(44, 47, 36, 0.18);
+        border-radius: 9px;
+        font-size: 0.86rem;
+        background: #fff;
+    }
+
+    .mobile-field textarea {
+        min-height: 72px;
+        resize: vertical;
+    }
+
+    .mobile-more-fields {
+        margin-top: 8px;
+        border-top: 1px dashed rgba(44, 47, 36, 0.16);
+        padding-top: 8px;
+    }
+
+    .mobile-more-fields > summary {
+        cursor: pointer;
+        font-size: 0.82rem;
+        color: #1f4a35;
+        font-weight: 600;
+    }
+
+    .mobile-more-grid {
+        margin-top: 8px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .mobile-remove-row {
+        border: none;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        color: #8d3f2b;
+        background: rgba(193, 88, 58, 0.15);
+        cursor: pointer;
+    }
+
+    .mobile-save-bar {
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 220;
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(44, 47, 36, 0.18);
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 12px 26px rgba(20, 34, 26, 0.18);
+        backdrop-filter: blur(10px);
+    }
+
+    .mobile-save-btn,
+    .mobile-add-btn {
+        flex: 1;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .mobile-add-btn {
+        color: #1f4a35;
+        background: rgba(111, 140, 90, 0.18);
+    }
+
+    .mobile-save-btn {
+        color: #fff;
+        background: linear-gradient(135deg, #1f4a35, #3f6b4e);
+    }
 }
