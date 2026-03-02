@@ -215,16 +215,18 @@ _FIELD_LABELS = {
     "location_name": "点位名称", "occurrence_position": "发生位置",
     "total_insect_count": "总虫口数", "damage_level": "受害程度",
     "report_time": "上报时间", "description": "详细情况描述",
-    "pest_name": "害虫类别", "plot_type": "绿化性质",
-    "host_plant": "危害寄主",
+    "pest_name": "虫种", "plot_type": "地块类型",
+    "host_plant": "受害树种",
 }
 
 def _build_pest_definitions() -> list[dict]:
     """从 PEST_DB_CONFIGS 自动构建前端展示定义，避免手工维护。"""
     definitions = []
     for pest_type, config in PEST_DB_CONFIGS.items():
-        # 展示字段 = 业务字段 + report_time（去掉 report_time 已在业务字段外）
-        display_keys = list(config.fields) + ["report_time"]
+        # 展示字段以业务字段为准，仅非“其他害虫”追加 report_time 供回溯
+        display_keys = list(config.fields)
+        if pest_type != "其他害虫":
+            display_keys.append("report_time")
         if pest_type == "春尺蠖" and "description" in display_keys and "report_time" in display_keys:
             desc_idx = display_keys.index("description")
             report_idx = display_keys.index("report_time")

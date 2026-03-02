@@ -50,7 +50,7 @@ _CHIHUO_FIELDS = (
 _QITA_FIELDS = (
     "survey_date", "region", "town_or_street", "location_id",
     "location_name", "occurrence_position",
-    "plot_type", "host_plant", "pest_name", "description",
+    "plot_type", "pest_name", "host_plant", "description",
 )
 
 PEST_DB_CONFIGS: dict[str, PestDBConfig] = {

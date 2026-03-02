@@ -222,12 +222,12 @@
             { key: "location_id", label: "点位编号", type: "text" },
             { key: "location_name", label: "点位名称", type: "text" },
             { key: "occurrence_position", label: "发生位置", type: "text" },
-            { key: "plot_type", label: "绿化性质", type: "text", hideable: true },
-            { key: "pest_name", label: "害虫类别", type: "text", hideable: true }
+            { key: "plot_type", label: "地块类型", type: "text", hideable: true },
+            { key: "pest_name", label: "虫种", type: "text", hideable: true }
         ];
 
         const FIELDS_ROW2 = [
-            { key: "host_plant", label: "危害寄主", type: "text", hideable: true },
+            { key: "host_plant", label: "受害树种", type: "text", hideable: true },
             { key: "damaged_count", label: "受害株数", type: "text", hideable: true },
             { key: "web_count", label: "网幕数", type: "text", hideable: true },
             { key: "total_insect_count", label: "总虫口数", type: "number", hideable: true },
@@ -269,7 +269,7 @@
             "description"
         ]);
 
-        // 其他害虫模式：包含地块类型、危害寄主、绿化性质和害虫类别，但不包含总虫口数和受害程度
+        // 其他害虫模式：完全对齐指定字段（不展示上报时间）
         const QITA_HAICHONG_VISIBLE_FIELD_KEYS = new Set([
             "survey_date",
             "region",
@@ -277,10 +277,9 @@
             "location_id",
             "location_name",
             "occurrence_position",
-            "pest_name",
             "plot_type",
+            "pest_name",
             "host_plant",
-            "report_time",
             "description"
         ]);
 
@@ -391,6 +390,74 @@
             return `${year}-${month}-${day}`;
         }
 
+        function parseClipboardGrid(rawText) {
+            if (typeof rawText !== "string") return [];
+            const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+            const lines = normalized.split("\n");
+            while (lines.length > 0 && lines[lines.length - 1] === "") {
+                lines.pop();
+            }
+            return lines.map(line => line.split("\t"));
+        }
+
+        function flattenClipboardGrid(grid) {
+            const values = [];
+            grid.forEach(row => {
+                row.forEach(cell => values.push(cell ?? ""));
+            });
+            return values;
+        }
+
+        function getVisibleFieldInputs(card) {
+            if (!card) return [];
+            const groups = Array.from(card.querySelectorAll(".card-fields-grid .field-group"));
+            return groups
+                .filter(group => group.style.display !== "none")
+                .map(group => group.querySelector("input[data-key], textarea[data-key], select[data-key]"))
+                .filter(Boolean);
+        }
+
+        function applyPastedValue(element, rawValue) {
+            const value = typeof rawValue === "string" ? rawValue.trim() : "";
+            if (element instanceof HTMLSelectElement) {
+                const matched = Array.from(element.options).find(opt => {
+                    return opt.value === value || opt.textContent.trim() === value;
+                });
+                element.value = matched ? matched.value : value;
+            } else if (element instanceof HTMLInputElement && element.type === "date") {
+                element.value = parseDate(value);
+            } else {
+                element.value = value;
+            }
+            element.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+        function bindGridPaste(element) {
+            if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) return;
+            element.addEventListener("paste", (event) => {
+                const clipboard = event.clipboardData || window.clipboardData;
+                const rawText = clipboard ? clipboard.getData("text") : "";
+                if (typeof rawText !== "string") return;
+                const grid = parseClipboardGrid(rawText);
+                const values = flattenClipboardGrid(grid);
+
+                // 单单元格粘贴保持浏览器默认行为（支持在光标处插入）
+                if (values.length <= 1) return;
+
+                const card = element.closest(".record-card");
+                const inputs = getVisibleFieldInputs(card);
+                const startIndex = inputs.indexOf(element);
+                if (startIndex < 0) return;
+
+                event.preventDefault();
+                for (let i = 0; i < values.length; i += 1) {
+                    const targetIndex = startIndex + i;
+                    if (targetIndex >= inputs.length) break;
+                    applyPastedValue(inputs[targetIndex], values[i]);
+                }
+            });
+        }
+
         // 创建输入元素的辅助函数
         function createInputElement(fieldConfig, value, id) {
             const { key, type, options, wide, placeholder } = fieldConfig;
@@ -435,14 +502,22 @@
                 if (parent) parent.classList.remove('has-error');
             });
 
+            bindGridPaste(element);
+
             return element;
         }
 
-        function addRow(data = DEFAULT_ROW) {
+        function addRow(data = null) {
             const pestType = document.getElementById("pestType").value;
             if (!pestType) {
                 showToast("请先选择害虫类型", "warning");
                 return;
+            }
+            const isManualAdd = data === null;
+            const rowData = { ...DEFAULT_ROW, ...(data || {}) };
+            if (isManualAdd && isQitaHaichongType(pestType)) {
+                rowData.region = "城区";
+                rowData.pest_name = "";
             }
             const card = document.createElement("div");
             card.className = "record-card";
@@ -473,7 +548,7 @@
                 label.htmlFor = inputId;
                 fieldDiv.appendChild(label);
 
-                const input = createInputElement(fieldConfig, data[fieldConfig.key], inputId);
+                const input = createInputElement(fieldConfig, rowData[fieldConfig.key], inputId);
                 fieldDiv.appendChild(input);
                 fieldsContainer.appendChild(fieldDiv);
             });
@@ -527,7 +602,7 @@
                 reportTimeInput.disabled = true;
             }
 
-            // 地块类型：最标改为“地块类型”，预填并锁定为“平原造林”
+            // 地块类型：标签为“地块类型”，预填并锁定为“平原造林”
             const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
             if (plotTypeInput) {
                 if (!plotTypeInput.value) plotTypeInput.value = "平原造林";
@@ -546,19 +621,29 @@
         function applyQitaHaichongMode(card) {
             applyFieldVisibility(card, QITA_HAICHONG_VISIBLE_FIELD_KEYS);
 
-            // 上报时间：自动生成
+            // 上报时间：其他害虫不展示，避免跨模式残留值影响认知
             const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
             if (reportTimeInput) {
-                if (!reportTimeInput.value) reportTimeInput.value = getCurrentDateString();
                 reportTimeInput.disabled = true;
+                reportTimeInput.value = "";
             }
 
-            // 恢复 plot_type 标签为“绿化性质”并解锁
+            // 地块类型可编辑
             const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
             if (plotTypeInput) {
                 plotTypeInput.disabled = false;
                 const label = card.querySelector(`.field-plot_type label`);
-                if (label) label.textContent = "绿化性质";
+                if (label) label.textContent = "地块类型";
+            }
+
+            // 其他害虫默认值：区域默认“城区”，虫种默认留空
+            const regionInput = card.querySelector(`[data-key="region"]`);
+            if (regionInput && !regionInput.value) {
+                regionInput.value = "城区";
+            }
+            const pestNameInput = card.querySelector(`[data-key="pest_name"]`);
+            if (pestNameInput && pestNameInput.value === "美国白蛾") {
+                pestNameInput.value = "";
             }
         }
 
@@ -567,12 +652,12 @@
             const reportTimeInput = card.querySelector(`[data-key="report_time"]`);
             if (reportTimeInput) reportTimeInput.disabled = false;
 
-            // 恢复 plot_type 标签为“绿化性质”并解锁
+            // 恢复地块类型标签并解锁
             const plotTypeInput = card.querySelector(`[data-key="plot_type"]`);
             if (plotTypeInput) {
                 plotTypeInput.disabled = false;
                 const label = card.querySelector(`.field-plot_type label`);
-                if (label) label.textContent = "绿化性质";
+                if (label) label.textContent = "地块类型";
             }
         }
 

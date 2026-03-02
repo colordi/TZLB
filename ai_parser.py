@@ -25,14 +25,14 @@ def _build_qitahaichong_prompt(text: str, today_date: str) -> str:
 用户输入的文本是林业调查的现场记录，可能包含以下信息：
 - 调查日期、地理位置（乡镇、街道、具体地点）
 - 点位编号、点位名称
-- 害虫类别（如美国白蛾、杨扇舟蛾、天牛等）
-- 绿化性质（如公园、道路、庭院等）
-- 危害寄主（如杨树、柳树、国槐等）
+- 虫种（如美国白蛾、杨扇舟蛾、天牛等）
+- 地块类型（如公园、道路、庭院等）
+- 受害树种（如杨树、柳树、国槐等）
 - 受害株数、网幕数等
 - 详细情况描述
 
 ## 提取规则
-1. **必须提取**：点位编号（location_id）、害虫类别（pest_name）
+1. **必须提取**：点位编号（location_id）、虫种（pest_name）
 2. 日期格式化为 YYYY-MM-DD；如果没有日期信息，使用"{today_date}"
 3. 无法识别的字段填空字符串
 4. **不需要提取**：总虫口数（total_insect_count）和受害程度（damage_level）
@@ -46,9 +46,9 @@ def _build_qitahaichong_prompt(text: str, today_date: str) -> str:
 - location_id: 点位编号
 - location_name: 点位名称
 - occurrence_position: 发生位置
-- plot_type: 绿化性质
-- host_plant: 危害寄主
-- pest_name: 害虫类别
+- plot_type: 地块类型
+- pest_name: 虫种
+- host_plant: 受害树种
 - description: 详细情况描述
 
 ## 用户输入
