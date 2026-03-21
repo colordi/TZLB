@@ -6,6 +6,11 @@ name = "TZLB"
 script = ""
 
 [[actions]]
-name = "Run"
+name = "Run Backend"
 icon = "run"
-command = "python app.py"
+command = "./.venv/bin/uvicorn backend.main:app --reload --port 8000"
+
+[[actions]]
+name = "Run Frontend"
+icon = "run"
+command = "cd frontend && npm run dev"
