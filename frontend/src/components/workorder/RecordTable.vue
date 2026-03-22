@@ -38,7 +38,13 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:pestType", "update:taskType", "update:taskName", "update:records", "submit"]);
+const emit = defineEmits([
+  "update:pestType",
+  "update:taskType",
+  "update:taskName",
+  "update:records",
+  "submit",
+]);
 
 const fields = computed(() => getVisibleFields(props.pestType));
 const taskOptions = computed(() => getTaskOptions(props.pestType));
@@ -202,6 +208,24 @@ function removeImage(index, imageIndex) {
 <template>
   <section class="table-shell">
     <header class="table-head">
+      <div class="table-heading">
+        <div class="table-intro">
+          <p class="ui-eyebrow">录入控制</p>
+          <p class="table-note">
+            支持直接粘贴二维表格数据，现场图片可点击上传或按 Ctrl/Cmd+V 粘贴。
+          </p>
+        </div>
+
+        <div class="table-actions">
+          <button type="button" class="ghost" @click="addRecord">
+            新增记录
+          </button>
+          <button type="button" :disabled="busy" @click="emit('submit')">
+            {{ busy ? "正在生成…" : "批量生成工作单" }}
+          </button>
+        </div>
+      </div>
+
       <div class="table-toolbar">
         <label class="table-select">
           <span>害虫类型</span>
@@ -248,15 +272,6 @@ function removeImage(index, imageIndex) {
             </option>
           </select>
         </label>
-
-        <div class="table-actions">
-          <button type="button" class="ghost" @click="addRecord">
-            新增记录
-          </button>
-          <button type="button" :disabled="busy" @click="emit('submit')">
-            {{ busy ? "正在生成…" : "批量生成工作单" }}
-          </button>
-        </div>
       </div>
     </header>
 
@@ -423,86 +438,88 @@ function removeImage(index, imageIndex) {
 
 <style scoped>
 .table-shell {
-  --table-head-height: 4.25rem;
-  --record-row-height: 5.15rem;
-  --row-alt: rgba(247, 242, 229, 0.72);
+  --table-head-height: 4rem;
+  --record-row-height: 5rem;
+  --row-alt: rgba(247, 243, 235, 0.82);
   display: grid;
-  gap: 0.85rem;
-  padding: 1.15rem;
-  border-radius: 1.65rem;
-  background:
-    radial-gradient(circle at top right, rgba(147, 170, 106, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(249, 245, 235, 0.92), rgba(242, 236, 221, 0.84));
-  border: 1px solid rgba(53, 67, 48, 0.11);
-  box-shadow: var(--panel-shadow);
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
 }
 
 .table-head {
-  display: block;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.table-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.table-intro {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 38rem;
+}
+
+.table-note {
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .table-toolbar {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(190px, 1fr) minmax(210px, 1fr) auto;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
-  align-items: end;
-  padding: 0.95rem;
-  border-radius: 1.3rem;
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(247, 242, 229, 0.6));
-  border: 1px solid rgba(53, 67, 48, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
 }
 
 .table-select {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.42rem;
 }
 
 .table-select span {
-  font-size: 0.7rem;
-  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-soft);
 }
 
 .table-actions {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   justify-content: flex-end;
-  padding-left: 0.3rem;
-}
-
-.table-actions button {
-  min-height: 3.1rem;
 }
 
 .table-wrap {
   overflow: hidden;
-  border-radius: 1.35rem;
-  border: 1px solid rgba(53, 67, 48, 0.08);
-  background: rgba(255, 252, 247, 0.82);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 10px 24px rgba(25, 32, 22, 0.05);
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius-lg) - 0.15rem);
+  background: rgba(255, 252, 247, 0.88);
 }
 
 .table-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 236px;
-  gap: 0;
   align-items: start;
 }
 
 .table-scroll {
   overflow-x: auto;
   overflow-y: hidden;
-  border-right: 1px solid rgba(53, 67, 48, 0.08);
+  border-right: 1px solid var(--line-soft);
 }
 
 .tools-pane {
   overflow: hidden;
-  background: rgba(252, 249, 241, 0.78);
+  background: rgba(247, 243, 234, 0.9);
 }
 
 .survey-table {
@@ -526,14 +543,13 @@ function removeImage(index, imageIndex) {
   z-index: 1;
   height: var(--table-head-height);
   padding: 0.8rem 0.7rem;
-  background: linear-gradient(180deg, rgba(239, 233, 216, 0.96), rgba(233, 226, 208, 0.9));
-  color: var(--ink);
+  background: rgba(238, 232, 220, 0.94);
+  color: var(--ink-soft);
   text-align: left;
   font-size: 0.76rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid rgba(53, 67, 48, 0.12);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 .survey-table thead th em {
@@ -544,9 +560,10 @@ function removeImage(index, imageIndex) {
 
 .survey-table tbody td,
 .tools-table tbody td {
-  padding: 0.45rem 0.5rem;
-  border-bottom: 1px solid rgba(53, 67, 48, 0.08);
+  padding: 0.42rem 0.5rem;
+  border-bottom: 1px solid var(--line-soft);
   vertical-align: middle;
+  background: rgba(255, 252, 247, 0.56);
 }
 
 .survey-table tbody tr:nth-child(2n) td,
@@ -576,13 +593,13 @@ function removeImage(index, imageIndex) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.15rem;
-  padding: 0.24rem 0.42rem;
+  min-width: 2.1rem;
+  padding: 0.22rem 0.42rem;
   border-radius: 999px;
-  background: rgba(123, 107, 51, 0.12);
+  background: rgba(85, 106, 66, 0.1);
   color: var(--accent-strong);
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .cell-survey_date,
@@ -623,18 +640,14 @@ function removeImage(index, imageIndex) {
 .cell-tools-head {
   display: grid;
   align-content: center;
-  gap: 0.18rem;
-}
-
-.cell-tools-head span {
-  display: block;
+  gap: 0.2rem;
 }
 
 .cell-tools-head small {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--muted-soft);
 }
 
 .cell-body {
@@ -644,25 +657,24 @@ function removeImage(index, imageIndex) {
 .table-input {
   width: 100%;
   min-width: 0;
-  min-height: 3.15rem;
+  min-height: 3rem;
   padding: 0.72rem 0.82rem;
-  border: 1px solid rgba(53, 67, 48, 0.12);
-  border-radius: 0.95rem;
-  background: rgba(255, 254, 251, 0.95);
+  border: 1px solid rgba(65, 83, 50, 0.12);
+  border-radius: 0.85rem;
+  background: rgba(255, 254, 251, 0.96);
   color: var(--ink);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  box-shadow: none;
   font-size: 0.84rem;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .table-textarea {
-  min-height: calc(var(--record-row-height) - 1rem);
-  height: calc(var(--record-row-height) - 1rem);
+  min-height: calc(var(--record-row-height) - 0.95rem);
+  height: calc(var(--record-row-height) - 0.95rem);
   padding: 0.78rem 0.9rem;
   resize: none;
   overflow: hidden auto;
   white-space: normal;
-  line-height: 1.4;
 }
 
 .table-select-input {
@@ -670,23 +682,16 @@ function removeImage(index, imageIndex) {
 }
 
 .cell-error .table-input {
-  border-color: rgba(180, 62, 37, 0.42);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 0 0 3px rgba(180, 62, 37, 0.08);
+  border-color: rgba(176, 75, 49, 0.45);
+  box-shadow: 0 0 0 3px rgba(176, 75, 49, 0.08);
 }
 
 .row-tools {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 3rem;
-  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) 2.95rem;
+  gap: 0.5rem;
   align-items: stretch;
   height: calc(var(--record-row-height) - 0.9rem);
-  min-height: calc(var(--record-row-height) - 0.9rem);
-  max-height: calc(var(--record-row-height) - 0.9rem);
-  padding: 0;
-  outline: none;
-  overflow: hidden;
 }
 
 .thumb-strip {
@@ -694,25 +699,17 @@ function removeImage(index, imageIndex) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 0.35rem;
-  align-items: stretch;
-  min-width: 0;
   height: 100%;
-  min-height: 0;
-  max-height: 100%;
   padding: 0.35rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(53, 67, 48, 0.1);
-  background: rgba(255, 251, 244, 0.9);
+  border: 1px solid var(--line-soft);
+  border-radius: 0.95rem;
+  background: rgba(255, 252, 247, 0.9);
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.44);
-  overflow: hidden;
 }
 
 .thumb-strip:focus {
-  border-color: rgba(91, 109, 81, 0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.44),
-    0 0 0 3px rgba(91, 109, 81, 0.08);
+  border-color: rgba(85, 106, 66, 0.3);
+  box-shadow: 0 0 0 3px rgba(85, 106, 66, 0.08);
 }
 
 .thumb-slot,
@@ -724,22 +721,17 @@ function removeImage(index, imageIndex) {
   height: 100%;
   min-height: 0;
   padding: 0;
-  border-radius: 0.8rem;
+  border-radius: 0.75rem;
   overflow: hidden;
-  align-self: stretch;
 }
 
 .thumb-slot {
   position: relative;
   cursor: pointer;
-  border: 1px dashed rgba(53, 67, 48, 0.18);
-  background: rgba(255, 252, 247, 0.94);
+  border: 1px dashed rgba(65, 83, 50, 0.18);
+  background: rgba(255, 252, 247, 0.96);
   color: var(--ink);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
-  transition:
-    border-color 180ms ease,
-    background 180ms ease,
-    transform 180ms ease;
+  box-shadow: none;
 }
 
 .thumb-slot input {
@@ -750,52 +742,53 @@ function removeImage(index, imageIndex) {
 }
 
 .thumb-empty {
-  color: var(--muted);
-  font-size: 1.1rem;
-  font-weight: 600;
+  color: var(--muted-soft);
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .thumb-slot:hover {
-  border-color: rgba(123, 107, 51, 0.45);
-  background: rgba(250, 244, 231, 0.96);
-  transform: translateY(-1px);
+  transform: none;
+  border-color: rgba(85, 106, 66, 0.34);
+  background: rgba(250, 246, 238, 0.98);
 }
 
 .thumb-filled {
   border-style: solid;
-  border-color: rgba(53, 67, 48, 0.12);
 }
 
 .thumb-filled img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .thumb-remove-mark {
   position: absolute;
-  top: 0.14rem;
-  right: 0.14rem;
+  top: 0.22rem;
+  right: 0.24rem;
+  width: 1.1rem;
+  height: 1.1rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.92rem;
-  height: 0.92rem;
   border-radius: 999px;
-  background: rgba(28, 34, 23, 0.68);
-  color: rgba(255, 252, 247, 0.95);
-  font-size: 0.66rem;
-  line-height: 1;
+  background: rgba(24, 31, 25, 0.68);
+  color: #fff;
+  font-size: 0.72rem;
 }
 
 .table-remove-icon {
-  min-height: calc(var(--record-row-height) - 1rem);
-  border: 1px solid rgba(180, 62, 37, 0.16);
-  background: linear-gradient(180deg, rgba(255, 249, 246, 0.96), rgba(247, 226, 221, 0.9));
-  color: rgba(137, 43, 29, 0.92);
-  cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  align-self: stretch;
+  border: 1px solid rgba(176, 75, 49, 0.14);
+  background: rgba(252, 235, 231, 0.74);
+  color: var(--danger);
+  box-shadow: none;
+}
+
+.table-remove-icon:hover {
+  transform: none;
+  background: rgba(249, 226, 221, 0.9);
 }
 
 .table-remove-icon svg {
@@ -804,43 +797,39 @@ function removeImage(index, imageIndex) {
   fill: currentColor;
 }
 
-.table-remove-icon:hover,
-.table-remove-icon:focus-visible {
-  border-color: rgba(180, 62, 37, 0.3);
-  background: linear-gradient(180deg, rgba(249, 232, 227, 0.96), rgba(243, 214, 207, 0.92));
-  color: var(--danger);
-}
-
 .empty-table {
-  grid-column: 1 / -1;
-  padding: 1.4rem;
-  color: var(--muted);
+  padding: 1.8rem 1rem;
   text-align: center;
-  font-size: 0.9rem;
+  color: var(--muted);
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1024px) {
   .table-heading {
-    display: grid;
-    align-items: start;
-  }
-
-  .table-toolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .table-stage {
-    grid-template-columns: minmax(0, 1fr) 236px;
-  }
-}
-
-@media (max-width: 640px) {
-  .table-toolbar {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .table-actions {
     justify-content: flex-start;
+  }
+
+  .table-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .table-shell {
+    padding: 0.9rem;
+  }
+
+  .table-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table-scroll {
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
   }
 }
 </style>

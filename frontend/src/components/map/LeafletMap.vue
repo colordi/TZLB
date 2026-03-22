@@ -1,9 +1,13 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import L from "leaflet";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import "leaflet/dist/leaflet.css";
 
 const props = defineProps({
+  autoFitOnDataChange: {
+    type: Boolean,
+    default: true,
+  },
   basemapMode: {
     type: String,
     default: "standard",
@@ -39,10 +43,11 @@ const activeBasemapLabel = computed(() =>
 
 const BASEMAP_CONFIG = {
   standard: {
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
     options: {
       maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors",
+      attribution:
+        "&copy; OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team hosted by OpenStreetMap France",
     },
   },
   satellite: {
@@ -82,22 +87,26 @@ function renderPopup(properties = {}) {
   ];
 
   return `
-    <div style="min-width: 200px; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;">
+    <div class="map-popup">
       ${rows
         .map(
-          ([label, value]) =>
-            `<div style="display:flex;justify-content:space-between;gap:12px;margin:4px 0;"><strong>${label}</strong><span>${value ?? "-"}</span></div>`,
+          ([label, value]) => `
+            <div class="map-popup-row">
+              <strong>${label}</strong>
+              <span>${value ?? "-"}</span>
+            </div>
+          `,
         )
         .join("")}
     </div>
   `;
 }
 
-function resolveBoundaryStyle(properties = {}) {
+function resolveBoundaryStyle() {
   return {
-    color: "#e28b34",
-    fillColor: "#f3d5ad",
-    fillOpacity: 0.06,
+    color: "#d78b41",
+    fillColor: "#eed6b6",
+    fillOpacity: 0.05,
   };
 }
 
@@ -161,24 +170,26 @@ function drawBoundaryGeoJson(data) {
 
   boundaryLayerRef.value = L.geoJSON(data, {
     interactive: false,
-    style: (feature) => ({
-      ...resolveBoundaryStyle(feature?.properties),
-      weight: 5,
-      opacity: 0.96,
+    style: () => ({
+      ...resolveBoundaryStyle(),
+      weight: 4,
+      opacity: 0.9,
     }),
   }).addTo(mapRef.value);
 
   fitMapToAvailableLayer();
 }
 
-function drawGeoJson(data) {
+function drawGeoJson(data, shouldFit = true) {
   if (!mapRef.value) {
     return;
   }
 
   clearPointLayer();
   if (!data?.features?.length) {
-    fitMapToAvailableLayer();
+    if (shouldFit) {
+      fitMapToAvailableLayer();
+    }
     return;
   }
 
@@ -188,18 +199,22 @@ function drawGeoJson(data) {
       return L.circleMarker(latlng, {
         radius: count > 50 ? 11 : count > 10 ? 9 : count > 0 ? 7 : 6,
         fillColor: resolveColor(count),
-        color: "rgba(14, 16, 12, 0.72)",
+        color: "rgba(21, 28, 22, 0.72)",
         weight: 1,
         fillOpacity: 0.88,
       });
     },
     onEachFeature: (feature, layer) => {
-      layer.bindPopup(renderPopup(feature.properties));
+      layer.bindPopup(renderPopup(feature.properties), {
+        className: "survey-popup",
+      });
     },
   }).addTo(mapRef.value);
 
   pointLayerRef.value.bringToFront();
-  fitMapToAvailableLayer();
+  if (shouldFit) {
+    fitMapToAvailableLayer();
+  }
 }
 
 onMounted(() => {
@@ -210,7 +225,7 @@ onMounted(() => {
 
   drawBasemap(props.basemapMode);
   drawBoundaryGeoJson(props.boundaryGeojson);
-  drawGeoJson(props.geojson);
+  drawGeoJson(props.geojson, props.autoFitOnDataChange);
 });
 
 watch(
@@ -231,7 +246,7 @@ watch(
 watch(
   () => props.geojson,
   (value) => {
-    drawGeoJson(value);
+    drawGeoJson(value, props.autoFitOnDataChange);
   },
   { deep: true },
 );
@@ -249,11 +264,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="leaflet-shell">
-    <div ref="mapElement" class="leaflet-map"></div>
-
-    <div class="basemap-badge">
-      当前底图：{{ activeBasemapLabel }}
+    <div class="map-badges">
+      <div class="map-badge">当前底图：{{ activeBasemapLabel }}</div>
+      <div class="map-badge subtle">点位 {{ featureCount }}</div>
     </div>
+
+    <div ref="mapElement" class="leaflet-map"></div>
 
     <div v-if="loading" class="leaflet-overlay">
       正在加载 {{ viewName || "地图视图" }} …
@@ -269,45 +285,113 @@ onBeforeUnmount(() => {
 .leaflet-shell {
   position: relative;
   min-height: 620px;
-  border-radius: 1.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 26px 60px rgba(20, 28, 21, 0.18);
+  background: rgba(233, 238, 228, 0.62);
+  box-shadow: var(--shadow-elevated);
 }
 
 .leaflet-map {
   width: 100%;
   min-height: 620px;
-  background: linear-gradient(135deg, rgba(224, 231, 219, 0.9), rgba(209, 220, 206, 0.88));
+  background: linear-gradient(135deg, rgba(224, 231, 219, 0.92), rgba(209, 220, 206, 0.88));
 }
 
-.basemap-badge {
+.map-badges {
   position: absolute;
-  top: 1.1rem;
-  right: 1.1rem;
+  top: 0.9rem;
+  left: 0.9rem;
+  right: 0.9rem;
   z-index: 500;
-  padding: 0.58rem 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.map-badge {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
   border-radius: 999px;
-  background: rgba(250, 246, 236, 0.88);
-  color: rgba(25, 32, 22, 0.9);
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.58),
-    0 12px 26px rgba(20, 28, 21, 0.12);
-  backdrop-filter: blur(14px);
+  background: rgba(251, 248, 241, 0.84);
+  color: rgba(35, 48, 39, 0.94);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  backdrop-filter: blur(12px);
+}
+
+.map-badge.subtle {
+  color: var(--muted);
 }
 
 .leaflet-overlay {
   position: absolute;
-  inset: auto 1.1rem 1.1rem 1.1rem;
-  padding: 0.95rem 1.1rem;
+  inset: auto 0.9rem 0.9rem 0.9rem;
+  padding: 0.9rem 1rem;
   border-radius: 1rem;
-  background: rgba(14, 16, 12, 0.72);
-  color: #f6f2e9;
-  backdrop-filter: blur(14px);
+  background: rgba(35, 48, 39, 0.74);
+  color: #f8f4ec;
+  backdrop-filter: blur(12px);
 }
 
 .leaflet-overlay.empty {
-  background: rgba(80, 89, 72, 0.78);
+  background: rgba(96, 106, 90, 0.76);
+}
+
+:deep(.leaflet-control-zoom) {
+  border: 0;
+  box-shadow: var(--shadow-soft);
+}
+
+:deep(.leaflet-control-zoom a) {
+  border-bottom-color: var(--line-soft);
+  background: rgba(251, 248, 241, 0.96);
+  color: var(--ink);
+}
+
+:deep(.leaflet-control-attribution) {
+  padding: 0.15rem 0.4rem;
+  background: rgba(251, 248, 241, 0.82);
+}
+
+:deep(.survey-popup .leaflet-popup-content-wrapper) {
+  border-radius: 1rem;
+  background: rgba(255, 252, 246, 0.96);
+  box-shadow: var(--shadow-soft);
+}
+
+:deep(.survey-popup .leaflet-popup-tip) {
+  background: rgba(255, 252, 246, 0.96);
+}
+
+:deep(.map-popup) {
+  min-width: 210px;
+  display: grid;
+  gap: 0.45rem;
+  color: var(--ink);
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+:deep(.map-popup-row) {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.86rem;
+}
+
+:deep(.map-popup-row strong) {
+  color: var(--ink-soft);
+}
+
+@media (max-width: 760px) {
+  .leaflet-shell,
+  .leaflet-map {
+    min-height: 500px;
+  }
+
+  .map-badges {
+    justify-content: flex-start;
+  }
 }
 </style>

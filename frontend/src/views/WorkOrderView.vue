@@ -1,8 +1,8 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 
-import { generateWorkorder } from "../api/workorder.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
+import { generateWorkorder } from "../api/workorder.js";
 import {
   createEmptyRecord,
   getDefaultControlType,
@@ -80,25 +80,28 @@ async function handleGenerate() {
 
 <template>
   <section class="workorder-view">
-    <header class="hero-card">
-      <div class="hero-copy">
-        <p class="hero-kicker">Workorder Studio</p>
-        <h2>工作单录入</h2>
+    <header class="summary-card">
+      <div class="summary-copy">
+        <p class="ui-eyebrow">工作单录入</p>
+        <h2>批量生成工作单</h2>
+        <p class="ui-note">
+          集中维护调查记录、现场图片与统防统治信息，完成后直接导出标准工作单。
+        </p>
       </div>
 
-      <div class="hero-metrics">
-        <div class="hero-metric">
-          <span>当前记录数</span>
-          <strong>{{ records.length }}</strong>
-        </div>
-        <div class="hero-metric">
-          <span>图片总数</span>
-          <strong>{{ totalImages }}</strong>
-        </div>
-        <div class="hero-metric">
-          <span>统防统治类型</span>
-          <strong>{{ taskType }}</strong>
-        </div>
+      <div class="summary-metrics">
+        <article class="ui-stat">
+          <span class="ui-stat-label">当前记录</span>
+          <strong class="ui-stat-value">{{ records.length }}</strong>
+        </article>
+        <article class="ui-stat">
+          <span class="ui-stat-label">图片总数</span>
+          <strong class="ui-stat-value">{{ totalImages }}</strong>
+        </article>
+        <article class="ui-stat">
+          <span class="ui-stat-label">统防类型</span>
+          <strong class="ui-stat-value">{{ taskType }}</strong>
+        </article>
       </div>
     </header>
 
@@ -124,83 +127,47 @@ async function handleGenerate() {
   gap: 1rem;
 }
 
-.hero-card {
+.summary-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1.15rem;
-  border-radius: 1.55rem;
-  background:
-    radial-gradient(circle at top right, rgba(137, 165, 104, 0.22), transparent 36%),
-    linear-gradient(135deg, rgba(251, 247, 235, 0.94), rgba(236, 230, 211, 0.88));
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 1.15rem 1.2rem;
   border: 1px solid var(--line-strong);
-  box-shadow: var(--panel-shadow);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
 }
 
-.hero-copy {
+.summary-copy {
   display: grid;
+  gap: 0.45rem;
   align-content: center;
-  gap: 0.35rem;
-  padding: 1rem 1.1rem;
-  border-radius: 1.25rem;
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.76), rgba(250, 246, 236, 0.42));
-  border: 1px solid rgba(53, 67, 48, 0.08);
+  max-width: 42rem;
 }
 
-.hero-kicker {
-  margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--accent);
+.summary-copy h2 {
+  font-size: clamp(1.55rem, 2.3vw, 2.15rem);
+  line-height: 1.12;
 }
 
-.hero-copy h2 {
-  margin: 0;
-  font-size: clamp(1.4rem, 2.4vw, 2rem);
-}
-
-.hero-metrics {
+.summary-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.7rem;
 }
 
-.hero-metric {
-  display: grid;
-  align-content: center;
-  gap: 0.4rem;
-  min-width: 0;
-  padding: 1rem;
-  border-radius: 1.2rem;
-  background: linear-gradient(180deg, rgba(255, 252, 246, 0.92), rgba(246, 240, 226, 0.72));
-  border: 1px solid rgba(53, 67, 48, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
-}
-
-.hero-metric span {
-  font-size: 0.78rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.hero-metric strong {
-  font-size: clamp(1.25rem, 2vw, 1.6rem);
-}
-
-@media (max-width: 960px) {
-  .hero-card {
+@media (max-width: 920px) {
+  .summary-card {
     grid-template-columns: 1fr;
   }
-
-  .hero-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
-@media (max-width: 720px) {
-  .hero-metrics {
+@media (max-width: 680px) {
+  .summary-card {
+    padding: 1rem;
+  }
+
+  .summary-metrics {
     grid-template-columns: 1fr;
   }
 }

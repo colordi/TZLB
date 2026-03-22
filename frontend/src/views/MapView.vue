@@ -30,6 +30,7 @@ const filterOptions = ref({
 });
 const loading = ref(false);
 const loadingViews = ref(false);
+const autoFitOnDataChange = ref(true);
 
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
@@ -47,7 +48,7 @@ const townshipOptions = computed(() => filterOptions.value.townships || []);
 const basemapSummary = computed(() =>
   basemapMode.value === "satellite"
     ? "当前使用 Esri World Imagery 影像底图。"
-    : "当前使用 OpenStreetMap 标准地图底图。",
+    : "当前使用 OpenStreetMap.HOT 底图。",
 );
 
 const levelSummary = computed(() => {
@@ -102,11 +103,12 @@ async function loadViews() {
   }
 }
 
-async function loadGeoJson() {
+async function loadGeoJson({ autoFit = false } = {}) {
   if (!selectedView.value) {
     return;
   }
 
+  autoFitOnDataChange.value = autoFit;
   loading.value = true;
 
   try {
@@ -168,18 +170,21 @@ async function loadAdminBoundary() {
 }
 
 async function refreshViewsAndData() {
+  const previousView = selectedView.value;
   await loadViews();
-  await loadGeoJson();
+  if (selectedView.value === previousView) {
+    await loadGeoJson({ autoFit: false });
+  }
 }
 
 function applyFilter() {
-  loadGeoJson();
+  loadGeoJson({ autoFit: false });
 }
 
 function resetFilter() {
   townshipFilter.value = "";
   surveyStatusFilter.value = "";
-  loadGeoJson();
+  loadGeoJson({ autoFit: false });
 }
 
 watch(selectedView, async () => {
@@ -196,7 +201,7 @@ watch(selectedView, async () => {
   if (!supportsSurveyStatusFilter.value) {
     surveyStatusFilter.value = "";
   }
-  await loadGeoJson();
+  await loadGeoJson({ autoFit: true });
 });
 
 onMounted(async () => {
@@ -206,46 +211,102 @@ onMounted(async () => {
 
 <template>
   <section class="map-view">
-    <section class="map-controls">
-      <section class="sidebar-card view-control-card">
-        <p class="sidebar-eyebrow">视图控制</p>
-
-        <div class="view-metrics">
-          <div class="view-metric">
-            <span>可用视图</span>
-            <strong>{{ views.length }}</strong>
+    <div class="map-layout">
+      <section class="map-panel map-primary">
+        <div class="map-header">
+          <div class="map-header-copy">
+            <p class="ui-eyebrow">监测控制</p>
+            <h2>视图选择与筛选</h2>
           </div>
-          <div class="view-metric">
-            <span>当前点位</span>
-            <strong>{{ featureCount }}</strong>
-          </div>
-          <div class="view-metric">
-            <span>高风险点</span>
-            <strong>{{ levelSummary.level3 }}</strong>
-          </div>
+          <p class="ui-note">
+            先选择监测视图，再按乡镇和调查状态过滤，地图会同步更新点位结果。
+          </p>
         </div>
 
-        <label class="sidebar-field">
-          <span>监测视图</span>
-          <select v-model="selectedView" :disabled="loadingViews || !views.length">
-            <option v-for="view in views" :key="view.name" :value="view.name">
-              {{ view.name }}
-            </option>
-          </select>
-        </label>
+        <div class="map-metrics">
+          <article class="ui-stat">
+            <span class="ui-stat-label">可用视图</span>
+            <strong class="ui-stat-value">{{ views.length }}</strong>
+          </article>
+          <article class="ui-stat">
+            <span class="ui-stat-label">当前点位</span>
+            <strong class="ui-stat-value">{{ featureCount }}</strong>
+          </article>
+          <article class="ui-stat">
+            <span class="ui-stat-label">高风险点</span>
+            <strong class="ui-stat-value">{{ levelSummary.level3 }}</strong>
+          </article>
+        </div>
 
-        <div class="sidebar-buttons">
+        <div class="map-form-grid">
+          <label class="map-field map-view-field">
+            <span>监测视图</span>
+            <select v-model="selectedView" :disabled="loadingViews || !views.length">
+              <option v-for="view in views" :key="view.name" :value="view.name">
+                {{ view.name }}
+              </option>
+            </select>
+          </label>
+
+          <label class="map-field">
+            <span>乡镇</span>
+            <select v-model="townshipFilter" :disabled="!supportsTownshipFilter">
+              <option value="">全部乡镇</option>
+              <option v-for="township in townshipOptions" :key="township" :value="township">
+                {{ township }}
+              </option>
+            </select>
+          </label>
+
+          <label class="map-field">
+            <span>调查状态</span>
+            <select v-model="surveyStatusFilter" :disabled="!supportsSurveyStatusFilter">
+              <option value="">全部状态</option>
+              <option value="调查">调查</option>
+              <option value="未调查">未调查</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="map-actions">
           <button type="button" class="ghost" @click="refreshViewsAndData">
             刷新视图
           </button>
+          <button type="button" :disabled="loading || !selectedView" @click="applyFilter">
+            应用筛选
+          </button>
+          <button type="button" class="ghost" :disabled="loading" @click="resetFilter">
+            清空
+          </button>
         </div>
+
+        <p class="map-hint">
+          {{
+            supportsTownshipFilter || supportsSurveyStatusFilter
+              ? "支持按乡镇和调查状态组合筛选。"
+              : "当前视图不包含可用的筛选字段，筛选器已自动禁用。"
+          }}
+        </p>
       </section>
 
-      <section class="sidebar-card basemap-card">
-        <p class="sidebar-eyebrow">底图模式</p>
+      <div class="map-stage">
+        <LeafletMap
+          :auto-fit-on-data-change="autoFitOnDataChange"
+          :basemap-mode="basemapMode"
+          :boundary-geojson="boundaryGeojson"
+          :geojson="geojson"
+          :loading="loading"
+          :view-name="selectedView"
+        />
+      </div>
 
-        <div class="sidebar-field">
-          <span>显示底图</span>
+      <aside class="map-secondary">
+        <section class="map-panel secondary-panel">
+          <div class="secondary-head">
+            <p class="ui-eyebrow">底图模式</p>
+            <p class="ui-note">{{ basemapSummary }}</p>
+          </div>
+
           <div class="basemap-toggle" role="tablist" aria-label="底图模式切换">
             <button
               type="button"
@@ -266,65 +327,10 @@ onMounted(async () => {
               卫星地图
             </button>
           </div>
-        </div>
+        </section>
 
-        <p class="sidebar-hint basemap-hint">
-          {{ basemapSummary }}
-        </p>
-      </section>
-
-      <section class="sidebar-card">
-        <p class="sidebar-eyebrow">查询过滤</p>
-        <div class="filter-grid">
-          <label class="sidebar-field">
-            <span>乡镇</span>
-            <select v-model="townshipFilter" :disabled="!supportsTownshipFilter">
-              <option value="">全部乡镇</option>
-              <option v-for="township in townshipOptions" :key="township" :value="township">
-                {{ township }}
-              </option>
-            </select>
-          </label>
-
-          <label class="sidebar-field">
-            <span>调查状态</span>
-            <select v-model="surveyStatusFilter" :disabled="!supportsSurveyStatusFilter">
-              <option value="">全部状态</option>
-              <option value="调查">调查</option>
-              <option value="未调查">未调查</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="sidebar-buttons">
-          <button type="button" @click="applyFilter" :disabled="loading || !selectedView">
-            应用筛选
-          </button>
-          <button type="button" class="ghost" @click="resetFilter" :disabled="loading">
-            清空
-          </button>
-        </div>
-
-        <p class="sidebar-hint">
-          {{
-            supportsTownshipFilter || supportsSurveyStatusFilter
-              ? "支持多字段组合筛选，可同时按乡镇和调查状态过滤。"
-              : "当前视图不包含可用的筛选字段，已自动禁用筛选器。"
-          }}
-        </p>
-      </section>
-
-      <MapLegend class="map-control-card" />
-    </section>
-
-    <div class="map-stage">
-      <LeafletMap
-        :basemap-mode="basemapMode"
-        :boundary-geojson="boundaryGeojson"
-        :geojson="geojson"
-        :loading="loading"
-        :view-name="selectedView"
-      />
+        <MapLegend />
+      </aside>
     </div>
   </section>
 </template>
@@ -332,170 +338,163 @@ onMounted(async () => {
 <style scoped>
 .map-view {
   display: grid;
+}
+
+.map-layout {
+  display: grid;
   gap: 1rem;
+  grid-template-columns: minmax(0, 1.25fr) 280px;
+  grid-template-areas:
+    "primary secondary"
+    "map map";
 }
 
-.sidebar-eyebrow {
-  margin: 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.sidebar-card {
+.map-panel {
   display: grid;
   gap: 0.9rem;
-  height: 100%;
   padding: 1rem;
-  border-radius: 1.3rem;
-  background:
-    linear-gradient(180deg, rgba(251, 248, 240, 0.92), rgba(243, 238, 226, 0.84));
-  border: 1px solid rgba(53, 67, 48, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    0 12px 30px rgba(25, 32, 22, 0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
 }
 
-.view-control-card {
+.map-primary {
+  grid-area: primary;
+}
+
+.map-stage {
+  grid-area: map;
+  min-width: 0;
+}
+
+.map-secondary {
+  grid-area: secondary;
+  display: grid;
   gap: 1rem;
 }
 
-.view-metrics {
+.map-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.map-header-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.map-header-copy h2 {
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  line-height: 1.15;
+}
+
+.map-header .ui-note {
+  max-width: 26rem;
+}
+
+.map-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: 0.7rem;
 }
 
-.map-controls {
+.map-form-grid {
   display: grid;
-  grid-template-columns:
-    minmax(320px, 1.22fr)
-    minmax(220px, 0.92fr)
-    minmax(280px, 1.02fr)
-    minmax(220px, 0.9fr);
-  gap: 1rem;
-}
-
-.view-metric {
-  display: grid;
-  gap: 0.18rem;
-  padding: 0.8rem 0.85rem;
-  border-radius: 1rem;
-  background: rgba(255, 252, 246, 0.9);
-  border: 1px solid rgba(53, 67, 48, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-
-.view-metric span {
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.view-metric strong {
-  font-size: 1.45rem;
-  line-height: 1.05;
-}
-
-.sidebar-field {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(240px, 1.15fr) repeat(2, minmax(0, 0.8fr));
   gap: 0.75rem;
 }
 
-.sidebar-field span {
-  font-size: 0.92rem;
+.map-field {
+  display: grid;
+  gap: 0.42rem;
 }
 
-.sidebar-buttons {
+.map-field span {
+  font-size: 0.72rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted-soft);
+}
+
+.map-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: auto;
-}
-
-.basemap-toggle {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.55rem;
-  padding: 0.32rem;
-  border-radius: 1rem;
-  background: rgba(232, 225, 208, 0.45);
-  border: 1px solid rgba(53, 67, 48, 0.08);
 }
 
-.basemap-card {
-  align-content: start;
+.map-actions button {
+  min-height: 2.85rem;
+  min-width: 7rem;
+  padding: 0.72rem 1.15rem;
+  font-size: 1rem;
+  box-shadow: none;
 }
 
-.basemap-button {
-  min-height: 2.7rem;
-  padding: 0.7rem 0.9rem;
-  border: 0;
-  border-radius: 0.85rem;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-  transition:
-    background 180ms ease,
-    color 180ms ease,
-    transform 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.basemap-button:hover {
-  transform: translateY(-1px);
-}
-
-.basemap-button.active {
-  background: linear-gradient(135deg, rgba(62, 90, 49, 0.94), rgba(100, 130, 74, 0.9));
-  color: #fffaf1;
-  box-shadow: 0 10px 20px rgba(41, 56, 33, 0.18);
-}
-
-.basemap-hint {
-  margin-top: 0;
-}
-
-.sidebar-hint,
-.map-control-card {
-  margin: 0;
-}
-
-.sidebar-hint {
+.map-hint {
   color: var(--muted);
   line-height: 1.6;
 }
 
-.map-stage {
-  min-width: 0;
+.secondary-panel {
+  align-content: start;
 }
 
-@media (max-width: 1280px) {
-  .map-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.secondary-head {
+  display: grid;
+  gap: 0.35rem;
 }
 
-@media (max-width: 1080px) {
-  .map-controls {
+.basemap-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.basemap-button {
+  min-height: 2.85rem;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 252, 247, 0.86);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.basemap-button:hover {
+  transform: none;
+  background: rgba(248, 244, 236, 0.96);
+}
+
+.basemap-button.active {
+  border-color: transparent;
+  background: var(--accent);
+  color: #f8f5ee;
+  box-shadow: 0 8px 18px rgba(65, 83, 50, 0.16);
+}
+
+@media (max-width: 1120px) {
+  .map-layout {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "primary"
+      "map"
+      "secondary";
+  }
+
+  .map-header {
+    flex-direction: column;
   }
 }
 
 @media (max-width: 760px) {
-  .view-metrics {
-    grid-template-columns: 1fr;
+  .map-panel {
+    padding: 0.95rem;
   }
 
-  .filter-grid {
+  .map-metrics,
+  .map-form-grid,
+  .basemap-toggle {
     grid-template-columns: 1fr;
   }
 }

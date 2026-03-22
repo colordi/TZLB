@@ -12,29 +12,29 @@ const pageMeta = computed(() => ({
 
 <template>
   <div class="app-shell">
-    <div class="ambient ambient-one"></div>
-    <div class="ambient ambient-two"></div>
-    <div class="grain"></div>
-
     <header class="site-header">
       <div class="site-brand">
         <p class="site-kicker">Tongzhou Forestry Survey</p>
         <h1>林业调查工作台</h1>
+        <p class="site-summary">工作单生成与地图监测一体化平台</p>
       </div>
 
-      <aside class="site-spotlight">
-        <span>{{ pageMeta.section }}</span>
+      <aside class="site-context">
+        <p class="context-label">当前模块</p>
+        <h2>{{ pageMeta.section }}</h2>
         <p v-if="pageMeta.blurb">{{ pageMeta.blurb }}</p>
       </aside>
     </header>
 
     <nav class="site-nav">
-      <RouterLink to="/workorder" class="nav-link">
-        工作单批量生成
-      </RouterLink>
-      <RouterLink to="/map" class="nav-link">
-        调查点位展示
-      </RouterLink>
+      <div class="nav-track">
+        <RouterLink to="/workorder" class="nav-link">
+          工作单批量生成
+        </RouterLink>
+        <RouterLink to="/map" class="nav-link">
+          调查点位展示
+        </RouterLink>
+      </div>
     </nav>
 
     <main class="site-main">
@@ -45,136 +45,107 @@ const pageMeta = computed(() => ({
 
 <style scoped>
 .app-shell {
-  position: relative;
-  max-width: 1440px;
+  max-width: var(--content-width);
   margin: 0 auto;
-  padding: 2rem clamp(1rem, 3vw, 2rem) 3rem;
-}
-
-.ambient {
-  position: fixed;
-  inset: auto;
-  z-index: 0;
-  border-radius: 999px;
-  filter: blur(80px);
-  opacity: 0.35;
-  pointer-events: none;
-}
-
-.ambient-one {
-  top: -7rem;
-  right: 4rem;
-  width: 18rem;
-  height: 18rem;
-  background: rgba(145, 168, 97, 0.46);
-}
-
-.ambient-two {
-  bottom: 6rem;
-  left: -3rem;
-  width: 15rem;
-  height: 15rem;
-  background: rgba(188, 118, 68, 0.3);
-}
-
-.grain {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.12;
-  background-image:
-    linear-gradient(rgba(14, 16, 12, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(14, 16, 12, 0.05) 1px, transparent 1px);
-  background-size: 90px 90px;
-  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 85%);
-}
-
-.site-header,
-.site-nav,
-.site-main {
-  position: relative;
-  z-index: 1;
+  padding: 1.4rem clamp(1rem, 2.8vw, 2rem) 2.4rem;
 }
 
 .site-header {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
-  gap: 1rem;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
+  gap: 0.9rem;
+  align-items: start;
+  margin-bottom: 0.8rem;
 }
 
 .site-brand,
-.site-spotlight {
-  padding: 1.5rem;
-  border-radius: 1.7rem;
-  border: 1px solid rgba(53, 67, 48, 0.12);
-  background:
-    linear-gradient(135deg, rgba(248, 244, 232, 0.96), rgba(238, 233, 214, 0.92));
-  box-shadow: var(--panel-shadow);
+.site-context {
+  padding: 1.3rem 1.45rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
 }
 
 .site-kicker {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--muted-soft);
 }
 
 .site-brand h1 {
-  margin: 0.3rem 0 0;
-  font-size: clamp(2.4rem, 4vw, 4.4rem);
+  margin: 0.4rem 0 0;
+  font-size: clamp(2.15rem, 4vw, 3.9rem);
+  line-height: 1.04;
 }
 
-.site-description,
-.site-spotlight p {
-  margin: 0;
+.site-summary,
+.site-context p {
   color: var(--muted);
-  line-height: 1.75;
+  line-height: 1.65;
 }
 
-.site-spotlight {
+.site-summary {
+  margin-top: 0.6rem;
+}
+
+.site-context {
   display: grid;
-  align-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  align-content: start;
+  min-height: 100%;
 }
 
-.site-spotlight span {
-  font-size: clamp(1.15rem, 2vw, 1.55rem);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--ink);
+.context-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-soft);
+}
+
+.site-context h2 {
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+  line-height: 1.2;
 }
 
 .site-nav {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin: 1rem 0 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.nav-track {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(249, 245, 237, 0.78);
+  box-shadow: var(--shadow-soft);
 }
 
 .nav-link {
-  padding: 0.8rem 1.2rem;
+  padding: 0.75rem 1.15rem;
   border-radius: 999px;
-  border: 1px solid rgba(53, 67, 48, 0.12);
-  background: rgba(251, 248, 240, 0.82);
   color: var(--ink);
   text-decoration: none;
   font-weight: 600;
-  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  text-align: center;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .nav-link:hover {
-  transform: translateY(-1px);
-  background: rgba(248, 244, 232, 0.96);
-  box-shadow: 0 12px 28px rgba(33, 39, 26, 0.08);
+  background: rgba(255, 252, 246, 0.92);
 }
 
 .nav-link.router-link-active {
-  background: linear-gradient(135deg, rgba(53, 67, 48, 0.92), rgba(84, 101, 68, 0.9));
+  background: var(--accent);
   color: #f8f5ee;
-  box-shadow: 0 18px 34px rgba(33, 39, 26, 0.16);
+  box-shadow: 0 8px 18px rgba(65, 83, 50, 0.16);
 }
 
 .site-main {
@@ -184,6 +155,29 @@ const pageMeta = computed(() => ({
 @media (max-width: 920px) {
   .site-header {
     grid-template-columns: 1fr;
+  }
+
+  .site-context {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 1rem 0.85rem 1.8rem;
+  }
+
+  .site-brand,
+  .site-context {
+    padding: 1.1rem 1rem;
+  }
+
+  .site-brand h1 {
+    font-size: 2rem;
+  }
+
+  .nav-track {
+    width: 100%;
   }
 }
 </style>

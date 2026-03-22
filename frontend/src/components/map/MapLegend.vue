@@ -1,7 +1,10 @@
 <template>
   <section class="legend-card">
-    <p class="legend-eyebrow">着色规则</p>
-    <h3>虫口数分级</h3>
+    <div class="legend-head">
+      <p class="ui-eyebrow">着色规则</p>
+      <h3>虫口数分级</h3>
+      <p class="legend-note">用于判读点位风险等级与虫口数区间。</p>
+    </div>
 
     <div class="legend-list">
       <div class="legend-item">
@@ -27,29 +30,26 @@
 <style scoped>
 .legend-card {
   display: grid;
-  gap: 0.9rem;
-  height: 100%;
+  gap: 0.95rem;
   padding: 1rem;
-  border-radius: 1.3rem;
-  background:
-    linear-gradient(180deg, rgba(251, 248, 240, 0.92), rgba(243, 238, 226, 0.84));
-  border: 1px solid rgba(53, 67, 48, 0.1);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    0 12px 30px rgba(25, 32, 22, 0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
 }
 
-.legend-eyebrow {
-  margin: 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
+.legend-head {
+  display: grid;
+  gap: 0.3rem;
 }
 
 .legend-card h3 {
-  margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.08rem;
+}
+
+.legend-note {
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .legend-list {
@@ -60,14 +60,18 @@
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
 }
 
 .legend-dot {
-  width: 0.9rem;
-  height: 0.9rem;
+  width: 0.95rem;
+  height: 0.95rem;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(14, 16, 12, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(20, 27, 21, 0.12);
 }
 
 .level-0 {
