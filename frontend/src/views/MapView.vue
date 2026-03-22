@@ -12,6 +12,7 @@ import MapLegend from "../components/map/MapLegend.vue";
 
 const views = ref([]);
 const selectedView = ref("");
+const basemapMode = ref("standard");
 const geojson = ref({
   type: "FeatureCollection",
   features: [],
@@ -43,6 +44,11 @@ const supportsSurveyStatusFilter = computed(
 );
 const featureCount = computed(() => geojson.value?.features?.length || 0);
 const townshipOptions = computed(() => filterOptions.value.townships || []);
+const basemapSummary = computed(() =>
+  basemapMode.value === "satellite"
+    ? "当前使用 Esri World Imagery 影像底图。"
+    : "当前使用 OpenStreetMap 标准地图底图。",
+);
 
 const levelSummary = computed(() => {
   const summary = {
@@ -235,6 +241,38 @@ onMounted(async () => {
         </div>
       </section>
 
+      <section class="sidebar-card basemap-card">
+        <p class="sidebar-eyebrow">底图模式</p>
+
+        <div class="sidebar-field">
+          <span>显示底图</span>
+          <div class="basemap-toggle" role="tablist" aria-label="底图模式切换">
+            <button
+              type="button"
+              class="basemap-button"
+              :class="{ active: basemapMode === 'standard' }"
+              :aria-pressed="basemapMode === 'standard'"
+              @click="basemapMode = 'standard'"
+            >
+              标准地图
+            </button>
+            <button
+              type="button"
+              class="basemap-button"
+              :class="{ active: basemapMode === 'satellite' }"
+              :aria-pressed="basemapMode === 'satellite'"
+              @click="basemapMode = 'satellite'"
+            >
+              卫星地图
+            </button>
+          </div>
+        </div>
+
+        <p class="sidebar-hint basemap-hint">
+          {{ basemapSummary }}
+        </p>
+      </section>
+
       <section class="sidebar-card">
         <p class="sidebar-eyebrow">查询过滤</p>
         <div class="filter-grid">
@@ -281,6 +319,7 @@ onMounted(async () => {
 
     <div class="map-stage">
       <LeafletMap
+        :basemap-mode="basemapMode"
         :boundary-geojson="boundaryGeojson"
         :geojson="geojson"
         :loading="loading"
@@ -330,7 +369,11 @@ onMounted(async () => {
 
 .map-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(240px, 0.9fr);
+  grid-template-columns:
+    minmax(320px, 1.22fr)
+    minmax(220px, 0.92fr)
+    minmax(280px, 1.02fr)
+    minmax(220px, 0.9fr);
   gap: 1rem;
 }
 
@@ -378,6 +421,49 @@ onMounted(async () => {
   margin-top: auto;
 }
 
+.basemap-toggle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  padding: 0.32rem;
+  border-radius: 1rem;
+  background: rgba(232, 225, 208, 0.45);
+  border: 1px solid rgba(53, 67, 48, 0.08);
+}
+
+.basemap-card {
+  align-content: start;
+}
+
+.basemap-button {
+  min-height: 2.7rem;
+  padding: 0.7rem 0.9rem;
+  border: 0;
+  border-radius: 0.85rem;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.basemap-button:hover {
+  transform: translateY(-1px);
+}
+
+.basemap-button.active {
+  background: linear-gradient(135deg, rgba(62, 90, 49, 0.94), rgba(100, 130, 74, 0.9));
+  color: #fffaf1;
+  box-shadow: 0 10px 20px rgba(41, 56, 33, 0.18);
+}
+
+.basemap-hint {
+  margin-top: 0;
+}
+
 .sidebar-hint,
 .map-control-card {
   margin: 0;
@@ -390,6 +476,12 @@ onMounted(async () => {
 
 .map-stage {
   min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .map-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1080px) {

@@ -4,6 +4,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 const props = defineProps({
+  basemapMode: {
+    type: String,
+    default: "standard",
+  },
   boundaryGeojson: {
     type: Object,
     default: () => ({ type: "FeatureCollection", features: [] }),
@@ -24,10 +28,31 @@ const props = defineProps({
 
 const mapElement = ref(null);
 const mapRef = shallowRef(null);
+const basemapLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
+const activeBasemapLabel = computed(() =>
+  props.basemapMode === "satellite" ? "卫星地图" : "标准地图",
+);
+
+const BASEMAP_CONFIG = {
+  standard: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    options: {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    options: {
+      maxZoom: 19,
+      attribution: "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+    },
+  },
+};
 
 function normalizeInsectCount(properties = {}) {
   const value =
@@ -108,6 +133,23 @@ function clearPointLayer() {
   }
 }
 
+function clearBasemapLayer() {
+  if (basemapLayerRef.value) {
+    basemapLayerRef.value.remove();
+    basemapLayerRef.value = null;
+  }
+}
+
+function drawBasemap(mode = "standard") {
+  if (!mapRef.value) {
+    return;
+  }
+
+  const config = BASEMAP_CONFIG[mode] ?? BASEMAP_CONFIG.standard;
+  clearBasemapLayer();
+  basemapLayerRef.value = L.tileLayer(config.url, config.options).addTo(mapRef.value);
+}
+
 function fitMapToAvailableLayer() {
   if (!mapRef.value) {
     return;
@@ -186,14 +228,17 @@ onMounted(() => {
     attributionControl: true,
   }).setView([39.91, 116.72], 11);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(mapRef.value);
-
+  drawBasemap(props.basemapMode);
   drawBoundaryGeoJson(props.boundaryGeojson);
   drawGeoJson(props.geojson);
 });
+
+watch(
+  () => props.basemapMode,
+  (value) => {
+    drawBasemap(value);
+  },
+);
 
 watch(
   () => props.boundaryGeojson,
@@ -212,6 +257,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  clearBasemapLayer();
   clearBoundaryLayer();
   clearPointLayer();
   if (mapRef.value) {
@@ -224,6 +270,10 @@ onBeforeUnmount(() => {
 <template>
   <div class="leaflet-shell">
     <div ref="mapElement" class="leaflet-map"></div>
+
+    <div class="basemap-badge">
+      当前底图：{{ activeBasemapLabel }}
+    </div>
 
     <div v-if="loading" class="leaflet-overlay">
       正在加载 {{ viewName || "地图视图" }} …
@@ -248,6 +298,23 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 620px;
   background: linear-gradient(135deg, rgba(224, 231, 219, 0.9), rgba(209, 220, 206, 0.88));
+}
+
+.basemap-badge {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  z-index: 500;
+  padding: 0.58rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(250, 246, 236, 0.88);
+  color: rgba(25, 32, 22, 0.9);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 12px 26px rgba(20, 28, 21, 0.12);
+  backdrop-filter: blur(14px);
 }
 
 .leaflet-overlay {
