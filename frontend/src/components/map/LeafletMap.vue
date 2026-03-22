@@ -93,24 +93,6 @@ function renderPopup(properties = {}) {
   `;
 }
 
-function renderBoundaryPopup(properties = {}) {
-  const rows = [
-    ["区域", properties["区域"] ?? "-"],
-    ["分类", properties["分类"] ?? "-"],
-  ];
-
-  return `
-    <div style="min-width: 180px; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;">
-      ${rows
-        .map(
-          ([label, value]) =>
-            `<div style="display:flex;justify-content:space-between;gap:12px;margin:4px 0;"><strong>${label}</strong><span>${value ?? "-"}</span></div>`,
-        )
-        .join("")}
-    </div>
-  `;
-}
-
 function resolveBoundaryStyle(properties = {}) {
   return {
     color: "#e28b34",
@@ -178,14 +160,12 @@ function drawBoundaryGeoJson(data) {
   }
 
   boundaryLayerRef.value = L.geoJSON(data, {
+    interactive: false,
     style: (feature) => ({
       ...resolveBoundaryStyle(feature?.properties),
       weight: 5,
       opacity: 0.96,
     }),
-    onEachFeature: (feature, layer) => {
-      layer.bindPopup(renderBoundaryPopup(feature.properties));
-    },
   }).addTo(mapRef.value);
 
   fitMapToAvailableLayer();
