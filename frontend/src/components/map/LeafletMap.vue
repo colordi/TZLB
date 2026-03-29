@@ -2,6 +2,7 @@
 import L from "leaflet";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import "leaflet/dist/leaflet.css";
+import { buildPopupRows } from "./popupFields.js";
 
 const props = defineProps({
   autoFitOnDataChange: {
@@ -23,6 +24,10 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false,
+  },
+  popupFields: {
+    type: Array,
+    default: () => [],
   },
   viewName: {
     type: String,
@@ -78,13 +83,7 @@ function resolveColor(count) {
 }
 
 function renderPopup(properties = {}) {
-  const rows = [
-    ["编号", properties["编号"] ?? properties.location_id ?? "-"],
-    ["乡镇", properties["乡镇"] ?? properties.town_or_street ?? "-"],
-    ["村", properties["村"] ?? properties.location_name ?? "-"],
-    ["调查日期", properties["调查日期"] ?? properties.survey_date ?? "-"],
-    ["总虫口数", properties["总虫口数"] ?? properties.total_insect_count ?? "-"],
-  ];
+  const rows = buildPopupRows(props.popupFields, properties);
 
   return `
     <div class="map-popup">

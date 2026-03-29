@@ -10,17 +10,18 @@ import {
 import LeafletMap from "../components/map/LeafletMap.vue";
 import MapLegend from "../components/map/MapLegend.vue";
 
+function createEmptyFeatureCollection() {
+  return {
+    type: "FeatureCollection",
+    features: [],
+  };
+}
+
 const views = ref([]);
 const selectedView = ref("");
 const basemapMode = ref("standard");
-const geojson = ref({
-  type: "FeatureCollection",
-  features: [],
-});
-const boundaryGeojson = ref({
-  type: "FeatureCollection",
-  features: [],
-});
+const geojson = ref(createEmptyFeatureCollection());
+const boundaryGeojson = ref(createEmptyFeatureCollection());
 const townshipFilter = ref("");
 const surveyStatusFilter = ref("");
 const filterOptions = ref({
@@ -31,6 +32,7 @@ const filterOptions = ref({
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
+let geojsonRequestToken = 0;
 
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
@@ -88,10 +90,8 @@ async function loadViews() {
     views.value = payload;
     if (!payload.length) {
       selectedView.value = "";
-      geojson.value = {
-        type: "FeatureCollection",
-        features: [],
-      };
+      geojsonRequestToken += 1;
+      geojson.value = createEmptyFeatureCollection();
       return;
     }
 
@@ -105,9 +105,12 @@ async function loadViews() {
 
 async function loadGeoJson({ autoFit = false } = {}) {
   if (!selectedView.value) {
+    loading.value = false;
     return;
   }
 
+  const requestToken = ++geojsonRequestToken;
+  const viewName = selectedView.value;
   autoFitOnDataChange.value = autoFit;
   loading.value = true;
 
@@ -119,14 +122,20 @@ async function loadGeoJson({ autoFit = false } = {}) {
     if (supportsSurveyStatusFilter.value && surveyStatusFilter.value) {
       filters["调查状态"] = surveyStatusFilter.value;
     }
-    geojson.value = await fetchMapView(selectedView.value, filters);
+    const payload = await fetchMapView(viewName, filters);
+    if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
+      return;
+    }
+    geojson.value = payload;
   } catch (error) {
-    geojson.value = {
-      type: "FeatureCollection",
-      features: [],
-    };
+    if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
+      return;
+    }
+    geojson.value = createEmptyFeatureCollection();
   } finally {
-    loading.value = false;
+    if (requestToken === geojsonRequestToken) {
+      loading.value = false;
+    }
   }
 }
 
@@ -161,10 +170,7 @@ async function loadAdminBoundary() {
   try {
     boundaryGeojson.value = await fetchAdminBoundary();
   } catch (error) {
-    boundaryGeojson.value = {
-      type: "FeatureCollection",
-      features: [],
-    };
+    boundaryGeojson.value = createEmptyFeatureCollection();
     console.error(error);
   }
 }
@@ -188,6 +194,9 @@ function resetFilter() {
 }
 
 watch(selectedView, async () => {
+  geojsonRequestToken += 1;
+  geojson.value = createEmptyFeatureCollection();
+  loading.value = Boolean(selectedView.value);
   if (!supportsTownshipFilter.value) {
     townshipFilter.value = "";
   }
@@ -296,6 +305,7 @@ onMounted(async () => {
           :boundary-geojson="boundaryGeojson"
           :geojson="geojson"
           :loading="loading"
+          :popup-fields="currentView.columns"
           :view-name="selectedView"
         />
       </div>
