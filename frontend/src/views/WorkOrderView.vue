@@ -40,6 +40,10 @@ function updateRecords(nextRecords) {
   records.value = nextRecords.map((record) => normalizeRecordForPest(record, pestType.value));
 }
 
+function addRecord() {
+  records.value = [...records.value, createEmptyRecord(pestType.value)];
+}
+
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -80,95 +84,280 @@ async function handleGenerate() {
 
 <template>
   <section class="workorder-view">
-    <header class="summary-card">
-      <div class="summary-copy">
-        <p class="ui-eyebrow">工作单录入</p>
-        <h2>批量生成工作单</h2>
-        <p class="ui-note">
-          集中维护调查记录、现场图片与统防统治信息，完成后直接导出标准工作单。
+    <aside class="workorder-sidebar">
+      <!-- 统计指标 -->
+      <div class="sidebar-section metrics-section">
+        <div class="metric-item">
+          <span class="metric-value">{{ records.length }}</span>
+          <span class="metric-label">当前记录</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-value">{{ totalImages }}</span>
+          <span class="metric-label">图片总数</span>
+        </div>
+        <div class="metric-item">
+          <span class="metric-value text-accent">{{ taskType }}</span>
+          <span class="metric-label">统防类型</span>
+        </div>
+      </div>
+
+      <!-- 配置选项 -->
+      <div class="sidebar-section">
+        <label class="field-label">害虫类型</label>
+        <select v-model="pestType" class="field-select">
+          <option value="春尺蠖">春尺蠖</option>
+          <option value="国槐尺蠖">国槐尺蠖</option>
+          <option value="其他害虫">其他害虫</option>
+        </select>
+
+        <label class="field-label">统防统治类型</label>
+        <select v-model="taskType" class="field-select">
+          <option value="春尺蠖防治">春尺蠖防治</option>
+          <option value="国槐尺蠖防治">国槐尺蠖防治</option>
+          <option value="美国白蛾防治">美国白蛾防治</option>
+        </select>
+
+        <label class="field-label">统防统治任务</label>
+        <select v-model="taskName" class="field-select">
+          <option value="2026春尺蠖防治">2026春尺蠖防治</option>
+          <option value="2026国槐尺蠖防治">2026国槐尺蠖防治</option>
+          <option value="2026美国白蛾防治">2026美国白蛾防治</option>
+        </select>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="sidebar-section actions-section">
+        <button type="button" class="btn-primary" :disabled="generating" @click="handleGenerate">
+          {{ generating ? "生成中…" : "生成工作单" }}
+        </button>
+        <button type="button" class="btn-ghost" @click="addRecord">
+          + 新增记录
+        </button>
+      </div>
+
+      <!-- 提示信息 -->
+      <div class="sidebar-section hint-section">
+        <p class="hint-text">
+          支持直接粘贴二维表格数据，现场图片可点击上传或按 Ctrl/Cmd+V 粘贴。
         </p>
       </div>
+    </aside>
 
-      <div class="summary-metrics">
-        <article class="ui-stat">
-          <span class="ui-stat-label">当前记录</span>
-          <strong class="ui-stat-value">{{ records.length }}</strong>
-        </article>
-        <article class="ui-stat">
-          <span class="ui-stat-label">图片总数</span>
-          <strong class="ui-stat-value">{{ totalImages }}</strong>
-        </article>
-        <article class="ui-stat">
-          <span class="ui-stat-label">统防类型</span>
-          <strong class="ui-stat-value">{{ taskType }}</strong>
-        </article>
-      </div>
-    </header>
-
-    <RecordTable
-      :records="records"
-      :pest-type="pestType"
-      :task-type="taskType"
-      :task-name="taskName"
-      :busy="generating"
-      :errors="validationErrors"
-      @update:pest-type="pestType = $event"
-      @update:task-type="taskType = $event"
-      @update:task-name="taskName = $event"
-      @update:records="updateRecords"
-      @submit="handleGenerate"
-    />
+    <div class="workorder-main">
+      <RecordTable
+        :records="records"
+        :pest-type="pestType"
+        :task-type="taskType"
+        :task-name="taskName"
+        :busy="generating"
+        :errors="validationErrors"
+        @update:pest-type="pestType = $event"
+        @update:task-type="taskType = $event"
+        @update:task-name="taskName = $event"
+        @update:records="updateRecords"
+        @submit="handleGenerate"
+      />
+    </div>
   </section>
 </template>
 
 <style scoped>
 .workorder-view {
-  display: grid;
+  display: flex;
+  flex: 1;
   gap: 1rem;
+  min-height: 0;
 }
 
-.summary-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 0.9rem;
-  padding: 1.15rem 1.2rem;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
+/* 左侧边栏 */
+.workorder-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem;
   background: var(--surface-base);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
 }
 
-.summary-copy {
+.metrics-section {
   display: grid;
-  gap: 0.45rem;
-  align-content: center;
-  max-width: 42rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  padding: 0.75rem;
 }
 
-.summary-copy h2 {
-  font-size: clamp(1.55rem, 2.3vw, 2.15rem);
-  line-height: 1.12;
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
 }
 
-.summary-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.7rem;
+.metric-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
 }
 
-@media (max-width: 920px) {
-  .summary-card {
-    grid-template-columns: 1fr;
+.metric-value.text-accent {
+  font-size: 0.875rem;
+  color: var(--accent);
+}
+
+.metric-label {
+  font-size: 0.6875rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.field-select {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+
+.field-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.actions-section {
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.btn-ghost:hover {
+  background: var(--hover-tint);
+  border-color: var(--border-strong);
+}
+
+.hint-section {
+  background: var(--bg);
+  border-style: dashed;
+}
+
+.hint-text {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* 主内容区 */
+.workorder-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .workorder-view {
+    flex-direction: column;
+  }
+
+  .workorder-sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-right: 0;
+  }
+
+  .sidebar-section {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .metrics-section {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .hint-section {
+    flex: 2;
+    min-width: 300px;
   }
 }
 
-@media (max-width: 680px) {
-  .summary-card {
-    padding: 1rem;
+@media (max-width: 640px) {
+  .workorder-sidebar {
+    flex-direction: column;
   }
 
-  .summary-metrics {
-    grid-template-columns: 1fr;
+  .sidebar-section,
+  .metrics-section,
+  .hint-section {
+    flex: none;
+    min-width: auto;
+    width: 100%;
   }
 }
 </style>

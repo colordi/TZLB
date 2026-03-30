@@ -121,7 +121,7 @@ describe("MapView", () => {
       expect(mapStub.props("viewName")).toBe("虫情总览");
     });
 
-    await wrapper.get(".map-view-field select").setValue("高风险点位");
+    await wrapper.get(".field-select").setValue("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -151,7 +151,7 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
     });
 
-    await wrapper.get(".map-view-field select").setValue("高风险点位");
+    await wrapper.get(".field-select").setValue("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -180,7 +180,7 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledTimes(1);
     });
 
-    await wrapper.get(".map-view-field select").setValue("高风险点位");
+    await wrapper.get(".field-select").setValue("高风险点位");
 
     secondRequest.resolve(
       createFeatureCollection([

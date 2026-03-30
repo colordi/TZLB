@@ -76,10 +76,10 @@ function normalizeInsectCount(properties = {}) {
 }
 
 function resolveColor(count) {
-  if (count <= 0) return "#c2c7bf";
-  if (count <= 10) return "#9eb76a";
-  if (count <= 50) return "#e19d46";
-  return "#ba4b33";
+  if (count <= 0) return "#94a3b8";
+  if (count <= 10) return "#22c55e";
+  if (count <= 50) return "#f59e0b";
+  return "#ef4444";
 }
 
 function renderPopup(properties = {}) {
@@ -283,41 +283,41 @@ onBeforeUnmount(() => {
 <style scoped>
 .leaflet-shell {
   position: relative;
-  min-height: 620px;
-  border: 1px solid var(--line-strong);
+  min-height: 600px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: rgba(233, 238, 228, 0.62);
+  background: var(--bg-deep);
   box-shadow: var(--shadow-elevated);
 }
 
 .leaflet-map {
   width: 100%;
-  min-height: 620px;
-  background: linear-gradient(135deg, rgba(224, 231, 219, 0.92), rgba(209, 220, 206, 0.88));
+  min-height: 600px;
+  background: var(--bg-deep);
 }
 
 .map-badges {
   position: absolute;
-  top: 0.9rem;
-  left: 0.9rem;
-  right: 0.9rem;
+  top: 0.75rem;
+  left: 0.75rem;
+  right: 0.75rem;
   z-index: 500;
   display: flex;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
 .map-badge {
-  padding: 0.5rem 0.8rem;
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 999px;
-  background: rgba(251, 248, 241, 0.84);
-  color: rgba(35, 48, 39, 0.94);
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
-  backdrop-filter: blur(12px);
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-soft);
 }
 
 .map-badge.subtle {
@@ -326,67 +326,79 @@ onBeforeUnmount(() => {
 
 .leaflet-overlay {
   position: absolute;
-  inset: auto 0.9rem 0.9rem 0.9rem;
-  padding: 0.9rem 1rem;
-  border-radius: 1rem;
-  background: rgba(35, 48, 39, 0.74);
-  color: #f8f4ec;
-  backdrop-filter: blur(12px);
+  inset: auto 0.75rem 0.75rem 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.8);
+  color: #ffffff;
+  font-size: 0.875rem;
 }
 
 .leaflet-overlay.empty {
-  background: rgba(96, 106, 90, 0.76);
+  background: rgba(100, 116, 139, 0.8);
 }
 
 :deep(.leaflet-control-zoom) {
-  border: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-soft);
 }
 
 :deep(.leaflet-control-zoom a) {
-  border-bottom-color: var(--line-soft);
-  background: rgba(251, 248, 241, 0.96);
+  border-bottom-color: var(--border);
+  background: var(--surface-base);
   color: var(--ink);
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  font-size: 18px;
+}
+
+:deep(.leaflet-control-zoom a:hover) {
+  background: var(--hover-tint);
 }
 
 :deep(.leaflet-control-attribution) {
-  padding: 0.15rem 0.4rem;
-  background: rgba(251, 248, 241, 0.82);
+  padding: 0.25rem 0.5rem;
+  background: var(--surface-base);
+  font-size: 0.75rem;
 }
 
 :deep(.survey-popup .leaflet-popup-content-wrapper) {
-  border-radius: 1rem;
-  background: rgba(255, 252, 246, 0.96);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
   box-shadow: var(--shadow-soft);
+  padding: 0.5rem;
 }
 
 :deep(.survey-popup .leaflet-popup-tip) {
-  background: rgba(255, 252, 246, 0.96);
+  background: var(--surface-base);
 }
 
 :deep(.map-popup) {
-  min-width: 210px;
-  display: grid;
-  gap: 0.45rem;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
   color: var(--ink);
-  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 :deep(.map-popup-row) {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
 }
 
 :deep(.map-popup-row strong) {
-  color: var(--ink-soft);
+  color: var(--muted);
+  font-weight: 500;
 }
 
 @media (max-width: 760px) {
   .leaflet-shell,
   .leaflet-map {
-    min-height: 500px;
+    min-height: 480px;
   }
 
   .map-badges {

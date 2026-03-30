@@ -13,8 +13,8 @@ const routes = [
     name: "workorder",
     component: WorkOrderView,
     meta: {
-      section: "工作单批量生成",
-      blurb: "批量录入现场记录、嵌入照片并直接导出 Word 或 ZIP。",
+      section: "工单录入",
+      blurb: "批量录入现场记录、嵌入照片并直接导出 Word 工作单。",
     },
   },
   {

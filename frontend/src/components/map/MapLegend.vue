@@ -29,64 +29,70 @@
 
 <style scoped>
 .legend-card {
-  display: grid;
-  gap: 0.95rem;
-  padding: 1rem;
-  border: 1px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-base);
   box-shadow: var(--shadow-card);
 }
 
 .legend-head {
-  display: grid;
-  gap: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
 }
 
 .legend-card h3 {
-  font-size: 1.08rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .legend-note {
   color: var(--muted);
+  font-size: 0.875rem;
   line-height: 1.6;
 }
 
 .legend-list {
-  display: grid;
-  gap: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--line-soft);
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-card);
+  font-size: 0.875rem;
 }
 
 .legend-dot {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 0.875rem;
+  height: 0.875rem;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(20, 27, 21, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
 .level-0 {
-  background: #c2c7bf;
+  background: #94a3b8;
 }
 
 .level-1 {
-  background: #9eb76a;
+  background: #22c55e;
 }
 
 .level-2 {
-  background: #e19d46;
+  background: #f59e0b;
 }
 
 .level-3 {
-  background: #ba4b33;
+  background: #ef4444;
 }
 </style>

@@ -2,10 +2,7 @@
 import { computed, ref } from "vue";
 
 import {
-  CONTROL_TYPE_OPTIONS,
-  PEST_OPTIONS,
   createEmptyRecord,
-  getTaskOptions,
   getVisibleFields,
   normalizeInputValue,
   normalizeRecordForPest,
@@ -20,14 +17,6 @@ const props = defineProps({
     type: String,
     required: true,
   },
-  taskType: {
-    type: String,
-    required: true,
-  },
-  taskName: {
-    type: String,
-    required: true,
-  },
   busy: {
     type: Boolean,
     default: false,
@@ -38,16 +27,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits([
-  "update:pestType",
-  "update:taskType",
-  "update:taskName",
-  "update:records",
-  "submit",
-]);
+const emit = defineEmits(["update:records"]);
 
 const fields = computed(() => getVisibleFields(props.pestType));
-const taskOptions = computed(() => getTaskOptions(props.pestType));
 const hasRows = computed(() => props.records.length > 0);
 const activeRowIndex = ref(null);
 
@@ -56,10 +38,6 @@ function emitRecords(records) {
     "update:records",
     records.map((record) => normalizeRecordForPest(record, props.pestType)),
   );
-}
-
-function addRecord() {
-  emitRecords([...props.records, createEmptyRecord(props.pestType)]);
 }
 
 function updateRecord(index, record) {
@@ -207,74 +185,6 @@ function removeImage(index, imageIndex) {
 
 <template>
   <section class="table-shell">
-    <header class="table-head">
-      <div class="table-heading">
-        <div class="table-intro">
-          <p class="ui-eyebrow">录入控制</p>
-          <p class="table-note">
-            支持直接粘贴二维表格数据，现场图片可点击上传或按 Ctrl/Cmd+V 粘贴。
-          </p>
-        </div>
-
-        <div class="table-actions">
-          <button type="button" class="ghost" @click="addRecord">
-            新增记录
-          </button>
-          <button type="button" :disabled="busy" @click="emit('submit')">
-            {{ busy ? "正在生成…" : "批量生成工作单" }}
-          </button>
-        </div>
-      </div>
-
-      <div class="table-toolbar">
-        <label class="table-select">
-          <span>害虫类型</span>
-          <select :value="pestType" @change="emit('update:pestType', $event.target.value)">
-            <option
-              v-for="option in PEST_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-
-        <label class="table-select">
-          <span>统防统治类型</span>
-          <select :value="taskType" @change="emit('update:taskType', $event.target.value)">
-            <option
-              v-for="option in CONTROL_TYPE_OPTIONS"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-
-        <label class="table-select">
-          <span>统防统治任务</span>
-          <select
-            :value="taskName"
-            :disabled="taskOptions.length === 0"
-            @change="emit('update:taskName', $event.target.value)"
-          >
-            <option v-if="taskOptions.length === 0" value="">
-              暂未配置
-            </option>
-            <option
-              v-for="option in taskOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-      </div>
-    </header>
-
     <div class="table-wrap">
       <div class="table-stage">
         <div class="table-scroll">
@@ -361,8 +271,11 @@ function removeImage(index, imageIndex) {
             <thead>
               <tr>
                 <th class="cell-tools-head">
-                  <span>现场图片 / 删除</span>
-                  <small>每条最多 4 张</small>
+                  <span>现场图片</span>
+                  <small>最多4张</small>
+                </th>
+                <th class="cell-tools-delete">
+                  <span>操作</span>
                 </th>
               </tr>
             </thead>
@@ -376,52 +289,51 @@ function removeImage(index, imageIndex) {
                 @mouseleave="activeRowIndex = null"
               >
                 <td class="cell-tools-body">
-                  <div class="row-tools">
-                    <div
-                      class="thumb-strip"
-                      tabindex="0"
-                      title="点击空位上传图片，或聚焦后按 Ctrl/Cmd+V 粘贴，单条记录最多 4 张"
-                      @click="$event.currentTarget.focus()"
-                      @paste="handleImagePaste(index, $event)"
-                    >
-                      <template v-for="slot in getImageSlots(record.images)" :key="slot.key">
-                        <button
-                          v-if="slot.src"
-                          type="button"
-                          class="thumb-slot thumb-filled"
-                          :title="`第 ${slot.imageIndex + 1} 张图片，点击移除`"
-                          @click.stop="removeImage(index, slot.imageIndex)"
-                        >
-                          <img :src="slot.src" alt="" />
-                          <span class="thumb-remove-mark">×</span>
-                        </button>
+                  <div
+                    class="thumb-strip"
+                    tabindex="0"
+                    title="点击空位上传图片，或聚焦后按 Ctrl/Cmd+V 粘贴"
+                    @click="$event.currentTarget.focus()"
+                    @paste="handleImagePaste(index, $event)"
+                  >
+                    <template v-for="slot in getImageSlots(record.images)" :key="slot.key">
+                      <button
+                        v-if="slot.src"
+                        type="button"
+                        class="thumb-slot thumb-filled"
+                        :title="`第 ${slot.imageIndex + 1} 张图片，点击移除`"
+                        @click.stop="removeImage(index, slot.imageIndex)"
+                      >
+                        <img :src="slot.src" alt="" />
+                        <span class="thumb-remove-mark">×</span>
+                      </button>
 
-                        <label v-else class="thumb-slot thumb-empty" title="点击上传图片">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            @change="handleImageChange(index, $event)"
-                          />
-                          <span>+</span>
-                        </label>
-                      </template>
-                    </div>
-
-                    <button
-                      type="button"
-                      class="table-remove-icon"
-                      title="删除当前记录"
-                      aria-label="删除当前记录"
-                      @click="removeRecord(index)"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          d="M9 3.75h6a1.5 1.5 0 0 1 1.5 1.5v.75h3a.75.75 0 0 1 0 1.5h-1.03l-.82 11.1A2.25 2.25 0 0 1 15.4 21H8.6a2.25 2.25 0 0 1-2.24-2.1L5.53 7.5H4.5a.75.75 0 0 1 0-1.5h3v-.75A1.5 1.5 0 0 1 9 3.75Zm6 2.25v-.75h-6V6h6ZM7.86 7.5l.8 10.98a.75.75 0 0 0 .74.69h6.2a.75.75 0 0 0 .74-.69l.8-10.98H7.86Zm2.39 2.25a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Zm3.5 0a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Z"
+                      <label v-else class="thumb-slot thumb-empty" title="点击上传图片">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          @change="handleImageChange(index, $event)"
                         />
-                      </svg>
-                    </button>
+                        <span>+</span>
+                      </label>
+                    </template>
                   </div>
+                </td>
+                <td class="cell-delete">
+                  <button
+                    type="button"
+                    class="table-remove-icon"
+                    title="删除当前记录"
+                    aria-label="删除当前记录"
+                    @click="removeRecord(index)"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M9 3.75h6a1.5 1.5 0 0 1 1.5 1.5v.75h3a.75.75 0 0 1 0 1.5h-1.03l-.82 11.1A2.25 2.25 0 0 1 15.4 21H8.6a2.25 2.25 0 0 1-2.24-2.1L5.53 7.5H4.5a.75.75 0 0 1 0-1.5h3v-.75A1.5 1.5 0 0 1 9 3.75Zm6 2.25v-.75h-6V6h6ZM7.86 7.5l.8 10.98a.75.75 0 0 0 .74.69h6.2a.75.75 0 0 0 .74-.69l.8-10.98H7.86Zm2.39 2.25a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Zm3.5 0a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Z"
+                      />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -429,7 +341,7 @@ function removeImage(index, imageIndex) {
         </div>
 
         <div v-if="!hasRows" class="empty-table">
-          当前没有记录，点击上方“新增记录”开始录入。
+          当前没有记录，点击左侧"新增记录"开始录入。
         </div>
       </div>
     </div>
@@ -438,101 +350,62 @@ function removeImage(index, imageIndex) {
 
 <style scoped>
 .table-shell {
-  --table-head-height: 4rem;
-  --record-row-height: 5rem;
-  --row-alt: rgba(247, 243, 235, 0.82);
-  display: grid;
-  gap: 0.9rem;
-  padding: 1rem;
-  border: 1px solid var(--line-strong);
+  --table-head-height: 2.75rem;
+  --record-row-height: 3.75rem;
+  --row-alt: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-base);
   box-shadow: var(--shadow-card);
 }
 
-.table-head {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.table-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.table-intro {
-  display: grid;
-  gap: 0.35rem;
-  max-width: 38rem;
-}
-
-.table-note {
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.table-toolbar {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.table-select {
-  display: grid;
-  gap: 0.42rem;
-}
-
-.table-select span {
-  font-size: 0.72rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--muted-soft);
-}
-
-.table-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  justify-content: flex-end;
-}
-
 .table-wrap {
   overflow: hidden;
-  border: 1px solid var(--line-soft);
-  border-radius: calc(var(--radius-lg) - 0.15rem);
-  background: rgba(255, 252, 247, 0.88);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-strong);
+  flex: 1;
+  min-height: 0;
 }
 
 .table-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 236px;
+  grid-template-columns: minmax(0, 1fr) 200px 56px;
   align-items: start;
+  height: 100%;
 }
 
 .table-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
-  border-right: 1px solid var(--line-soft);
+  overflow-y: auto;
+  height: 100%;
+  border-right: 1px solid var(--border);
 }
 
 .tools-pane {
-  overflow: hidden;
-  background: rgba(247, 243, 234, 0.9);
+  overflow-y: auto;
+  height: 100%;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
 }
 
-.survey-table {
-  width: 100%;
-  min-width: 1460px;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
+.survey-table,
 .tools-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+}
+
+.survey-table {
+  min-width: 1200px;
+}
+
+.tools-table {
   table-layout: fixed;
 }
 
@@ -542,28 +415,28 @@ function removeImage(index, imageIndex) {
   top: 0;
   z-index: 1;
   height: var(--table-head-height);
-  padding: 0.8rem 0.7rem;
-  background: rgba(238, 232, 220, 0.94);
+  padding: 0.625rem 0.5rem;
+  background: #f1f5f9;
   color: var(--ink-soft);
   text-align: left;
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .survey-table thead th em {
   color: var(--danger);
   font-style: normal;
-  margin-left: 0.15rem;
+  margin-left: 0.125rem;
 }
 
 .survey-table tbody td,
 .tools-table tbody td {
-  padding: 0.42rem 0.5rem;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
-  background: rgba(255, 252, 247, 0.56);
+  background: var(--surface-strong);
 }
 
 .survey-table tbody tr:nth-child(2n) td,
@@ -584,8 +457,8 @@ function removeImage(index, imageIndex) {
 }
 
 .cell-rownum {
-  width: 62px;
-  min-width: 62px;
+  width: 56px;
+  min-width: 56px;
   text-align: center;
 }
 
@@ -593,123 +466,90 @@ function removeImage(index, imageIndex) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.1rem;
-  padding: 0.22rem 0.42rem;
-  border-radius: 999px;
-  background: rgba(85, 106, 66, 0.1);
-  color: var(--accent-strong);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.cell-survey_date,
-.cell-report_time {
-  width: 120px;
-  min-width: 120px;
-}
-
-.cell-region {
-  width: 92px;
-  min-width: 92px;
-}
-
-.cell-town_or_street,
-.cell-location_name,
-.cell-occurrence_position,
-.cell-plot_type {
-  width: 132px;
-  min-width: 132px;
-}
-
-.cell-location_id {
-  width: 98px;
-  min-width: 98px;
-}
-
-.cell-total_insect_count,
-.cell-damage_level {
-  width: 96px;
-  min-width: 96px;
-}
-
-.cell-description {
-  width: 240px;
-  min-width: 240px;
+  min-width: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .cell-tools-head {
-  display: grid;
-  align-content: center;
-  gap: 0.2rem;
+  width: 140px;
+}
+
+.cell-tools-delete {
+  width: 56px;
+  text-align: center;
 }
 
 .cell-tools-head small {
-  font-size: 0.66rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted-soft);
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: normal;
+  color: var(--muted);
 }
 
-.cell-body {
-  height: 100%;
+.cell-tools-body {
+  padding: 0.375rem;
+}
+
+.cell-delete {
+  text-align: center;
+  padding: 0.375rem;
 }
 
 .table-input {
   width: 100%;
   min-width: 0;
-  min-height: 3rem;
-  padding: 0.72rem 0.82rem;
-  border: 1px solid rgba(65, 83, 50, 0.12);
-  border-radius: 0.85rem;
-  background: rgba(255, 254, 251, 0.96);
+  min-height: 2.25rem;
+  padding: 0.4375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
   color: var(--ink);
   box-shadow: none;
-  font-size: 0.84rem;
-  line-height: 1.35;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.table-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .table-textarea {
-  min-height: calc(var(--record-row-height) - 0.95rem);
-  height: calc(var(--record-row-height) - 0.95rem);
-  padding: 0.78rem 0.9rem;
+  min-height: calc(var(--record-row-height) - 0.75rem);
+  height: calc(var(--record-row-height) - 0.75rem);
+  padding: 0.5rem;
   resize: none;
   overflow: hidden auto;
   white-space: normal;
 }
 
-.table-select-input {
-  appearance: none;
-}
-
 .cell-error .table-input {
-  border-color: rgba(176, 75, 49, 0.45);
-  box-shadow: 0 0 0 3px rgba(176, 75, 49, 0.08);
-}
-
-.row-tools {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.95rem;
-  gap: 0.5rem;
-  align-items: stretch;
-  height: calc(var(--record-row-height) - 0.9rem);
+  border-color: rgba(220, 38, 38, 0.4);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.08);
 }
 
 .thumb-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-  height: 100%;
-  padding: 0.35rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 0.95rem;
-  background: rgba(255, 252, 247, 0.9);
+  gap: 0.25rem;
+  height: 52px;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
   outline: none;
 }
 
 .thumb-strip:focus {
-  border-color: rgba(85, 106, 66, 0.3);
-  box-shadow: 0 0 0 3px rgba(85, 106, 66, 0.08);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .thumb-slot,
@@ -721,16 +561,16 @@ function removeImage(index, imageIndex) {
   height: 100%;
   min-height: 0;
   padding: 0;
-  border-radius: 0.75rem;
+  border-radius: calc(var(--radius-sm) - 1px);
   overflow: hidden;
 }
 
 .thumb-slot {
   position: relative;
   cursor: pointer;
-  border: 1px dashed rgba(65, 83, 50, 0.18);
-  background: rgba(255, 252, 247, 0.96);
-  color: var(--ink);
+  border: 1px dashed var(--border-strong);
+  background: var(--bg);
+  color: var(--muted);
   box-shadow: none;
 }
 
@@ -742,19 +582,20 @@ function removeImage(index, imageIndex) {
 }
 
 .thumb-empty {
-  color: var(--muted-soft);
-  font-size: 1.05rem;
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .thumb-slot:hover {
   transform: none;
-  border-color: rgba(85, 106, 66, 0.34);
-  background: rgba(250, 246, 238, 0.98);
+  border-color: var(--accent);
+  background: var(--hover-tint);
 }
 
 .thumb-filled {
   border-style: solid;
+  border-color: var(--border);
 }
 
 .thumb-filled img {
@@ -765,30 +606,33 @@ function removeImage(index, imageIndex) {
 
 .thumb-remove-mark {
   position: absolute;
-  top: 0.22rem;
-  right: 0.24rem;
-  width: 1.1rem;
-  height: 1.1rem;
+  top: 0.0625rem;
+  right: 0.0625rem;
+  width: 0.875rem;
+  height: 0.875rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  background: rgba(24, 31, 25, 0.68);
+  border-radius: calc(var(--radius-sm) - 1px);
+  background: rgba(15, 23, 42, 0.7);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.625rem;
 }
 
 .table-remove-icon {
-  align-self: stretch;
-  border: 1px solid rgba(176, 75, 49, 0.14);
-  background: rgba(252, 235, 231, 0.74);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  background: rgba(220, 38, 38, 0.05);
   color: var(--danger);
   box-shadow: none;
+  cursor: pointer;
+  transition: all 150ms ease;
 }
 
 .table-remove-icon:hover {
-  transform: none;
-  background: rgba(249, 226, 221, 0.9);
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.25);
 }
 
 .table-remove-icon svg {
@@ -798,38 +642,40 @@ function removeImage(index, imageIndex) {
 }
 
 .empty-table {
-  padding: 1.8rem 1rem;
+  padding: 2rem;
   text-align: center;
   color: var(--muted);
+  font-size: 0.875rem;
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 1024px) {
-  .table-heading {
-    flex-direction: column;
-    align-items: stretch;
+  .table-stage {
+    grid-template-columns: minmax(0, 1fr) 180px 48px;
   }
 
-  .table-actions {
-    justify-content: flex-start;
+  .cell-tools-head {
+    width: 120px;
   }
 
-  .table-toolbar {
-    grid-template-columns: 1fr;
+  .cell-tools-delete {
+    width: 48px;
   }
 }
 
 @media (max-width: 760px) {
   .table-shell {
-    padding: 0.9rem;
+    padding: 0.5rem;
   }
 
   .table-stage {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
   }
 
-  .table-scroll {
+  .tools-pane {
     border-right: 0;
-    border-bottom: 1px solid var(--line-soft);
+    border-top: 1px solid var(--border);
   }
 }
 </style>

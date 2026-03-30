@@ -13,29 +13,24 @@ const pageMeta = computed(() => ({
 <template>
   <div class="app-shell">
     <header class="site-header">
-      <div class="site-brand">
-        <p class="site-kicker">Tongzhou Forestry Survey</p>
-        <h1>林业调查工作台</h1>
-        <p class="site-summary">工作单生成与地图监测一体化平台</p>
+      <div class="header-brand">
+        <span class="brand-icon">🌲</span>
+        <span class="brand-title">林业调查工作台</span>
       </div>
 
-      <aside class="site-context">
-        <p class="context-label">当前模块</p>
-        <h2>{{ pageMeta.section }}</h2>
-        <p v-if="pageMeta.blurb">{{ pageMeta.blurb }}</p>
-      </aside>
-    </header>
-
-    <nav class="site-nav">
-      <div class="nav-track">
+      <nav class="header-nav">
         <RouterLink to="/workorder" class="nav-link">
-          工作单批量生成
+          工单录入
         </RouterLink>
         <RouterLink to="/map" class="nav-link">
           调查点位展示
         </RouterLink>
+      </nav>
+
+      <div class="header-actions">
+        <span class="page-title">{{ pageMeta.section }}</span>
       </div>
-    </nav>
+    </header>
 
     <main class="site-main">
       <RouterView />
@@ -45,139 +40,113 @@ const pageMeta = computed(() => ({
 
 <style scoped>
 .app-shell {
-  max-width: var(--content-width);
-  margin: 0 auto;
-  padding: 1.4rem clamp(1rem, 2.8vw, 2rem) 2.4rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .site-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.85fr);
-  gap: 0.9rem;
-  align-items: start;
-  margin-bottom: 0.8rem;
-}
-
-.site-brand,
-.site-context {
-  padding: 1.3rem 1.45rem;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
   background: var(--surface-base);
-  box-shadow: var(--shadow-card);
-}
-
-.site-kicker {
-  margin: 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted-soft);
-}
-
-.site-brand h1 {
-  margin: 0.4rem 0 0;
-  font-size: clamp(2.15rem, 4vw, 3.9rem);
-  line-height: 1.04;
-}
-
-.site-summary,
-.site-context p {
-  color: var(--muted);
-  line-height: 1.65;
-}
-
-.site-summary {
-  margin-top: 0.6rem;
-}
-
-.site-context {
-  display: grid;
-  gap: 0.35rem;
-  align-content: start;
-  min-height: 100%;
-}
-
-.context-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--muted-soft);
-}
-
-.site-context h2 {
-  font-size: clamp(1.3rem, 2vw, 1.7rem);
-  line-height: 1.2;
-}
-
-.site-nav {
-  margin-bottom: 1rem;
-}
-
-.nav-track {
-  display: inline-grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-  padding: 0.35rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: rgba(249, 245, 237, 0.78);
   box-shadow: var(--shadow-soft);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.brand-icon {
+  font-size: 1.25rem;
+}
+
+.brand-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
 }
 
 .nav-link {
-  padding: 0.75rem 1.15rem;
-  border-radius: 999px;
-  color: var(--ink);
+  padding: 0.5rem 1rem;
+  border-radius: calc(var(--radius-sm) - 1px);
+  color: var(--muted);
   text-decoration: none;
-  font-weight: 600;
-  text-align: center;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 150ms ease;
 }
 
 .nav-link:hover {
-  background: rgba(255, 252, 246, 0.92);
+  color: var(--ink);
+  background: var(--surface-muted);
 }
 
 .nav-link.router-link-active {
-  background: var(--accent);
-  color: #f8f5ee;
-  box-shadow: 0 8px 18px rgba(65, 83, 50, 0.16);
+  background: var(--surface-base);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.page-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .site-main {
-  display: grid;
+  flex: 1;
+  padding: 1rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 768px) {
   .site-header {
-    grid-template-columns: 1fr;
+    padding: 0.625rem 1rem;
   }
 
-  .site-context {
-    min-height: auto;
-  }
-}
-
-@media (max-width: 640px) {
-  .app-shell {
-    padding: 1rem 0.85rem 1.8rem;
+  .brand-title {
+    display: none;
   }
 
-  .site-brand,
-  .site-context {
-    padding: 1.1rem 1rem;
+  .nav-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
   }
 
-  .site-brand h1 {
-    font-size: 2rem;
+  .page-title {
+    display: none;
   }
 
-  .nav-track {
-    width: 100%;
+  .site-main {
+    padding: 0.75rem 1rem 1rem;
   }
 }
 </style>
