@@ -1,11 +1,14 @@
 <script setup>
 import { computed, ref } from "vue";
 
+import { useToast } from "../../composables/useToast.js";
+import ImageUploadDialog from "./ImageUploadDialog.vue";
 import {
   createEmptyRecord,
   getVisibleFields,
   normalizeInputValue,
   normalizeRecordForPest,
+  parseClipboardGrid,
 } from "./fieldConfig.js";
 
 const props = defineProps({
@@ -28,10 +31,13 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:records"]);
+const { info, success } = useToast();
 
 const fields = computed(() => getVisibleFields(props.pestType));
 const hasRows = computed(() => props.records.length > 0);
-const activeRowIndex = ref(null);
+const activeImageRecordIndex = ref(-1);
+
+const activeImageRecord = computed(() => props.records[activeImageRecordIndex.value] || null);
 
 function emitRecords(records) {
   emit(
@@ -49,6 +55,18 @@ function updateRecord(index, record) {
 function removeRecord(index) {
   const next = props.records.filter((_, currentIndex) => currentIndex !== index);
   emitRecords(next.length ? next : [createEmptyRecord(props.pestType)]);
+  info(`第 ${index + 1} 条记录已删除。`, "记录已更新");
+}
+
+function duplicateRecord(index) {
+  const source = normalizeRecordForPest(props.records[index], props.pestType);
+  const next = props.records.slice();
+  next.splice(index + 1, 0, {
+    ...source,
+    images: Array.isArray(source.images) ? source.images.slice() : [],
+  });
+  emitRecords(next);
+  success(`已复制第 ${index + 1} 条记录。`, "记录已复制");
 }
 
 function applyGridPaste({ rowIndex, fieldKey, grid }) {
@@ -95,13 +113,7 @@ function handleCellPaste(index, field, event) {
     return;
   }
 
-  const grid = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .filter((row, rowIndex, rows) => !(row === "" && rowIndex === rows.length - 1))
-    .map((row) => row.split("\t"));
-
+  const grid = parseClipboardGrid(text);
   if (grid.length <= 1 && (grid[0]?.length || 0) <= 1) {
     return;
   }
@@ -114,568 +126,588 @@ function handleCellPaste(index, field, event) {
   });
 }
 
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+function openImageDialog(index) {
+  activeImageRecordIndex.value = index;
 }
 
-function getImageSlots(images = []) {
-  return Array.from({ length: 4 }, (_, index) => ({
-    key: `slot-${index}`,
-    src: images[index] || "",
-    imageIndex: index,
-  }));
+function closeImageDialog() {
+  activeImageRecordIndex.value = -1;
 }
 
-async function handleImageChange(index, event) {
-  const currentImages = props.records[index]?.images || [];
-  const availableSlots = Math.max(0, 4 - currentImages.length);
-  const files = Array.from(event.target.files || []).slice(0, availableSlots);
-  if (!files.length) {
-    event.target.value = "";
+function updateImages(images) {
+  if (activeImageRecordIndex.value < 0) {
     return;
   }
 
-  const encodedFiles = await Promise.all(files.map((file) => readFileAsBase64(file)));
-  updateRecord(index, {
-    ...props.records[index],
-    images: currentImages.concat(encodedFiles),
-  });
-  event.target.value = "";
-}
-
-async function handleImagePaste(index, event) {
-  const clipboardItems = Array.from(event.clipboardData?.items || []);
-  const imageFiles = clipboardItems
-    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
-    .map((item) => item.getAsFile())
-    .filter(Boolean);
-
-  if (imageFiles.length === 0) {
-    return;
-  }
-
-  event.preventDefault();
-  const currentImages = props.records[index]?.images || [];
-  const availableSlots = Math.max(0, 4 - currentImages.length);
-  const filesToRead = imageFiles.slice(0, availableSlots);
-  if (filesToRead.length === 0) {
-    return;
-  }
-
-  const encodedFiles = await Promise.all(filesToRead.map((file) => readFileAsBase64(file)));
-  updateRecord(index, {
-    ...props.records[index],
-    images: currentImages.concat(encodedFiles),
-  });
-}
-
-function removeImage(index, imageIndex) {
-  const currentImages = props.records[index]?.images || [];
-  updateRecord(index, {
-    ...props.records[index],
-    images: currentImages.filter((_, currentIndex) => currentIndex !== imageIndex),
+  updateRecord(activeImageRecordIndex.value, {
+    ...props.records[activeImageRecordIndex.value],
+    images,
   });
 }
 </script>
 
 <template>
-  <section class="table-shell">
-    <div class="table-wrap">
-      <div class="table-stage">
-        <div class="table-scroll">
-          <table class="survey-table">
-            <thead>
-              <tr>
-                <th class="cell-rownum">序号</th>
-                <th
-                  v-for="field in fields"
-                  :key="field.key"
-                  :class="['cell-head', `cell-${field.key}`]"
-                >
-                  {{ field.label }}
-                  <em v-if="field.required">*</em>
-                </th>
-              </tr>
-            </thead>
-
-            <tbody v-if="hasRows">
-              <tr
-                v-for="(record, index) in records"
-                :key="index"
-                :class="{ 'is-row-active': activeRowIndex === index }"
-                @mouseenter="activeRowIndex = index"
-                @mouseleave="activeRowIndex = null"
+  <section class="record-workspace panel-card">
+    <div v-if="hasRows" class="desktop-records">
+      <div class="table-scroll">
+        <table class="record-table">
+          <thead>
+            <tr>
+              <th class="cell-serial">序号</th>
+              <th
+                v-for="field in fields"
+                :key="field.key"
+                :class="['cell-head', `cell-${field.key}`]"
               >
-                <td class="cell-rownum">
-                  <span class="rownum-pill">{{ String(index + 1).padStart(2, "0") }}</span>
-                </td>
+                {{ field.label }}
+                <em v-if="field.required">*</em>
+              </th>
+              <th class="cell-images">现场图片</th>
+              <th class="cell-actions">操作</th>
+            </tr>
+          </thead>
 
-                <td
-                  v-for="field in fields"
-                  :key="field.key"
-                  :class="[
-                    'cell-body',
-                    `cell-${field.key}`,
-                    { 'cell-error': errors[index]?.[field.key] },
-                  ]"
-                >
-                  <select
-                    v-if="field.type === 'select'"
-                    class="table-input table-select-input"
-                    :value="record[field.key]"
-                    :title="errors[index]?.[field.key] || ''"
-                    @change="updateCell(index, field, $event.target.value)"
-                    @paste="handleCellPaste(index, field, $event)"
-                  >
-                    <option value="">请选择</option>
-                    <option
-                      v-for="option in field.options"
-                      :key="option"
-                      :value="option"
-                    >
-                      {{ option }}
-                    </option>
-                  </select>
+          <tbody>
+            <tr v-for="(record, index) in records" :key="index">
+              <td class="cell-serial">
+                <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
+              </td>
 
-                  <textarea
-                    v-else-if="field.type === 'textarea'"
-                    class="table-input table-textarea"
-                    :value="record[field.key]"
-                    :title="errors[index]?.[field.key] || ''"
-                    @input="updateCell(index, field, $event.target.value)"
-                    @paste="handleCellPaste(index, field, $event)"
-                  />
-
-                  <input
-                    v-else
-                    class="table-input"
-                    :type="field.type"
-                    :value="record[field.key]"
-                    :title="errors[index]?.[field.key] || ''"
-                    @input="updateCell(index, field, $event.target.value)"
-                    @paste="handleCellPaste(index, field, $event)"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-if="hasRows" class="tools-pane">
-          <table class="tools-table">
-            <thead>
-              <tr>
-                <th class="cell-tools-head">
-                  <span>现场图片</span>
-                  <small>最多4张</small>
-                </th>
-                <th class="cell-tools-delete">
-                  <span>操作</span>
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <tr
-                v-for="(record, index) in records"
-                :key="`tools-${index}`"
-                :class="{ 'is-row-active': activeRowIndex === index }"
-                @mouseenter="activeRowIndex = index"
-                @mouseleave="activeRowIndex = null"
+              <td
+                v-for="field in fields"
+                :key="field.key"
+                :class="['cell-body', { 'cell-error': errors[index]?.[field.key] }]"
               >
-                <td class="cell-tools-body">
-                  <div
-                    class="thumb-strip"
-                    tabindex="0"
-                    title="点击空位上传图片，或聚焦后按 Ctrl/Cmd+V 粘贴"
-                    @click="$event.currentTarget.focus()"
-                    @paste="handleImagePaste(index, $event)"
-                  >
-                    <template v-for="slot in getImageSlots(record.images)" :key="slot.key">
-                      <button
-                        v-if="slot.src"
-                        type="button"
-                        class="thumb-slot thumb-filled"
-                        :title="`第 ${slot.imageIndex + 1} 张图片，点击移除`"
-                        @click.stop="removeImage(index, slot.imageIndex)"
-                      >
-                        <img :src="slot.src" alt="" />
-                        <span class="thumb-remove-mark">×</span>
-                      </button>
+                <select
+                  v-if="field.type === 'select'"
+                  class="table-input"
+                  :disabled="busy"
+                  :value="record[field.key]"
+                  :title="errors[index]?.[field.key] || ''"
+                  @change="updateCell(index, field, $event.target.value)"
+                  @paste="handleCellPaste(index, field, $event)"
+                >
+                  <option value="">请选择</option>
+                  <option v-for="option in field.options" :key="option" :value="option">
+                    {{ option }}
+                  </option>
+                </select>
 
-                      <label v-else class="thumb-slot thumb-empty" title="点击上传图片">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          @change="handleImageChange(index, $event)"
-                        />
-                        <span>+</span>
-                      </label>
-                    </template>
-                  </div>
-                </td>
-                <td class="cell-delete">
-                  <button
-                    type="button"
-                    class="table-remove-icon"
-                    title="删除当前记录"
-                    aria-label="删除当前记录"
-                    @click="removeRecord(index)"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M9 3.75h6a1.5 1.5 0 0 1 1.5 1.5v.75h3a.75.75 0 0 1 0 1.5h-1.03l-.82 11.1A2.25 2.25 0 0 1 15.4 21H8.6a2.25 2.25 0 0 1-2.24-2.1L5.53 7.5H4.5a.75.75 0 0 1 0-1.5h3v-.75A1.5 1.5 0 0 1 9 3.75Zm6 2.25v-.75h-6V6h6ZM7.86 7.5l.8 10.98a.75.75 0 0 0 .74.69h6.2a.75.75 0 0 0 .74-.69l.8-10.98H7.86Zm2.39 2.25a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Zm3.5 0a.75.75 0 0 1 .75.75v5.25a.75.75 0 0 1-1.5 0V10.5a.75.75 0 0 1 .75-.75Z"
-                      />
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                <textarea
+                  v-else-if="field.type === 'textarea'"
+                  class="table-input table-textarea"
+                  :disabled="busy"
+                  :value="record[field.key]"
+                  :title="errors[index]?.[field.key] || ''"
+                  @input="updateCell(index, field, $event.target.value)"
+                  @paste="handleCellPaste(index, field, $event)"
+                />
 
-        <div v-if="!hasRows" class="empty-table">
-          当前没有记录，点击左侧"新增记录"开始录入。
-        </div>
+                <input
+                  v-else
+                  class="table-input"
+                  :disabled="busy"
+                  :type="field.type"
+                  :value="record[field.key]"
+                  :title="errors[index]?.[field.key] || ''"
+                  @input="updateCell(index, field, $event.target.value)"
+                  @paste="handleCellPaste(index, field, $event)"
+                />
+              </td>
+
+              <td class="cell-images">
+                <button
+                  type="button"
+                  class="image-trigger button-secondary"
+                  :disabled="busy"
+                  :data-testid="`open-image-dialog-${index}`"
+                  @click="openImageDialog(index)"
+                >
+                  <span v-if="record.images?.[0]" class="image-thumb">
+                    <img :src="record.images[0]" alt="" />
+                  </span>
+                  <span v-else class="image-thumb is-empty">+</span>
+                  <span class="image-copy">
+                    <strong>{{ record.images?.length || 0 }}/4</strong>
+                    <small>上传 / 预览</small>
+                  </span>
+                </button>
+              </td>
+
+              <td class="cell-actions">
+                <button
+                  type="button"
+                  class="row-action button-secondary"
+                  :disabled="busy"
+                  :data-testid="`duplicate-record-${index}`"
+                  @click="duplicateRecord(index)"
+                >
+                  复制
+                </button>
+                <button
+                  type="button"
+                  class="row-action button-danger"
+                  :disabled="busy"
+                  :data-testid="`delete-record-${index}`"
+                  @click="removeRecord(index)"
+                >
+                  删除
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
+
+    <div v-if="hasRows" class="mobile-records">
+      <article
+        v-for="(record, index) in records"
+        :key="`mobile-${index}`"
+        class="mobile-card"
+      >
+        <header class="mobile-card-head">
+          <div class="mobile-card-meta">
+            <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
+            <div>
+              <strong>现场记录 {{ index + 1 }}</strong>
+              <p>{{ record.images?.length || 0 }} 张图片</p>
+            </div>
+          </div>
+
+          <div class="mobile-card-actions">
+            <button
+              type="button"
+              class="row-action button-secondary"
+              :disabled="busy"
+              @click="duplicateRecord(index)"
+            >
+              复制
+            </button>
+            <button
+              type="button"
+              class="row-action button-danger"
+              :disabled="busy"
+              @click="removeRecord(index)"
+            >
+              删除
+            </button>
+          </div>
+        </header>
+
+        <div class="mobile-fields">
+          <div
+            v-for="field in fields"
+            :key="field.key"
+            class="field-block"
+            :class="{ 'field-error': errors[index]?.[field.key] }"
+          >
+            <label>{{ field.label }}<span v-if="field.required">*</span></label>
+
+            <select
+              v-if="field.type === 'select'"
+              :disabled="busy"
+              :value="record[field.key]"
+              @change="updateCell(index, field, $event.target.value)"
+              @paste="handleCellPaste(index, field, $event)"
+            >
+              <option value="">请选择</option>
+              <option v-for="option in field.options" :key="option" :value="option">
+                {{ option }}
+              </option>
+            </select>
+
+            <textarea
+              v-else-if="field.type === 'textarea'"
+              :disabled="busy"
+              :value="record[field.key]"
+              @input="updateCell(index, field, $event.target.value)"
+              @paste="handleCellPaste(index, field, $event)"
+            />
+
+            <input
+              v-else
+              :disabled="busy"
+              :type="field.type"
+              :value="record[field.key]"
+              @input="updateCell(index, field, $event.target.value)"
+              @paste="handleCellPaste(index, field, $event)"
+            />
+          </div>
+        </div>
+
+        <button type="button" class="mobile-image-button button-secondary" @click="openImageDialog(index)">
+          管理现场图片
+        </button>
+      </article>
+    </div>
+
+    <div v-if="!hasRows" class="empty-state">
+      <strong>当前还没有记录</strong>
+      <p>点击上方“新增记录”开始录入第一条现场信息。</p>
+    </div>
+
+    <ImageUploadDialog
+      :busy="busy"
+      :images="activeImageRecord?.images || []"
+      :open="activeImageRecordIndex >= 0"
+      :record-label="`记录 ${activeImageRecordIndex + 1}`"
+      @close="closeImageDialog"
+      @update:images="updateImages"
+    />
   </section>
 </template>
 
 <style scoped>
-.table-shell {
-  --table-head-height: 2.75rem;
-  --record-row-height: 3.75rem;
-  --row-alt: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-base);
-  box-shadow: var(--shadow-card);
+.record-workspace {
+  padding: 1rem;
 }
 
-.table-wrap {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-strong);
-  flex: 1;
+.desktop-records,
+.table-scroll {
   min-height: 0;
-}
-
-.table-stage {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px 56px;
-  align-items: start;
-  height: 100%;
 }
 
 .table-scroll {
-  overflow-x: auto;
-  overflow-y: auto;
-  height: 100%;
-  border-right: 1px solid var(--border);
+  overflow: auto;
+  border: 1px solid rgba(46, 125, 50, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
 }
 
-.tools-pane {
-  overflow-y: auto;
-  height: 100%;
-  background: var(--bg);
-  border-right: 1px solid var(--border);
-}
-
-.survey-table,
-.tools-table {
+.record-table {
   width: 100%;
+  min-width: 1100px;
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.survey-table {
-  min-width: 1200px;
-}
-
-.tools-table {
-  table-layout: fixed;
-}
-
-.survey-table thead th,
-.tools-table thead th {
+.record-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  height: var(--table-head-height);
-  padding: 0.625rem 0.5rem;
-  background: #f1f5f9;
-  color: var(--ink-soft);
+  padding: 1rem 0.8rem;
+  background: linear-gradient(180deg, rgba(236, 249, 238, 0.98), rgba(228, 246, 230, 0.96));
+  color: var(--color-primary-strong);
   text-align: left;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  font-weight: 800;
   white-space: nowrap;
+  border-bottom: 1px solid var(--color-line);
 }
 
-.survey-table thead th em {
-  color: var(--danger);
+.record-table thead th em {
+  margin-left: 0.15rem;
+  color: var(--color-danger);
   font-style: normal;
-  margin-left: 0.125rem;
 }
 
-.survey-table tbody td,
-.tools-table tbody td {
-  padding: 0.375rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+.record-table tbody td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid rgba(46, 125, 50, 0.1);
   vertical-align: middle;
-  background: var(--surface-strong);
+  background: rgba(255, 255, 255, 0.94);
 }
 
-.survey-table tbody tr:nth-child(2n) td,
-.tools-table tbody tr:nth-child(2n) td {
-  background: var(--row-alt);
+.record-table tbody tr:nth-child(2n) td {
+  background: rgba(248, 252, 247, 0.95);
 }
 
-.survey-table tbody tr:hover td,
-.tools-table tbody tr:hover td,
-.survey-table tbody tr.is-row-active td,
-.tools-table tbody tr.is-row-active td {
-  background: var(--hover-tint);
+.cell-serial {
+  width: 5rem;
+  min-width: 5rem;
 }
 
-.survey-table tbody tr,
-.tools-table tbody tr {
-  height: var(--record-row-height);
+.cell-images {
+  width: 8.5rem;
+  min-width: 8.5rem;
 }
 
-.cell-rownum {
-  width: 56px;
-  min-width: 56px;
-  text-align: center;
+.cell-actions {
+  width: 8rem;
+  min-width: 8rem;
 }
 
-.rownum-pill {
+/* 字段列宽度定义 */
+.cell-survey_date {
+  width: 7.5rem;
+  min-width: 7.5rem;
+}
+
+.cell-region {
+  width: 6rem;
+  min-width: 6rem;
+}
+
+.cell-town_or_street {
+  width: 9rem;
+  min-width: 9rem;
+}
+
+.cell-location_id {
+  width: 7rem;
+  min-width: 7rem;
+}
+
+.cell-location_name {
+  width: 10rem;
+  min-width: 10rem;
+}
+
+.cell-occurrence_position {
+  width: 9rem;
+  min-width: 9rem;
+}
+
+.cell-total_insect_count {
+  width: 6.5rem;
+  min-width: 6.5rem;
+}
+
+.cell-damage_level {
+  width: 6rem;
+  min-width: 6rem;
+}
+
+.cell-pest_name {
+  width: 7rem;
+  min-width: 7rem;
+}
+
+.cell-host_plant {
+  width: 7rem;
+  min-width: 7rem;
+}
+
+.cell-plot_type {
+  width: 7rem;
+  min-width: 7rem;
+}
+
+.cell-report_time {
+  width: 7.5rem;
+  min-width: 7.5rem;
+}
+
+.cell-description {
+  width: 12rem;
+  min-width: 12rem;
+}
+
+.serial-badge {
+  width: 2.7rem;
+  height: 2.7rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.cell-tools-head {
-  width: 140px;
-}
-
-.cell-tools-delete {
-  width: 56px;
-  text-align: center;
-}
-
-.cell-tools-head small {
-  display: block;
-  font-size: 0.6875rem;
-  font-weight: normal;
-  color: var(--muted);
-}
-
-.cell-tools-body {
-  padding: 0.375rem;
-}
-
-.cell-delete {
-  text-align: center;
-  padding: 0.375rem;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.13);
+  color: var(--color-primary-strong);
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .table-input {
   width: 100%;
-  min-width: 0;
-  min-height: 2.25rem;
-  padding: 0.4375rem 0.5rem;
-  border: 1px solid var(--border);
+  min-height: 2.85rem;
+  padding: var(--space-3) 0.85rem;
+  border: 1.5px solid var(--color-line);
   border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  color: var(--ink);
+  background: rgba(255, 255, 255, 0.98);
+  font-size: var(--text-sm);
   box-shadow: none;
-  font-size: 0.8125rem;
-  line-height: 1.4;
+  transition: all 200ms ease;
+}
+
+.table-input:hover {
+  border-color: var(--color-line-strong);
+  background: #ffffff;
 }
 
 .table-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+  background: #ffffff;
 }
 
 .table-textarea {
-  min-height: calc(var(--record-row-height) - 0.75rem);
-  height: calc(var(--record-row-height) - 0.75rem);
-  padding: 0.5rem;
+  min-height: 2.85rem;
+  height: 2.85rem;
   resize: none;
-  overflow: hidden auto;
-  white-space: normal;
 }
 
-.cell-error .table-input {
-  border-color: rgba(220, 38, 38, 0.4);
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.08);
+.cell-error :is(.table-input, input, select, textarea),
+.field-error :is(input, select, textarea) {
+  border-color: var(--color-danger);
+  background: rgba(211, 84, 48, 0.05);
 }
 
-.thumb-strip {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 0.25rem;
-  height: 52px;
-  padding: 0.25rem;
-  border: 1px solid var(--border);
+.cell-error :is(.table-input, input, select, textarea):focus,
+.field-error :is(input, select, textarea):focus {
+  box-shadow: 0 0 0 3px rgba(211, 84, 48, 0.15);
+}
+
+.image-trigger {
+  width: 100%;
+  min-height: 2.85rem;
+  height: 2.85rem;
+  justify-content: flex-start;
+  padding: 0.4rem 0.52rem;
+}
+
+.image-thumb {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  outline: none;
-}
-
-.thumb-strip:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
-}
-
-.thumb-slot,
-.table-remove-icon {
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding: 0;
-  border-radius: calc(var(--radius-sm) - 1px);
-  overflow: hidden;
+  background: rgba(46, 125, 50, 0.1);
+  color: var(--color-primary);
+  font-size: 1.4rem;
+  font-weight: 700;
+  transition: transform 200ms ease;
 }
 
-.thumb-slot {
-  position: relative;
-  cursor: pointer;
-  border: 1px dashed var(--border-strong);
-  background: var(--bg);
-  color: var(--muted);
-  box-shadow: none;
+.image-trigger:hover .image-thumb {
+  transform: scale(1.05);
 }
 
-.thumb-slot input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.thumb-empty {
-  color: var(--muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.thumb-slot:hover {
-  transform: none;
-  border-color: var(--accent);
-  background: var(--hover-tint);
-}
-
-.thumb-filled {
-  border-style: solid;
-  border-color: var(--border);
-}
-
-.thumb-filled img {
+.image-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.thumb-remove-mark {
-  position: absolute;
-  top: 0.0625rem;
-  right: 0.0625rem;
-  width: 0.875rem;
-  height: 0.875rem;
-  display: inline-flex;
+.image-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.image-copy strong {
+  color: var(--color-ink);
+  font-size: 0.92rem;
+}
+
+.image-copy small {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.row-action {
+  width: 100%;
+  min-height: 2.85rem;
+  border-radius: 14px;
+  font-size: 0.84rem;
+}
+
+.cell-actions {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.mobile-records {
+  display: none;
+}
+
+.mobile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(46, 125, 50, 0.12);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.mobile-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.mobile-card-meta {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.mobile-card-meta strong {
+  display: block;
+}
+
+.mobile-card-meta p {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
+.mobile-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mobile-fields {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.mobile-fields label {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.mobile-fields label span {
+  margin-left: 0.15rem;
+  color: var(--color-danger);
+}
+
+.mobile-image-button {
+  width: 100%;
+}
+
+.empty-state {
+  min-height: 15rem;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: calc(var(--radius-sm) - 1px);
-  background: rgba(15, 23, 42, 0.7);
-  color: #fff;
-  font-size: 0.625rem;
-}
-
-.table-remove-icon {
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid rgba(220, 38, 38, 0.15);
-  background: rgba(220, 38, 38, 0.05);
-  color: var(--danger);
-  box-shadow: none;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.table-remove-icon:hover {
-  background: rgba(220, 38, 38, 0.1);
-  border-color: rgba(220, 38, 38, 0.25);
-}
-
-.table-remove-icon svg {
-  width: 1rem;
-  height: 1rem;
-  fill: currentColor;
-}
-
-.empty-table {
-  padding: 2rem;
+  gap: 0.45rem;
   text-align: center;
-  color: var(--muted);
-  font-size: 0.875rem;
-  grid-column: 1 / -1;
+  color: var(--color-muted);
 }
 
-@media (max-width: 1024px) {
-  .table-stage {
-    grid-template-columns: minmax(0, 1fr) 180px 48px;
+@media (max-width: 900px) {
+  .desktop-records {
+    display: none;
   }
 
-  .cell-tools-head {
-    width: 120px;
-  }
-
-  .cell-tools-delete {
-    width: 48px;
+  .mobile-records {
+    display: grid;
+    gap: 0.9rem;
   }
 }
 
-@media (max-width: 760px) {
-  .table-shell {
-    padding: 0.5rem;
+@media (max-width: 640px) {
+  .record-workspace {
+    padding: 0.85rem;
   }
 
-  .table-stage {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto;
+  .mobile-card-head {
+    flex-direction: column;
   }
 
-  .tools-pane {
-    border-right: 0;
-    border-top: 1px solid var(--border);
+  .mobile-card-actions {
+    width: 100%;
+  }
+
+  .mobile-card-actions .row-action {
+    flex: 1;
   }
 }
 </style>

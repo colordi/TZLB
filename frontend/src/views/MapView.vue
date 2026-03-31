@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 
+import { useToast } from "../composables/useToast.js";
 import {
   fetchAdminBoundary,
   fetchMapFilterOptions,
@@ -15,6 +16,8 @@ function createEmptyFeatureCollection() {
     features: [],
   };
 }
+
+const { error, info, success } = useToast();
 
 const views = ref([]);
 const selectedView = ref("");
@@ -44,36 +47,36 @@ const supportsSurveyStatusFilter = computed(
     filterOptions.value.supportsSurveyStatusFilter ||
     currentView.value.columns.includes("调查日期"),
 );
-const featureCount = computed(() => geojson.value?.features?.length || 0);
 const townshipOptions = computed(() => filterOptions.value.townships || []);
 
-const levelSummary = computed(() => {
-  const summary = {
-    level0: 0,
-    level1: 0,
-    level2: 0,
-    level3: 0,
-  };
+const legendEntries = computed(() => [
+  {
+    key: "level0",
+    label: "白",
+    className: "severity-blank",
+  },
+  {
+    key: "level1",
+    label: "轻",
+    className: "severity-light",
+  },
+  {
+    key: "level2",
+    label: "中",
+    className: "severity-medium",
+  },
+  {
+    key: "level3",
+    label: "重",
+    className: "severity-heavy",
+  },
+]);
 
-  (geojson.value?.features || []).forEach((feature) => {
-    const raw =
-      feature.properties?.["总虫口数"] ??
-      feature.properties?.["虫口数"] ??
-      feature.properties?.total_insect_count ??
-      0;
-    const count = Number(raw);
-    if (!Number.isFinite(count) || count <= 0) {
-      summary.level0 += 1;
-    } else if (count <= 10) {
-      summary.level1 += 1;
-    } else if (count <= 50) {
-      summary.level2 += 1;
-    } else {
-      summary.level3 += 1;
-    }
-  });
-
-  return summary;
+const filterHint = computed(() => {
+  if (supportsTownshipFilter.value || supportsSurveyStatusFilter.value) {
+    return "按当前视图筛选点位。";
+  }
+  return "当前视图暂无可用筛选。";
 });
 
 async function loadViews() {
@@ -86,12 +89,19 @@ async function loadViews() {
       selectedView.value = "";
       geojsonRequestToken += 1;
       geojson.value = createEmptyFeatureCollection();
-      return;
+      return true;
     }
 
     if (!payload.some((view) => view.name === selectedView.value)) {
       selectedView.value = payload[0].name;
     }
+    return true;
+  } catch (loadError) {
+    views.value = [];
+    selectedView.value = "";
+    geojson.value = createEmptyFeatureCollection();
+    error(`${loadError.message || loadError}`, "地图视图读取失败");
+    return false;
   } finally {
     loadingViews.value = false;
   }
@@ -100,7 +110,7 @@ async function loadViews() {
 async function loadGeoJson({ autoFit = false } = {}) {
   if (!selectedView.value) {
     loading.value = false;
-    return;
+    return false;
   }
 
   const requestToken = ++geojsonRequestToken;
@@ -118,14 +128,17 @@ async function loadGeoJson({ autoFit = false } = {}) {
     }
     const payload = await fetchMapView(viewName, filters);
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
-      return;
+      return false;
     }
     geojson.value = payload;
-  } catch (error) {
+    return true;
+  } catch (loadError) {
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
-      return;
+      return false;
     }
     geojson.value = createEmptyFeatureCollection();
+    error(`${loadError.message || loadError}`, "地图数据读取失败");
+    return false;
   } finally {
     if (requestToken === geojsonRequestToken) {
       loading.value = false;
@@ -150,30 +163,39 @@ async function loadFilterOptions() {
       supportsTownshipFilter: Boolean(payload.supports_township_filter),
       supportsSurveyStatusFilter: Boolean(payload.supports_survey_status_filter),
     };
-  } catch (error) {
+  } catch (loadError) {
     filterOptions.value = {
       townships: [],
       supportsTownshipFilter: currentView.value.columns.includes("乡镇"),
       supportsSurveyStatusFilter: currentView.value.columns.includes("调查日期"),
     };
-    console.error(error);
+    error(`${loadError.message || loadError}`, "筛选配置读取失败");
   }
 }
 
 async function loadAdminBoundary() {
   try {
     boundaryGeojson.value = await fetchAdminBoundary();
-  } catch (error) {
+  } catch (loadError) {
     boundaryGeojson.value = createEmptyFeatureCollection();
-    console.error(error);
+    info(`${loadError.message || loadError}`, "行政区边界未加载");
   }
 }
 
 async function refreshViewsAndData() {
   const previousView = selectedView.value;
-  await loadViews();
+  const loadedViews = await loadViews();
+  if (!loadedViews) {
+    return;
+  }
+
+  let loadedGeoJson = true;
   if (selectedView.value === previousView) {
-    await loadGeoJson({ autoFit: false });
+    loadedGeoJson = await loadGeoJson({ autoFit: false });
+  }
+
+  if (loadedGeoJson) {
+    success("地图视图与点位数据已刷新。", "刷新完成");
   }
 }
 
@@ -185,6 +207,7 @@ function resetFilter() {
   townshipFilter.value = "";
   surveyStatusFilter.value = "";
   loadGeoJson({ autoFit: false });
+  info("筛选条件已清空。", "已恢复全部点位");
 }
 
 watch(selectedView, async () => {
@@ -213,397 +236,292 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="map-view">
-    <aside class="map-sidebar">
-      <!-- 统计指标 -->
-      <div class="sidebar-section metrics-section">
-        <div class="metric-item">
-          <span class="metric-value">{{ views.length }}</span>
-          <span class="metric-label">可用视图</span>
-        </div>
-        <div class="metric-item">
-          <span class="metric-value">{{ featureCount }}</span>
-          <span class="metric-label">当前点位</span>
-        </div>
-        <div class="metric-item">
-          <span class="metric-value text-danger">{{ levelSummary.level3 }}</span>
-          <span class="metric-label">高风险点</span>
-        </div>
-      </div>
-
-      <!-- 视图选择 -->
-      <div class="sidebar-section">
-        <label class="field-label">监测视图</label>
-        <select v-model="selectedView" :disabled="loadingViews || !views.length" class="field-select">
-          <option v-for="view in views" :key="view.name" :value="view.name">
-            {{ view.name }}
-          </option>
-        </select>
-      </div>
-
-      <!-- 筛选条件 -->
-      <div class="sidebar-section">
-        <label class="field-label">乡镇</label>
-        <select v-model="townshipFilter" :disabled="!supportsTownshipFilter" class="field-select">
-          <option value="">全部乡镇</option>
-          <option v-for="township in townshipOptions" :key="township" :value="township">
-            {{ township }}
-          </option>
-        </select>
-
-        <label class="field-label">调查状态</label>
-        <select v-model="surveyStatusFilter" :disabled="!supportsSurveyStatusFilter" class="field-select">
-          <option value="">全部状态</option>
-          <option value="调查">调查</option>
-          <option value="未调查">未调查</option>
-        </select>
-      </div>
-
-      <!-- 操作按钮 -->
-      <div class="sidebar-section actions-section">
-        <button type="button" class="btn-primary" :disabled="loading || !selectedView" @click="applyFilter">
-          应用筛选
-        </button>
-        <div class="btn-row">
-          <button type="button" class="btn-ghost" @click="refreshViewsAndData">
-            刷新
-          </button>
-          <button type="button" class="btn-ghost" :disabled="loading" @click="resetFilter">
-            清空
-          </button>
-        </div>
-      </div>
-
-      <!-- 底图切换 -->
-      <div class="sidebar-section">
-        <label class="field-label">底图模式</label>
-        <div class="basemap-toggle">
-          <button
-            type="button"
-            class="basemap-btn"
-            :class="{ active: basemapMode === 'standard' }"
-            @click="basemapMode = 'standard'"
-          >
-            标准地图
-          </button>
-          <button
-            type="button"
-            class="basemap-btn"
-            :class="{ active: basemapMode === 'satellite' }"
-            @click="basemapMode = 'satellite'"
-          >
-            卫星地图
-          </button>
-        </div>
-      </div>
-
-      <!-- 图例 -->
-      <div class="sidebar-section legend-section">
-        <label class="field-label">虫口数分级</label>
-        <div class="legend-list">
-          <div class="legend-item">
-            <span class="legend-dot level-0"></span>
-            <span>0 或缺失</span>
+  <section class="page-shell map-page">
+    <div class="page-content-grid">
+      <aside class="page-sidebar">
+        <article class="panel-card sidebar-panel sidebar-panel-slim">
+          <div class="panel-head panel-head-slim">
+            <span class="icon-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M11.62 2.6a1 1 0 0 1 .76 0l7.25 2.9a1 1 0 0 1 0 1.86l-7.25 2.9a1 1 0 0 1-.76 0l-7.25-2.9a1 1 0 0 1 0-1.86l7.25-2.9Zm-4.5 4.83L12 9.39l4.88-1.96L12 5.48 7.12 7.43Zm-2.84 3.82a1 1 0 0 1 1.3-.56L12 13.22l6.42-2.53a1 1 0 1 1 .74 1.86l-6.79 2.68a1 1 0 0 1-.74 0L4.84 12.55a1 1 0 0 1-.56-1.3Zm0 4.6a1 1 0 0 1 1.3-.56L12 17.82l6.42-2.53a1 1 0 1 1 .74 1.86l-6.79 2.68a1 1 0 0 1-.74 0l-6.79-2.68a1 1 0 0 1-.56-1.3Z"
+                />
+              </svg>
+            </span>
+            <div class="panel-head-copy">
+              <h2>视图配置</h2>
+            </div>
           </div>
-          <div class="legend-item">
-            <span class="legend-dot level-1"></span>
-            <span>1 - 10</span>
+
+          <div class="field-block">
+            <label for="map-view-select" class="sr-only">当前视图</label>
+            <select
+              id="map-view-select"
+              data-testid="view-select"
+              v-model="selectedView"
+              :disabled="loadingViews || !views.length"
+            >
+              <option v-if="!views.length" value="">暂无可用视图</option>
+              <option v-for="view in views" :key="view.name" :value="view.name">
+                {{ view.name }}
+              </option>
+            </select>
           </div>
-          <div class="legend-item">
-            <span class="legend-dot level-2"></span>
-            <span>11 - 50</span>
+        </article>
+
+        <article class="panel-card sidebar-panel sidebar-panel-slim">
+          <div class="panel-head panel-head-slim">
+            <span class="icon-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v.31a1.75 1.75 0 0 1-.36 1.06l-4.64 6.04v4.09a1.75 1.75 0 0 1-1.02 1.59l-2 1A1.75 1.75 0 0 1 9 18.25v-5.09L4.36 7.12A1.75 1.75 0 0 1 4 6.06v-.31Zm1.75-.25a.25.25 0 0 0-.25.25v.31c0 .05.02.11.05.15l4.8 6.24a.75.75 0 0 1 .15.46v5.34a.25.25 0 0 0 .36.22l2-1a.25.25 0 0 0 .14-.22v-4.34a.75.75 0 0 1 .15-.46l4.8-6.24a.25.25 0 0 0 .05-.15v-.31a.25.25 0 0 0-.25-.25H5.75Z"
+                />
+              </svg>
+            </span>
+            <div class="panel-head-copy">
+              <h2>筛选配置</h2>
+            </div>
           </div>
-          <div class="legend-item">
-            <span class="legend-dot level-3"></span>
-            <span>50 以上</span>
+
+          <div class="sidebar-field-stack">
+            <div class="field-block">
+              <label for="township-select">乡镇 / 街道</label>
+              <select
+                id="township-select"
+                data-testid="township-select"
+                v-model="townshipFilter"
+                :disabled="!supportsTownshipFilter"
+              >
+                <option value="">全部乡镇</option>
+                <option v-for="township in townshipOptions" :key="township" :value="township">
+                  {{ township }}
+                </option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label for="survey-status-select">调查状态</label>
+              <select
+                id="survey-status-select"
+                data-testid="survey-status-select"
+                v-model="surveyStatusFilter"
+                :disabled="!supportsSurveyStatusFilter"
+              >
+                <option value="">全部状态</option>
+                <option value="调查">调查</option>
+                <option value="未调查">未调查</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label>底图模式</label>
+              <div class="segmented-control basemap-toggle">
+                <button
+                  type="button"
+                  class="segment-button"
+                  :class="{ 'is-active': basemapMode === 'standard' }"
+                  @click="basemapMode = 'standard'"
+                >
+                  标准地图
+                </button>
+                <button
+                  type="button"
+                  class="segment-button"
+                  :class="{ 'is-active': basemapMode === 'satellite' }"
+                  @click="basemapMode = 'satellite'"
+                >
+                  卫星地图
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <div class="filter-actions">
+            <button type="button" :disabled="loading || !selectedView" @click="applyFilter">
+              应用筛选
+            </button>
+            <button type="button" class="button-secondary" @click="refreshViewsAndData">刷新</button>
+            <button type="button" class="button-secondary" :disabled="loading" @click="resetFilter">
+              清空
+            </button>
+          </div>
+
+          <p class="muted-note">{{ filterHint }}</p>
+        </article>
+
+        <article class="panel-card sidebar-panel sidebar-panel-slim">
+          <div class="panel-head panel-head-slim">
+            <span class="icon-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M12 2.75a9.25 9.25 0 1 0 9.25 9.25A9.26 9.26 0 0 0 12 2.75Zm0 17a7.75 7.75 0 1 1 7.75-7.75A7.76 7.76 0 0 1 12 19.75Zm-.75-11.5a.75.75 0 0 1 1.5 0v.5a.75.75 0 0 1-1.5 0v-.5Zm0 3a.75.75 0 0 1 1.5 0v4a.75.75 0 0 1-1.5 0v-4Z"
+                />
+              </svg>
+            </span>
+            <div class="panel-head-copy">
+              <h2>图例配置</h2>
+            </div>
+          </div>
+
+          <div class="legend-list">
+            <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
+              <span class="legend-dot" :class="entry.className"></span>
+              <span>{{ entry.label }}</span>
+            </div>
+          </div>
+        </article>
+      </aside>
+
+      <div class="page-main-column">
+        <section class="panel-card map-panel">
+          <div class="map-panel-head">
+            <div class="panel-head map-panel-title">
+              <span class="icon-badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 5.02 5.8 10.39 6.05 10.61a1.8 1.8 0 0 0 2.4 0c.25-.22 6.05-5.59 6.05-10.61A7.25 7.25 0 0 0 12 2.75Zm0 16.52C10.5 17.76 6.25 13.4 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.4-4.25 7.76-5.75 9.27Zm0-12.52A3.25 3.25 0 1 0 15.25 10 3.25 3.25 0 0 0 12 6.75Zm0 5A1.75 1.75 0 1 1 13.75 10 1.75 1.75 0 0 1 12 11.75Z"
+                  />
+                </svg>
+              </span>
+              <div class="panel-head-copy">
+                <h2>调查点位分布</h2>
+                <p>支持点位弹窗详情、名称悬停与底图切换。</p>
+              </div>
+            </div>
+          </div>
+
+          <LeafletMap
+            :auto-fit-on-data-change="autoFitOnDataChange"
+            :basemap-mode="basemapMode"
+            :boundary-geojson="boundaryGeojson"
+            :geojson="geojson"
+            :loading="loading"
+            :popup-fields="currentView.columns"
+            :view-name="selectedView"
+          />
+        </section>
       </div>
-
-      <p v-if="!supportsTownshipFilter && !supportsSurveyStatusFilter" class="sidebar-hint">
-        当前视图不包含筛选字段
-      </p>
-    </aside>
-
-    <div class="map-container">
-      <LeafletMap
-        :auto-fit-on-data-change="autoFitOnDataChange"
-        :basemap-mode="basemapMode"
-        :boundary-geojson="boundaryGeojson"
-        :geojson="geojson"
-        :loading="loading"
-        :popup-fields="currentView.columns"
-        :view-name="selectedView"
-      />
     </div>
   </section>
 </template>
 
 <style scoped>
-.map-view {
-  display: flex;
-  flex: 1;
-  gap: 1rem;
-  min-height: 0;
+.map-page {
+  gap: 0;
 }
 
-/* 左侧边栏 */
-.map-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  overflow-y: auto;
-  padding-right: 0.5rem;
+.sidebar-panel {
+  padding: 1rem;
 }
 
-.sidebar-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.875rem;
-  background: var(--surface-base);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft);
+.sidebar-panel-slim {
+  border-radius: 22px;
 }
 
-.metrics-section {
+.panel-head-slim {
+  margin-bottom: 0.9rem;
+}
+
+.sidebar-panel .panel-head-copy h2 {
+  font-size: 1.12rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-field-stack {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-  padding: 0.75rem;
-}
-
-.metric-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.25rem;
-}
-
-.metric-value {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1;
-}
-
-.metric-value.text-danger {
-  color: var(--danger);
-}
-
-.metric-label {
-  font-size: 0.6875rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.field-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.field-select {
-  width: 100%;
-  min-height: 2.25rem;
-  padding: 0.5rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  color: var(--ink);
-  font-size: 0.8125rem;
-}
-
-.field-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--focus-ring);
-}
-
-.field-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--bg);
-}
-
-.actions-section {
-  gap: 0.5rem;
-}
-
-.btn-primary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 2.25rem;
-  padding: 0 1rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-strong);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.btn-ghost {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 2rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.btn-ghost:hover {
-  background: var(--hover-tint);
-  border-color: var(--border-strong);
+  gap: 0.85rem;
+  margin-bottom: 0.9rem;
 }
 
 .basemap-toggle {
-  display: flex;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
 }
 
-.basemap-btn {
-  flex: 1;
-  height: 2rem;
-  padding: 0 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 150ms ease;
+.filter-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.7rem;
 }
 
-.basemap-btn:hover {
-  border-color: var(--border-strong);
-  color: var(--ink);
-}
-
-.basemap-btn.active {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.legend-section {
-  gap: 0.625rem;
+.filter-actions > button:first-child {
+  grid-column: 1 / -1;
 }
 
 .legend-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  display: grid;
+  gap: 0.55rem;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
+  justify-content: flex-start;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(46, 125, 50, 0.1);
+  border-radius: 16px;
+  background: rgba(246, 251, 244, 0.92);
+  color: var(--color-ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .legend-dot {
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 50%;
-  flex-shrink: 0;
+  width: 0.92rem;
+  height: 0.92rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
 }
 
-.legend-dot.level-0 { background: #94a3b8; }
-.legend-dot.level-1 { background: #22c55e; }
-.legend-dot.level-2 { background: #f59e0b; }
-.legend-dot.level-3 { background: #ef4444; }
-
-.sidebar-hint {
-  font-size: 0.75rem;
-  color: var(--muted);
-  text-align: center;
-  padding: 0.5rem;
+.severity-blank {
+  background: #ffffff;
 }
 
-/* 地图区域 */
-.map-container {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-card);
+.severity-light {
+  background: #68c17a;
 }
 
-/* 响应式 */
-@media (max-width: 1024px) {
-  .map-view {
-    flex-direction: column;
+.severity-medium {
+  background: #f0c048;
+}
+
+.severity-heavy {
+  background: #ec6d64;
+}
+
+.map-panel {
+  padding: 1.15rem;
+}
+
+.map-panel-head {
+  margin-bottom: 0.9rem;
+}
+
+.map-panel-title {
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .filter-actions {
+    grid-template-columns: 1fr;
   }
 
-  .map-sidebar {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding-right: 0;
+  .filter-actions > button:first-child {
+    grid-column: auto;
   }
 
-  .sidebar-section {
+  .filter-actions > button,
+  .sidebar-panel {
     flex: 1;
-    min-width: 200px;
   }
 
-  .metrics-section {
-    flex: 1;
-    min-width: 200px;
-  }
-
-  .legend-section {
-    flex: 2;
-    min-width: 300px;
-  }
-}
-
-@media (max-width: 640px) {
-  .map-sidebar {
-    flex-direction: column;
-  }
-
-  .sidebar-section,
-  .metrics-section,
-  .legend-section {
-    flex: none;
-    min-width: auto;
-    width: 100%;
+  .basemap-toggle {
+    grid-template-columns: 1fr;
   }
 }
 </style>

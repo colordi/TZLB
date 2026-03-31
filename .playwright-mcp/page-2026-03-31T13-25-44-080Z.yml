@@ -1,0 +1,106 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "林业调查工作台 Forest Survey Workbench" [ref=e7] [cursor=pointer]:
+        - /url: /workorder
+        - img [ref=e9]
+        - generic [ref=e11]:
+          - strong [ref=e12]: 林业调查工作台
+          - generic [ref=e13]: Forest Survey Workbench
+      - navigation "主导航" [ref=e14]:
+        - link "工单录入" [ref=e15] [cursor=pointer]:
+          - /url: /workorder
+          - img [ref=e16]
+          - generic [ref=e18]: 工单录入
+        - link "调查点位" [ref=e19] [cursor=pointer]:
+          - /url: /map
+          - img [ref=e20]
+          - generic [ref=e22]: 调查点位
+  - main [ref=e23]:
+    - generic [ref=e25]:
+      - complementary [ref=e26]:
+        - article [ref=e27]:
+          - generic [ref=e28]:
+            - img [ref=e30]
+            - heading "视图配置" [level=2] [ref=e33]
+          - generic [ref=e34]:
+            - generic [ref=e35]: 当前视图
+            - combobox "当前视图" [ref=e36]:
+              - option "2026_春尺蠖幼虫调查" [selected]
+              - option "2026_春尺蠖成虫调查"
+              - option "通州区监测点位分布"
+        - article [ref=e37]:
+          - generic [ref=e38]:
+            - img [ref=e40]
+            - heading "筛选配置" [level=2] [ref=e43]
+          - generic [ref=e44]:
+            - generic [ref=e45]:
+              - generic [ref=e46]: 乡镇 / 街道
+              - combobox "乡镇 / 街道" [ref=e47]:
+                - option "全部乡镇" [selected]
+                - option "于家务"
+                - option "台湖镇"
+                - option "宋庄镇"
+                - option "张家湾镇"
+                - option "梨园镇"
+                - option "永乐店镇"
+                - option "永顺镇"
+                - option "漷县镇"
+                - option "潞城镇"
+                - option "西集镇"
+                - option "马驹桥镇"
+            - generic [ref=e48]:
+              - generic [ref=e49]: 调查状态
+              - combobox "调查状态" [ref=e50]:
+                - option "全部状态" [selected]
+                - option "调查"
+                - option "未调查"
+            - generic [ref=e51]:
+              - generic [ref=e52]: 底图模式
+              - generic [ref=e53]:
+                - button "标准地图" [ref=e54] [cursor=pointer]
+                - button "卫星地图" [ref=e55] [cursor=pointer]
+          - generic [ref=e56]:
+            - button "应用筛选" [ref=e57] [cursor=pointer]
+            - button "刷新" [ref=e58] [cursor=pointer]
+            - button "清空" [ref=e59] [cursor=pointer]
+          - paragraph [ref=e60]: 按当前视图筛选点位。
+        - article [ref=e61]:
+          - generic [ref=e62]:
+            - img [ref=e64]
+            - heading "图例配置" [level=2] [ref=e67]
+          - generic [ref=e68]:
+            - generic [ref=e71]: 白
+            - generic [ref=e74]: 轻
+            - generic [ref=e77]: 中
+            - generic [ref=e80]: 重
+      - generic [ref=e82]:
+        - generic [ref=e84]:
+          - img [ref=e86]
+          - generic [ref=e88]:
+            - heading "调查点位分布" [level=2] [ref=e89]
+            - paragraph [ref=e90]: 支持点位弹窗详情、名称悬停与底图切换。
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - generic:
+              - generic:
+                - img
+            - generic:
+              - generic:
+                - generic [ref=e1093]:
+                  - button "Zoom in" [ref=e1094] [cursor=pointer]: +
+                  - button "Zoom out" [ref=e1095] [cursor=pointer]: −
+                - generic [ref=e1096]:
+                  - link "Leaflet" [ref=e1097] [cursor=pointer]:
+                    - /url: https://leafletjs.com
+                    - img [ref=e1098]
+                    - text: Leaflet
+                  - text: "| © OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team hosted by OpenStreetMap France"
+          - generic:
+            - generic:
+              - strong: 2026_春尺蠖幼虫调查
+              - generic: 标准底图
+          - generic:
+            - generic: 1000 个点位
+          - button "定位到当前位置" [ref=e1103] [cursor=pointer]:
+            - img [ref=e1104]

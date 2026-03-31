@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildPopupRows } from "../popupFields.js";
+import {
+  buildPopupRows,
+  buildSurveyStatusSummary,
+  resolveFeatureHoverLabel,
+  resolveFeatureSeverity,
+} from "../popupFields.js";
 
 describe("buildPopupRows", () => {
   it("按照当前 view 的 columns 顺序输出字段", () => {
@@ -31,5 +36,36 @@ describe("buildPopupRows", () => {
     const columns = ["调查日期"];
 
     expect(buildPopupRows(columns, {})).toEqual([["调查日期", "-"]]);
+  });
+
+  it("悬停提示优先返回点位名称类字段", () => {
+    expect(
+      resolveFeatureHoverLabel(["编号", "点位名称"], {
+        编号: "CC-001",
+        点位名称: "城东林场A区",
+      }),
+    ).toBe("城东林场A区");
+  });
+
+  it("调查状态统计会按已完成、待调查、调查中归类", () => {
+    const summary = buildSurveyStatusSummary([
+      { properties: { 调查状态: "调查" } },
+      { properties: { 调查状态: "未调查" } },
+      { properties: { 调查状态: "调查中" } },
+    ]);
+
+    expect(summary).toEqual({
+      completed: 1,
+      pending: 1,
+      in_progress: 1,
+    });
+  });
+
+  it("虫口数为空时会落到白色等级", () => {
+    expect(resolveFeatureSeverity(0)).toMatchObject({
+      key: "level0",
+      color: "#FFFFFF",
+      label: "白",
+    });
   });
 });

@@ -6,7 +6,7 @@ import WorkOrderView from "../views/WorkOrderView.vue";
 const routes = [
   {
     path: "/",
-    redirect: "/workorder",
+    redirect: "/map",
   },
   {
     path: "/workorder",
@@ -22,7 +22,7 @@ const routes = [
     name: "map",
     component: MapView,
     meta: {
-      section: "调查点位展示",
+      section: "调查点位",
       blurb: "",
     },
   },

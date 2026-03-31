@@ -63,7 +63,6 @@ function mountMapView() {
     global: {
       stubs: {
         LeafletMap: LeafletMapStub,
-        MapLegend: true,
       },
     },
   });
@@ -121,7 +120,7 @@ describe("MapView", () => {
       expect(mapStub.props("viewName")).toBe("虫情总览");
     });
 
-    await wrapper.get(".field-select").setValue("高风险点位");
+    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -151,7 +150,7 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
     });
 
-    await wrapper.get(".field-select").setValue("高风险点位");
+    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -180,7 +179,7 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledTimes(1);
     });
 
-    await wrapper.get(".field-select").setValue("高风险点位");
+    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
 
     secondRequest.resolve(
       createFeatureCollection([
@@ -215,5 +214,69 @@ describe("MapView", () => {
       expect(mapStub.props("geojson").features).toHaveLength(1);
       expect(mapStub.props("geojson").features[0].properties.名称).toBe("新点位");
     });
+  });
+
+  it("不展示热力或聚合模式入口", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
+    });
+
+    expect(wrapper.find(".page-title-row").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("热力");
+    expect(wrapper.text()).not.toContain("聚合");
+  });
+
+  it("侧栏文案使用图例配置，并且仅保留危害程度字段", async () => {
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        {
+          type: "Feature",
+          properties: { 总虫口数: 0 },
+          geometry: { type: "Point", coordinates: [108, 34] },
+        },
+        {
+          type: "Feature",
+          properties: { 总虫口数: 50 },
+          geometry: { type: "Point", coordinates: [109, 34] },
+        },
+        {
+          type: "Feature",
+          properties: { 总虫口数: 120 },
+          geometry: { type: "Point", coordinates: [110, 34] },
+        },
+        {
+          type: "Feature",
+          properties: { 总虫口数: 800 },
+          geometry: { type: "Point", coordinates: [111, 34] },
+        },
+      ]),
+    );
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
+    });
+
+    const legendText = wrapper.get(".legend-list").text();
+
+    expect(wrapper.text()).toContain("图例配置");
+    expect(wrapper.text()).toContain("视图配置");
+    expect(wrapper.text()).toContain("筛选配置");
+    expect(wrapper.text()).not.toContain("可用视图");
+    expect(wrapper.text()).not.toContain("点位总数");
+    expect(wrapper.text()).not.toContain("已完成调查");
+    expect(wrapper.text()).not.toContain("待调查");
+    expect(wrapper.findAll(".legend-item")).toHaveLength(4);
+    expect(legendText).toContain("白");
+    expect(legendText).toContain("轻");
+    expect(legendText).toContain("中");
+    expect(legendText).toContain("重");
+    expect(legendText).not.toContain("危害程度");
+    expect(legendText).not.toContain("<100");
+    expect(legendText).not.toContain("100-500");
+    expect(legendText).not.toContain(">500");
+    expect(legendText).not.toContain("个点位");
   });
 });

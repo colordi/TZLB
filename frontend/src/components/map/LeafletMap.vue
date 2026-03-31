@@ -2,7 +2,14 @@
 import L from "leaflet";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import "leaflet/dist/leaflet.css";
-import { buildPopupRows } from "./popupFields.js";
+
+import { useToast } from "../../composables/useToast.js";
+import {
+  buildPopupRows,
+  normalizeInsectCount,
+  resolveFeatureHoverLabel,
+  resolveFeatureSeverity,
+} from "./popupFields.js";
 
 const props = defineProps({
   autoFitOnDataChange: {
@@ -35,15 +42,18 @@ const props = defineProps({
   },
 });
 
+const { error, info } = useToast();
 const mapElement = ref(null);
 const mapRef = shallowRef(null);
+const zoomControlRef = shallowRef(null);
 const basemapLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
+const locateMarkerRef = shallowRef(null);
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
 const activeBasemapLabel = computed(() =>
-  props.basemapMode === "satellite" ? "卫星地图" : "标准地图",
+  props.basemapMode === "satellite" ? "卫星底图" : "标准底图",
 );
 
 const BASEMAP_CONFIG = {
@@ -64,23 +74,18 @@ const BASEMAP_CONFIG = {
   },
 };
 
-function normalizeInsectCount(properties = {}) {
-  const value =
-    properties["总虫口数"] ??
-    properties["虫口数"] ??
-    properties.total_insect_count ??
-    properties.total_insect ??
-    0;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-}
-
-function resolveColor(count) {
-  if (count <= 0) return "#94a3b8";
-  if (count <= 10) return "#22c55e";
-  if (count <= 50) return "#f59e0b";
-  return "#ef4444";
-}
+const LOCATE_MARKER_HTML = `
+  <div class="locate-user-marker">
+    <span class="locate-user-marker__shadow"></span>
+    <span class="locate-user-marker__body">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M20.28 3.72a1 1 0 0 0-1.04-.24L5.58 8.03a1 1 0 0 0-.13 1.84l5.53 2.51 2.51 5.53a1 1 0 0 0 1.84-.13l4.55-13.66a1 1 0 0 0-.24-1.04Z"
+        />
+      </svg>
+    </span>
+  </div>
+`;
 
 function renderPopup(properties = {}) {
   const rows = buildPopupRows(props.popupFields, properties);
@@ -103,30 +108,16 @@ function renderPopup(properties = {}) {
 
 function resolveBoundaryStyle() {
   return {
-    color: "#d78b41",
-    fillColor: "#eed6b6",
-    fillOpacity: 0.05,
+    color: "#6AA570",
+    fillColor: "#B9DDB3",
+    fillOpacity: 0.08,
   };
 }
 
-function clearBoundaryLayer() {
-  if (boundaryLayerRef.value) {
-    boundaryLayerRef.value.remove();
-    boundaryLayerRef.value = null;
-  }
-}
-
-function clearPointLayer() {
-  if (pointLayerRef.value) {
-    pointLayerRef.value.remove();
-    pointLayerRef.value = null;
-  }
-}
-
-function clearBasemapLayer() {
-  if (basemapLayerRef.value) {
-    basemapLayerRef.value.remove();
-    basemapLayerRef.value = null;
+function clearLayer(layerRef) {
+  if (layerRef.value) {
+    layerRef.value.remove();
+    layerRef.value = null;
   }
 }
 
@@ -136,7 +127,7 @@ function drawBasemap(mode = "standard") {
   }
 
   const config = BASEMAP_CONFIG[mode] ?? BASEMAP_CONFIG.standard;
-  clearBasemapLayer();
+  clearLayer(basemapLayerRef);
   basemapLayerRef.value = L.tileLayer(config.url, config.options).addTo(mapRef.value);
 }
 
@@ -147,13 +138,13 @@ function fitMapToAvailableLayer() {
 
   const pointBounds = pointLayerRef.value?.getBounds?.();
   if (pointBounds?.isValid?.()) {
-    mapRef.value.fitBounds(pointBounds.pad(0.18));
+    mapRef.value.fitBounds(pointBounds.pad(0.16));
     return;
   }
 
   const boundaryBounds = boundaryLayerRef.value?.getBounds?.();
   if (boundaryBounds?.isValid?.()) {
-    mapRef.value.fitBounds(boundaryBounds.pad(0.04));
+    mapRef.value.fitBounds(boundaryBounds.pad(0.03));
   }
 }
 
@@ -162,7 +153,7 @@ function drawBoundaryGeoJson(data) {
     return;
   }
 
-  clearBoundaryLayer();
+  clearLayer(boundaryLayerRef);
   if (!data?.features?.length) {
     return;
   }
@@ -171,8 +162,8 @@ function drawBoundaryGeoJson(data) {
     interactive: false,
     style: () => ({
       ...resolveBoundaryStyle(),
-      weight: 4,
-      opacity: 0.9,
+      weight: 3.5,
+      opacity: 0.88,
     }),
   }).addTo(mapRef.value);
 
@@ -184,7 +175,7 @@ function drawGeoJson(data, shouldFit = true) {
     return;
   }
 
-  clearPointLayer();
+  clearLayer(pointLayerRef);
   if (!data?.features?.length) {
     if (shouldFit) {
       fitMapToAvailableLayer();
@@ -195,15 +186,25 @@ function drawGeoJson(data, shouldFit = true) {
   pointLayerRef.value = L.geoJSON(data, {
     pointToLayer: (feature, latlng) => {
       const count = normalizeInsectCount(feature.properties);
+      const severity = resolveFeatureSeverity(count);
       return L.circleMarker(latlng, {
-        radius: count > 50 ? 11 : count > 10 ? 9 : count > 0 ? 7 : 6,
-        fillColor: resolveColor(count),
-        color: "rgba(21, 28, 22, 0.72)",
-        weight: 1,
-        fillOpacity: 0.88,
+        radius: severity.radius,
+        fillColor: severity.color,
+        color: "rgba(24, 50, 35, 0.78)",
+        weight: 1.25,
+        fillOpacity: 0.9,
       });
     },
     onEachFeature: (feature, layer) => {
+      const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties);
+      if (hoverLabel) {
+        layer.bindTooltip(hoverLabel, {
+          direction: "top",
+          sticky: true,
+          opacity: 0.96,
+        });
+      }
+
       layer.bindPopup(renderPopup(feature.properties), {
         className: "survey-popup",
       });
@@ -216,11 +217,62 @@ function drawGeoJson(data, shouldFit = true) {
   }
 }
 
+function locateToUser() {
+  if (!navigator.geolocation) {
+    error("当前浏览器不支持定位能力。", "定位不可用");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      if (!mapRef.value) {
+        return;
+      }
+
+      const latlng = [position.coords.latitude, position.coords.longitude];
+      clearLayer(locateMarkerRef);
+      locateMarkerRef.value = L.marker(latlng, {
+        icon: L.divIcon({
+          className: "locate-user-marker-wrapper",
+          html: LOCATE_MARKER_HTML,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        }),
+      }).addTo(mapRef.value);
+
+      mapRef.value.setView(latlng, Math.max(mapRef.value.getZoom(), 13), {
+        animate: true,
+      });
+      info("地图已定位到当前设备位置。", "定位成功");
+    },
+    (positionError) => {
+      const message =
+        positionError?.code === 1
+          ? "未授予定位权限，请在浏览器中允许访问位置信息。"
+          : "暂时无法获取当前位置，请检查定位权限或网络。";
+      error(message, "定位失败");
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 8000,
+      maximumAge: 60_000,
+    },
+  );
+}
+
+defineExpose({
+  locateToUser,
+});
+
 onMounted(() => {
   mapRef.value = L.map(mapElement.value, {
-    zoomControl: true,
+    zoomControl: false,
     attributionControl: true,
   }).setView([39.91, 116.72], 11);
+
+  zoomControlRef.value = L.control.zoom({
+    position: "bottomright",
+  }).addTo(mapRef.value);
 
   drawBasemap(props.basemapMode);
   drawBoundaryGeoJson(props.boundaryGeojson);
@@ -251,9 +303,16 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  clearBasemapLayer();
-  clearBoundaryLayer();
-  clearPointLayer();
+  clearLayer(basemapLayerRef);
+  clearLayer(boundaryLayerRef);
+  clearLayer(pointLayerRef);
+  clearLayer(locateMarkerRef);
+
+  if (zoomControlRef.value) {
+    zoomControlRef.value.remove();
+    zoomControlRef.value = null;
+  }
+
   if (mapRef.value) {
     mapRef.value.remove();
     mapRef.value = null;
@@ -262,147 +321,274 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="leaflet-shell">
-    <div class="map-badges">
-      <div class="map-badge">当前底图：{{ activeBasemapLabel }}</div>
-      <div class="map-badge subtle">点位 {{ featureCount }}</div>
+  <section class="map-shell">
+    <div ref="mapElement" class="map-canvas"></div>
+
+    <div class="map-overlay top-left">
+      <div class="map-badge">
+        <strong>{{ viewName || "未选择视图" }}</strong>
+        <span>{{ activeBasemapLabel }}</span>
+      </div>
+      <div v-if="loading" class="map-loading">正在刷新点位数据…</div>
     </div>
 
-    <div ref="mapElement" class="leaflet-map"></div>
-
-    <div v-if="loading" class="leaflet-overlay">
-      正在加载 {{ viewName || "地图视图" }} …
+    <div class="map-overlay bottom-left">
+      <div class="map-chip">{{ featureCount }} 个点位</div>
     </div>
 
-    <div v-else-if="!featureCount" class="leaflet-overlay empty">
-      当前查询没有返回点位数据。
+    <div class="map-overlay middle-right map-side-action">
+      <button
+        type="button"
+        class="map-fab"
+        data-testid="map-locate-button"
+        aria-label="定位到当前位置"
+        @click="locateToUser"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19.7 11.25h-1.02a6.77 6.77 0 0 0-5.93-5.93V4.3a.75.75 0 0 0-1.5 0v1.02a6.77 6.77 0 0 0-5.93 5.93H4.3a.75.75 0 0 0 0 1.5h1.02a6.77 6.77 0 0 0 5.93 5.93v1.02a.75.75 0 0 0 1.5 0v-1.02a6.77 6.77 0 0 0 5.93-5.93h1.02a.75.75 0 0 0 0-1.5ZM12 17.2A5.2 5.2 0 1 1 17.2 12 5.2 5.2 0 0 1 12 17.2Zm0-7.05A1.85 1.85 0 1 0 13.85 12 1.85 1.85 0 0 0 12 10.15Z"
+          />
+        </svg>
+      </button>
     </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.leaflet-shell {
+.map-shell {
   position: relative;
-  min-height: 600px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  min-height: 34rem;
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  border-radius: 26px;
   overflow: hidden;
-  background: var(--bg-deep);
-  box-shadow: var(--shadow-elevated);
+  background: rgba(229, 244, 230, 0.54);
 }
 
-.leaflet-map {
+.map-canvas {
+  min-height: 34rem;
   width: 100%;
-  min-height: 600px;
-  background: var(--bg-deep);
 }
 
-.map-badges {
+.map-overlay {
   position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  right: 0.75rem;
-  z-index: 500;
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  z-index: 401;
+  pointer-events: none;
 }
 
-.map-badge {
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-base);
-  color: var(--ink);
-  font-size: 0.75rem;
-  font-weight: 500;
-  box-shadow: var(--shadow-soft);
+.top-left {
+  top: 1rem;
+  left: 1rem;
 }
 
-.map-badge.subtle {
-  color: var(--muted);
+.bottom-left {
+  left: 1rem;
+  bottom: 1rem;
 }
 
-.leaflet-overlay {
-  position: absolute;
-  inset: auto 0.75rem 0.75rem 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
-  background: rgba(15, 23, 42, 0.8);
-  color: #ffffff;
-  font-size: 0.875rem;
+.middle-right {
+  top: 50%;
+  right: 1rem;
+  transform: translateY(-50%);
 }
 
-.leaflet-overlay.empty {
-  background: rgba(100, 116, 139, 0.8);
+.map-badge,
+.map-chip,
+.map-loading {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.78rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--color-ink);
+  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.map-badge span,
+.map-loading {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.map-chip {
+  flex-direction: row;
+  align-items: center;
+  color: var(--color-primary-strong);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.map-loading {
+  margin-top: 0.65rem;
+}
+
+.map-side-action {
+  pointer-events: auto;
+}
+
+.map-fab {
+  min-height: 0;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-primary-strong);
+  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.12);
+}
+
+.map-fab svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: currentColor;
+}
+
+:deep(.leaflet-bar) {
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.12);
 }
 
 :deep(.leaflet-control-zoom) {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-soft);
+  border: none;
+  box-shadow: none;
 }
 
 :deep(.leaflet-control-zoom a) {
-  border-bottom-color: var(--border);
-  background: var(--surface-base);
-  color: var(--ink);
-  width: 32px;
-  height: 32px;
-  line-height: 32px;
-  font-size: 18px;
+  width: 2.8rem;
+  height: 2.8rem;
+  line-height: 2.7rem;
+  border: none;
+  border-bottom: 1px solid rgba(46, 125, 50, 0.14);
+  border-radius: 0;
+  color: var(--color-primary-strong);
+  background: rgba(255, 255, 255, 0.92);
 }
 
-:deep(.leaflet-control-zoom a:hover) {
-  background: var(--hover-tint);
+:deep(.leaflet-control-zoom a:last-child) {
+  border-bottom: none;
+}
+
+:deep(.leaflet-bar a:hover) {
+  background: rgba(244, 250, 244, 0.96);
 }
 
 :deep(.leaflet-control-attribution) {
-  padding: 0.25rem 0.5rem;
-  background: var(--surface-base);
-  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.76);
 }
 
-:deep(.survey-popup .leaflet-popup-content-wrapper) {
-  border-radius: var(--radius-md);
-  background: var(--surface-base);
-  box-shadow: var(--shadow-soft);
-  padding: 0.5rem;
+:deep(.locate-user-marker-wrapper) {
+  background: transparent;
+  border: none;
 }
 
-:deep(.survey-popup .leaflet-popup-tip) {
-  background: var(--surface-base);
+:deep(.locate-user-marker) {
+  position: relative;
+  width: 32px;
+  height: 32px;
+}
+
+:deep(.locate-user-marker__shadow) {
+  position: absolute;
+  inset: 8px 9px 3px 9px;
+  border-radius: 999px;
+  background: rgba(19, 50, 33, 0.18);
+  filter: blur(5px);
+}
+
+:deep(.locate-user-marker__body) {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(18deg);
+}
+
+:deep(.locate-user-marker__body svg) {
+  width: 26px;
+  height: 26px;
+  fill: #2f80ed;
+  filter:
+    drop-shadow(0 8px 12px rgba(47, 128, 237, 0.3))
+    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.9));
+}
+
+:deep(.leaflet-tooltip) {
+  border: none;
+  border-radius: 999px;
+  padding: 0.38rem 0.65rem;
+  background: rgba(21, 47, 31, 0.86);
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(18, 52, 29, 0.22);
+}
+
+:deep(.leaflet-tooltip-top:before) {
+  border-top-color: rgba(21, 47, 31, 0.86);
+}
+
+:deep(.leaflet-popup-content-wrapper) {
+  border-radius: 18px;
+  box-shadow: 0 18px 36px rgba(18, 52, 29, 0.16);
+}
+
+:deep(.leaflet-popup-content) {
+  margin: 0;
 }
 
 :deep(.map-popup) {
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  color: var(--ink);
+  padding: 0.9rem 1rem;
+  min-width: 15rem;
 }
 
 :deep(.map-popup-row) {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.875rem;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+:deep(.map-popup-row + .map-popup-row) {
+  margin-top: 0.65rem;
 }
 
 :deep(.map-popup-row strong) {
-  color: var(--muted);
-  font-weight: 500;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+}
+
+:deep(.map-popup-row span) {
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 @media (max-width: 760px) {
-  .leaflet-shell,
-  .leaflet-map {
-    min-height: 480px;
+  .map-shell,
+  .map-canvas {
+    min-height: 28rem;
   }
 
-  .map-badges {
-    justify-content: flex-start;
+  .top-left {
+    top: 0.75rem;
+    left: 0.75rem;
+  }
+
+  .bottom-left {
+    left: 0.75rem;
+    bottom: 0.75rem;
+  }
+
+  .middle-right {
+    right: 0.75rem;
+  }
+
+  .map-badge,
+  .map-chip,
+  .map-loading {
+    padding: 0.62rem 0.78rem;
   }
 }
 </style>
