@@ -24,13 +24,29 @@ const CONTROL_TASK_OPTIONS_BY_PEST = {
   其他害虫: [],
 };
 
-export const REQUIRED_FIELD_KEYS = [
-  "survey_date",
-  "town_or_street",
-  "location_id",
-  "location_name",
-  "description",
-];
+export const REQUIRED_FIELD_KEYS_BY_PEST = {
+  春尺蠖: [
+    "survey_date",
+    "town_or_street",
+    "location_id",
+    "location_name",
+    "description",
+  ],
+  国槐尺蠖: [
+    "survey_date",
+    "town_or_street",
+    "location_id",
+    "location_name",
+    "description",
+  ],
+  其他害虫: [
+    "survey_date",
+    "town_or_street",
+    "location_id",
+    "location_name",
+    "description",
+  ],
+};
 
 const FIELD_DEFINITIONS = {
   survey_date: {
@@ -112,7 +128,16 @@ const FIELD_DEFINITIONS = {
   },
 };
 
-const CHI_HUO_FIELD_KEYS = [
+const SPRING_CHI_HUO_FIELD_KEYS = [
+  "survey_date",
+  "town_or_street",
+  "location_id",
+  "location_name",
+  "note",
+  "description",
+];
+
+const GUO_HUAI_FIELD_KEYS = [
   "survey_date",
   "region",
   "town_or_street",
@@ -156,9 +181,20 @@ export function getDefaultTask(pestType) {
   return getTaskOptions(pestType)[0]?.value || "";
 }
 
+function getFieldKeysByPest(pestType) {
+  if (pestType === "春尺蠖") {
+    return SPRING_CHI_HUO_FIELD_KEYS;
+  }
+
+  if (pestType === "国槐尺蠖") {
+    return GUO_HUAI_FIELD_KEYS;
+  }
+
+  return OTHER_PEST_FIELD_KEYS;
+}
+
 export function getVisibleFields(pestType) {
-  const fieldKeys = isChiHuo(pestType) ? CHI_HUO_FIELD_KEYS : OTHER_PEST_FIELD_KEYS;
-  return fieldKeys.map((key) => FIELD_DEFINITIONS[key]);
+  return getFieldKeysByPest(pestType).map((key) => FIELD_DEFINITIONS[key]);
 }
 
 export function getTodayDate() {
@@ -275,20 +311,28 @@ export function normalizeRecordForPest(record, pestType) {
 
 export function toPayloadRecord(record, pestType) {
   const normalized = normalizeRecordForPest(record, pestType);
-  const base = {
+  const sharedPayload = {
     survey_date: normalizeDate(normalized.survey_date),
-    region: normalized.region.trim(),
     town_or_street: normalized.town_or_street.trim(),
     location_id: normalized.location_id.trim(),
     location_name: normalized.location_name.trim(),
-    occurrence_position: normalized.occurrence_position.trim(),
-    report_time: normalizeDate(normalized.report_time),
     description: normalized.description.trim(),
     note: normalized.note.trim(),
     images: normalized.images.slice(0, 4),
   };
 
-  if (isChiHuo(pestType)) {
+  if (pestType === "春尺蠖") {
+    return sharedPayload;
+  }
+
+  const base = {
+    ...sharedPayload,
+    region: normalized.region.trim(),
+    occurrence_position: normalized.occurrence_position.trim(),
+    report_time: normalizeDate(normalized.report_time),
+  };
+
+  if (pestType === "国槐尺蠖") {
     return {
       ...base,
       plot_type: "平原造林",
@@ -309,14 +353,15 @@ export function validateRecords(records, pestType) {
   return records.map((record) => {
     const current = normalizeRecordForPest(record, pestType);
     const errors = {};
+    const requiredFieldKeys = REQUIRED_FIELD_KEYS_BY_PEST[pestType] || REQUIRED_FIELD_KEYS_BY_PEST.其他害虫;
 
-    REQUIRED_FIELD_KEYS.forEach((key) => {
+    requiredFieldKeys.forEach((key) => {
       if (!`${current[key] ?? ""}`.trim()) {
         errors[key] = "必填";
       }
     });
 
-    if (isChiHuo(pestType) && current.total_insect_count !== "") {
+    if (getFieldKeysByPest(pestType).includes("total_insect_count") && current.total_insect_count !== "") {
       const numeric = Number(current.total_insect_count);
       if (!Number.isFinite(numeric) || numeric < 0) {
         errors.total_insect_count = "需为非负数字";

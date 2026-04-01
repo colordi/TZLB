@@ -16,6 +16,33 @@ function buildRecord(overrides = {}) {
 }
 
 describe("RecordTable", () => {
+  it("春尺蠖表格只渲染模板所需列", () => {
+    const wrapper = mount(RecordTable, {
+      props: {
+        records: [buildRecord({ note: "现场北侧" })],
+        pestType: "春尺蠖",
+      },
+    });
+
+    const headers = wrapper.findAll("thead th").map((cell) => cell.text().replace(/\s+/g, ""));
+
+    expect(headers).toEqual([
+      "序号",
+      "调查日期*",
+      "乡镇｜街道*",
+      "编号*",
+      "点位名称*",
+      "备注",
+      "详细情况描述*",
+      "现场图片",
+      "操作",
+    ]);
+    expect(wrapper.text()).not.toContain("发生位置");
+    expect(wrapper.text()).not.toContain("总虫口数");
+    expect(wrapper.text()).not.toContain("受害程度");
+    expect(wrapper.text()).not.toContain("上报时间");
+  });
+
   it("复制记录时会向外发出包含新增记录的结果", async () => {
     const wrapper = mount(RecordTable, {
       props: {

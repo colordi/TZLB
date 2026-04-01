@@ -129,6 +129,17 @@ textarea::placeholder {
   color: var(--color-muted-soft);
 }
 
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 input:hover,
 select:hover,
 textarea:hover {
@@ -239,7 +250,7 @@ button:disabled,
 
 .page-sidebar {
   position: sticky;
-  top: calc(var(--app-mobile-header-height) + 0.8rem);
+  top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;

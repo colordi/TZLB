@@ -234,9 +234,6 @@ onBeforeUnmount(() => {
 }
 
 .site-header {
-  position: sticky;
-  top: 0;
-  z-index: 140;
   padding: 0.9rem clamp(0.85rem, 2vw, 1.35rem) 0;
 }
 

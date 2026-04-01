@@ -200,39 +200,20 @@ async function handleGenerate() {
           </div>
         </section>
 
-        <section class="panel-card sidebar-panel">
-          <div class="panel-head">
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 4a.75.75 0 0 1 .75.75V11h6.25a.75.75 0 0 1 0 1.5h-6.25v6.25a.75.75 0 0 1-1.5 0V12.5H5a.75.75 0 0 1 0-1.5h6.25V4.75A.75.75 0 0 1 12 4Z"
-                />
-              </svg>
-            </span>
-            <div class="panel-head-copy">
-              <h2>快捷操作</h2>
-              <p>导出与生成统一从这里发起。</p>
-            </div>
-          </div>
-
-          <div class="sidebar-action-stack">
-            <button type="button" :disabled="generating" @click="handleGenerate">
-              {{ generating ? "正在生成工作单…" : "生成工作单" }}
-            </button>
-
-            <div class="sidebar-action-row">
-              <button type="button" class="button-secondary" @click="addRecord">新增记录</button>
-              <button type="button" class="button-secondary" @click="exportCsv">导出数据</button>
-            </div>
-          </div>
-
-          <p class="muted-note">
-            支持表格粘贴，图片通过单条记录弹窗统一管理。
-          </p>
-        </section>
       </aside>
 
       <div class="page-main-column workorder-main-column">
+        <div class="panel-card action-toolbar">
+          <div class="action-toolbar-buttons">
+            <button type="button" :disabled="generating" @click="handleGenerate">
+              {{ generating ? "正在生成工作单…" : "生成工作单" }}
+            </button>
+            <button type="button" class="button-secondary" :disabled="generating" @click="addRecord">新增记录</button>
+            <button type="button" class="button-secondary" @click="exportCsv">导出数据</button>
+          </div>
+          <p class="muted-note action-toolbar-note">支持表格粘贴，图片通过单条记录弹窗统一管理。</p>
+        </div>
+
         <RecordTable
           :records="records"
           :pest-type="pestType"
@@ -299,6 +280,9 @@ async function handleGenerate() {
 .compact-summary-text {
   font-size: 1.1rem;
   line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .compact-summary-label {
@@ -311,19 +295,33 @@ async function handleGenerate() {
   color: rgba(255, 255, 255, 0.84);
 }
 
-.sidebar-field-stack,
-.sidebar-action-stack {
+.sidebar-field-stack {
   display: grid;
   gap: 0.85rem;
 }
 
-.sidebar-action-row {
-  display: flex;
-  gap: 0.75rem;
+.workorder-main-column {
+  gap: 0.9rem;
 }
 
-.workorder-main-column {
-  gap: 0;
+.action-toolbar {
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.action-toolbar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.action-toolbar-note {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {
@@ -333,17 +331,19 @@ async function handleGenerate() {
 }
 
 @media (max-width: 760px) {
-  .sidebar-action-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .sidebar-action-row > button {
-    flex: 1;
-  }
-
   .compact-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .action-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .action-toolbar-note {
+    margin-left: 0;
+    white-space: normal;
   }
 }
 
@@ -362,4 +362,5 @@ async function handleGenerate() {
     padding: 1.05rem;
   }
 }
+
 </style>
