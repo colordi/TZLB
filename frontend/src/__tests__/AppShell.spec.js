@@ -13,10 +13,22 @@ const MapStub = defineComponent({
   template: "<div>地图页内容</div>",
 });
 
+const LoginStub = defineComponent({
+  template: "<div data-testid=\"login-shell-stub\">登录页内容</div>",
+});
+
 async function mountApp(initialPath = "/workorder") {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      {
+        path: "/login",
+        component: LoginStub,
+        meta: {
+          section: "登录",
+          hideShell: true,
+        },
+      },
       {
         path: "/workorder",
         component: WorkorderStub,
@@ -81,5 +93,12 @@ describe("App 壳层导航", () => {
 
     expect(router.currentRoute.value.path).toBe("/map");
     expect(wrapper.find('[data-testid="mobile-drawer-overlay"]').exists()).toBe(false);
+  });
+
+  it("登录页使用独立布局，不展示顶部导航", async () => {
+    const { wrapper } = await mountApp("/login");
+
+    expect(wrapper.find(".site-header").exists()).toBe(false);
+    expect(wrapper.get('[data-testid="login-shell-stub"]').text()).toContain("登录页内容");
   });
 });

@@ -91,6 +91,24 @@ npm run build
 
 - `GET /api/health`
 
+### 认证相关
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+
+首次启动后端时，会自动创建 `auth.users` 表，并初始化默认管理员账号：
+
+- 用户名：`admin`
+- 密码：`Forestry@2026`
+
+建议在部署前通过 `.env` 覆盖以下配置：
+
+- `AUTH_SECRET_KEY`
+- `AUTH_DEFAULT_ADMIN_USERNAME`
+- `AUTH_DEFAULT_ADMIN_PASSWORD`
+- `AUTH_COOKIE_SECURE`
+
 ### 工作单生成
 
 - `POST /api/workorder/generate`
@@ -118,8 +136,8 @@ npm run build
 
 ## 开发提示
 
-- 前端页面入口是 `/workorder` 和 `/map`。
+- 前端未登录时默认入口是 `/login`，登录后可访问 `/workorder` 和 `/map`。
 - 地图底图默认使用 OpenStreetMap HOT 图源。
 - 如果数据库连接失败，地图接口和工作单导出都会受影响。
+- 认证模块会在应用启动时自动确保 `auth.users` 表存在，并写入默认管理员账号（若账号已存在则不会覆盖）。
 - 后端静态托管依赖 `frontend/dist`，生产环境务必先执行前端构建。
-

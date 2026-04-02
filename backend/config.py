@@ -24,6 +24,38 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:5173",
     ]
+    auth_secret_key: str = Field(
+        default="tzlb-dev-secret-change-me",
+        validation_alias="AUTH_SECRET_KEY",
+    )
+    auth_cookie_name: str = Field(
+        default="tzlb_session",
+        validation_alias="AUTH_COOKIE_NAME",
+    )
+    auth_cookie_secure: bool = Field(
+        default=False,
+        validation_alias="AUTH_COOKIE_SECURE",
+    )
+    auth_session_ttl_hours: int = Field(
+        default=12,
+        validation_alias="AUTH_SESSION_TTL_HOURS",
+    )
+    auth_remember_ttl_days: int = Field(
+        default=30,
+        validation_alias="AUTH_REMEMBER_TTL_DAYS",
+    )
+    auth_default_admin_username: str = Field(
+        default="admin",
+        validation_alias="AUTH_DEFAULT_ADMIN_USERNAME",
+    )
+    auth_default_admin_password: str = Field(
+        default="Forestry@2026",
+        validation_alias="AUTH_DEFAULT_ADMIN_PASSWORD",
+    )
+    auth_default_admin_display_name: str = Field(
+        default="系统管理员",
+        validation_alias="AUTH_DEFAULT_ADMIN_DISPLAY_NAME",
+    )
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

@@ -1,11 +1,20 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { RouterLink, RouterView, useRoute } from "vue-router";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 
 import ToastViewport from "./components/ui/ToastViewport.vue";
+import { useAuthSession } from "./composables/useAuthSession.js";
+import { useToast } from "./composables/useToast.js";
 
 const route = useRoute();
+const router = useRouter();
 const mobileNavOpen = ref(false);
+const hideShell = computed(() => Boolean(route.meta?.hideShell));
+const loggingOut = ref(false);
+const { user, signOut } = useAuthSession();
+const { error, info } = useToast();
+
+const currentUserName = computed(() => user.value?.display_name || user.value?.username || "");
 
 const navItems = [
   {
@@ -31,6 +40,24 @@ function toggleMobileNav() {
 function handleWindowKeydown(event) {
   if (event.key === "Escape") {
     closeMobileNav();
+  }
+}
+
+async function handleLogout() {
+  if (loggingOut.value) {
+    return;
+  }
+
+  loggingOut.value = true;
+  try {
+    await signOut();
+    closeMobileNav();
+    info("您已安全退出当前账号。", "退出成功");
+    await router.push("/login");
+  } catch (logoutError) {
+    error(`${logoutError.message || logoutError}`, "退出失败");
+  } finally {
+    loggingOut.value = false;
   }
 }
 
@@ -61,14 +88,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-shell">
-    <div class="app-backdrop" aria-hidden="true">
+    <div v-if="!hideShell" class="app-backdrop" aria-hidden="true">
       <span class="backdrop-orb orb-left"></span>
       <span class="backdrop-orb orb-right"></span>
       <span class="backdrop-grid"></span>
     </div>
 
-    <div class="shell-layout">
-      <header class="site-header">
+    <div class="shell-layout" :class="{ 'is-standalone': hideShell }">
+      <header v-if="!hideShell" class="site-header">
         <div class="site-header-shell">
           <RouterLink to="/workorder" class="site-brand">
             <div class="brand-icon-card" aria-hidden="true">
@@ -106,6 +133,13 @@ onBeforeUnmount(() => {
               <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
+
+          <div class="site-actions">
+            <span v-if="currentUserName" class="user-pill">{{ currentUserName }}</span>
+            <button type="button" class="logout-button" :disabled="loggingOut" @click="handleLogout">
+              {{ loggingOut ? "退出中" : "退出登录" }}
+            </button>
+          </div>
 
           <button
             type="button"
@@ -166,11 +200,25 @@ onBeforeUnmount(() => {
                 <span>{{ item.label }}</span>
               </RouterLink>
             </nav>
+
+            <div class="drawer-actions">
+              <span v-if="currentUserName" class="user-pill user-pill--drawer">
+                {{ currentUserName }}
+              </span>
+              <button
+                type="button"
+                class="logout-button logout-button--drawer"
+                :disabled="loggingOut"
+                @click="handleLogout"
+              >
+                {{ loggingOut ? "退出中" : "退出登录" }}
+              </button>
+            </div>
           </aside>
         </div>
       </transition>
 
-      <main class="site-main">
+      <main class="site-main" :class="{ 'is-standalone': hideShell }">
         <RouterView />
       </main>
     </div>
@@ -231,6 +279,10 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+.shell-layout.is-standalone {
+  display: block;
 }
 
 .site-header {
@@ -305,11 +357,45 @@ onBeforeUnmount(() => {
 }
 
 .site-nav {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 0.7rem;
   flex-wrap: wrap;
+}
+
+.site-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.08);
+  color: var(--color-primary-strong);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.logout-button {
+  min-height: 2.9rem;
+  padding: 0.65rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  color: var(--color-ink-soft);
+  box-shadow: none;
+}
+
+.logout-button:hover {
+  background: #fff;
+  color: var(--color-primary-strong);
+  box-shadow: 0 12px 24px rgba(18, 52, 29, 0.08);
 }
 
 .site-nav-link,
@@ -383,6 +469,13 @@ onBeforeUnmount(() => {
   padding: 1rem clamp(0.85rem, 2vw, 1.35rem) 2rem;
 }
 
+.site-main.is-standalone {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding: 0;
+}
+
 .mobile-drawer-overlay {
   position: fixed;
   inset: 0;
@@ -404,6 +497,21 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+}
+
+.drawer-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.user-pill--drawer {
+  justify-content: center;
+}
+
+.logout-button--drawer {
+  width: 100%;
 }
 
 .drawer-fade-enter-active,
@@ -428,6 +536,10 @@ onBeforeUnmount(() => {
   }
 
   .site-nav {
+    display: none;
+  }
+
+  .site-actions {
     display: none;
   }
 

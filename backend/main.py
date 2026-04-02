@@ -3,12 +3,15 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
+from backend.auth.dependencies import require_authenticated_user
+from backend.auth.store import ensure_auth_storage
 from backend.config import get_settings
 from backend.db.postgres import close_pool
+from backend.routers import auth as auth_router
 from backend.routers import map as map_router
 from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
@@ -16,6 +19,7 @@ from backend.routers import workorder as workorder_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await ensure_auth_storage()
     yield
     await close_pool()
 
@@ -35,9 +39,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(workorder_router.router, prefix="/api/workorder", tags=["工作单"])
-app.include_router(map_router.router, prefix="/api/map", tags=["地图"])
-app.include_router(survey_router.router, prefix="/api/survey", tags=["调查导入"])
+app.include_router(auth_router.router, prefix="/api/auth", tags=["认证"])
+app.include_router(
+    workorder_router.router,
+    prefix="/api/workorder",
+    tags=["工作单"],
+    dependencies=[Depends(require_authenticated_user)],
+)
+app.include_router(
+    map_router.router,
+    prefix="/api/map",
+    tags=["地图"],
+    dependencies=[Depends(require_authenticated_user)],
+)
+app.include_router(
+    survey_router.router,
+    prefix="/api/survey",
+    tags=["调查导入"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 
 @app.get("/api/health", summary="服务健康检查")
