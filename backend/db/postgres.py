@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date as date_cls
 from typing import Any
 
 import asyncpg
@@ -11,6 +12,10 @@ from backend.config import get_settings
 VIEW_SCHEMA = "views"
 REFERENCE_SCHEMA = "reference"
 ADMIN_BOUNDARY_TABLE = "admin_boundary"
+SURVEY_SCHEMA = "survey"
+SURVEY_LARVA_TABLE = "chun_chi_huo_larva"
+SITE_SCHEMA = "sites"
+SITE_TABLE = "poplar_sites"
 
 _pool: asyncpg.Pool | None = None
 
@@ -211,3 +216,97 @@ async def fetch_view_feature_collection(
     )
 
     return records_to_feature_collection(rows)
+
+
+def build_spring_inchworm_description(
+    town_or_street: str,
+    location_name: str,
+    location_id: str,
+    damage_level: str,
+) -> str:
+    """根据点位信息与危害程度生成春尺蠖防治描述。"""
+
+    location_prefix = "".join(
+        part.strip()
+        for part in [town_or_street, location_name, location_id]
+        if (part or "").strip()
+    )
+    location_text = f"{location_prefix}点位，" if location_prefix else ""
+    normalized_level = (damage_level or "").strip()
+
+    if normalized_level == "重":
+        return f"{location_text}该点位春尺蠖幼虫危害程度为重，需及时开展防治作业。"
+    if normalized_level == "中":
+        return f"{location_text}该点位春尺蠖幼虫危害程度为中，建议尽快安排防治。"
+    if normalized_level == "轻":
+        return f"{location_text}该点位春尺蠖幼虫危害程度为轻，需持续关注并适时防治。"
+    if normalized_level:
+        return f"{location_text}该点位春尺蠖幼虫危害程度为{normalized_level}，建议结合现场情况安排防治。"
+    return f"{location_text}该点位春尺蠖幼虫存在危害迹象，建议结合现场情况安排防治。"
+
+
+def serialize_date_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]:
+    """读取指定日期可导入为工作单的调查记录。"""
+
+    qualified_larva_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(SURVEY_LARVA_TABLE)}"
+    )
+    qualified_site_table = f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(SITE_TABLE)}"
+
+    rows = await fetch(
+        f"""
+        SELECT
+            l."编号" AS location_id,
+            l."调查日期" AS survey_date,
+            l."总虫口数" AS total_insect_count,
+            BTRIM(l."危害程度") AS damage_level,
+            COALESCE(l."备注", '') AS note,
+            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."村", '') AS location_name
+        FROM {qualified_larva_table} AS l
+        JOIN {qualified_site_table} AS s
+          ON l."编号" = s."编号"
+        WHERE l."调查日期" = $1
+          AND l."危害程度" IS NOT NULL
+          AND BTRIM(l."危害程度") NOT IN ('', '白')
+        ORDER BY
+            COALESCE(s."乡镇", ''),
+            l."编号"
+        """,
+        survey_date,
+    )
+
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        insect_count = row["total_insect_count"]
+        if insect_count is not None:
+            insect_count = int(insect_count)
+
+        damage_level = (row["damage_level"] or "").strip()
+        candidates.append(
+            {
+                "survey_date": serialize_date_value(row["survey_date"]),
+                "town_or_street": (row["town_or_street"] or "").strip(),
+                "location_id": str(row["location_id"] or "").strip(),
+                "location_name": (row["location_name"] or "").strip(),
+                "total_insect_count": insect_count,
+                "damage_level": damage_level,
+                "note": (row["note"] or "").strip(),
+                "description": build_spring_inchworm_description(
+                    town_or_street=(row["town_or_street"] or "").strip(),
+                    location_name=(row["location_name"] or "").strip(),
+                    location_id=str(row["location_id"] or "").strip(),
+                    damage_level=damage_level,
+                ),
+            }
+        )
+
+    return candidates

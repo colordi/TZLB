@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 
 import { generateWorkorder } from "../api/workorder.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
+import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import {
   CONTROL_TYPE_OPTIONS,
   PEST_OPTIONS,
@@ -27,8 +28,10 @@ const taskName = ref(getDefaultTask(pestType.value));
 const records = ref([createEmptyRecord(pestType.value)]);
 const generating = ref(false);
 const showValidationErrors = ref(false);
+const surveyImportOpen = ref(false);
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
+const canImportSurvey = computed(() => pestType.value === "春尺蠖");
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
 );
@@ -40,6 +43,9 @@ watch(pestType, (nextType) => {
   taskType.value = getDefaultControlType(nextType);
   taskName.value = getDefaultTask(nextType);
   showValidationErrors.value = false;
+  if (nextType !== "春尺蠖") {
+    surveyImportOpen.value = false;
+  }
   records.value = records.value.length
     ? records.value.map((record) => normalizeRecordForPest(record, nextType))
     : [createEmptyRecord(nextType)];
@@ -58,6 +64,47 @@ function updateRecords(nextRecords) {
 function addRecord() {
   records.value = [...records.value, createEmptyRecord(pestType.value)];
   info("已新增一条空白记录。", "记录已创建");
+}
+
+function hasMeaningfulRecordContent(record) {
+  const normalized = normalizeRecordForPest(record, pestType.value);
+  return Boolean(
+    `${normalized.town_or_street || ""}`.trim() ||
+      `${normalized.location_id || ""}`.trim() ||
+      `${normalized.location_name || ""}`.trim() ||
+      `${normalized.description || ""}`.trim() ||
+      `${normalized.note || ""}`.trim() ||
+      Array.isArray(normalized.images) && normalized.images.length > 0,
+  );
+}
+
+function openSurveyImportDialog() {
+  if (!canImportSurvey.value || generating.value) {
+    return;
+  }
+  surveyImportOpen.value = true;
+}
+
+function closeSurveyImportDialog() {
+  surveyImportOpen.value = false;
+}
+
+function handleSurveyImport(importedRecords) {
+  if (!Array.isArray(importedRecords) || importedRecords.length === 0) {
+    info("请至少选择一条调查记录。", "没有可导入项");
+    return;
+  }
+
+  const normalizedRecords = importedRecords.map((record) =>
+    normalizeRecordForPest(record, pestType.value),
+  );
+  const shouldReplaceEmptyDraft =
+    records.value.length === 1 && !hasMeaningfulRecordContent(records.value[0]);
+
+  records.value = (shouldReplaceEmptyDraft ? [] : records.value).concat(normalizedRecords);
+  surveyImportOpen.value = false;
+  showValidationErrors.value = false;
+  success(`已导入 ${normalizedRecords.length} 条调查记录。`, "导入完成");
 }
 
 function exportCsv() {
@@ -209,6 +256,16 @@ async function handleGenerate() {
               {{ generating ? "正在生成工作单…" : "生成工作单" }}
             </button>
             <button type="button" class="button-secondary" :disabled="generating" @click="addRecord">新增记录</button>
+            <button
+              v-if="canImportSurvey"
+              type="button"
+              class="button-secondary"
+              :disabled="generating"
+              data-testid="survey-import-button"
+              @click="openSurveyImportDialog"
+            >
+              导入调查数据
+            </button>
             <button type="button" class="button-secondary" @click="exportCsv">导出数据</button>
           </div>
           <p class="muted-note action-toolbar-note">支持表格粘贴，图片通过单条记录弹窗统一管理。</p>
@@ -220,6 +277,13 @@ async function handleGenerate() {
           :busy="generating"
           :errors="validationErrors"
           @update:records="updateRecords"
+        />
+
+        <SurveyImportDialog
+          :busy="generating"
+          :open="surveyImportOpen"
+          @close="closeSurveyImportDialog"
+          @import="handleSurveyImport"
         />
       </div>
     </div>

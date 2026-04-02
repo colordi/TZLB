@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from backend.config import get_settings
 from backend.db.postgres import close_pool
 from backend.routers import map as map_router
+from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
 
 
@@ -36,6 +37,7 @@ app.add_middleware(
 
 app.include_router(workorder_router.router, prefix="/api/workorder", tags=["工作单"])
 app.include_router(map_router.router, prefix="/api/map", tags=["地图"])
+app.include_router(survey_router.router, prefix="/api/survey", tags=["调查导入"])
 
 
 @app.get("/api/health", summary="服务健康检查")
