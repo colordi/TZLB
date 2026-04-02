@@ -207,14 +207,6 @@ onMounted(() => {
       </div>
     </main>
 
-    <footer class="login-footer">
-      <span>© 2024 林业调查局. 版权所有.</span>
-      <div class="login-footer__links">
-        <button type="button" class="login-link" @click="handleRequestAccess">联系支持</button>
-        <button type="button" class="login-link" @click="handleForgotPassword">隐私政策</button>
-        <button type="button" class="login-link" @click="handleRequestAccess">服务条款</button>
-      </div>
-    </footer>
   </section>
 </template>
 
@@ -283,8 +275,7 @@ onMounted(() => {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 78%);
 }
 
-.login-content,
-.login-footer {
+.login-content {
   position: relative;
   z-index: 1;
 }
@@ -483,30 +474,6 @@ onMounted(() => {
   font-size: 0.94rem;
 }
 
-.login-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.4rem 1.4rem;
-  color: rgba(24, 38, 28, 0.7);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.login-footer__links {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.login-footer__links .login-link {
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 @media (max-width: 720px) {
   .login-content {
     padding: 1rem;
@@ -522,23 +489,13 @@ onMounted(() => {
     height: 3.75rem;
   }
 
-  .login-options,
-  .login-footer {
+  .login-options {
     flex-direction: column;
     align-items: stretch;
   }
 
   .login-options {
     gap: 0.85rem;
-  }
-
-  .login-footer {
-    padding: 0 1rem 1rem;
-    text-align: center;
-  }
-
-  .login-footer__links {
-    justify-content: center;
   }
 }
 </style>
