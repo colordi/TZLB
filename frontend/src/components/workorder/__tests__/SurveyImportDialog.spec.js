@@ -63,7 +63,12 @@ describe("SurveyImportDialog", () => {
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/survey/candidates?date=2026-04-01");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/candidates?date=2026-04-01",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
     expect(wrapper.text()).toContain("共 2 条记录，已选择 2 条");
 
     await wrapper.get('[data-testid="survey-import-confirm"]').trigger("click");

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 
+import { isUnauthorizedError } from "../api/http.js";
 import { generateWorkorder } from "../api/workorder.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
@@ -140,7 +141,9 @@ async function handleGenerate() {
     showValidationErrors.value = false;
     success("工作单已生成并开始下载。", "导出成功");
   } catch (generateError) {
-    console.error(generateError);
+    if (isUnauthorizedError(generateError)) {
+      return;
+    }
     error(`${generateError.message || generateError}`, "工作单生成失败");
   } finally {
     generating.value = false;

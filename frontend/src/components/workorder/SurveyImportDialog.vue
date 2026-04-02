@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 
+import { isUnauthorizedError } from "../../api/http.js";
 import { fetchSurveyCandidates } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
 import { getTodayDate } from "./fieldConfig.js";
@@ -70,7 +71,9 @@ async function handleQuery() {
       info("所选日期没有可导入的调查记录。", "暂无数据");
     }
   } catch (queryError) {
-    console.error(queryError);
+    if (isUnauthorizedError(queryError)) {
+      return;
+    }
     error(`${queryError.message || queryError}`, "查询调查记录失败");
   } finally {
     loading.value = false;

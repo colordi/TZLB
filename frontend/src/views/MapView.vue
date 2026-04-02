@@ -8,6 +8,7 @@ import {
   fetchMapView,
   listMapViews,
 } from "../api/map.js";
+import { isUnauthorizedError } from "../api/http.js";
 import LeafletMap from "../components/map/LeafletMap.vue";
 
 function createEmptyFeatureCollection() {
@@ -100,6 +101,9 @@ async function loadViews() {
     views.value = [];
     selectedView.value = "";
     geojson.value = createEmptyFeatureCollection();
+    if (isUnauthorizedError(loadError)) {
+      return false;
+    }
     error(`${loadError.message || loadError}`, "地图视图读取失败");
     return false;
   } finally {
@@ -137,6 +141,9 @@ async function loadGeoJson({ autoFit = false } = {}) {
       return false;
     }
     geojson.value = createEmptyFeatureCollection();
+    if (isUnauthorizedError(loadError)) {
+      return false;
+    }
     error(`${loadError.message || loadError}`, "地图数据读取失败");
     return false;
   } finally {
@@ -169,6 +176,9 @@ async function loadFilterOptions() {
       supportsTownshipFilter: currentView.value.columns.includes("乡镇"),
       supportsSurveyStatusFilter: currentView.value.columns.includes("调查日期"),
     };
+    if (isUnauthorizedError(loadError)) {
+      return;
+    }
     error(`${loadError.message || loadError}`, "筛选配置读取失败");
   }
 }
@@ -178,6 +188,9 @@ async function loadAdminBoundary() {
     boundaryGeojson.value = await fetchAdminBoundary();
   } catch (loadError) {
     boundaryGeojson.value = createEmptyFeatureCollection();
+    if (isUnauthorizedError(loadError)) {
+      return;
+    }
     info(`${loadError.message || loadError}`, "行政区边界未加载");
   }
 }

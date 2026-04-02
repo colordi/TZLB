@@ -1,3 +1,5 @@
+import { apiFetch, ensureApiSuccess } from "./http.js";
+
 function extractFilename(contentDisposition) {
   if (!contentDisposition) {
     return "林业工作单.docx";
@@ -23,27 +25,15 @@ function extractFilename(contentDisposition) {
   return "林业工作单.docx";
 }
 
-async function parseError(response) {
-  try {
-    const payload = await response.json();
-    return payload.detail || payload.error || "请求失败";
-  } catch {
-    return "请求失败";
-  }
-}
-
 export async function generateWorkorder(payload) {
-  const response = await fetch("/api/workorder/generate", {
+  const response = await apiFetch("/api/workorder/generate", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
+  await ensureApiSuccess(response);
 
   return {
     blob: await response.blob(),

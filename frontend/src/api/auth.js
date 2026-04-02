@@ -1,53 +1,39 @@
-async function parseError(response) {
-  try {
-    const payload = await response.json();
-    return payload.detail || payload.error || "请求失败";
-  } catch {
-    return "请求失败";
-  }
-}
+import { apiFetch, ensureApiSuccess } from "./http.js";
 
 export async function login(payload) {
-  const response = await fetch("/api/auth/login", {
+  const response = await apiFetch("/api/auth/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    credentials: "same-origin",
     body: JSON.stringify(payload),
   });
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
+  await ensureApiSuccess(response, { redirectOnUnauthorized: false });
 
   return response.json();
 }
 
 export async function fetchCurrentUser() {
-  const response = await fetch("/api/auth/me", {
-    credentials: "same-origin",
-  });
+  const response = await apiFetch("/api/auth/me");
 
   if (response.status === 401) {
     return null;
   }
 
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
+  await ensureApiSuccess(response, { redirectOnUnauthorized: false });
 
   const payload = await response.json();
   return payload.user || null;
 }
 
 export async function logout() {
-  const response = await fetch("/api/auth/logout", {
+  const response = await apiFetch("/api/auth/logout", {
     method: "POST",
-    credentials: "same-origin",
   });
 
-  if (!response.ok && response.status !== 204) {
-    throw new Error(await parseError(response));
+  if (response.status === 401 || response.status === 204) {
+    return;
   }
+
+  await ensureApiSuccess(response, { redirectOnUnauthorized: false });
 }

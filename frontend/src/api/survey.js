@@ -1,11 +1,4 @@
-async function parseError(response) {
-  try {
-    const payload = await response.json();
-    return payload.detail || payload.error || "请求失败";
-  } catch {
-    return "请求失败";
-  }
-}
+import { apiFetch, ensureApiSuccess } from "./http.js";
 
 export async function fetchSurveyCandidates(date) {
   const search = new URLSearchParams();
@@ -14,9 +7,7 @@ export async function fetchSurveyCandidates(date) {
   }
 
   const query = search.toString();
-  const response = await fetch(`/api/survey/candidates${query ? `?${query}` : ""}`);
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
+  const response = await apiFetch(`/api/survey/candidates${query ? `?${query}` : ""}`);
+  await ensureApiSuccess(response);
   return response.json();
 }
