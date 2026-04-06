@@ -29,39 +29,55 @@ export function normalizeInsectCount(properties = {}) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-export function resolveFeatureSeverity(count) {
-  if (count <= 0) {
-    return {
-      key: "level0",
-      color: "#FFFFFF",
-      radius: 6,
-      label: "白",
-    };
+export function resolveFeatureSeverity(properties = {}) {
+  let rawValue = "";
+  if (typeof properties === "string") {
+    rawValue = properties;
+  } else if (properties) {
+    rawValue =
+      properties["危害程度"] ??
+      properties["严重程度"] ??
+      properties["等级"] ??
+      properties["级别"] ??
+      properties.severity ??
+      properties.level ??
+      "";
   }
 
-  if (count < 100) {
+  const normalized = String(rawValue || "").trim();
+
+  if (normalized.includes("轻")) {
     return {
       key: "level1",
       color: "#68C17A",
       radius: 7,
-      label: "轻度（<100只）",
+      label: "轻",
     };
   }
 
-  if (count <= 500) {
+  if (normalized.includes("中")) {
     return {
       key: "level2",
       color: "#F0C048",
       radius: 9,
-      label: "中度（100-500只）",
+      label: "中",
+    };
+  }
+
+  if (normalized.includes("重")) {
+    return {
+      key: "level3",
+      color: "#EC6D64",
+      radius: 11,
+      label: "重",
     };
   }
 
   return {
-    key: "level3",
-    color: "#EC6D64",
-    radius: 11,
-    label: "重度（>500只）",
+    key: "level0",
+    color: "#FFFFFF",
+    radius: 6,
+    label: "白",
   };
 }
 

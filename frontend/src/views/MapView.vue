@@ -50,29 +50,6 @@ const supportsSurveyStatusFilter = computed(
 );
 const townshipOptions = computed(() => filterOptions.value.townships || []);
 
-const legendEntries = computed(() => [
-  {
-    key: "level0",
-    label: "白",
-    className: "severity-blank",
-  },
-  {
-    key: "level1",
-    label: "轻",
-    className: "severity-light",
-  },
-  {
-    key: "level2",
-    label: "中",
-    className: "severity-medium",
-  },
-  {
-    key: "level3",
-    label: "重",
-    className: "severity-heavy",
-  },
-]);
-
 const filterHint = computed(() => {
   if (supportsTownshipFilter.value || supportsSurveyStatusFilter.value) {
     return "按当前视图筛选点位。";
@@ -361,28 +338,6 @@ onMounted(async () => {
 
           <p class="muted-note">{{ filterHint }}</p>
         </article>
-
-        <article class="panel-card sidebar-panel sidebar-panel-slim">
-          <div class="panel-head panel-head-slim">
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 2.75a9.25 9.25 0 1 0 9.25 9.25A9.26 9.26 0 0 0 12 2.75Zm0 17a7.75 7.75 0 1 1 7.75-7.75A7.76 7.76 0 0 1 12 19.75Zm-.75-11.5a.75.75 0 0 1 1.5 0v.5a.75.75 0 0 1-1.5 0v-.5Zm0 3a.75.75 0 0 1 1.5 0v4a.75.75 0 0 1-1.5 0v-4Z"
-                />
-              </svg>
-            </span>
-            <div class="panel-head-copy">
-              <h2>图例配置</h2>
-            </div>
-          </div>
-
-          <div class="legend-list">
-            <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
-              <span class="legend-dot" :class="entry.className"></span>
-              <span>{{ entry.label }}</span>
-            </div>
-          </div>
-        </article>
       </aside>
 
       <div class="page-main-column">
@@ -462,49 +417,6 @@ onMounted(async () => {
 
 .filter-actions > button:first-child {
   grid-column: 1 / -1;
-}
-
-.legend-list {
-  display: grid;
-  gap: 0.55rem;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.75rem;
-  min-height: 2.75rem;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid rgba(46, 125, 50, 0.1);
-  border-radius: 16px;
-  background: rgba(246, 251, 244, 0.92);
-  color: var(--color-ink-soft);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.legend-dot {
-  width: 0.92rem;
-  height: 0.92rem;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
-}
-
-.severity-blank {
-  background: #ffffff;
-}
-
-.severity-light {
-  background: #68c17a;
-}
-
-.severity-medium {
-  background: #f0c048;
-}
-
-.severity-heavy {
-  background: #ec6d64;
 }
 
 .map-panel {

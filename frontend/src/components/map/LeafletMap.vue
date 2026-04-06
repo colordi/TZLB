@@ -6,7 +6,6 @@ import "leaflet/dist/leaflet.css";
 import { useToast } from "../../composables/useToast.js";
 import {
   buildPopupRows,
-  normalizeInsectCount,
   resolveFeatureHoverLabel,
   resolveFeatureSeverity,
 } from "./popupFields.js";
@@ -55,6 +54,13 @@ const featureCount = computed(() => props.geojson?.features?.length || 0);
 const activeBasemapLabel = computed(() =>
   props.basemapMode === "satellite" ? "卫星底图" : "标准底图",
 );
+
+const legendEntries = computed(() => [
+  resolveFeatureSeverity("白"),
+  resolveFeatureSeverity("轻"),
+  resolveFeatureSeverity("中"),
+  resolveFeatureSeverity("重"),
+]);
 
 const BASEMAP_CONFIG = {
   standard: {
@@ -185,8 +191,7 @@ function drawGeoJson(data, shouldFit = true) {
 
   pointLayerRef.value = L.geoJSON(data, {
     pointToLayer: (feature, latlng) => {
-      const count = normalizeInsectCount(feature.properties);
-      const severity = resolveFeatureSeverity(count);
+      const severity = resolveFeatureSeverity(feature.properties);
       return L.circleMarker(latlng, {
         radius: severity.radius,
         fillColor: severity.color,
@@ -333,10 +338,16 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="map-overlay bottom-left">
+      <div class="map-legend">
+        <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
+          <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
+          <span>{{ entry.label }}</span>
+        </div>
+      </div>
       <div class="map-chip">{{ featureCount }} 个点位</div>
     </div>
 
-    <div class="map-overlay middle-right map-side-action">
+    <div class="map-overlay right-fab map-side-action">
       <button
         type="button"
         class="map-fab"
@@ -371,7 +382,7 @@ onBeforeUnmount(() => {
 
 .map-overlay {
   position: absolute;
-  z-index: 401;
+  z-index: 1001;
   pointer-events: none;
 }
 
@@ -381,14 +392,19 @@ onBeforeUnmount(() => {
 }
 
 .bottom-left {
-  left: 1rem;
-  bottom: 1rem;
+  left: 1.25rem;
+  bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: flex-start;
+  pointer-events: auto;
 }
 
-.middle-right {
-  top: 50%;
-  right: 1rem;
-  transform: translateY(-50%);
+.right-fab {
+  right: 1.25rem;
+  bottom: 8.5rem;
+  pointer-events: auto;
 }
 
 .map-badge,
@@ -403,6 +419,35 @@ onBeforeUnmount(() => {
   color: var(--color-ink);
   box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
   backdrop-filter: blur(14px);
+}
+
+.map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--color-ink);
+  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.map-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--color-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.map-legend .legend-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
 }
 
 .map-badge span,
@@ -577,12 +622,13 @@ onBeforeUnmount(() => {
   }
 
   .bottom-left {
-    left: 0.75rem;
-    bottom: 0.75rem;
+    left: 1rem;
+    bottom: 1rem;
   }
 
-  .middle-right {
-    right: 0.75rem;
+  .right-fab {
+    right: 1rem;
+    bottom: 8rem;
   }
 
   .map-badge,
