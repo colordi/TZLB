@@ -270,7 +270,7 @@ function handleImport() {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  overflow: auto;
+  overflow: hidden;
   padding: 1.25rem;
   border: 1px solid rgba(46, 125, 50, 0.16);
   border-radius: 28px;
@@ -339,7 +339,10 @@ function handleImport() {
 }
 
 .result-panel {
+  flex: 0 1 auto;
   min-height: 18rem;
+  display: flex;
+  flex-direction: column;
   border: 1px solid rgba(46, 125, 50, 0.12);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.96);
@@ -347,6 +350,8 @@ function handleImport() {
 }
 
 .result-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -389,6 +394,7 @@ function handleImport() {
 }
 
 .result-state {
+  flex: 1 1 auto;
   min-height: 18rem;
   display: flex;
   flex-direction: column;
