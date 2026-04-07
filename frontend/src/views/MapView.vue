@@ -234,36 +234,6 @@ onMounted(async () => {
             <span class="icon-badge" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path
-                  d="M11.62 2.6a1 1 0 0 1 .76 0l7.25 2.9a1 1 0 0 1 0 1.86l-7.25 2.9a1 1 0 0 1-.76 0l-7.25-2.9a1 1 0 0 1 0-1.86l7.25-2.9Zm-4.5 4.83L12 9.39l4.88-1.96L12 5.48 7.12 7.43Zm-2.84 3.82a1 1 0 0 1 1.3-.56L12 13.22l6.42-2.53a1 1 0 1 1 .74 1.86l-6.79 2.68a1 1 0 0 1-.74 0L4.84 12.55a1 1 0 0 1-.56-1.3Zm0 4.6a1 1 0 0 1 1.3-.56L12 17.82l6.42-2.53a1 1 0 1 1 .74 1.86l-6.79 2.68a1 1 0 0 1-.74 0l-6.79-2.68a1 1 0 0 1-.56-1.3Z"
-                />
-              </svg>
-            </span>
-            <div class="panel-head-copy">
-              <h2>视图配置</h2>
-            </div>
-          </div>
-
-          <div class="field-block">
-            <label for="map-view-select" class="sr-only">当前视图</label>
-            <select
-              id="map-view-select"
-              data-testid="view-select"
-              v-model="selectedView"
-              :disabled="loadingViews || !views.length"
-            >
-              <option v-if="!views.length" value="">暂无可用视图</option>
-              <option v-for="view in views" :key="view.name" :value="view.name">
-                {{ view.name }}
-              </option>
-            </select>
-          </div>
-        </article>
-
-        <article class="panel-card sidebar-panel sidebar-panel-slim">
-          <div class="panel-head panel-head-slim">
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
                   d="M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v.31a1.75 1.75 0 0 1-.36 1.06l-4.64 6.04v4.09a1.75 1.75 0 0 1-1.02 1.59l-2 1A1.75 1.75 0 0 1 9 18.25v-5.09L4.36 7.12A1.75 1.75 0 0 1 4 6.06v-.31Zm1.75-.25a.25.25 0 0 0-.25.25v.31c0 .05.02.11.05.15l4.8 6.24a.75.75 0 0 1 .15.46v5.34a.25.25 0 0 0 .36.22l2-1a.25.25 0 0 0 .14-.22v-4.34a.75.75 0 0 1 .15-.46l4.8-6.24a.25.25 0 0 0 .05-.15v-.31a.25.25 0 0 0-.25-.25H5.75Z"
                 />
               </svg>
@@ -303,27 +273,6 @@ onMounted(async () => {
               </select>
             </div>
 
-            <div class="field-block">
-              <label>底图模式</label>
-              <div class="segmented-control basemap-toggle">
-                <button
-                  type="button"
-                  class="segment-button"
-                  :class="{ 'is-active': basemapMode === 'standard' }"
-                  @click="basemapMode = 'standard'"
-                >
-                  标准地图
-                </button>
-                <button
-                  type="button"
-                  class="segment-button"
-                  :class="{ 'is-active': basemapMode === 'satellite' }"
-                  @click="basemapMode = 'satellite'"
-                >
-                  卫星地图
-                </button>
-              </div>
-            </div>
           </div>
 
           <div class="filter-actions">
@@ -364,8 +313,12 @@ onMounted(async () => {
             :boundary-geojson="boundaryGeojson"
             :geojson="geojson"
             :loading="loading"
+            :loading-views="loadingViews"
             :popup-fields="currentView.columns"
             :view-name="selectedView"
+            :views="views"
+            @update:basemap-mode="basemapMode = $event"
+            @update:view-name="selectedView = $event"
           />
         </section>
       </div>
@@ -400,12 +353,6 @@ onMounted(async () => {
   display: grid;
   gap: 0.85rem;
   margin-bottom: 0.9rem;
-}
-
-.basemap-toggle {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: 100%;
 }
 
 .filter-actions {
@@ -443,10 +390,6 @@ onMounted(async () => {
   .filter-actions > button,
   .sidebar-panel {
     flex: 1;
-  }
-
-  .basemap-toggle {
-    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -39,9 +39,20 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  views: {
+    type: Array,
+    default: () => [],
+  },
+  loadingViews: {
+    type: Boolean,
+    default: false,
+  },
 });
 
+const emit = defineEmits(["update:viewName", "update:basemapMode"]);
+
 const { error, info } = useToast();
+const showLayerMenu = ref(false);
 const mapElement = ref(null);
 const mapRef = shallowRef(null);
 const zoomControlRef = shallowRef(null);
@@ -329,12 +340,62 @@ onBeforeUnmount(() => {
   <section class="map-shell">
     <div ref="mapElement" class="map-canvas"></div>
 
-    <div class="map-overlay top-left">
-      <div class="map-badge">
-        <strong>{{ viewName || "未选择视图" }}</strong>
-        <span>{{ activeBasemapLabel }}</span>
+    <div class="map-overlay top-left map-interactive-controls">
+      <div class="control-row">
+        <select
+          class="map-overlay-select"
+          :value="viewName"
+          :disabled="loadingViews || !views.length"
+          @change="emit('update:viewName', $event.target.value)"
+        >
+          <option v-if="!views.length" value="">暂无可用视图</option>
+          <option v-for="view in views" :key="view.name" :value="view.name">
+            {{ view.name }}
+          </option>
+        </select>
       </div>
       <div v-if="loading" class="map-loading">正在刷新点位数据…</div>
+    </div>
+
+    <div class="map-overlay top-right map-side-action">
+      <div class="map-layer-control" @mouseleave="showLayerMenu = false">
+        <button
+          type="button"
+          class="map-fab"
+          aria-label="切换图层"
+          @mouseenter="showLayerMenu = true"
+          @click="showLayerMenu = !showLayerMenu"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <path d="M12.01 2.92a1.23 1.23 0 0 0-1.12.02l-8.5 4.5a1.2 1.2 0 0 0 0 2.12l8.5 4.5c.34.18.76.18 1.1 0l8.5-4.5a1.2 1.2 0 0 0 0-2.12l-8.5-4.5a1.23 1.23 0 0 0-1.1-.02ZM12.56 12.06c-.34.18-.76.18-1.1 0L2.96 7.56a.2.2 0 0 1 0-.36l8.5-4.5a.23.23 0 0 1 .2 0l8.5 4.5a.2.2 0 0 1 0 .36l-8.5 4.5Z" />
+            <path d="M2.38 10.94a.5.5 0 0 0 .12.92l9.04 4.79a.99.99 0 0 0 .94 0l9.02-4.78a.5.5 0 0 0-.23-.94l-8.79 4.65a.99.99 0 0 1-.94 0l-8.8-4.66a.5.5 0 0 0-.36.02Z" />
+            <path d="M2.38 14.94a.5.5 0 0 0 .12.92l9.04 4.79c.28.14.65.14.94 0l9.02-4.78a.5.5 0 0 0-.23-.94l-8.79 4.65a.99.99 0 0 1-.94 0l-8.8-4.66a.5.5 0 0 0-.36.02Z" />
+          </svg>
+        </button>
+        
+        <transition name="fade">
+          <div v-show="showLayerMenu" class="layer-menu-popup">
+            <button
+               type="button"
+               class="layer-menu-item"
+               :class="{ 'is-active': basemapMode === 'standard' }"
+               @click="emit('update:basemapMode', 'standard'); showLayerMenu = false"
+             >
+               <strong>标准地图</strong>
+               <span>包含政区街道</span>
+             </button>
+             <button
+               type="button"
+               class="layer-menu-item"
+               :class="{ 'is-active': basemapMode === 'satellite' }"
+               @click="emit('update:basemapMode', 'satellite'); showLayerMenu = false"
+             >
+               <strong>卫星地图</strong>
+               <span>高分辨率影像</span>
+             </button>
+          </div>
+        </transition>
+      </div>
     </div>
 
     <div class="map-overlay bottom-left">
@@ -387,8 +448,13 @@ onBeforeUnmount(() => {
 }
 
 .top-left {
-  top: 1rem;
-  left: 1rem;
+  top: 1.25rem;
+  left: 1.25rem;
+}
+
+.top-right {
+  top: 1.25rem;
+  right: 1.25rem;
 }
 
 .bottom-left {
@@ -407,7 +473,14 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
-.map-badge,
+:deep(.leaflet-right .leaflet-control) {
+  margin-right: 1.25rem;
+}
+
+:deep(.leaflet-bottom .leaflet-control) {
+  margin-bottom: 1.5rem;
+}
+
 .map-chip,
 .map-loading {
   display: inline-flex;
@@ -419,6 +492,115 @@ onBeforeUnmount(() => {
   color: var(--color-ink);
   box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
   backdrop-filter: blur(14px);
+}
+
+.map-interactive-controls {
+  pointer-events: auto;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.map-overlay-select {
+  padding: 0.5rem 2.2rem 0.5rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-primary-strong);
+  font-weight: 700;
+  font-size: 0.92rem;
+  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
+  backdrop-filter: blur(14px);
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23183223' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.1rem;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.map-overlay-select:focus {
+  border-color: rgba(46, 125, 50, 0.3);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+}
+
+.map-overlay-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.map-layer-control {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.layer-menu-popup {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(46, 125, 50, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(18, 52, 29, 0.18);
+  backdrop-filter: blur(16px);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 10rem;
+}
+
+.layer-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  text-align: left;
+  border: 2px solid transparent;
+  background: transparent;
+  color: var(--color-ink);
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.layer-menu-item:hover {
+  background: rgba(46, 125, 50, 0.05);
+}
+
+.layer-menu-item.is-active {
+  border-color: var(--color-primary-strong);
+  background: rgba(240, 250, 240, 0.9);
+}
+
+.layer-menu-item strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.layer-menu-item span {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform-origin: top right;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
 }
 
 .map-legend {
@@ -450,7 +632,6 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
 }
 
-.map-badge span,
 .map-loading {
   color: var(--color-muted);
   font-size: 0.82rem;
@@ -621,6 +802,11 @@ onBeforeUnmount(() => {
     left: 0.75rem;
   }
 
+  .top-right {
+    top: 0.75rem;
+    right: 1rem;
+  }
+
   .bottom-left {
     left: 1rem;
     bottom: 1rem;
@@ -631,7 +817,14 @@ onBeforeUnmount(() => {
     bottom: 8rem;
   }
 
-  .map-badge,
+  :deep(.leaflet-right .leaflet-control) {
+    margin-right: 1rem;
+  }
+  
+  :deep(.leaflet-bottom .leaflet-control) {
+    margin-bottom: 1rem;
+  }
+
   .map-chip,
   .map-loading {
     padding: 0.62rem 0.78rem;
