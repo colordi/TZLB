@@ -200,14 +200,24 @@ function drawGeoJson(data, shouldFit = true) {
     return;
   }
 
-  pointLayerRef.value = L.geoJSON(data, {
+  const sortedData = {
+    ...data,
+    features: [...data.features].sort((a, b) => {
+      const sa = resolveFeatureSeverity(a.properties).key;
+      const sb = resolveFeatureSeverity(b.properties).key;
+      return sa.localeCompare(sb);
+    }),
+  };
+
+  pointLayerRef.value = L.geoJSON(sortedData, {
     pointToLayer: (feature, latlng) => {
       const severity = resolveFeatureSeverity(feature.properties);
+      const isBlank = severity.key === "level0";
       return L.circleMarker(latlng, {
         radius: severity.radius,
         fillColor: severity.color,
-        color: "rgba(24, 50, 35, 0.78)",
-        weight: 1.25,
+        color: isBlank ? "rgba(24, 50, 35, 0.5)" : "rgba(24, 50, 35, 0.78)",
+        weight: isBlank ? 1.0 : 1.25,
         fillOpacity: 0.9,
       });
     },
@@ -399,13 +409,18 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="map-overlay bottom-left">
-      <div class="map-legend">
-        <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
-          <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
-          <span>{{ entry.label }}</span>
+      <div class="map-integrated-panel">
+        <div class="panel-header">
+          <strong>{{ featureCount }}</strong><span class="panel-header-suffix">个调查点位</span>
+        </div>
+        <div class="panel-divider"></div>
+        <div class="map-legend">
+          <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
+            <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
+            <span>{{ entry.label }}</span>
+          </div>
         </div>
       </div>
-      <div class="map-chip">{{ featureCount }} 个点位</div>
     </div>
 
     <div class="map-overlay right-fab map-side-action">
@@ -481,17 +496,18 @@ onBeforeUnmount(() => {
   margin-bottom: 1.5rem;
 }
 
-.map-chip,
 .map-loading {
   display: inline-flex;
   flex-direction: column;
   gap: 0.18rem;
   padding: 0.78rem 0.95rem;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   color: var(--color-ink);
-  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 30px rgba(18, 52, 29, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 .map-interactive-controls {
@@ -505,15 +521,16 @@ onBeforeUnmount(() => {
 }
 
 .map-overlay-select {
-  padding: 0.5rem 2.2rem 0.5rem 0.95rem;
+  padding: 0.55rem 2.2rem 0.55rem 1.05rem;
   border-radius: 16px;
-  border: 1px solid rgba(46, 125, 50, 0.14);
-  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.75);
   color: var(--color-primary-strong);
   font-weight: 700;
   font-size: 0.92rem;
-  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
-  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23183223' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
@@ -545,11 +562,12 @@ onBeforeUnmount(() => {
   position: absolute;
   top: calc(100% + 0.65rem);
   right: 0;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(46, 125, 50, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 18px;
-  box-shadow: 0 16px 40px rgba(18, 52, 29, 0.18);
-  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(18, 52, 29, 0.12);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   padding: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -603,16 +621,47 @@ onBeforeUnmount(() => {
   transform: scale(0.95);
 }
 
+.map-integrated-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.85rem 1.05rem;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 12px 36px rgba(18, 52, 29, 0.1);
+  border-radius: 18px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.map-integrated-panel .panel-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+  color: var(--color-primary-strong);
+}
+
+.map-integrated-panel .panel-header strong {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.map-integrated-panel .panel-header-suffix {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.map-integrated-panel .panel-divider {
+  height: 1px;
+  background: linear-gradient(to right, rgba(46, 125, 50, 0.15), transparent);
+  margin-bottom: 0.65rem;
+}
+
 .map-legend {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.75rem 0.95rem;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--color-ink);
-  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.12);
-  backdrop-filter: blur(14px);
 }
 
 .map-legend .legend-item {
@@ -635,17 +684,6 @@ onBeforeUnmount(() => {
 .map-loading {
   color: var(--color-muted);
   font-size: 0.82rem;
-}
-
-.map-chip {
-  flex-direction: row;
-  align-items: center;
-  color: var(--color-primary-strong);
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.map-loading {
   margin-top: 0.65rem;
 }
 
@@ -658,11 +696,18 @@ onBeforeUnmount(() => {
   width: 3rem;
   height: 3rem;
   padding: 0;
-  border: 1px solid rgba(46, 125, 50, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.75);
   color: var(--color-primary-strong);
-  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.12);
+  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transition: all 0.2s ease;
+}
+
+.map-fab:hover {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .map-fab svg {
@@ -672,10 +717,12 @@ onBeforeUnmount(() => {
 }
 
 :deep(.leaflet-bar) {
-  border: 1px solid rgba(46, 125, 50, 0.14);
-  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.12);
+  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 :deep(.leaflet-control-zoom) {
@@ -688,10 +735,12 @@ onBeforeUnmount(() => {
   height: 2.8rem;
   line-height: 2.7rem;
   border: none;
-  border-bottom: 1px solid rgba(46, 125, 50, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 0;
   color: var(--color-primary-strong);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 :deep(.leaflet-control-zoom a:last-child) {

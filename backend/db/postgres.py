@@ -223,6 +223,7 @@ def build_spring_inchworm_description(
     location_name: str,
     location_id: str,
     damage_level: str,
+    total_insect_count: int | None,
 ) -> str:
     """根据点位信息与危害程度生成春尺蠖防治描述。"""
 
@@ -233,16 +234,26 @@ def build_spring_inchworm_description(
     )
     location_text = f"{location_prefix}点位，" if location_prefix else ""
     normalized_level = (damage_level or "").strip()
+    level_text = normalized_level or "待判定"
+    insect_count_text = (
+        f"{int(total_insect_count)}头" if total_insect_count is not None else "未记录"
+    )
 
     if normalized_level == "重":
-        return f"{location_text}该点位春尺蠖幼虫危害程度为重，需及时开展防治作业。"
-    if normalized_level == "中":
-        return f"{location_text}该点位春尺蠖幼虫危害程度为中，建议尽快安排防治。"
-    if normalized_level == "轻":
-        return f"{location_text}该点位春尺蠖幼虫危害程度为轻，需持续关注并适时防治。"
-    if normalized_level:
-        return f"{location_text}该点位春尺蠖幼虫危害程度为{normalized_level}，建议结合现场情况安排防治。"
-    return f"{location_text}该点位春尺蠖幼虫存在危害迹象，建议结合现场情况安排防治。"
+        advice = "建议立即组织防治作业，并优先复核周边相邻点位。"
+    elif normalized_level == "中":
+        advice = "建议尽快安排防治，并持续跟踪虫情变化。"
+    elif normalized_level == "轻":
+        advice = "建议加强巡查，视虫情发展适时处置。"
+    elif normalized_level:
+        advice = "建议结合现场情况制定防治措施并复核虫情。"
+    else:
+        advice = "建议复核现场危害情况并及时补录调查结果。"
+
+    return (
+        f"{location_text}调查发现春尺蠖幼虫危害程度为{level_text}，"
+        f"总虫口数{insect_count_text}。{advice}"
+    )
 
 
 def serialize_date_value(value: Any) -> str:
@@ -305,6 +316,7 @@ async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]
                     location_name=(row["location_name"] or "").strip(),
                     location_id=str(row["location_id"] or "").strip(),
                     damage_level=damage_level,
+                    total_insect_count=insect_count,
                 ),
             }
         )

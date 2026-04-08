@@ -56,7 +56,7 @@ ORDER BY s."乡镇", l."编号"
     "total_insect_count": 50,
     "damage_level": "重",
     "note": "",
-    "description": "该点位春尺蠖幼虫危害程度为重（总虫口数50头），需及时开展防治作业。"
+    "description": "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，总虫口数50头。建议立即组织防治作业，并优先复核周边相邻点位。"
   }
 ]
 ```
@@ -65,15 +65,33 @@ Field values are returned in the format expected by the existing `WorkOrderRecor
 
 ### Description Template Generation
 
-The backend generates a description string based on damage level and insect count:
+The backend generates a stable two-sentence description based on location, damage level, and insect count:
 
-| Damage Level | Template |
-|-------------|----------|
-| 重 | `该点位春尺蠖幼虫危害程度为重（总虫口数{N}头），需及时开展防治作业。` |
-| 中 | `该点位春尺蠖幼虫危害程度为中（总虫口数{N}头），建议尽快安排防治。` |
-| 轻 | `该点位春尺蠖幼虫危害程度为轻（总虫口数{N}头），需持续关注并适时防治。` |
+**Base template:**
+```text
+{点位信息}，调查发现春尺蠖幼虫危害程度为{危害程度表达}，总虫口数{虫口数表达}。{处置建议}
+```
 
-If `total_insect_count` is NULL, the parenthetical is omitted.
+**Location prefix:**
+- Concatenate `town_or_street + location_name + location_id` after trimming
+- If any of them is non-empty, render as `{点位前缀}点位`
+
+**Damage level expression:**
+| Damage Level | Rendered text | Advice |
+|-------------|---------------|--------|
+| 重 | `重` | `建议立即组织防治作业，并优先复核周边相邻点位。` |
+| 中 | `中` | `建议尽快安排防治，并持续跟踪虫情变化。` |
+| 轻 | `轻` | `建议加强巡查，视虫情发展适时处置。` |
+| other non-empty value | original value | `建议结合现场情况制定防治措施并复核虫情。` |
+| empty / NULL | `待判定` | `建议复核现场危害情况并及时补录调查结果。` |
+
+**Insect count expression:**
+- If `total_insect_count` has a value, always render `{N}头`
+- If `total_insect_count` is NULL, render `未记录`
+
+**Note handling:**
+- `note` remains a separate field in the response
+- `note` is not merged into `description`
 
 ### Frontend Components
 
