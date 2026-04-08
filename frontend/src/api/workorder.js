@@ -2,7 +2,7 @@ import { apiFetch, ensureApiSuccess } from "./http.js";
 
 function extractFilename(contentDisposition) {
   if (!contentDisposition) {
-    return "林业工作单.docx";
+    return "林业工作单.doc";
   }
 
   const starred = /filename\*\s*=\s*([^;]+)/i.exec(contentDisposition);
@@ -22,7 +22,7 @@ function extractFilename(contentDisposition) {
     return plain[1].trim().replace(/^["']|["']$/g, "");
   }
 
-  return "林业工作单.docx";
+  return "林业工作单.doc";
 }
 
 export async function generateWorkorder(payload) {

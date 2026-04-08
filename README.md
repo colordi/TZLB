@@ -10,10 +10,10 @@
 
 ## 技术栈
 
-- 后端：FastAPI、asyncpg、docxtpl、python-docx
+- 后端：FastAPI、asyncpg、docxtpl、python-docx、LibreOffice CLI
 - 前端：Vue 3、Vue Router、Vite、Leaflet
 - 数据库：PostgreSQL / PostGIS
-- 文档模板：`templates/` 下的 `.docx` 模板文件
+- 文档模板：`templates/` 下的 `.docx` 模板文件，导出时会转换为 `.doc`
 
 ## 目录结构
 
@@ -118,7 +118,18 @@ npm run build
 - `pest_type`：害虫类型，支持 `春尺蠖`、`国槐尺蠖`、`其他害虫`
 - `task_type`：统防统治类型
 - `task`：任务名称
-- `records`：工作单记录列表，每条记录最多 4 张图片
+- `records`：工作单记录列表，但接口单次只接受 1 条记录，每条记录最多 4 张图片
+
+说明：
+
+- 批量压缩导出已取消。
+- 前端会按记录逐条调用接口，并分别导出多个独立的 `.doc` 文件。
+
+生产环境补充要求：
+
+- 服务器需要可执行的 LibreOffice 命令行工具，默认读取 `soffice`
+- 如路径不同，可通过 `LIBREOFFICE_BIN` 覆盖
+- 如转换耗时较长，可通过 `LIBREOFFICE_TIMEOUT_SECONDS` 调整超时
 
 ### 地图相关
 

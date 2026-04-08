@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     frontend_dist_dir: Path = BASE_DIR / "frontend" / "dist"
     templates_dir: Path = BASE_DIR / "templates"
     temp_dir: Path = BASE_DIR / ".tmp" / "workorder_images"
+    libreoffice_bin: str = Field(
+        default="soffice",
+        validation_alias="LIBREOFFICE_BIN",
+    )
+    libreoffice_timeout_seconds: int = Field(
+        default=60,
+        validation_alias="LIBREOFFICE_TIMEOUT_SECONDS",
+    )
     cors_origins: list[str] = [
         "http://127.0.0.1:5173",
         "http://localhost:5173",

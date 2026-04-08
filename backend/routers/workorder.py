@@ -9,11 +9,17 @@ from backend.schemas import WorkOrderGenerateRequest
 from backend.services.docgen import generate_workorder_artifact
 
 
+MULTI_RECORD_EXPORT_MESSAGE = "批量压缩导出已取消，请改为逐条导出工作单。"
+
+
 router = APIRouter()
 
 
-@router.post("/generate", summary="批量生成工作单")
+@router.post("/generate", summary="生成单条工作单")
 async def generate_workorder(payload: WorkOrderGenerateRequest) -> Response:
+    if len(payload.records) != 1:
+        raise HTTPException(status_code=400, detail=MULTI_RECORD_EXPORT_MESSAGE)
+
     try:
         artifact = generate_workorder_artifact(payload)
     except ValueError as exc:

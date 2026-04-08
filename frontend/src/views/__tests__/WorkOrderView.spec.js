@@ -1,9 +1,39 @@
 import { defineComponent } from "vue";
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createEmptyRecord } from "../../components/workorder/fieldConfig.js";
+import { UnauthorizedError } from "../../api/http.js";
 import WorkOrderView from "../WorkOrderView.vue";
+
+const apiMocks = vi.hoisted(() => ({
+  generateWorkorder: vi.fn(),
+  downloadBlob: vi.fn(),
+  createWorkorderCsvFile: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+}));
+
+vi.mock("../../api/workorder.js", () => ({
+  generateWorkorder: apiMocks.generateWorkorder,
+}));
+
+vi.mock("../../utils/download.js", () => ({
+  downloadBlob: apiMocks.downloadBlob,
+}));
+
+vi.mock("../../utils/workorderCsv.js", () => ({
+  createWorkorderCsvFile: apiMocks.createWorkorderCsvFile,
+}));
+
+vi.mock("../../composables/useToast.js", () => ({
+  useToast: () => ({
+    success: apiMocks.success,
+    error: apiMocks.error,
+    info: apiMocks.info,
+  }),
+}));
 
 const RecordTableStub = defineComponent({
   name: "RecordTable",
@@ -40,7 +70,59 @@ function mountWorkOrderView() {
   });
 }
 
+function createValidRecord(overrides = {}) {
+  return {
+    ...createEmptyRecord("春尺蠖"),
+    survey_date: "2026-04-01",
+    town_or_street: "于家务乡",
+    location_id: "YF0069",
+    location_name: "神仙村",
+    description: "点位描述",
+    ...overrides,
+  };
+}
+
+function updateRecords(wrapper, nextRecords) {
+  wrapper.getComponent(RecordTableStub).vm.$emit("update:records", nextRecords);
+}
+
+function findButtonByText(wrapper, keyword) {
+  const target = wrapper
+    .findAll("button")
+    .find((button) => button.text().includes(keyword));
+
+  if (!target) {
+    throw new Error(`未找到包含 ${keyword} 的按钮`);
+  }
+
+  return target;
+}
+
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 describe("WorkOrderView", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.generateWorkorder.mockResolvedValue({
+      blob: new Blob(["doc"]),
+      filename: "工作单.doc",
+    });
+    apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
+    apiMocks.createWorkorderCsvFile.mockReturnValue({
+      blob: new Blob(["csv"]),
+      filename: "工作单.csv",
+    });
+  });
+
   it("移除页面介绍模块后仍保留侧栏和主表格", () => {
     const wrapper = mountWorkOrderView();
 
@@ -119,5 +201,142 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")).toHaveLength(2);
     expect(recordTable.props("records")[0].location_id).toBe("XJ0001");
     expect(recordTable.props("records")[1].location_id).toBe("HX0002");
+  });
+
+  it("单条记录导出时只请求一次接口，并按真实下载结果提示成功", async () => {
+    const wrapper = mountWorkOrderView();
+    updateRecords(wrapper, [createValidRecord()]);
+    await wrapper.vm.$nextTick();
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
+      pest_type: "春尺蠖",
+      task_type: "春尺蠖防治",
+      task: "2026春尺蠖防治",
+      records: [
+        expect.objectContaining({
+          location_id: "YF0069",
+        }),
+      ],
+    });
+    expect(apiMocks.downloadBlob).toHaveBeenCalledTimes(1);
+    expect(apiMocks.success).toHaveBeenCalledWith("工作单已开始下载。", "导出成功");
+  });
+
+  it("多条记录会按顺序逐条导出，并显示当前进度与汇总成功提示", async () => {
+    const firstRequest = createDeferred();
+    const secondRequest = createDeferred();
+
+    apiMocks.generateWorkorder
+      .mockImplementationOnce(() => firstRequest.promise)
+      .mockImplementationOnce(() => secondRequest.promise);
+
+    const wrapper = mountWorkOrderView();
+    updateRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069" }),
+      createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
+    ]);
+    await wrapper.vm.$nextTick();
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(findButtonByText(wrapper, "正在导出").text()).toContain("1/2");
+    });
+
+    firstRequest.resolve({
+      blob: new Blob(["doc-1"]),
+      filename: "工作单-1.doc",
+    });
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(2);
+      expect(findButtonByText(wrapper, "正在导出").text()).toContain("2/2");
+    });
+
+    secondRequest.resolve({
+      blob: new Blob(["doc-2"]),
+      filename: "工作单-2.doc",
+    });
+
+    await vi.waitFor(() => {
+      expect(apiMocks.success).toHaveBeenCalledWith("已依次导出 2 份工作单。", "导出成功");
+    });
+
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records).toHaveLength(1);
+    expect(apiMocks.generateWorkorder.mock.calls[1][0].records).toHaveLength(1);
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0].location_id).toBe("YF0069");
+    expect(apiMocks.generateWorkorder.mock.calls[1][0].records[0].location_id).toBe("YF0070");
+  });
+
+  it("多条记录部分失败时展示部分成功提示，不误报全部成功", async () => {
+    apiMocks.generateWorkorder
+      .mockResolvedValueOnce({
+        blob: new Blob(["doc-1"]),
+        filename: "工作单-1.doc",
+      })
+      .mockRejectedValueOnce(new Error("网络异常"));
+
+    const wrapper = mountWorkOrderView();
+    updateRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069" }),
+      createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
+    ]);
+    await wrapper.vm.$nextTick();
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.error).toHaveBeenCalledWith(
+        "已导出 1/2 份工作单，剩余导出失败：网络异常",
+        "部分导出失败",
+      );
+    });
+
+    expect(apiMocks.success).not.toHaveBeenCalledWith("已依次导出 2 份工作单。", "导出成功");
+  });
+
+  it("认证失效时中断后续逐条导出", async () => {
+    apiMocks.generateWorkorder.mockRejectedValueOnce(new UnauthorizedError());
+
+    const wrapper = mountWorkOrderView();
+    updateRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069" }),
+      createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
+    ]);
+    await wrapper.vm.$nextTick();
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.downloadBlob).not.toHaveBeenCalled();
+    expect(apiMocks.error).not.toHaveBeenCalled();
+    expect(apiMocks.success).not.toHaveBeenCalled();
+  });
+
+  it("导出 CSV 时根据真实交付方式提示预览结果", async () => {
+    apiMocks.downloadBlob.mockResolvedValueOnce({ delivery: "preview" });
+
+    const wrapper = mountWorkOrderView();
+
+    await findButtonByText(wrapper, "导出数据").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.createWorkorderCsvFile).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.success).toHaveBeenCalledWith(
+      "CSV 已打开预览，请在新页面中保存文件。",
+      "导出完成",
+    );
   });
 });

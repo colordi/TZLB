@@ -28,6 +28,10 @@ const taskType = ref(getDefaultControlType(pestType.value));
 const taskName = ref(getDefaultTask(pestType.value));
 const records = ref([createEmptyRecord(pestType.value)]);
 const generating = ref(false);
+const exportProgress = ref({
+  current: 0,
+  total: 0,
+});
 const showValidationErrors = ref(false);
 const surveyImportOpen = ref(false);
 
@@ -39,6 +43,15 @@ const validationErrors = computed(() =>
 const totalImages = computed(() =>
   records.value.reduce((count, record) => count + (record.images?.length || 0), 0),
 );
+const generateButtonLabel = computed(() => {
+  if (!generating.value) {
+    return "生成工作单";
+  }
+
+  const total = exportProgress.value.total || records.value.length || 1;
+  const current = exportProgress.value.current || 1;
+  return `正在导出 ${current}/${total}…`;
+});
 
 watch(pestType, (nextType) => {
   taskType.value = getDefaultControlType(nextType);
@@ -108,15 +121,43 @@ function handleSurveyImport(importedRecords) {
   success(`已导入 ${normalizedRecords.length} 条调查记录。`, "导入完成");
 }
 
-function exportCsv() {
+function resetExportProgress() {
+  exportProgress.value = {
+    current: 0,
+    total: 0,
+  };
+}
+
+function joinDeliveryLabel(label, message) {
+  return /^[A-Za-z0-9_.-]+$/.test(label) ? `${label} ${message}` : `${label}${message}`;
+}
+
+function buildDeliveryMessage(result, label) {
+  if (result?.delivery === "share") {
+    return joinDeliveryLabel(label, "已打开系统分享。");
+  }
+
+  if (result?.delivery === "preview") {
+    return joinDeliveryLabel(label, "已打开预览，请在新页面中保存文件。");
+  }
+
+  return joinDeliveryLabel(label, "已开始下载。");
+}
+
+async function exportCsv() {
   const { blob, filename } = createWorkorderCsvFile({
     pestType: pestType.value,
     taskType: taskType.value,
     taskName: taskName.value,
     records: records.value,
   });
-  downloadBlob(blob, filename);
-  success("当前记录已导出为 CSV。", "导出完成");
+
+  try {
+    const delivery = await downloadBlob(blob, filename);
+    success(buildDeliveryMessage(delivery, "CSV"), "导出完成");
+  } catch (exportError) {
+    error(`${exportError.message || exportError}`, "CSV 导出失败");
+  }
 }
 
 async function handleGenerate() {
@@ -128,25 +169,61 @@ async function handleGenerate() {
   }
 
   generating.value = true;
+  exportProgress.value = {
+    current: 0,
+    total: records.value.length,
+  };
 
   try {
     const payload = {
       pest_type: pestType.value,
       task_type: taskType.value,
       task: taskName.value,
-      records: records.value.map((record) => toPayloadRecord(record, pestType.value)),
     };
-    const { blob, filename } = await generateWorkorder(payload);
-    downloadBlob(blob, filename);
+    const payloadRecords = records.value.map((record) => toPayloadRecord(record, pestType.value));
+    let completedCount = 0;
+    let lastDelivery = null;
+
     showValidationErrors.value = false;
-    success("工作单已生成并开始下载。", "导出成功");
+
+    for (const [index, record] of payloadRecords.entries()) {
+      exportProgress.value = {
+        current: index + 1,
+        total: payloadRecords.length,
+      };
+
+      const { blob, filename } = await generateWorkorder({
+        ...payload,
+        records: [record],
+      });
+      lastDelivery = await downloadBlob(blob, filename);
+      completedCount += 1;
+    }
+
+    if (completedCount === 1) {
+      success(buildDeliveryMessage(lastDelivery, "工作单"), "导出成功");
+      return;
+    }
+
+    success(`已依次导出 ${completedCount} 份工作单。`, "导出成功");
   } catch (generateError) {
     if (isUnauthorizedError(generateError)) {
       return;
     }
+
+    const completedCount = Math.max(exportProgress.value.current - 1, 0);
+    if (completedCount > 0) {
+      error(
+        `已导出 ${completedCount}/${exportProgress.value.total} 份工作单，剩余导出失败：${generateError.message || generateError}`,
+        "部分导出失败",
+      );
+      return;
+    }
+
     error(`${generateError.message || generateError}`, "工作单生成失败");
   } finally {
     generating.value = false;
+    resetExportProgress();
   }
 }
 </script>
@@ -256,7 +333,7 @@ async function handleGenerate() {
         <div class="panel-card action-toolbar">
           <div class="action-toolbar-buttons">
             <button type="button" :disabled="generating" @click="handleGenerate">
-              {{ generating ? "正在生成工作单…" : "生成工作单" }}
+              {{ generateButtonLabel }}
             </button>
             <button type="button" class="button-secondary" :disabled="generating" @click="addRecord">新增记录</button>
             <button
@@ -269,7 +346,7 @@ async function handleGenerate() {
             >
               导入调查数据
             </button>
-            <button type="button" class="button-secondary" @click="exportCsv">导出数据</button>
+            <button type="button" class="button-secondary" :disabled="generating" @click="exportCsv">导出数据</button>
           </div>
           <p class="muted-note action-toolbar-note">支持表格粘贴，图片通过单条记录弹窗统一管理。</p>
         </div>

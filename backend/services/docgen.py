@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import base64
 import io
+import subprocess
+import tempfile
 import uuid
-import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +18,8 @@ from backend.schemas import WorkOrderGenerateRequest, WorkOrderRecord
 
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
+DOC_MEDIA_TYPE = "application/msword"
+DOC_CONVERT_FILTER = "MS Word 97"
 CHI_HUO_TYPES = {"春尺蠖", "国槐尺蠖"}
 DOC_FIELD_MAPPING = {
     "description": "detailed_description",
@@ -118,6 +121,10 @@ def build_output_filename(record: WorkOrderRecord, index: int) -> str:
     return f"{current_year}林业有害生物防治工作单（{town}）-{location}-{survey_date}-{serial}.docx"
 
 
+def replace_suffix(filename: str, suffix: str) -> str:
+    return f"{Path(filename).stem}{suffix}"
+
+
 def render_single_document(
     template_path: Path,
     record: WorkOrderRecord,
@@ -142,49 +149,82 @@ def render_single_document(
     return build_output_filename(record, index), buffer.getvalue()
 
 
-def build_download_artifact(generated: list[tuple[str, bytes]]) -> GeneratedArtifact:
-    """根据文件数量返回 docx 或 zip 响应。"""
+def convert_docx_bytes_to_doc(filename: str, content: bytes) -> tuple[str, bytes]:
+    """使用 LibreOffice 将 docx 字节流转换为 doc。"""
 
-    if len(generated) == 1:
-        filename, content = generated[0]
-        return GeneratedArtifact(
-            filename=filename,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            content=content,
-        )
+    settings = get_settings()
+    source_filename = replace_suffix(filename, ".docx")
+    target_filename = replace_suffix(filename, ".doc")
 
-    archive_name = f"{datetime.now().year}林业工作单批量导出_{datetime.now():%Y%m%d_%H%M%S}.zip"
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for filename, content in generated:
-            archive.writestr(filename, content)
+    with tempfile.TemporaryDirectory(dir=settings.temp_dir, prefix="workorder_export_") as workdir:
+        workdir_path = Path(workdir)
+        source_path = workdir_path / source_filename
+        target_path = workdir_path / target_filename
+        source_path.write_bytes(content)
+
+        try:
+            subprocess.run(
+                [
+                    settings.libreoffice_bin,
+                    "--headless",
+                    "--convert-to",
+                    f"doc:{DOC_CONVERT_FILTER}",
+                    "--outdir",
+                    str(workdir_path),
+                    str(source_path),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=settings.libreoffice_timeout_seconds,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                f"未找到 LibreOffice 命令行工具：{settings.libreoffice_bin}"
+            ) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("LibreOffice 转换超时，请稍后重试。") from exc
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode("utf-8", errors="ignore").strip() if exc.stderr else ""
+            stdout = exc.stdout.decode("utf-8", errors="ignore").strip() if exc.stdout else ""
+            detail = stderr or stdout or "未知错误"
+            raise RuntimeError(f"LibreOffice 转换失败：{detail}") from exc
+
+        if not target_path.exists():
+            raise RuntimeError("LibreOffice 转换失败：未生成 .doc 文件。")
+
+        return target_filename, target_path.read_bytes()
+
+
+def build_download_artifact(filename: str, content: bytes) -> GeneratedArtifact:
+    """返回单个 doc 下载产物。"""
+
     return GeneratedArtifact(
-        filename=archive_name,
-        media_type="application/zip",
-        content=zip_buffer.getvalue(),
+        filename=filename,
+        media_type=DOC_MEDIA_TYPE,
+        content=content,
     )
 
 
 def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedArtifact:
     """生成工作单下载产物。"""
 
+    if len(payload.records) != 1:
+        raise ValueError("批量压缩导出已取消，请改为逐条导出工作单。")
+
     template_path = get_template_path(payload.pest_type)
     temp_images: list[Path] = []
-    generated: list[tuple[str, bytes]] = []
 
     try:
-        for index, record in enumerate(payload.records):
-            generated.append(
-                render_single_document(
-                    template_path=template_path,
-                    record=record,
-                    pest_type=payload.pest_type,
-                    task_type=payload.task_type,
-                    task_name=payload.task,
-                    index=index,
-                    temp_images=temp_images,
-                )
-            )
-        return build_download_artifact(generated)
+        filename, content = render_single_document(
+            template_path=template_path,
+            record=payload.records[0],
+            pest_type=payload.pest_type,
+            task_type=payload.task_type,
+            task_name=payload.task,
+            index=0,
+            temp_images=temp_images,
+        )
+        filename, content = convert_docx_bytes_to_doc(filename, content)
+        return build_download_artifact(filename, content)
     finally:
         cleanup_temp_images(temp_images)
