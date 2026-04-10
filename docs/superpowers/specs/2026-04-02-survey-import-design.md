@@ -56,7 +56,7 @@ ORDER BY s."乡镇", l."编号"
     "total_insect_count": 50,
     "damage_level": "重",
     "note": "",
-    "description": "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，总虫口数50头。建议立即组织防治作业，并优先复核周边相邻点位。"
+    "description": "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，平均每标准枝10头。建议立即组织防治作业，并优先复核周边相邻点位。"
   }
 ]
 ```
@@ -65,11 +65,11 @@ Field values are returned in the format expected by the existing `WorkOrderRecor
 
 ### Description Template Generation
 
-The backend generates a stable two-sentence description based on location, damage level, and insect count:
+The backend generates a stable two-sentence description based on location, damage level, and the derived average insect count per standard branch:
 
 **Base template:**
 ```text
-{点位信息}，调查发现春尺蠖幼虫危害程度为{危害程度表达}，总虫口数{虫口数表达}。{处置建议}
+{点位信息}，调查发现春尺蠖幼虫危害程度为{危害程度表达}，平均每标准枝{均虫口表达}。{处置建议}
 ```
 
 **Location prefix:**
@@ -85,8 +85,10 @@ The backend generates a stable two-sentence description based on location, damag
 | other non-empty value | original value | `建议结合现场情况制定防治措施并复核虫情。` |
 | empty / NULL | `待判定` | `建议复核现场危害情况并及时补录调查结果。` |
 
-**Insect count expression:**
-- If `total_insect_count` has a value, always render `{N}头`
+**Average insect count expression:**
+- If `total_insect_count` has a value, compute `total_insect_count / 5` and render the result
+- Always round the result up to the next integer and render it without any decimal part
+- Examples: `50 -> 10头`, `28 -> 6头`, `6 -> 2头`
 - If `total_insect_count` is NULL, render `未记录`
 
 **Note handling:**

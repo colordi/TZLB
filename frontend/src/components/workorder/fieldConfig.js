@@ -379,12 +379,3 @@ export function validateRecords(records, pestType) {
 export function hasValidationErrors(errorList) {
   return errorList.some((entry) => Object.keys(entry).length > 0);
 }
-
-export function parseClipboardGrid(rawText) {
-  const normalized = `${rawText ?? ""}`.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split("\n");
-  while (lines.length && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
-  return lines.map((line) => line.split("\t"));
-}

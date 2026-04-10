@@ -4,6 +4,7 @@ import { computed, ref, watch } from "vue";
 import { isUnauthorizedError } from "../api/http.js";
 import { generateWorkorder } from "../api/workorder.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
+import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import {
   CONTROL_TYPE_OPTIONS,
@@ -19,14 +20,13 @@ import {
 } from "../components/workorder/fieldConfig.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
-import { createWorkorderCsvFile } from "../utils/workorderCsv.js";
 
 const { error, info, success } = useToast();
 
 const pestType = ref("春尺蠖");
 const taskType = ref(getDefaultControlType(pestType.value));
 const taskName = ref(getDefaultTask(pestType.value));
-const records = ref([createEmptyRecord(pestType.value)]);
+const records = ref([]);
 const generating = ref(false);
 const exportProgress = ref({
   current: 0,
@@ -34,6 +34,10 @@ const exportProgress = ref({
 });
 const showValidationErrors = ref(false);
 const surveyImportOpen = ref(false);
+
+const selectedIndexes = ref([]);
+const activeRecordIndex = ref(-1);
+const showDetailModal = ref(false);
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
 const canImportSurvey = computed(() => pestType.value === "春尺蠖");
@@ -60,9 +64,10 @@ watch(pestType, (nextType) => {
   if (nextType !== "春尺蠖") {
     surveyImportOpen.value = false;
   }
+  selectedIndexes.value = []; // Reset selections
   records.value = records.value.length
     ? records.value.map((record) => normalizeRecordForPest(record, nextType))
-    : [createEmptyRecord(nextType)];
+    : [];
 });
 
 watch(taskOptions, (options) => {
@@ -73,11 +78,6 @@ watch(taskOptions, (options) => {
 
 function updateRecords(nextRecords) {
   records.value = nextRecords.map((record) => normalizeRecordForPest(record, pestType.value));
-}
-
-function addRecord() {
-  records.value = [...records.value, createEmptyRecord(pestType.value)];
-  info("已新增一条空白记录。", "记录已创建");
 }
 
 function hasMeaningfulRecordContent(record) {
@@ -110,12 +110,10 @@ function handleSurveyImport(importedRecords) {
   }
 
   const normalizedRecords = importedRecords.map((record) =>
-    normalizeRecordForPest(record, pestType.value),
+    normalizeRecordForPest(record, pestType.value)
   );
-  const shouldReplaceEmptyDraft =
-    records.value.length === 1 && !hasMeaningfulRecordContent(records.value[0]);
 
-  records.value = (shouldReplaceEmptyDraft ? [] : records.value).concat(normalizedRecords);
+  records.value = records.value.concat(normalizedRecords);
   surveyImportOpen.value = false;
   showValidationErrors.value = false;
   success(`已导入 ${normalizedRecords.length} 条调查记录。`, "导入完成");
@@ -126,6 +124,54 @@ function resetExportProgress() {
     current: 0,
     total: 0,
   };
+}
+
+const activeRecord = computed(() => {
+  return activeRecordIndex.value >= 0 ? records.value[activeRecordIndex.value] : null;
+});
+
+const activeRecordError = computed(() => {
+  if (activeRecordIndex.value < 0 || !showValidationErrors.value) return {};
+  const currentRecord = records.value[activeRecordIndex.value];
+  if (!currentRecord) return {};
+  return validateRecords([currentRecord], pestType.value)[0] || {};
+});
+
+function handleRowClick(index) {
+  activeRecordIndex.value = index;
+  showDetailModal.value = true;
+}
+
+function handleCloseDetailModal() {
+  showDetailModal.value = false;
+  activeRecordIndex.value = -1;
+}
+
+function handleUpdateRecord(updatedRecord) {
+  if (activeRecordIndex.value >= 0) {
+    const next = records.value.slice();
+    next[activeRecordIndex.value] = normalizeRecordForPest(updatedRecord, pestType.value);
+    records.value = next;
+    selectedIndexes.value = []; // Safety reset
+    handleCloseDetailModal();
+  }
+}
+
+function handleDeleteRecord() {
+  if (activeRecordIndex.value >= 0) {
+    const next = records.value.filter((_, idx) => idx !== activeRecordIndex.value);
+    records.value = next;
+    selectedIndexes.value = []; // Safety reset
+    handleCloseDetailModal();
+  }
+}
+
+function handleBatchDelete() {
+  if (selectedIndexes.value.length === 0) return;
+  const set = new Set(selectedIndexes.value);
+  records.value = records.value.filter((_, idx) => !set.has(idx));
+  selectedIndexes.value = [];
+  handleCloseDetailModal(); // Just in case
 }
 
 function joinDeliveryLabel(label, message) {
@@ -142,22 +188,6 @@ function buildDeliveryMessage(result, label) {
   }
 
   return joinDeliveryLabel(label, "已开始下载。");
-}
-
-async function exportCsv() {
-  const { blob, filename } = createWorkorderCsvFile({
-    pestType: pestType.value,
-    taskType: taskType.value,
-    taskName: taskName.value,
-    records: records.value,
-  });
-
-  try {
-    const delivery = await downloadBlob(blob, filename);
-    success(buildDeliveryMessage(delivery, "CSV"), "导出完成");
-  } catch (exportError) {
-    error(`${exportError.message || exportError}`, "CSV 导出失败");
-  }
 }
 
 async function handleGenerate() {
@@ -232,42 +262,35 @@ async function handleGenerate() {
   <section class="page-shell workorder-page">
     <div class="page-content-grid">
       <aside class="page-sidebar">
-        <section class="panel-card sidebar-panel">
-          <div class="panel-head">
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M4 7.75A2.75 2.75 0 0 1 6.75 5h10.5A2.75 2.75 0 0 1 20 7.75v8.5A2.75 2.75 0 0 1 17.25 19H6.75A2.75 2.75 0 0 1 4 16.25v-8.5Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-8.5c0-.69-.56-1.25-1.25-1.25H6.75Zm.5 2.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 11.5h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 15h5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Z"
-                />
-              </svg>
-            </span>
-            <div class="panel-head-copy">
-              <h2>录入概览</h2>
-              <p>记录数、图片数与当前任务一屏掌握。</p>
+        <div class="status-bento">
+          <div class="status-bento-hero">
+            <div class="status-bento-hero-head">
+              <span class="icon-badge-glass" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 7.75A2.75 2.75 0 0 1 6.75 5h10.5A2.75 2.75 0 0 1 20 7.75v8.5A2.75 2.75 0 0 1 17.25 19H6.75A2.75 2.75 0 0 1 4 16.25v-8.5Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-8.5c0-.69-.56-1.25-1.25-1.25H6.75Zm.5 2.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 11.5h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 15h5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Z" />
+                </svg>
+              </span>
+              <span class="pulse-tag">Real-time</span>
+            </div>
+            <div class="status-value-hero">{{ records.length }}</div>
+            <div class="status-label-hero">当前记录</div>
+          </div>
+          
+          <div class="status-card">
+            <div class="status-value-sub text-primary">{{ totalImages }}</div>
+            <div class="status-label-sub">图片总数</div>
+            <div class="status-trend">
+              <span class="trend-icon">📈</span>
+              当前任务: {{ taskName || "待设置" }}
             </div>
           </div>
-
-          <div class="compact-summary-grid">
-            <article class="compact-summary is-highlight">
-              <span class="compact-summary-value">{{ records.length }}</span>
-              <span class="compact-summary-label">当前记录</span>
-            </article>
-            <article class="compact-summary">
-              <span class="compact-summary-value">{{ totalImages }}</span>
-              <span class="compact-summary-label">图片总数</span>
-            </article>
-            <article class="compact-summary">
-              <span class="compact-summary-value compact-summary-text">{{ pestType }}</span>
-              <span class="compact-summary-label">害虫类型</span>
-            </article>
-            <article class="compact-summary">
-              <span class="compact-summary-value compact-summary-text">
-                {{ taskName || "待设置" }}
-              </span>
-              <span class="compact-summary-label">当前任务</span>
-            </article>
+          
+          <div class="status-card">
+            <div class="status-value-sub text-warning">{{ pestType }}</div>
+            <div class="status-label-sub">害虫类型</div>
+            <div class="status-trend text-danger">需人工确认</div>
           </div>
-        </section>
+        </div>
 
         <section class="panel-card sidebar-panel">
           <div class="panel-head">
@@ -330,12 +353,21 @@ async function handleGenerate() {
       </aside>
 
       <div class="page-main-column workorder-main-column">
-        <div class="panel-card action-toolbar">
+        <div class="panel-card action-toolbar-glass">
+          <div class="tb-headings">
+            <h1 class="page-title-display">工作单录入工作台</h1>
+            <p class="tb-subtitle">复核现场数据后提交。</p>
+          </div>
           <div class="action-toolbar-buttons">
-            <button type="button" :disabled="generating" @click="handleGenerate">
-              {{ generateButtonLabel }}
+            <button
+              v-if="selectedIndexes.length > 0"
+              type="button"
+              class="button-danger"
+              :disabled="generating"
+              @click="handleBatchDelete"
+            >
+              删除所选 ({{ selectedIndexes.length }})
             </button>
-            <button type="button" class="button-secondary" :disabled="generating" @click="addRecord">新增记录</button>
             <button
               v-if="canImportSurvey"
               type="button"
@@ -346,17 +378,30 @@ async function handleGenerate() {
             >
               导入调查数据
             </button>
-            <button type="button" class="button-secondary" :disabled="generating" @click="exportCsv">导出数据</button>
+            <button type="button" :disabled="generating" @click="handleGenerate">
+              {{ generateButtonLabel }}
+            </button>
           </div>
-          <p class="muted-note action-toolbar-note">支持表格粘贴，图片通过单条记录弹窗统一管理。</p>
         </div>
 
         <RecordTable
+          v-model:selectedIndexes="selectedIndexes"
           :records="records"
           :pest-type="pestType"
           :busy="generating"
           :errors="validationErrors"
-          @update:records="updateRecords"
+          @row-click="handleRowClick"
+        />
+
+        <RecordDetailModal
+          :open="showDetailModal"
+          :record="activeRecord"
+          :pest-type="pestType"
+          :busy="generating"
+          :error="activeRecordError"
+          @close="handleCloseDetailModal"
+          @update="handleUpdateRecord"
+          @delete="handleDeleteRecord"
         />
 
         <SurveyImportDialog
@@ -372,138 +417,190 @@ async function handleGenerate() {
 
 <style scoped>
 .workorder-page {
-  gap: 0.95rem;
+  gap: 2rem;
+}
+
+.status-bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.status-bento-hero {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-container));
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 82, 56, 0.2);
+}
+
+.status-bento-hero-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.icon-badge-glass {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.5rem;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+}
+
+.icon-badge-glass svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.pulse-tag {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-xs);
+}
+
+.status-value-hero {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.status-label-hero {
+  font-size: 0.875rem;
+  opacity: 0.8;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+.status-card {
+  background: var(--color-surface-container-lowest);
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.status-value-sub {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.text-primary { color: var(--color-primary); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+
+.status-label-sub {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+}
+
+.status-trend {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--color-secondary);
 }
 
 .sidebar-panel {
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
 .sidebar-panel .panel-head {
-  margin-bottom: 0.9rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-surface-container);
+  margin-bottom: 1.5rem;
 }
 
 .sidebar-panel .panel-head-copy h2 {
-  font-size: 1.12rem;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-}
-
-.compact-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-}
-
-.compact-summary {
-  min-height: 6.9rem;
-  padding: 0.95rem 1rem;
-  border-radius: 20px;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  background: rgba(245, 251, 244, 0.88);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.compact-summary.is-highlight {
-  background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.18), transparent 34%),
-    linear-gradient(135deg, #6dbb90, #2e7d32);
-  color: #fff;
-}
-
-.compact-summary-value {
-  font-size: clamp(1.5rem, 2vw, 2rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-}
-
-.compact-summary-text {
-  font-size: 1.1rem;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compact-summary-label {
-  color: var(--color-muted);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.compact-summary.is-highlight .compact-summary-label {
-  color: rgba(255, 255, 255, 0.84);
+  font-size: 1.2rem;
+  font-family: var(--font-display);
 }
 
 .sidebar-field-stack {
   display: grid;
-  gap: 0.85rem;
+  gap: 1.25rem;
 }
 
-.workorder-main-column {
-  gap: 0.9rem;
+.sidebar-field-stack label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  font-weight: 800;
 }
 
-.action-toolbar {
-  padding: 0.7rem 1rem;
+.sidebar-field-stack select {
+  background: var(--color-surface-container-low);
+  border: none;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.action-toolbar-glass {
+  padding: 1.5rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
+  gap: 1.5rem;
   flex-wrap: wrap;
+}
+
+.page-title-display {
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.tb-subtitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  margin-top: 0.25rem;
 }
 
 .action-toolbar-buttons {
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-}
-
-.action-toolbar-note {
-  margin-left: auto;
-  white-space: nowrap;
+  gap: 0.75rem;
 }
 
 @media (max-width: 980px) {
-  .compact-summary-grid {
+  .status-bento {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
-  .compact-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .status-bento {
+    grid-template-columns: 1fr 1fr;
   }
-
-  .action-toolbar {
+  .action-toolbar-glass {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
+    align-items: stretch;
   }
-
-  .action-toolbar-note {
-    margin-left: 0;
-    white-space: normal;
+  .action-toolbar-buttons {
+    flex-wrap: wrap;
+  }
+  .action-toolbar-buttons button {
+    flex: 1;
   }
 }
 
 @media (max-width: 520px) {
-  .compact-summary-grid {
+  .status-bento {
     grid-template-columns: 1fr;
-  }
-
-  .compact-summary {
-    min-height: 6.2rem;
-  }
-}
-
-@media (max-width: 760px) {
-  .sidebar-panel {
-    padding: 1.05rem;
   }
 }
 

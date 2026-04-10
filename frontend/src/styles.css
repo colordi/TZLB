@@ -1,25 +1,32 @@
 :root {
   color-scheme: light;
-  --color-primary: #2e7d32;
-  --color-primary-strong: #1f5d29;
-  --color-primary-soft: #e3f3e6;
-  --color-primary-mist: rgba(46, 125, 50, 0.12);
-  --color-accent: #5aa56e;
-  --color-bg: #f6fbf4;
+  --color-primary: #0F5238;
+  --color-primary-container: #2D6A4F;
+  --color-primary-strong: #0a3d28;
+  --color-primary-soft: #cdeee0;
+  --color-primary-mist: rgba(15, 82, 56, 0.08);
+  --color-secondary: #0E6C4A;
+  --color-secondary-container: #A0F4C8;
+  --color-on-secondary-container: #19724F;
+  --color-accent: #fbbc00;
+  --color-bg: #F8F9FA;
   --color-bg-strong: #ffffff;
-  --color-bg-soft: #f2f8ef;
-  --color-surface: rgba(255, 255, 255, 0.92);
-  --color-surface-strong: #ffffff;
-  --color-surface-muted: #edf5eb;
-  --color-line: #d8ead8;
-  --color-line-strong: #bfd6bf;
-  --color-ink: #183223;
-  --color-ink-soft: #335244;
-  --color-muted: #6a7d73;
-  --color-muted-soft: #90a194;
-  --color-danger: #d35430;
-  --color-warning: #e0a53c;
-  --color-info: #5f8ee8;
+  --color-surface: rgba(255, 255, 255, 0.88);
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #F3F4F5;
+  --color-surface-container: #EDEEEF;
+  --color-surface-container-high: #E7E8E9;
+  --color-line: rgba(191, 201, 193, 0.2);
+  --color-line-strong: rgba(191, 201, 193, 0.4);
+  --color-ink: #191C1D;
+  --color-ink-soft: #404943;
+  --color-muted: #707973;
+  --color-muted-soft: #bfc9c1;
+  --color-danger: #ba1a1a;
+  --color-warning: #7a5a00;
+  
+  --font-display: 'Manrope', 'PingFang SC', sans-serif;
+  --font-body: 'Inter', 'PingFang SC', sans-serif;
 
   /* 圆角系统 */
   --radius-xs: 8px;
@@ -53,13 +60,13 @@
   --opacity-40: 0.4;
   --opacity-50: 0.5;
 
-  --shadow-soft: 0 10px 24px rgba(18, 52, 29, 0.08);
-  --shadow-card: 0 18px 40px rgba(24, 52, 35, 0.08);
-  --shadow-elevated: 0 28px 60px rgba(21, 49, 32, 0.13);
-  --focus-ring: 0 0 0 4px rgba(46, 125, 50, 0.16);
+  --shadow-soft: 0 4px 12px rgba(25, 28, 29, 0.03);
+  --shadow-card: 0 12px 32px rgba(25, 28, 29, 0.05);
+  --shadow-elevated: 0 24px 48px rgba(25, 28, 29, 0.08);
+  --focus-ring: 0 0 0 4px rgba(15, 82, 56, 0.12);
   --control-height: 3rem;
   --content-width: 116rem;
-  --app-sidebar-width: 17.5rem;
+  --app-sidebar-width: 20rem; /* Increased slightly for new layout */
   --app-mobile-header-height: 4.25rem;
   --app-drawer-width: 18rem;
 }
@@ -80,16 +87,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--color-ink);
-  background:
-    radial-gradient(circle at top left, rgba(188, 224, 180, 0.56), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(147, 205, 152, 0.28), transparent 26%),
-    linear-gradient(180deg, #fcfffb 0%, #f6fbf4 48%, #f3f9f1 100%);
-  font-family:
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Microsoft YaHei",
-    "Noto Sans CJK SC",
-    sans-serif;
+  background: var(--color-bg);
+  font-family: var(--font-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -115,8 +114,9 @@ textarea {
   padding: var(--space-3) 0.95rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--color-surface-container-lowest);
   color: var(--color-ink);
+  font-family: var(--font-body);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -169,7 +169,11 @@ h2,
 h3,
 h4,
 h5,
-h6,
+h6 {
+  margin: 0;
+  font-family: var(--font-display);
+}
+
 p {
   margin: 0;
 }
@@ -182,12 +186,13 @@ button,
   gap: var(--space-2);
   min-height: var(--control-height);
   padding: var(--space-3) 1.2rem;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #58a67b, #2e7d32);
+  border-radius: var(--radius-xs); /* 8px default from design spec */
+  background: linear-gradient(180deg, var(--color-primary), var(--color-primary-container));
   color: #fff;
+  font-family: var(--font-body);
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 16px 34px rgba(46, 125, 50, 0.2);
+  box-shadow: 0 4px 10px rgba(15, 82, 56, 0.2);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -210,16 +215,16 @@ button:disabled,
 }
 
 .button-secondary {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--color-ink-soft);
-  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-line-strong);
   box-shadow: none;
 }
 
 .button-secondary:hover {
-  background: #fff;
+  background: var(--color-surface-container-high);
   border-color: var(--color-line-strong);
-  box-shadow: 0 12px 28px rgba(18, 52, 29, 0.08);
+  box-shadow: none;
 }
 
 .button-danger {
@@ -295,11 +300,14 @@ button:disabled,
 
 .summary-card,
 .panel-card {
-  border: 1px solid rgba(46, 125, 50, 0.16);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-sm); /* Using 12px for cards initially, but DESIGN.md says fallback to DEFAULT 8px or lg 16px, lets use 16px */
+  background: var(--color-surface-container-lowest);
   box-shadow: var(--shadow-card);
-  backdrop-filter: blur(14px);
+}
+
+.panel-card {
+  border-radius: var(--radius-md);
 }
 
 .summary-card {

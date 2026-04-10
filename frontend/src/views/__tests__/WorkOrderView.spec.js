@@ -9,7 +9,6 @@ import WorkOrderView from "../WorkOrderView.vue";
 const apiMocks = vi.hoisted(() => ({
   generateWorkorder: vi.fn(),
   downloadBlob: vi.fn(),
-  createWorkorderCsvFile: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   info: vi.fn(),
@@ -21,10 +20,6 @@ vi.mock("../../api/workorder.js", () => ({
 
 vi.mock("../../utils/download.js", () => ({
   downloadBlob: apiMocks.downloadBlob,
-}));
-
-vi.mock("../../utils/workorderCsv.js", () => ({
-  createWorkorderCsvFile: apiMocks.createWorkorderCsvFile,
 }));
 
 vi.mock("../../composables/useToast.js", () => ({
@@ -117,10 +112,6 @@ describe("WorkOrderView", () => {
       filename: "工作单.doc",
     });
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
-    apiMocks.createWorkorderCsvFile.mockReturnValue({
-      blob: new Blob(["csv"]),
-      filename: "工作单.csv",
-    });
   });
 
   it("移除页面介绍模块后仍保留侧栏和主表格", () => {
@@ -129,11 +120,14 @@ describe("WorkOrderView", () => {
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("工单录入");
-    expect(wrapper.text()).not.toContain("支持表格批量粘贴");
+    expect(wrapper.text()).not.toContain("表格粘贴");
     expect(wrapper.text()).not.toContain("现场记录");
+    expect(wrapper.text()).not.toContain("新增记录");
+    expect(wrapper.text()).not.toContain("导出数据");
     expect(wrapper.text()).toContain("录入概览");
     expect(wrapper.text()).toContain("任务配置");
     expect(wrapper.text()).toContain("生成工作单");
+    expect(wrapper.text()).toContain("导入调查数据");
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
@@ -321,22 +315,5 @@ describe("WorkOrderView", () => {
     expect(apiMocks.downloadBlob).not.toHaveBeenCalled();
     expect(apiMocks.error).not.toHaveBeenCalled();
     expect(apiMocks.success).not.toHaveBeenCalled();
-  });
-
-  it("导出 CSV 时根据真实交付方式提示预览结果", async () => {
-    apiMocks.downloadBlob.mockResolvedValueOnce({ delivery: "preview" });
-
-    const wrapper = mountWorkOrderView();
-
-    await findButtonByText(wrapper, "导出数据").trigger("click");
-
-    await vi.waitFor(() => {
-      expect(apiMocks.createWorkorderCsvFile).toHaveBeenCalledTimes(1);
-    });
-
-    expect(apiMocks.success).toHaveBeenCalledWith(
-      "CSV 已打开预览，请在新页面中保存文件。",
-      "导出完成",
-    );
   });
 });

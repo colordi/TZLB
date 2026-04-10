@@ -27,7 +27,7 @@ const routes = [
     component: WorkOrderView,
     meta: {
       section: "工单录入",
-      blurb: "批量录入现场记录、嵌入照片并直接导出 Word 工作单。",
+      blurb: "通过调查导入整理工单记录，补充图片后生成 Word 工作单。",
     },
   },
   {

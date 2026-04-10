@@ -18,7 +18,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "于家务乡枣林村YF0005点位，调查发现春尺蠖幼虫危害程度为重，总虫口数50头。"
+            "于家务乡枣林村YF0005点位，调查发现春尺蠖幼虫危害程度为重，平均每标准枝10头。"
             "建议立即组织防治作业，并优先复核周边相邻点位。",
         )
 
@@ -33,7 +33,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "永乐店镇陈辛庄村YL0033点位，调查发现春尺蠖幼虫危害程度为中，总虫口数28头。"
+            "永乐店镇陈辛庄村YL0033点位，调查发现春尺蠖幼虫危害程度为中，平均每标准枝6头。"
             "建议尽快安排防治，并持续跟踪虫情变化。",
         )
 
@@ -48,7 +48,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "于家务乡枣林村YF0005点位，调查发现春尺蠖幼虫危害程度为轻，总虫口数6头。"
+            "于家务乡枣林村YF0005点位，调查发现春尺蠖幼虫危害程度为轻，平均每标准枝2头。"
             "建议加强巡查，视虫情发展适时处置。",
         )
 
@@ -63,7 +63,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，总虫口数未记录。"
+            "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，平均每标准枝未记录。"
             "建议立即组织防治作业，并优先复核周边相邻点位。",
         )
 
@@ -78,7 +78,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "西集镇林场一区XJ0001点位，调查发现春尺蠖幼虫危害程度为待判定，总虫口数12头。"
+            "西集镇林场一区XJ0001点位，调查发现春尺蠖幼虫危害程度为待判定，平均每标准枝3头。"
             "建议复核现场危害情况并及时补录调查结果。",
         )
 
@@ -93,7 +93,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
         self.assertEqual(
             description,
-            "示范点SF0008点位，调查发现春尺蠖幼虫危害程度为偏重，总虫口数33头。"
+            "示范点SF0008点位，调查发现春尺蠖幼虫危害程度为偏重，平均每标准枝7头。"
             "建议结合现场情况制定防治措施并复核虫情。",
         )
 
@@ -121,7 +121,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candidates[0]["note"], "树冠北侧虫口集中")
         self.assertEqual(
             candidates[0]["description"],
-            "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，总虫口数50头。"
+            "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，平均每标准枝10头。"
             "建议立即组织防治作业，并优先复核周边相邻点位。",
         )
         self.assertNotIn("树冠北侧虫口集中", candidates[0]["description"])

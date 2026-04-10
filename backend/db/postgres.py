@@ -235,9 +235,9 @@ def build_spring_inchworm_description(
     location_text = f"{location_prefix}点位，" if location_prefix else ""
     normalized_level = (damage_level or "").strip()
     level_text = normalized_level or "待判定"
-    insect_count_text = (
-        f"{int(total_insect_count)}头" if total_insect_count is not None else "未记录"
-    )
+    average_insect_count_text = "未记录"
+    if total_insect_count is not None:
+        average_insect_count_text = f"{(total_insect_count + 4) // 5}头"
 
     if normalized_level == "重":
         advice = "建议立即组织防治作业，并优先复核周边相邻点位。"
@@ -252,7 +252,7 @@ def build_spring_inchworm_description(
 
     return (
         f"{location_text}调查发现春尺蠖幼虫危害程度为{level_text}，"
-        f"总虫口数{insect_count_text}。{advice}"
+        f"平均每标准枝{average_insect_count_text}。{advice}"
     )
 
 

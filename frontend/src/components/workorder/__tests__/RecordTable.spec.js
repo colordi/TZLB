@@ -41,23 +41,9 @@ describe("RecordTable", () => {
     expect(wrapper.text()).not.toContain("总虫口数");
     expect(wrapper.text()).not.toContain("受害程度");
     expect(wrapper.text()).not.toContain("上报时间");
-  });
-
-  it("复制记录时会向外发出包含新增记录的结果", async () => {
-    const wrapper = mount(RecordTable, {
-      props: {
-        records: [buildRecord()],
-        pestType: "春尺蠖",
-      },
-    });
-
-    await wrapper.get('[data-testid="duplicate-record-0"]').trigger("click");
-
-    const events = wrapper.emitted("update:records");
-    expect(events).toBeTruthy();
-    const latestRecords = events.at(-1)?.[0];
-    expect(latestRecords).toHaveLength(2);
-    expect(latestRecords[1].location_name).toBe("城东林场A区");
+    expect(wrapper.find('[data-testid="duplicate-record-0"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="delete-record-0"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("管理现场图片");
   });
 
   it("删除唯一记录时仍会保留一条空白记录", async () => {
@@ -75,5 +61,17 @@ describe("RecordTable", () => {
     const latestRecords = events.at(-1)?.[0];
     expect(latestRecords).toHaveLength(1);
     expect(latestRecords[0].location_name).toBe("");
+  });
+
+  it("空状态提示先导入调查数据", () => {
+    const wrapper = mount(RecordTable, {
+      props: {
+        records: [],
+        pestType: "春尺蠖",
+      },
+    });
+
+    expect(wrapper.text()).toContain("请先导入调查数据");
+    expect(wrapper.text()).not.toContain("点击上方“新增记录”");
   });
 });
