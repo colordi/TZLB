@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import io
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.schemas import WorkOrderGenerateRequest
-from backend.services.docgen import convert_docx_bytes_to_doc, generate_workorder_artifact
+from backend.services.docgen import (
+    convert_docx_bytes_to_doc,
+    generate_workorder_artifact,
+    render_single_document,
+)
 
 
 def create_payload() -> WorkOrderGenerateRequest:
@@ -98,6 +104,87 @@ class DocgenTest(unittest.TestCase):
                 generate_workorder_artifact(payload)
 
         self.assertEqual(str(context.exception), "LibreOffice 转换失败：filter not found")
+
+    def test_render_single_document_renders_serial_number_from_template(self) -> None:
+        payload = create_payload()
+        filename, content = render_single_document(
+            template_path=Path("templates/春尺蠖工作单模板.docx"),
+            record=payload.records[0],
+            pest_type=payload.pest_type,
+            task_type=payload.task_type,
+            task_name=payload.task,
+            index=0,
+            temp_images=[],
+        )
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+
+        self.assertEqual(
+            filename,
+            "2026林业有害生物防治工作单（于家务乡）-神仙村-2026-04-01-YF0069.docx",
+        )
+        self.assertIn("编号：2026-04-01-001", document_xml)
+        self.assertNotIn("{{serial_number}}", document_xml)
+
+    def test_render_single_document_uses_record_serial_number_when_present(self) -> None:
+        payload = create_payload()
+        payload.records[0].serial_number = 2
+
+        _, content = render_single_document(
+            template_path=Path("templates/春尺蠖工作单模板.docx"),
+            record=payload.records[0],
+            pest_type=payload.pest_type,
+            task_type=payload.task_type,
+            task_name=payload.task,
+            index=0,
+            temp_images=[],
+        )
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+
+        self.assertIn("编号：2026-04-01-002", document_xml)
+        self.assertNotIn("编号：2026-04-01-001", document_xml)
+
+    def test_render_single_document_renders_other_pest_template_fields(self) -> None:
+        payload = WorkOrderGenerateRequest(
+            pest_type="其他害虫",
+            task_type="其他害虫防治",
+            task="2026其他害虫防治",
+            records=[
+                {
+                    "survey_date": "2026-04-17",
+                    "town_or_street": "潞城镇",
+                    "location_id": "QT0001",
+                    "location_name": "畅和东路北京学校西侧",
+                    "pest_name": "蚜虫",
+                    "host_plant": "栾树",
+                    "plot_type": "道路绿化",
+                    "description": "潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。",
+                    "note": "",
+                    "images": [],
+                }
+            ],
+        )
+
+        _, content = render_single_document(
+            template_path=Path("templates/其他害虫工作单模板.docx"),
+            record=payload.records[0],
+            pest_type=payload.pest_type,
+            task_type=payload.task_type,
+            task_name=payload.task,
+            index=0,
+            temp_images=[],
+        )
+
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            document_xml = archive.read("word/document.xml").decode("utf-8")
+
+        self.assertIn("蚜虫", document_xml)
+        self.assertIn("栾树", document_xml)
+        self.assertIn("道路绿化", document_xml)
+        self.assertIn("潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。", document_xml)
 
 
 if __name__ == "__main__":

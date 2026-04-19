@@ -51,6 +51,7 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
+        pestType: "春尺蠖",
       },
       global: {
         stubs: {
@@ -64,7 +65,7 @@ describe("SurveyImportDialog", () => {
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-04-01",
+      "/api/survey/candidates?date=2026-04-01&pest_type=%E6%98%A5%E5%B0%BA%E8%A0%96",
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -85,6 +86,7 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
+        pestType: "春尺蠖",
       },
       global: {
         stubs: {
@@ -99,5 +101,53 @@ describe("SurveyImportDialog", () => {
 
     expect(wrapper.text()).toContain("未找到可导入的调查记录");
     expect(wrapper.get('[data-testid="survey-import-confirm"]').attributes("disabled")).toBeDefined();
+  });
+
+  it("其他害虫查询时带上 pest_type 并展示其他害虫列头", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse([
+        {
+          survey_date: "2026-04-17",
+          town_or_street: "潞城镇",
+          location_id: "QT0001",
+          location_name: "畅和东路北京学校西侧",
+          pest_name: "蚜虫",
+          host_plant: "栾树",
+          survey_result: "发现问题",
+          plot_type: "道路绿化",
+          description: "描述1",
+          note: "",
+          images: [],
+        },
+      ]),
+    );
+
+    const wrapper = mount(SurveyImportDialog, {
+      props: {
+        open: true,
+        pestType: "其他害虫",
+      },
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+
+    await wrapper.get("#survey-import-date").setValue("2026-04-17");
+    await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/candidates?date=2026-04-17&pest_type=%E5%85%B6%E4%BB%96%E5%AE%B3%E8%99%AB",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
+    expect(wrapper.text()).toContain("虫害类型");
+    expect(wrapper.text()).toContain("寄主树种");
+    expect(wrapper.text()).toContain("调查结论");
+    expect(wrapper.text()).toContain("蚜虫");
+    expect(wrapper.text()).toContain("栾树");
   });
 });

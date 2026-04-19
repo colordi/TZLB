@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 from datetime import date as date_cls
+from pathlib import Path
 from typing import Any
 
 import asyncpg
@@ -14,8 +17,10 @@ REFERENCE_SCHEMA = "reference"
 ADMIN_BOUNDARY_TABLE = "admin_boundary"
 SURVEY_SCHEMA = "survey"
 SURVEY_LARVA_TABLE = "chun_chi_huo_larva"
+OTHER_PEST_SURVEY_TABLE = "other_pest_inspection"
 SITE_SCHEMA = "sites"
 SITE_TABLE = "poplar_sites"
+OTHER_PEST_SITE_TABLE = "other_pest_sites"
 
 _pool: asyncpg.Pool | None = None
 
@@ -264,8 +269,98 @@ def serialize_date_value(value: Any) -> str:
     return str(value)
 
 
-async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]:
+def build_point_screenshot_index() -> dict[str, Path]:
+    """扫描本地点位截图目录，返回可唯一匹配的点位截图索引。"""
+
+    screenshot_dir = get_settings().point_screenshot_dir
+    if not screenshot_dir.exists() or not screenshot_dir.is_dir():
+        return {}
+
+    indexed_paths: dict[str, list[Path]] = {}
+    for path in sorted(screenshot_dir.iterdir()):
+        if not path.is_file():
+            continue
+
+        mime_type, _ = mimetypes.guess_type(path.name)
+        if not mime_type or not mime_type.startswith("image/"):
+            continue
+
+        location_id = path.stem.strip()
+        if not location_id:
+            continue
+
+        indexed_paths.setdefault(location_id, []).append(path)
+
+    return {
+        location_id: paths[0]
+        for location_id, paths in indexed_paths.items()
+        if len(paths) == 1
+    }
+
+
+def encode_image_as_data_url(image_path: Path) -> str | None:
+    """读取本地图片并编码为前端可直接使用的 Data URL。"""
+
+    mime_type, _ = mimetypes.guess_type(image_path.name)
+    if not mime_type or not mime_type.startswith("image/"):
+        return None
+
+    try:
+        content = image_path.read_bytes()
+    except OSError:
+        return None
+
+    encoded = base64.b64encode(content).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def load_spring_inchworm_images(
+    location_id: str,
+    screenshot_index: dict[str, Path],
+) -> list[str]:
+    """按点位编号匹配春尺蠖导入默认截图。"""
+
+    normalized_location_id = (location_id or "").strip()
+    if not normalized_location_id:
+        return []
+
+    image_path = screenshot_index.get(normalized_location_id)
+    if image_path is None:
+        return []
+
+    data_url = encode_image_as_data_url(image_path)
+    return [data_url] if data_url else []
+
+
+async def fetch_survey_candidates(
+    survey_date: date_cls,
+    pest_type: str = "春尺蠖",
+) -> list[dict[str, Any]]:
     """读取指定日期可导入为工作单的调查记录。"""
+
+    return await fetch_survey_candidates_by_type(
+        survey_date=survey_date,
+        pest_type=pest_type,
+    )
+
+
+async def fetch_survey_candidates_by_type(
+    survey_date: date_cls,
+    pest_type: str,
+) -> list[dict[str, Any]]:
+    """按害虫类型读取指定日期的工作单导入候选记录。"""
+
+    if pest_type == "其他害虫":
+        return await fetch_other_pest_survey_candidates(survey_date)
+    if pest_type == "春尺蠖":
+        return await fetch_spring_inchworm_survey_candidates(survey_date)
+    raise ValueError(f"暂不支持 {pest_type} 的调查导入")
+
+
+async def fetch_spring_inchworm_survey_candidates(
+    survey_date: date_cls,
+) -> list[dict[str, Any]]:
+    """读取指定日期的春尺蠖调查导入候选记录。"""
 
     qualified_larva_table = (
         f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(SURVEY_LARVA_TABLE)}"
@@ -295,8 +390,12 @@ async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]
         survey_date,
     )
 
+    screenshot_index = build_point_screenshot_index()
     candidates: list[dict[str, Any]] = []
     for row in rows:
+        location_id = str(row["location_id"] or "").strip()
+        town_or_street = (row["town_or_street"] or "").strip()
+        location_name = (row["location_name"] or "").strip()
         insect_count = row["total_insect_count"]
         if insect_count is not None:
             insect_count = int(insect_count)
@@ -305,16 +404,17 @@ async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]
         candidates.append(
             {
                 "survey_date": serialize_date_value(row["survey_date"]),
-                "town_or_street": (row["town_or_street"] or "").strip(),
-                "location_id": str(row["location_id"] or "").strip(),
-                "location_name": (row["location_name"] or "").strip(),
+                "town_or_street": town_or_street,
+                "location_id": location_id,
+                "location_name": location_name,
                 "total_insect_count": insect_count,
                 "damage_level": damage_level,
                 "note": (row["note"] or "").strip(),
+                "images": load_spring_inchworm_images(location_id, screenshot_index),
                 "description": build_spring_inchworm_description(
-                    town_or_street=(row["town_or_street"] or "").strip(),
-                    location_name=(row["location_name"] or "").strip(),
-                    location_id=str(row["location_id"] or "").strip(),
+                    town_or_street=town_or_street,
+                    location_name=location_name,
+                    location_id=location_id,
                     damage_level=damage_level,
                     total_insect_count=insect_count,
                 ),
@@ -322,3 +422,56 @@ async def fetch_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]
         )
 
     return candidates
+
+
+async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]:
+    """读取指定日期的其他害虫调查导入候选记录。"""
+
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(OTHER_PEST_SURVEY_TABLE)}"
+    )
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+    )
+
+    rows = await fetch(
+        f"""
+        SELECT
+            i."编号" AS location_id,
+            i."调查日期" AS survey_date,
+            BTRIM(i."虫害类型") AS pest_name,
+            BTRIM(i."调查结论") AS survey_result,
+            COALESCE(i."详细描述", '') AS description,
+            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."点位名称", '') AS location_name,
+            COALESCE(s."寄主树种", '') AS host_plant,
+            COALESCE(s."地块类型", '') AS plot_type
+        FROM {qualified_survey_table} AS i
+        JOIN {qualified_site_table} AS s
+          ON i."编号" = s."编号"
+        WHERE i."调查日期" = $1
+          AND BTRIM(COALESCE(i."调查结论", '')) = '发现问题'
+        ORDER BY
+            COALESCE(s."乡镇", ''),
+            i."编号",
+            COALESCE(i."虫害类型", '')
+        """,
+        survey_date,
+    )
+
+    return [
+        {
+            "survey_date": serialize_date_value(row["survey_date"]),
+            "town_or_street": (row["town_or_street"] or "").strip(),
+            "location_id": str(row["location_id"] or "").strip(),
+            "location_name": (row["location_name"] or "").strip(),
+            "pest_name": (row["pest_name"] or "").strip(),
+            "host_plant": (row["host_plant"] or "").strip(),
+            "plot_type": (row["plot_type"] or "").strip(),
+            "survey_result": (row["survey_result"] or "").strip(),
+            "description": (row["description"] or "").strip(),
+            "note": "",
+            "images": [],
+        }
+        for row in rows
+    ]

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyRecord,
+  getDefaultControlType,
+  getDefaultTask,
   getVisibleFields,
   toPayloadRecord,
   validateRecords,
@@ -44,6 +46,27 @@ describe("fieldConfig", () => {
     expect(fieldKeys).toContain("report_time");
   });
 
+  it("其他害虫只保留模板所需字段", () => {
+    const fieldKeys = getVisibleFields("其他害虫").map((field) => field.key);
+
+    expect(fieldKeys).toEqual([
+      "survey_date",
+      "town_or_street",
+      "location_id",
+      "location_name",
+      "plot_type",
+      "pest_name",
+      "host_plant",
+      "note",
+      "description",
+    ]);
+  });
+
+  it("其他害虫默认统防统治类型与任务改为其他害虫防治", () => {
+    expect(getDefaultControlType("其他害虫")).toBe("其他害虫防治");
+    expect(getDefaultTask("其他害虫")).toBe("2026其他害虫防治");
+  });
+
   it("春尺蠖导出载荷只保留模板字段", () => {
     const payload = toPayloadRecord(
       buildSpringRecord({
@@ -83,5 +106,39 @@ describe("fieldConfig", () => {
     );
 
     expect(errors).toEqual({});
+  });
+
+  it("其他害虫导出载荷只保留模板字段", () => {
+    const payload = toPayloadRecord(
+      {
+        ...createEmptyRecord("其他害虫"),
+        survey_date: "2026-04-17",
+        town_or_street: "潞城镇",
+        location_id: "QT0001",
+        location_name: "畅和东路北京学校西侧",
+        plot_type: "道路绿化",
+        pest_name: "蚜虫",
+        host_plant: "栾树",
+        note: "",
+        description: "现场描述",
+        region: "城区",
+        occurrence_position: "学校西侧",
+        report_time: "2026-04-17",
+      },
+      "其他害虫",
+    );
+
+    expect(payload).toEqual({
+      survey_date: "2026-04-17",
+      town_or_street: "潞城镇",
+      location_id: "QT0001",
+      location_name: "畅和东路北京学校西侧",
+      plot_type: "道路绿化",
+      pest_name: "蚜虫",
+      host_plant: "栾树",
+      note: "",
+      description: "现场描述",
+      images: [],
+    });
   });
 });

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     )
     frontend_dist_dir: Path = BASE_DIR / "frontend" / "dist"
     templates_dir: Path = BASE_DIR / "templates"
+    point_screenshot_dir: Path = BASE_DIR / "points" / "杨树点位截图"
     temp_dir: Path = BASE_DIR / ".tmp" / "workorder_images"
     libreoffice_bin: str = Field(
         default="soffice",
@@ -43,6 +44,10 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = Field(
         default=False,
         validation_alias="AUTH_COOKIE_SECURE",
+    )
+    auth_bypass_localhost: bool = Field(
+        default=False,
+        validation_alias="AUTH_BYPASS_LOCALHOST",
     )
     auth_session_ttl_hours: int = Field(
         default=12,

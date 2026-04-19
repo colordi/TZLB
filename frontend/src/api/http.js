@@ -5,7 +5,16 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export const LOCAL_AUTH_BYPASS_HEADER = "X-TZLB-Local-Auth-Bypass";
+
 let redirectingToLogin = false;
+
+function normalizeHostname(hostname) {
+  return String(hostname || "")
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase();
+}
 
 function getCurrentPath(locationLike) {
   if (!locationLike) {
@@ -45,6 +54,19 @@ export function isUnauthorizedError(error) {
   return error instanceof UnauthorizedError || error?.name === "UnauthorizedError";
 }
 
+export function isLocalhostHostname(hostname) {
+  const normalizedHostname = normalizeHostname(hostname);
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1"
+  );
+}
+
+export function shouldAttachLocalAuthBypass(locationLike = globalThis.window?.location) {
+  return isLocalhostHostname(locationLike?.hostname);
+}
+
 async function parseError(response) {
   try {
     const payload = await response.json();
@@ -71,8 +93,14 @@ export async function ensureApiSuccess(response, options = {}) {
 }
 
 export function apiFetch(input, init = {}) {
+  const headers = new Headers(init.headers || {});
+  if (shouldAttachLocalAuthBypass()) {
+    headers.set(LOCAL_AUTH_BYPASS_HEADER, "1");
+  }
+
   return fetch(input, {
     credentials: "same-origin",
     ...init,
+    headers,
   });
 }

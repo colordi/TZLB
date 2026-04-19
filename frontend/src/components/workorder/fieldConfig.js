@@ -7,13 +7,13 @@ export const PEST_OPTIONS = [
 export const CONTROL_TYPE_OPTIONS = [
   { value: "春尺蠖防治", label: "春尺蠖防治" },
   { value: "国槐尺蠖防治", label: "国槐尺蠖防治" },
-  { value: "美国白蛾防治", label: "美国白蛾防治" },
+  { value: "其他害虫防治", label: "其他害虫防治" },
 ];
 
 const DEFAULT_CONTROL_TYPE_BY_PEST = {
   春尺蠖: "春尺蠖防治",
   国槐尺蠖: "国槐尺蠖防治",
-  其他害虫: "美国白蛾防治",
+  其他害虫: "其他害虫防治",
 };
 
 const CONTROL_TASK_OPTIONS_BY_PEST = {
@@ -21,7 +21,9 @@ const CONTROL_TASK_OPTIONS_BY_PEST = {
     { value: "2026春尺蠖防治", label: "2026春尺蠖防治" },
   ],
   国槐尺蠖: [],
-  其他害虫: [],
+  其他害虫: [
+    { value: "2026其他害虫防治", label: "2026其他害虫防治" },
+  ],
 };
 
 export const REQUIRED_FIELD_KEYS_BY_PEST = {
@@ -97,12 +99,12 @@ const FIELD_DEFINITIONS = {
   },
   pest_name: {
     key: "pest_name",
-    label: "虫种",
+    label: "虫害类型",
     type: "text",
   },
   host_plant: {
     key: "host_plant",
-    label: "受害树种",
+    label: "寄主树种",
     type: "text",
   },
   plot_type: {
@@ -153,15 +155,13 @@ const GUO_HUAI_FIELD_KEYS = [
 
 const OTHER_PEST_FIELD_KEYS = [
   "survey_date",
-  "region",
   "town_or_street",
   "location_id",
   "location_name",
-  "occurrence_position",
   "plot_type",
   "pest_name",
   "host_plant",
-  "report_time",
+  "note",
   "description",
 ];
 
@@ -325,16 +325,12 @@ export function toPayloadRecord(record, pestType) {
     return sharedPayload;
   }
 
-  const base = {
-    ...sharedPayload,
-    region: normalized.region.trim(),
-    occurrence_position: normalized.occurrence_position.trim(),
-    report_time: normalizeDate(normalized.report_time),
-  };
-
   if (pestType === "国槐尺蠖") {
     return {
-      ...base,
+      ...sharedPayload,
+      region: normalized.region.trim(),
+      occurrence_position: normalized.occurrence_position.trim(),
+      report_time: normalizeDate(normalized.report_time),
       plot_type: "平原造林",
       total_insect_count: normalized.total_insect_count === "" ? null : Number(normalized.total_insect_count),
       damage_level: normalized.damage_level.trim(),
@@ -342,7 +338,7 @@ export function toPayloadRecord(record, pestType) {
   }
 
   return {
-    ...base,
+    ...sharedPayload,
     pest_name: normalized.pest_name.trim(),
     host_plant: normalized.host_plant.trim(),
     plot_type: normalized.plot_type.trim(),

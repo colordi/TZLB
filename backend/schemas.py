@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 PestType = Literal["春尺蠖", "国槐尺蠖", "其他害虫"]
-TaskType = Literal["春尺蠖防治", "国槐尺蠖防治", "美国白蛾防治"]
+TaskType = Literal["春尺蠖防治", "国槐尺蠖防治", "其他害虫防治"]
 
 
 class WorkOrderRecord(BaseModel):
@@ -28,6 +28,7 @@ class WorkOrderRecord(BaseModel):
     description: str
     note: str = ""
     plot_type: str = ""
+    serial_number: int | None = Field(default=None, ge=1, le=999)
     images: list[str] = Field(default_factory=list)
 
     @field_validator("images")

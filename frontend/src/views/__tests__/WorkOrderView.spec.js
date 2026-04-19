@@ -49,6 +49,10 @@ const SurveyImportDialogStub = defineComponent({
       type: Boolean,
       default: false,
     },
+    pestType: {
+      type: String,
+      default: "春尺蠖",
+    },
   },
   emits: ["close", "import"],
   template: '<div data-testid="survey-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
@@ -77,8 +81,9 @@ function createValidRecord(overrides = {}) {
   };
 }
 
-function updateRecords(wrapper, nextRecords) {
-  wrapper.getComponent(RecordTableStub).vm.$emit("update:records", nextRecords);
+async function importRecords(wrapper, nextRecords) {
+  wrapper.getComponent(SurveyImportDialogStub).vm.$emit("import", nextRecords);
+  await wrapper.vm.$nextTick();
 }
 
 function findButtonByText(wrapper, keyword) {
@@ -119,29 +124,31 @@ describe("WorkOrderView", () => {
 
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("工单录入");
-    expect(wrapper.text()).not.toContain("表格粘贴");
-    expect(wrapper.text()).not.toContain("现场记录");
-    expect(wrapper.text()).not.toContain("新增记录");
-    expect(wrapper.text()).not.toContain("导出数据");
-    expect(wrapper.text()).toContain("录入概览");
+    expect(wrapper.text()).toContain("当前记录");
+    expect(wrapper.text()).toContain("图片总数");
     expect(wrapper.text()).toContain("任务配置");
     expect(wrapper.text()).toContain("生成工作单");
     expect(wrapper.text()).toContain("导入调查数据");
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("春尺蠖显示调查导入入口，切换害虫后隐藏", async () => {
+  it("春尺蠖和其他害虫显示调查导入入口，国槐尺蠖隐藏", async () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+
+    await wrapper.get("#pest-type").setValue("其他害虫");
+
+    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.get("#task-type").element.value).toBe("其他害虫防治");
+    expect(wrapper.get("#task-name").element.value).toBe("2026其他害虫防治");
 
     await wrapper.get("#pest-type").setValue("国槐尺蠖");
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(false);
   });
 
-  it("导入调查记录时会替换初始空白行，并在已有记录时追加", async () => {
+  it("导入调查记录时会保留自动图片，并在已有记录后继续追加", async () => {
     const wrapper = mountWorkOrderView();
     const recordTable = wrapper.getComponent(RecordTableStub);
     const surveyDialog = wrapper.getComponent(SurveyImportDialogStub);
@@ -149,7 +156,7 @@ describe("WorkOrderView", () => {
     await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
     expect(surveyDialog.props("open")).toBe(true);
 
-    surveyDialog.vm.$emit("import", [
+    await importRecords(wrapper, [
       {
         survey_date: "2026-04-01",
         town_or_street: "于家务乡",
@@ -159,26 +166,17 @@ describe("WorkOrderView", () => {
         damage_level: "重",
         note: "",
         description: "描述1",
+        images: ["data:image/jpeg;base64,point-screenshot"],
       },
     ]);
-    await wrapper.vm.$nextTick();
 
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("YF0069");
-
-    recordTable.vm.$emit("update:records", [
-      {
-        ...createEmptyRecord("春尺蠖"),
-        survey_date: "2026-04-01",
-        town_or_street: "西集镇",
-        location_id: "XJ0001",
-        location_name: "林场一区",
-        description: "已有记录",
-      },
+    expect(recordTable.props("records")[0].images).toEqual([
+      "data:image/jpeg;base64,point-screenshot",
     ]);
-    await wrapper.vm.$nextTick();
 
-    surveyDialog.vm.$emit("import", [
+    await importRecords(wrapper, [
       {
         survey_date: "2026-04-02",
         town_or_street: "漷县镇",
@@ -190,17 +188,59 @@ describe("WorkOrderView", () => {
         description: "描述2",
       },
     ]);
-    await wrapper.vm.$nextTick();
 
     expect(recordTable.props("records")).toHaveLength(2);
-    expect(recordTable.props("records")[0].location_id).toBe("XJ0001");
+    expect(recordTable.props("records")[0].location_id).toBe("YF0069");
     expect(recordTable.props("records")[1].location_id).toBe("HX0002");
+  });
+
+  it("其他害虫导入后保留模板字段并支持导出", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await wrapper.get("#pest-type").setValue("其他害虫");
+    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
+
+    await importRecords(wrapper, [
+      {
+        survey_date: "2026-04-17",
+        town_or_street: "潞城镇",
+        location_id: "QT0001",
+        location_name: "畅和东路北京学校西侧",
+        pest_name: "蚜虫",
+        host_plant: "栾树",
+        plot_type: "道路绿化",
+        survey_result: "发现问题",
+        description: "描述1",
+        note: "",
+        images: [],
+      },
+    ]);
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
+      pest_type: "其他害虫",
+      task_type: "其他害虫防治",
+      task: "2026其他害虫防治",
+      records: [
+        expect.objectContaining({
+          location_id: "QT0001",
+          pest_name: "蚜虫",
+          host_plant: "栾树",
+          plot_type: "道路绿化",
+          serial_number: 1,
+        }),
+      ],
+    });
   });
 
   it("单条记录导出时只请求一次接口，并按真实下载结果提示成功", async () => {
     const wrapper = mountWorkOrderView();
-    updateRecords(wrapper, [createValidRecord()]);
-    await wrapper.vm.$nextTick();
+    await importRecords(wrapper, [createValidRecord()]);
 
     await findButtonByText(wrapper, "生成工作单").trigger("click");
 
@@ -215,6 +255,7 @@ describe("WorkOrderView", () => {
       records: [
         expect.objectContaining({
           location_id: "YF0069",
+          serial_number: 1,
         }),
       ],
     });
@@ -231,11 +272,10 @@ describe("WorkOrderView", () => {
       .mockImplementationOnce(() => secondRequest.promise);
 
     const wrapper = mountWorkOrderView();
-    updateRecords(wrapper, [
+    await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
-    await wrapper.vm.$nextTick();
 
     await findButtonByText(wrapper, "生成工作单").trigger("click");
 
@@ -266,7 +306,9 @@ describe("WorkOrderView", () => {
     expect(apiMocks.generateWorkorder.mock.calls[0][0].records).toHaveLength(1);
     expect(apiMocks.generateWorkorder.mock.calls[1][0].records).toHaveLength(1);
     expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0].location_id).toBe("YF0069");
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0].serial_number).toBe(1);
     expect(apiMocks.generateWorkorder.mock.calls[1][0].records[0].location_id).toBe("YF0070");
+    expect(apiMocks.generateWorkorder.mock.calls[1][0].records[0].serial_number).toBe(2);
   });
 
   it("多条记录部分失败时展示部分成功提示，不误报全部成功", async () => {
@@ -278,11 +320,10 @@ describe("WorkOrderView", () => {
       .mockRejectedValueOnce(new Error("网络异常"));
 
     const wrapper = mountWorkOrderView();
-    updateRecords(wrapper, [
+    await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
-    await wrapper.vm.$nextTick();
 
     await findButtonByText(wrapper, "生成工作单").trigger("click");
 
@@ -300,11 +341,13 @@ describe("WorkOrderView", () => {
     apiMocks.generateWorkorder.mockRejectedValueOnce(new UnauthorizedError());
 
     const wrapper = mountWorkOrderView();
-    updateRecords(wrapper, [
+    await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
-    await wrapper.vm.$nextTick();
+    apiMocks.success.mockClear();
+    apiMocks.error.mockClear();
+    apiMocks.downloadBlob.mockClear();
 
     await findButtonByText(wrapper, "生成工作单").trigger("click");
 

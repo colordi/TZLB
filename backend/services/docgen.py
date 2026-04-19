@@ -5,6 +5,7 @@ import io
 import subprocess
 import tempfile
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -86,10 +87,11 @@ def build_context(
     """组装模板上下文。"""
 
     context = record.model_dump()
+    serial_number = record.serial_number if record.serial_number is not None else index + 1
     context["pest_type"] = pest_type
     context["task_type"] = task_type
     context["task"] = task_name or task_type
-    context["serial_number"] = str(index + 1).zfill(3)
+    context["serial_number"] = str(serial_number).zfill(3)
     context["note"] = context.get("note") or ""
 
     if pest_type in CHI_HUO_TYPES:
@@ -125,6 +127,36 @@ def replace_suffix(filename: str, suffix: str) -> str:
     return f"{Path(filename).stem}{suffix}"
 
 
+def ensure_template_context_complete(
+    doc: DocxTemplate, context: dict, template_path: Path
+) -> None:
+    """确保模板中的占位字段都能在上下文中找到值。"""
+
+    missing_variables = sorted(doc.get_undeclared_template_variables(context=context))
+    if missing_variables:
+        missing_list = "、".join(missing_variables)
+        raise ValueError(f"模板缺少渲染字段：{missing_list}（模板：{template_path.name}）")
+
+
+def ensure_template_markers_resolved(content: bytes, template_path: Path) -> None:
+    """确保渲染后的文档中不存在未替换的模板标记。"""
+
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        unresolved_files: list[str] = []
+        for member in archive.namelist():
+            if not member.startswith("word/") or not member.endswith(".xml"):
+                continue
+            xml_text = archive.read(member).decode("utf-8", errors="ignore")
+            if "{{" in xml_text or "{%" in xml_text or "{#" in xml_text:
+                unresolved_files.append(member)
+
+    if unresolved_files:
+        unresolved_list = "、".join(unresolved_files)
+        raise ValueError(
+            f"模板渲染后仍存在未替换占位：{unresolved_list}（模板：{template_path.name}）"
+        )
+
+
 def render_single_document(
     template_path: Path,
     record: WorkOrderRecord,
@@ -142,11 +174,14 @@ def render_single_document(
     temp_images.extend(image_paths)
 
     context = build_context(doc, record, pest_type, task_type, task_name, index, image_paths)
+    ensure_template_context_complete(doc, context, template_path)
     doc.render(context)
 
     buffer = io.BytesIO()
     doc.save(buffer)
-    return build_output_filename(record, index), buffer.getvalue()
+    content = buffer.getvalue()
+    ensure_template_markers_resolved(content, template_path)
+    return build_output_filename(record, index), content
 
 
 def convert_docx_bytes_to_doc(filename: str, content: bytes) -> tuple[str, bytes]:

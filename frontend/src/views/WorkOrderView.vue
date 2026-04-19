@@ -9,7 +9,6 @@ import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import {
   CONTROL_TYPE_OPTIONS,
   PEST_OPTIONS,
-  createEmptyRecord,
   getDefaultControlType,
   getDefaultTask,
   getTaskOptions,
@@ -40,7 +39,7 @@ const activeRecordIndex = ref(-1);
 const showDetailModal = ref(false);
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
-const canImportSurvey = computed(() => pestType.value === "春尺蠖");
+const canImportSurvey = computed(() => ["春尺蠖", "其他害虫"].includes(pestType.value));
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
 );
@@ -61,9 +60,7 @@ watch(pestType, (nextType) => {
   taskType.value = getDefaultControlType(nextType);
   taskName.value = getDefaultTask(nextType);
   showValidationErrors.value = false;
-  if (nextType !== "春尺蠖") {
-    surveyImportOpen.value = false;
-  }
+  surveyImportOpen.value = false;
   selectedIndexes.value = []; // Reset selections
   records.value = records.value.length
     ? records.value.map((record) => normalizeRecordForPest(record, nextType))
@@ -75,22 +72,6 @@ watch(taskOptions, (options) => {
     taskName.value = options[0]?.value || "";
   }
 });
-
-function updateRecords(nextRecords) {
-  records.value = nextRecords.map((record) => normalizeRecordForPest(record, pestType.value));
-}
-
-function hasMeaningfulRecordContent(record) {
-  const normalized = normalizeRecordForPest(record, pestType.value);
-  return Boolean(
-    `${normalized.town_or_street || ""}`.trim() ||
-      `${normalized.location_id || ""}`.trim() ||
-      `${normalized.location_name || ""}`.trim() ||
-      `${normalized.description || ""}`.trim() ||
-      `${normalized.note || ""}`.trim() ||
-      Array.isArray(normalized.images) && normalized.images.length > 0,
-  );
-}
 
 function openSurveyImportDialog() {
   if (!canImportSurvey.value || generating.value) {
@@ -210,7 +191,10 @@ async function handleGenerate() {
       task_type: taskType.value,
       task: taskName.value,
     };
-    const payloadRecords = records.value.map((record) => toPayloadRecord(record, pestType.value));
+    const payloadRecords = records.value.map((record, index) => ({
+      ...toPayloadRecord(record, pestType.value),
+      serial_number: index + 1,
+    }));
     let completedCount = 0;
     let lastDelivery = null;
 
@@ -404,12 +388,13 @@ async function handleGenerate() {
           @delete="handleDeleteRecord"
         />
 
-        <SurveyImportDialog
-          :busy="generating"
-          :open="surveyImportOpen"
-          @close="closeSurveyImportDialog"
-          @import="handleSurveyImport"
-        />
+    <SurveyImportDialog
+      :busy="generating"
+      :open="surveyImportOpen"
+      :pest-type="pestType"
+      @close="closeSurveyImportDialog"
+      @import="handleSurveyImport"
+    />
       </div>
     </div>
   </section>

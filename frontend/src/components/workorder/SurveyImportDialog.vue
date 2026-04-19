@@ -11,6 +11,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  pestType: {
+    type: String,
+    default: "春尺蠖",
+  },
   open: {
     type: Boolean,
     default: false,
@@ -31,9 +35,52 @@ const selectedCount = computed(() => selectedCandidateKeys.value.length);
 const hasCandidates = computed(() => totalCount.value > 0);
 const allSelected = computed(() => hasCandidates.value && selectedCount.value === totalCount.value);
 const canImport = computed(() => !props.busy && !loading.value && selectedCount.value > 0);
+const isOtherPest = computed(() => props.pestType === "其他害虫");
+const dialogDescription = computed(() =>
+  isOtherPest.value
+    ? "按调查日期查询其他害虫问题点位，并批量追加到当前工作单。"
+    : "按调查日期查询春尺蠖受害点位，并批量追加到当前工作单。",
+);
+const idleHint = computed(() =>
+  isOtherPest.value
+    ? "当前支持按调查日期导入其他害虫调查数据。"
+    : "当前仅支持导入春尺蠖幼虫调查数据。",
+);
+const candidateColumns = computed(() =>
+  isOtherPest.value
+    ? [
+        { key: "location_id", label: "编号", fallback: "—" },
+        { key: "town_or_street", label: "乡镇｜街道", fallback: "未匹配" },
+        { key: "location_name", label: "点位名称", fallback: "未匹配" },
+        { key: "pest_name", label: "虫害类型", fallback: "—" },
+        { key: "host_plant", label: "寄主树种", fallback: "—" },
+        { key: "survey_result", label: "调查结论", fallback: "—" },
+      ]
+    : [
+        { key: "location_id", label: "编号", fallback: "—" },
+        { key: "town_or_street", label: "乡镇｜街道", fallback: "未匹配" },
+        { key: "location_name", label: "点位名称", fallback: "未匹配" },
+        { key: "total_insect_count", label: "总虫口数", fallback: "—" },
+        { key: "damage_level", label: "受害程度", fallback: "—" },
+      ],
+);
 
 function getCandidateKey(candidate) {
-  return `${candidate.survey_date}-${candidate.location_id}`;
+  return [
+    candidate.survey_date || "",
+    candidate.location_id || "",
+    candidate.pest_name || "",
+  ].join("-");
+}
+
+function formatCandidateValue(candidate, column) {
+  const value = candidate[column.key];
+  if (value === null || value === undefined) {
+    return column.fallback;
+  }
+
+  const text = `${value}`.trim();
+  return text === "" ? column.fallback : text;
 }
 
 function resetDialogState() {
@@ -62,7 +109,10 @@ async function handleQuery() {
   loading.value = true;
 
   try {
-    const result = await fetchSurveyCandidates(selectedDate.value);
+    const result = await fetchSurveyCandidates({
+      date: selectedDate.value,
+      pestType: props.pestType,
+    });
     candidates.value = Array.isArray(result) ? result : [];
     selectedCandidateKeys.value = candidates.value.map((candidate) => getCandidateKey(candidate));
     queried.value = true;
@@ -133,7 +183,7 @@ function handleImport() {
         <header class="dialog-head">
           <div>
             <h3>导入调查数据</h3>
-            <p>按调查日期查询春尺蠖受害点位，并批量追加到当前工作单。</p>
+            <p>{{ dialogDescription }}</p>
           </div>
           <button type="button" class="dialog-close button-secondary" @click="emit('close')">
             关闭
@@ -194,11 +244,9 @@ function handleImport() {
                       @change="toggleSelectAll"
                     />
                   </th>
-                  <th>编号</th>
-                  <th>乡镇｜街道</th>
-                  <th>点位名称</th>
-                  <th>总虫口数</th>
-                  <th>受害程度</th>
+                  <th v-for="column in candidateColumns" :key="column.key">
+                    {{ column.label }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -211,11 +259,9 @@ function handleImport() {
                       @change="updateCandidateSelection(candidate, $event.target.checked)"
                     />
                   </td>
-                  <td>{{ candidate.location_id }}</td>
-                  <td>{{ candidate.town_or_street || "未匹配" }}</td>
-                  <td>{{ candidate.location_name || "未匹配" }}</td>
-                  <td>{{ candidate.total_insect_count ?? "—" }}</td>
-                  <td>{{ candidate.damage_level }}</td>
+                  <td v-for="column in candidateColumns" :key="column.key">
+                    {{ formatCandidateValue(candidate, column) }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -228,7 +274,7 @@ function handleImport() {
 
           <div v-else class="result-state">
             <strong>尚未开始查询</strong>
-            <p>当前仅支持导入春尺蠖幼虫调查数据。</p>
+            <p>{{ idleHint }}</p>
           </div>
         </div>
 

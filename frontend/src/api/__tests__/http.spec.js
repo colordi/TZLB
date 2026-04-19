@@ -4,7 +4,9 @@ import {
   buildLoginRedirectPath,
   ensureApiSuccess,
   isUnauthorizedError,
+  isLocalhostHostname,
   resetUnauthorizedRedirectState,
+  shouldAttachLocalAuthBypass,
 } from "../http.js";
 
 describe("api/http", () => {
@@ -50,5 +52,16 @@ describe("api/http", () => {
         hash: "",
       }),
     ).toBe("/login");
+  });
+
+  it("仅本机地址会附加本机免登标记", () => {
+    expect(isLocalhostHostname("127.0.0.1")).toBe(true);
+    expect(isLocalhostHostname("localhost")).toBe(true);
+    expect(isLocalhostHostname("[::1]")).toBe(true);
+    expect(isLocalhostHostname("192.168.1.20")).toBe(false);
+
+    expect(shouldAttachLocalAuthBypass({ hostname: "127.0.0.1" })).toBe(true);
+    expect(shouldAttachLocalAuthBypass({ hostname: "localhost" })).toBe(true);
+    expect(shouldAttachLocalAuthBypass({ hostname: "192.168.1.20" })).toBe(false);
   });
 });

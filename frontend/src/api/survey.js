@@ -1,9 +1,12 @@
 import { apiFetch, ensureApiSuccess } from "./http.js";
 
-export async function fetchSurveyCandidates(date) {
+export async function fetchSurveyCandidates({ date, pestType }) {
   const search = new URLSearchParams();
   if (date && `${date}`.trim() !== "") {
     search.set("date", date);
+  }
+  if (pestType && `${pestType}`.trim() !== "") {
+    search.set("pest_type", pestType);
   }
 
   const query = search.toString();
