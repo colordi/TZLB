@@ -259,21 +259,6 @@ async function handleGenerate() {
             <div class="status-value-hero">{{ records.length }}</div>
             <div class="status-label-hero">当前记录</div>
           </div>
-          
-          <div class="status-card">
-            <div class="status-value-sub text-primary">{{ totalImages }}</div>
-            <div class="status-label-sub">图片总数</div>
-            <div class="status-trend">
-              <span class="trend-icon">📈</span>
-              当前任务: {{ taskName || "待设置" }}
-            </div>
-          </div>
-          
-          <div class="status-card">
-            <div class="status-value-sub text-warning">{{ pestType }}</div>
-            <div class="status-label-sub">害虫类型</div>
-            <div class="status-trend text-danger">需人工确认</div>
-          </div>
         </div>
 
         <section class="panel-card sidebar-panel">

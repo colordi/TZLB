@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { getVisibleFields, normalizeInputValue } from "./fieldConfig.js";
-import ImageUploadDialog from "./ImageUploadDialog.vue";
+import ImageUploader from "./ImageUploader.vue";
 
 const props = defineProps({
   open: Boolean,
@@ -17,7 +17,6 @@ const props = defineProps({
 const emit = defineEmits(["close", "update", "delete"]);
 
 const localRecord = ref(null);
-const imageDialogOpen = ref(false);
 
 const fields = computed(() => getVisibleFields(props.pestType));
 
@@ -25,8 +24,6 @@ watch(() => props.open, (isOpen) => {
   if (isOpen && props.record) {
     // Clone record deep enough for images
     localRecord.value = { ...props.record, images: [...(props.record.images || [])] };
-  } else {
-    imageDialogOpen.value = false;
   }
 });
 
@@ -41,10 +38,6 @@ function handleSave() {
 
 function handleDelete() {
   emit("delete");
-}
-
-function openImages() {
-  imageDialogOpen.value = true;
 }
 
 function updateImages(images) {
@@ -101,26 +94,22 @@ function updateImages(images) {
           />
           <span v-if="error[field.key]" class="error-msg">{{ error[field.key] }}</span>
         </div>
+        
+        <div class="field-block image-upload-block">
+          <ImageUploader
+            :images="localRecord.images || []"
+            :busy="busy"
+            @update:images="updateImages"
+          />
+        </div>
       </div>
       <footer class="modal-footer">
-        <button type="button" class="button-secondary btn-image" @click="openImages">
-          现场图片 ({{ localRecord?.images?.length || 0 }}/4)
-        </button>
         <div class="footer-actions">
           <button type="button" class="button-danger" :disabled="busy" @click="handleDelete">删除此条</button>
           <button type="button" @click="handleSave" :disabled="busy">保存修改</button>
         </div>
       </footer>
     </div>
-    
-    <ImageUploadDialog
-      :open="imageDialogOpen"
-      :images="localRecord?.images || []"
-      :busy="busy"
-      record-label="当前记录"
-      @close="imageDialogOpen = false"
-      @update:images="updateImages"
-    />
   </div>
 </template>
 
@@ -262,17 +251,15 @@ function updateImages(images) {
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--color-surface-container);
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 1rem;
-  flex-wrap: wrap;
   background: var(--color-surface-container-low);
 }
 
 .footer-actions {
   display: flex;
   gap: 0.75rem;
-  margin-left: auto;
 }
 
 .button-danger {
@@ -291,10 +278,9 @@ function updateImages(images) {
   box-shadow: none;
 }
 
-.btn-image {
-  box-shadow: none;
-  border-radius: var(--radius-xs);
-  min-height: 2.5rem;
-  padding: 0.25rem 1rem;
+.image-upload-block {
+  margin-top: 0.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px dashed var(--color-line);
 }
 </style>
