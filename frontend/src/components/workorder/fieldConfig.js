@@ -20,7 +20,9 @@ const CONTROL_TASK_OPTIONS_BY_PEST = {
   春尺蠖: [
     { value: "2026春尺蠖防治", label: "2026春尺蠖防治" },
   ],
-  国槐尺蠖: [],
+  国槐尺蠖: [
+    { value: "2026国槐尺蠖防治", label: "2026国槐尺蠖防治" },
+  ],
   其他害虫: [
     { value: "2026其他害虫防治", label: "2026其他害虫防治" },
   ],
@@ -141,15 +143,10 @@ const SPRING_CHI_HUO_FIELD_KEYS = [
 
 const GUO_HUAI_FIELD_KEYS = [
   "survey_date",
-  "region",
   "town_or_street",
   "location_id",
   "location_name",
-  "occurrence_position",
-  "plot_type",
-  "total_insect_count",
-  "damage_level",
-  "report_time",
+  "note",
   "description",
 ];
 
@@ -321,20 +318,8 @@ export function toPayloadRecord(record, pestType) {
     images: normalized.images.slice(0, 4),
   };
 
-  if (pestType === "春尺蠖") {
+  if (pestType === "春尺蠖" || pestType === "国槐尺蠖") {
     return sharedPayload;
-  }
-
-  if (pestType === "国槐尺蠖") {
-    return {
-      ...sharedPayload,
-      region: normalized.region.trim(),
-      occurrence_position: normalized.occurrence_position.trim(),
-      report_time: normalizeDate(normalized.report_time),
-      plot_type: "平原造林",
-      total_insect_count: normalized.total_insect_count === "" ? null : Number(normalized.total_insect_count),
-      damage_level: normalized.damage_level.trim(),
-    };
   }
 
   return {

@@ -39,12 +39,12 @@ const isOtherPest = computed(() => props.pestType === "其他害虫");
 const dialogDescription = computed(() =>
   isOtherPest.value
     ? "按调查日期查询其他害虫问题点位，并批量追加到当前工作单。"
-    : "按调查日期查询春尺蠖受害点位，并批量追加到当前工作单。",
+    : `按调查日期查询${props.pestType}受害点位，并批量追加到当前工作单。`,
 );
 const idleHint = computed(() =>
   isOtherPest.value
     ? "当前支持按调查日期导入其他害虫调查数据。"
-    : "当前仅支持导入春尺蠖幼虫调查数据。",
+    : `当前支持导入${props.pestType}幼虫调查数据。`,
 );
 const candidateColumns = computed(() =>
   isOtherPest.value

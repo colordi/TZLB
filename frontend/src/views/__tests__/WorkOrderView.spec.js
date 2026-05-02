@@ -125,14 +125,13 @@ describe("WorkOrderView", () => {
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
     expect(wrapper.text()).toContain("当前记录");
-    expect(wrapper.text()).toContain("图片总数");
     expect(wrapper.text()).toContain("任务配置");
     expect(wrapper.text()).toContain("生成工作单");
     expect(wrapper.text()).toContain("导入调查数据");
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("春尺蠖和其他害虫显示调查导入入口，国槐尺蠖隐藏", async () => {
+  it("春尺蠖、国槐尺蠖和其他害虫都显示调查导入入口", async () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
@@ -145,7 +144,9 @@ describe("WorkOrderView", () => {
 
     await wrapper.get("#pest-type").setValue("国槐尺蠖");
 
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.get("#task-type").element.value).toBe("国槐尺蠖防治");
+    expect(wrapper.get("#task-name").element.value).toBe("2026国槐尺蠖防治");
   });
 
   it("导入调查记录时会保留自动图片，并在已有记录后继续追加", async () => {
@@ -236,6 +237,52 @@ describe("WorkOrderView", () => {
         }),
       ],
     });
+  });
+
+  it("国槐尺蠖导入后保留模板字段并支持导出", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await wrapper.get("#pest-type").setValue("国槐尺蠖");
+    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
+
+    await importRecords(wrapper, [
+      {
+        survey_date: "2026-05-02",
+        town_or_street: "宋庄镇",
+        location_id: "1001-1",
+        location_name: "管头村",
+        total_insect_count: 45,
+        damage_level: "重",
+        note: "需复查",
+        description: "描述1",
+        images: [],
+      },
+    ]);
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
+      pest_type: "国槐尺蠖",
+      task_type: "国槐尺蠖防治",
+      task: "2026国槐尺蠖防治",
+      records: [
+        expect.objectContaining({
+          location_id: "1001-1",
+          note: "需复查",
+          serial_number: 1,
+        }),
+      ],
+    });
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0]).not.toHaveProperty(
+      "total_insect_count",
+    );
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0]).not.toHaveProperty(
+      "damage_level",
+    );
   });
 
   it("单条记录导出时只请求一次接口，并按真实下载结果提示成功", async () => {

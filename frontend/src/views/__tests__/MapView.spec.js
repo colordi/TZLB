@@ -36,8 +36,35 @@ const LeafletMapStub = defineComponent({
       type: String,
       default: "",
     },
+    views: {
+      type: Array,
+      default: () => [],
+    },
   },
-  template: "<div />",
+  emits: ["update:viewName"],
+  template: `
+    <div>
+      <select
+        data-testid="view-select"
+        :value="viewName"
+        @change="$emit('update:viewName', $event.target.value)"
+      >
+        <option v-for="view in views" :key="view.name" :value="view.name">
+          {{ view.name }}
+        </option>
+      </select>
+      <div class="map-integrated-panel">
+        <div class="panel-header">
+          <strong>{{ geojson.features.length }}</strong><span>个调查点位</span>
+        </div>
+        <div class="map-legend">
+          <div v-for="label in ['白', '轻', '中', '重']" :key="label" class="legend-item">
+            {{ label }}
+          </div>
+        </div>
+      </div>
+    </div>
+  `,
 });
 
 function createFeatureCollection(features) {
@@ -259,11 +286,10 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    const legendText = wrapper.get(".legend-list").text();
+    const legendText = wrapper.get(".map-legend").text();
 
-    expect(wrapper.text()).toContain("图例配置");
-    expect(wrapper.text()).toContain("视图配置");
     expect(wrapper.text()).toContain("筛选配置");
+    expect(wrapper.text()).toContain("调查点位分布");
     expect(wrapper.text()).not.toContain("可用视图");
     expect(wrapper.text()).not.toContain("点位总数");
     expect(wrapper.text()).not.toContain("已完成调查");

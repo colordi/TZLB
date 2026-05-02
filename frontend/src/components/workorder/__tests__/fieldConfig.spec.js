@@ -36,14 +36,17 @@ describe("fieldConfig", () => {
     ]);
   });
 
-  it("国槐尺蠖继续保留原有字段集合", () => {
+  it("国槐尺蠖只返回模板所需字段", () => {
     const fieldKeys = getVisibleFields("国槐尺蠖").map((field) => field.key);
 
-    expect(fieldKeys).toContain("region");
-    expect(fieldKeys).toContain("occurrence_position");
-    expect(fieldKeys).toContain("total_insect_count");
-    expect(fieldKeys).toContain("damage_level");
-    expect(fieldKeys).toContain("report_time");
+    expect(fieldKeys).toEqual([
+      "survey_date",
+      "town_or_street",
+      "location_id",
+      "location_name",
+      "note",
+      "description",
+    ]);
   });
 
   it("其他害虫只保留模板所需字段", () => {
@@ -65,6 +68,11 @@ describe("fieldConfig", () => {
   it("其他害虫默认统防统治类型与任务改为其他害虫防治", () => {
     expect(getDefaultControlType("其他害虫")).toBe("其他害虫防治");
     expect(getDefaultTask("其他害虫")).toBe("2026其他害虫防治");
+  });
+
+  it("国槐尺蠖默认统防统治类型与任务改为国槐尺蠖防治", () => {
+    expect(getDefaultControlType("国槐尺蠖")).toBe("国槐尺蠖防治");
+    expect(getDefaultTask("国槐尺蠖")).toBe("2026国槐尺蠖防治");
   });
 
   it("春尺蠖导出载荷只保留模板字段", () => {
@@ -106,6 +114,36 @@ describe("fieldConfig", () => {
     );
 
     expect(errors).toEqual({});
+  });
+
+  it("国槐尺蠖导出载荷只保留模板字段", () => {
+    const payload = toPayloadRecord(
+      {
+        ...createEmptyRecord("国槐尺蠖"),
+        survey_date: "2026-05-02",
+        town_or_street: "宋庄镇",
+        location_id: "1001-1",
+        location_name: "管头村",
+        description: "现场描述",
+        note: "需复查",
+        total_insect_count: "45",
+        damage_level: "重",
+        region: "乡镇",
+        occurrence_position: "林区东侧",
+        report_time: "2026-05-02",
+      },
+      "国槐尺蠖",
+    );
+
+    expect(payload).toEqual({
+      survey_date: "2026-05-02",
+      town_or_street: "宋庄镇",
+      location_id: "1001-1",
+      location_name: "管头村",
+      description: "现场描述",
+      note: "需复查",
+      images: [],
+    });
   });
 
   it("其他害虫导出载荷只保留模板字段", () => {

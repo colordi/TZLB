@@ -39,7 +39,9 @@ const activeRecordIndex = ref(-1);
 const showDetailModal = ref(false);
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
-const canImportSurvey = computed(() => ["春尺蠖", "其他害虫"].includes(pestType.value));
+const canImportSurvey = computed(() =>
+  ["春尺蠖", "国槐尺蠖", "其他害虫"].includes(pestType.value),
+);
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
 );

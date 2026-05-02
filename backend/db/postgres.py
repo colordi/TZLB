@@ -17,9 +17,11 @@ REFERENCE_SCHEMA = "reference"
 ADMIN_BOUNDARY_TABLE = "admin_boundary"
 SURVEY_SCHEMA = "survey"
 SURVEY_LARVA_TABLE = "chun_chi_huo_larva"
+GUO_HUAI_LARVA_TABLE = "guo_huai_chi_huo_larva"
 OTHER_PEST_SURVEY_TABLE = "other_pest_inspection"
 SITE_SCHEMA = "sites"
 SITE_TABLE = "poplar_sites"
+SOPHORA_SITE_TABLE = "sophora_sites"
 OTHER_PEST_SITE_TABLE = "other_pest_sites"
 
 _pool: asyncpg.Pool | None = None
@@ -223,14 +225,15 @@ async def fetch_view_feature_collection(
     return records_to_feature_collection(rows)
 
 
-def build_spring_inchworm_description(
+def build_chi_huo_larva_description(
+    pest_name: str,
     town_or_street: str,
     location_name: str,
     location_id: str,
     damage_level: str,
     total_insect_count: int | None,
 ) -> str:
-    """根据点位信息与危害程度生成春尺蠖防治描述。"""
+    """根据点位信息与危害程度生成尺蠖幼虫防治描述。"""
 
     location_prefix = "".join(
         part.strip()
@@ -256,8 +259,46 @@ def build_spring_inchworm_description(
         advice = "建议复核现场危害情况并及时补录调查结果。"
 
     return (
-        f"{location_text}调查发现春尺蠖幼虫危害程度为{level_text}，"
+        f"{location_text}调查发现{pest_name}幼虫危害程度为{level_text}，"
         f"平均每标准枝{average_insect_count_text}。{advice}"
+    )
+
+
+def build_spring_inchworm_description(
+    town_or_street: str,
+    location_name: str,
+    location_id: str,
+    damage_level: str,
+    total_insect_count: int | None,
+) -> str:
+    """根据点位信息与危害程度生成春尺蠖防治描述。"""
+
+    return build_chi_huo_larva_description(
+        pest_name="春尺蠖",
+        town_or_street=town_or_street,
+        location_name=location_name,
+        location_id=location_id,
+        damage_level=damage_level,
+        total_insect_count=total_insect_count,
+    )
+
+
+def build_guo_huai_inchworm_description(
+    town_or_street: str,
+    location_name: str,
+    location_id: str,
+    damage_level: str,
+    total_insect_count: int | None,
+) -> str:
+    """根据点位信息与危害程度生成国槐尺蠖防治描述。"""
+
+    return build_chi_huo_larva_description(
+        pest_name="国槐尺蠖",
+        town_or_street=town_or_street,
+        location_name=location_name,
+        location_id=location_id,
+        damage_level=damage_level,
+        total_insect_count=total_insect_count,
     )
 
 
@@ -354,6 +395,8 @@ async def fetch_survey_candidates_by_type(
         return await fetch_other_pest_survey_candidates(survey_date)
     if pest_type == "春尺蠖":
         return await fetch_spring_inchworm_survey_candidates(survey_date)
+    if pest_type == "国槐尺蠖":
+        return await fetch_guo_huai_inchworm_survey_candidates(survey_date)
     raise ValueError(f"暂不支持 {pest_type} 的调查导入")
 
 
@@ -412,6 +455,74 @@ async def fetch_spring_inchworm_survey_candidates(
                 "note": (row["note"] or "").strip(),
                 "images": load_spring_inchworm_images(location_id, screenshot_index),
                 "description": build_spring_inchworm_description(
+                    town_or_street=town_or_street,
+                    location_name=location_name,
+                    location_id=location_id,
+                    damage_level=damage_level,
+                    total_insect_count=insect_count,
+                ),
+            }
+        )
+
+    return candidates
+
+
+async def fetch_guo_huai_inchworm_survey_candidates(
+    survey_date: date_cls,
+) -> list[dict[str, Any]]:
+    """读取指定日期的国槐尺蠖调查导入候选记录。"""
+
+    qualified_larva_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(GUO_HUAI_LARVA_TABLE)}"
+    )
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(SOPHORA_SITE_TABLE)}"
+    )
+
+    rows = await fetch(
+        f"""
+        SELECT
+            l."编号" AS location_id,
+            l."调查日期" AS survey_date,
+            l."总虫口数" AS total_insect_count,
+            BTRIM(l."危害程度") AS damage_level,
+            COALESCE(l."备注", '') AS note,
+            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."村", '') AS location_name
+        FROM {qualified_larva_table} AS l
+        JOIN {qualified_site_table} AS s
+          ON l."编号" = s."编号"
+        WHERE l."调查日期" = $1
+          AND l."危害程度" IS NOT NULL
+          AND BTRIM(l."危害程度") NOT IN ('', '白', '无需防治')
+        ORDER BY
+            COALESCE(s."乡镇", ''),
+            l."编号"
+        """,
+        survey_date,
+    )
+
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        location_id = str(row["location_id"] or "").strip()
+        town_or_street = (row["town_or_street"] or "").strip()
+        location_name = (row["location_name"] or "").strip()
+        insect_count = row["total_insect_count"]
+        if insect_count is not None:
+            insect_count = int(insect_count)
+
+        damage_level = (row["damage_level"] or "").strip()
+        candidates.append(
+            {
+                "survey_date": serialize_date_value(row["survey_date"]),
+                "town_or_street": town_or_street,
+                "location_id": location_id,
+                "location_name": location_name,
+                "total_insect_count": insect_count,
+                "damage_level": damage_level,
+                "note": (row["note"] or "").strip(),
+                "images": [],
+                "description": build_guo_huai_inchworm_description(
                     town_or_street=town_or_street,
                     location_name=location_name,
                     location_id=location_id,

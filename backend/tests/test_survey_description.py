@@ -7,7 +7,11 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from backend.db.postgres import build_spring_inchworm_description, fetch_survey_candidates
+from backend.db.postgres import (
+    build_guo_huai_inchworm_description,
+    build_spring_inchworm_description,
+    fetch_survey_candidates,
+)
 
 
 class BuildSpringInchwormDescriptionTest(unittest.TestCase):
@@ -98,6 +102,53 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
         self.assertEqual(
             description,
             "示范点SF0008点位，调查发现春尺蠖幼虫危害程度为偏重，平均每标准枝7头。"
+            "建议结合现场情况制定防治措施并复核虫情。",
+        )
+
+
+class BuildGuoHuaiInchwormDescriptionTest(unittest.TestCase):
+    def test_heavy_damage_uses_guo_huai_pest_name(self) -> None:
+        description = build_guo_huai_inchworm_description(
+            town_or_street="宋庄镇",
+            location_name="管头村",
+            location_id="1001-1",
+            damage_level="重",
+            total_insect_count=45,
+        )
+
+        self.assertEqual(
+            description,
+            "宋庄镇管头村1001-1点位，调查发现国槐尺蠖幼虫危害程度为重，平均每标准枝9头。"
+            "建议立即组织防治作业，并优先复核周边相邻点位。",
+        )
+
+    def test_missing_insect_count_is_rendered_as_unrecorded(self) -> None:
+        description = build_guo_huai_inchworm_description(
+            town_or_street="潞城镇",
+            location_name="卜落垡村",
+            location_id="101-1",
+            damage_level="轻",
+            total_insect_count=None,
+        )
+
+        self.assertEqual(
+            description,
+            "潞城镇卜落垡村101-1点位，调查发现国槐尺蠖幼虫危害程度为轻，平均每标准枝未记录。"
+            "建议加强巡查，视虫情发展适时处置。",
+        )
+
+    def test_unknown_damage_level_preserves_original_level(self) -> None:
+        description = build_guo_huai_inchworm_description(
+            town_or_street="",
+            location_name="示范点",
+            location_id="GH0008",
+            damage_level="偏重",
+            total_insect_count=31,
+        )
+
+        self.assertEqual(
+            description,
+            "示范点GH0008点位，调查发现国槐尺蠖幼虫危害程度为偏重，平均每标准枝7头。"
             "建议结合现场情况制定防治措施并复核虫情。",
         )
 
@@ -209,6 +260,50 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         )
+
+    async def test_guo_huai_candidates_include_template_required_fields(self) -> None:
+        mocked_fetch = AsyncMock(
+            return_value=[
+                {
+                    "location_id": "1001-1",
+                    "survey_date": "2026-05-02",
+                    "total_insect_count": 45,
+                    "damage_level": "重",
+                    "note": "树冠中上部虫口集中",
+                    "town_or_street": "宋庄镇",
+                    "location_name": "管头村",
+                }
+            ]
+        )
+
+        with patch("backend.db.postgres.fetch", new=mocked_fetch):
+            candidates = await fetch_survey_candidates(
+                "2026-05-02",
+                pest_type="国槐尺蠖",
+            )
+
+        self.assertEqual(
+            candidates,
+            [
+                {
+                    "survey_date": "2026-05-02",
+                    "town_or_street": "宋庄镇",
+                    "location_id": "1001-1",
+                    "location_name": "管头村",
+                    "total_insect_count": 45,
+                    "damage_level": "重",
+                    "note": "树冠中上部虫口集中",
+                    "images": [],
+                    "description": "宋庄镇管头村1001-1点位，调查发现国槐尺蠖幼虫危害程度为重，平均每标准枝9头。"
+                    "建议立即组织防治作业，并优先复核周边相邻点位。",
+                }
+            ],
+        )
+
+        query = mocked_fetch.call_args.args[0]
+        self.assertIn("survey\".\"guo_huai_chi_huo_larva", query)
+        self.assertIn("sites\".\"sophora_sites", query)
+        self.assertIn("NOT IN ('', '白', '无需防治')", query)
 
 
 if __name__ == "__main__":

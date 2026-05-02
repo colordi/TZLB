@@ -7,7 +7,7 @@ from backend.config import get_settings
 from backend.db.postgres import ensure_pool, fetchrow
 
 
-AUTH_SCHEMA = "auth"
+AUTH_SCHEMA = "app_auth"
 AUTH_USER_TABLE = "users"
 
 

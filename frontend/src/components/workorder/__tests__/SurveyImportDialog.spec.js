@@ -150,4 +150,50 @@ describe("SurveyImportDialog", () => {
     expect(wrapper.text()).toContain("蚜虫");
     expect(wrapper.text()).toContain("栾树");
   });
+
+  it("国槐尺蠖查询时带上 pest_type 并展示尺蠖幼虫列头", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse([
+        {
+          survey_date: "2026-05-02",
+          town_or_street: "宋庄镇",
+          location_id: "1001-1",
+          location_name: "管头村",
+          total_insect_count: 45,
+          damage_level: "重",
+          note: "需复查",
+          description: "描述1",
+          images: [],
+        },
+      ]),
+    );
+
+    const wrapper = mount(SurveyImportDialog, {
+      props: {
+        open: true,
+        pestType: "国槐尺蠖",
+      },
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+
+    await wrapper.get("#survey-import-date").setValue("2026-05-02");
+    await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/candidates?date=2026-05-02&pest_type=%E5%9B%BD%E6%A7%90%E5%B0%BA%E8%A0%96",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
+    expect(wrapper.text()).toContain("国槐尺蠖受害点位");
+    expect(wrapper.text()).toContain("总虫口数");
+    expect(wrapper.text()).toContain("受害程度");
+    expect(wrapper.text()).toContain("1001-1");
+    expect(wrapper.text()).toContain("重");
+  });
 });
