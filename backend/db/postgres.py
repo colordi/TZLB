@@ -23,6 +23,19 @@ SITE_SCHEMA = "sites"
 SITE_TABLE = "poplar_sites"
 SOPHORA_SITE_TABLE = "sophora_sites"
 OTHER_PEST_SITE_TABLE = "other_pest_sites"
+MAP_DYNAMIC_FILTER_COLUMNS = {
+    "年份": "年份",
+    "危害程度": "危害程度",
+    "害虫类型": "害虫类型",
+    "虫态": "虫态",
+}
+MAP_FILTER_VALUE_ORDER = {
+    "危害程度": ["白", "无需防治", "轻", "中", "重"],
+}
+SURVEY_STATUS_FILTER_OPTIONS = [
+    {"value": "调查", "label": "调查"},
+    {"value": "未调查", "label": "未调查"},
+]
 
 _pool: asyncpg.Pool | None = None
 
@@ -104,6 +117,69 @@ async def get_map_view(view_name: str) -> dict[str, Any] | None:
     return None
 
 
+def sort_filter_values(column: str, values: list[str]) -> list[str]:
+    """按业务习惯排序地图筛选项。"""
+
+    if column == "年份":
+        return sorted(
+            values,
+            key=lambda value: (0, int(value)) if value.isdigit() else (1, value),
+        )
+
+    value_order = MAP_FILTER_VALUE_ORDER.get(column)
+    if value_order:
+        order_index = {value: index for index, value in enumerate(value_order)}
+        return sorted(values, key=lambda value: (order_index.get(value, 999), value))
+
+    return sorted(values)
+
+
+async def fetch_distinct_filter_values(qualified_view: str, column: str) -> list[str]:
+    """读取指定视图字段的非空去重值。"""
+
+    quoted_column = quote_identifier(column)
+    rows = await fetch(
+        f"""
+        SELECT DISTINCT BTRIM({quoted_column}::text) AS value
+        FROM {qualified_view}
+        WHERE {quoted_column} IS NOT NULL
+          AND BTRIM({quoted_column}::text) <> ''
+        """,
+    )
+    values = [row["value"] for row in rows if row["value"]]
+    return sort_filter_values(column, values)
+
+
+def build_select_filter_field(
+    key: str,
+    label: str,
+    options: list[str] | list[dict[str, str]],
+    default_value: str = "",
+) -> dict[str, Any]:
+    normalized_options = [
+        option
+        if isinstance(option, dict)
+        else {
+            "value": option,
+            "label": option,
+        }
+        for option in options
+    ]
+    return {
+        "key": key,
+        "label": label,
+        "type": "select",
+        "options": normalized_options,
+        "default_value": default_value,
+    }
+
+
+def resolve_filter_default_value(column: str, values: list[str]) -> str:
+    if column == "年份" and values:
+        return values[-1]
+    return ""
+
+
 def records_to_feature_collection(rows: list[asyncpg.Record]) -> dict[str, Any]:
     return {
         "type": "FeatureCollection",
@@ -154,22 +230,46 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
     qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
 
     townships: list[str] = []
+    filter_fields: list[dict[str, Any]] = []
     if "乡镇" in columns:
-        rows = await fetch(
-            f"""
-            SELECT DISTINCT TRIM("乡镇") AS value
-            FROM {qualified_view}
-            WHERE "乡镇" IS NOT NULL
-              AND TRIM("乡镇") <> ''
-            ORDER BY value
-            """,
+        townships = await fetch_distinct_filter_values(qualified_view, "乡镇")
+        filter_fields.append(
+            build_select_filter_field(
+                key="乡镇",
+                label="乡镇 / 街道",
+                options=townships,
+            )
         )
-        townships = [row["value"] for row in rows if row["value"]]
+
+    if "调查日期" in columns:
+        filter_fields.append(
+            build_select_filter_field(
+                key="调查状态",
+                label="调查状态",
+                options=SURVEY_STATUS_FILTER_OPTIONS,
+            )
+        )
+
+    for column, label in MAP_DYNAMIC_FILTER_COLUMNS.items():
+        if column not in columns:
+            continue
+        values = await fetch_distinct_filter_values(qualified_view, column)
+        if not values:
+            continue
+        filter_fields.append(
+            build_select_filter_field(
+                key=column,
+                label=label,
+                options=values,
+                default_value=resolve_filter_default_value(column, values),
+            )
+        )
 
     return {
         "townships": townships,
         "supports_township_filter": "乡镇" in columns,
         "supports_survey_status_filter": "调查日期" in columns,
+        "filter_fields": filter_fields,
     }
 
 

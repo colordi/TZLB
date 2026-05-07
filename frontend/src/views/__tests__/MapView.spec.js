@@ -305,4 +305,69 @@ describe("MapView", () => {
     expect(legendText).not.toContain(">500");
     expect(legendText).not.toContain("个点位");
   });
+
+  it("根据后端返回的动态筛选字段渲染控件并提交筛选条件", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "国槐尺蠖幼虫历年发生情况",
+        columns: ["编号", "乡镇", "年份", "危害程度"],
+      },
+    ]);
+    apiMocks.fetchMapFilterOptions.mockResolvedValue({
+      filter_fields: [
+        {
+          key: "年份",
+          label: "年份",
+          type: "select",
+          default_value: "2025",
+          options: [
+            { value: "2024", label: "2024" },
+            { value: "2025", label: "2025" },
+          ],
+        },
+        {
+          key: "危害程度",
+          label: "危害程度",
+          type: "select",
+          default_value: "",
+          options: [
+            { value: "白", label: "白" },
+            { value: "轻", label: "轻" },
+            { value: "中", label: "中" },
+            { value: "重", label: "重" },
+          ],
+        },
+      ],
+    });
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "国槐尺蠖幼虫历年发生情况",
+        {
+          年份: "2025",
+        },
+      );
+    });
+
+    expect(wrapper.get('[data-testid="map-filter-年份"]').element.value).toBe("2025");
+    expect(wrapper.get('[data-testid="map-filter-危害程度"]').element.value).toBe("");
+
+    await wrapper.get('[data-testid="map-filter-危害程度"]').setValue("重");
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "应用筛选")
+      .trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenLastCalledWith(
+        "国槐尺蠖幼虫历年发生情况",
+        {
+          年份: "2025",
+          危害程度: "重",
+        },
+      );
+    });
+  });
 });

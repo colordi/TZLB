@@ -25,12 +25,9 @@ const selectedView = ref("");
 const basemapMode = ref("standard");
 const geojson = ref(createEmptyFeatureCollection());
 const boundaryGeojson = ref(createEmptyFeatureCollection());
-const townshipFilter = ref("");
-const surveyStatusFilter = ref("");
+const activeFilters = ref({});
 const filterOptions = ref({
-  townships: [],
-  supportsTownshipFilter: false,
-  supportsSurveyStatusFilter: false,
+  filterFields: [],
 });
 const loading = ref(false);
 const loadingViews = ref(false);
@@ -40,22 +37,91 @@ let geojsonRequestToken = 0;
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
 );
-const supportsTownshipFilter = computed(
-  () => filterOptions.value.supportsTownshipFilter || currentView.value.columns.includes("乡镇"),
-);
-const supportsSurveyStatusFilter = computed(
-  () =>
-    filterOptions.value.supportsSurveyStatusFilter ||
-    currentView.value.columns.includes("调查日期"),
-);
-const townshipOptions = computed(() => filterOptions.value.townships || []);
+const filterFields = computed(() => filterOptions.value.filterFields || []);
+const hasFilterFields = computed(() => filterFields.value.length > 0);
 
 const filterHint = computed(() => {
-  if (supportsTownshipFilter.value || supportsSurveyStatusFilter.value) {
+  if (hasFilterFields.value) {
     return "按当前视图筛选点位。";
   }
   return "当前视图暂无可用筛选。";
 });
+
+function normalizeFilterOptions(options = []) {
+  return (options || [])
+    .map((option) => {
+      if (typeof option === "string") {
+        return {
+          value: option,
+          label: option,
+        };
+      }
+      return {
+        value: `${option?.value ?? ""}`,
+        label: `${option?.label ?? option?.value ?? ""}`,
+      };
+    })
+    .filter((option) => option.value !== "");
+}
+
+function buildLegacyFilterFields(payload) {
+  const fields = [];
+  const columns = currentView.value.columns || [];
+  const townships = payload?.townships || [];
+
+  if (payload?.supports_township_filter || columns.includes("乡镇")) {
+    fields.push({
+      key: "乡镇",
+      label: "乡镇 / 街道",
+      type: "select",
+      options: normalizeFilterOptions(townships),
+      defaultValue: "",
+    });
+  }
+
+  if (payload?.supports_survey_status_filter || columns.includes("调查日期")) {
+    fields.push({
+      key: "调查状态",
+      label: "调查状态",
+      type: "select",
+      options: normalizeFilterOptions(["调查", "未调查"]),
+      defaultValue: "",
+    });
+  }
+
+  return fields;
+}
+
+function normalizeFilterFields(payload) {
+  if (!Array.isArray(payload?.filter_fields)) {
+    return buildLegacyFilterFields(payload);
+  }
+
+  return payload.filter_fields.map((field) => ({
+    key: `${field.key || ""}`,
+    label: `${field.label || field.key || ""}`,
+    type: field.type || "select",
+    options: normalizeFilterOptions(field.options || []),
+    defaultValue: `${field.default_value ?? ""}`,
+  })).filter((field) => field.key && field.label);
+}
+
+function buildDefaultFilterValues(fields = filterFields.value) {
+  return fields.reduce((values, field) => {
+    values[field.key] = field.defaultValue || "";
+    return values;
+  }, {});
+}
+
+function buildActiveFilterPayload() {
+  return filterFields.value.reduce((filters, field) => {
+    const value = `${activeFilters.value[field.key] ?? ""}`.trim();
+    if (value !== "") {
+      filters[field.key] = value;
+    }
+    return filters;
+  }, {});
+}
 
 async function loadViews() {
   loadingViews.value = true;
@@ -100,13 +166,7 @@ async function loadGeoJson({ autoFit = false } = {}) {
   loading.value = true;
 
   try {
-    const filters = {};
-    if (supportsTownshipFilter.value && townshipFilter.value) {
-      filters["乡镇"] = townshipFilter.value;
-    }
-    if (supportsSurveyStatusFilter.value && surveyStatusFilter.value) {
-      filters["调查状态"] = surveyStatusFilter.value;
-    }
+    const filters = buildActiveFilterPayload();
     const payload = await fetchMapView(viewName, filters);
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
       return false;
@@ -133,26 +193,23 @@ async function loadGeoJson({ autoFit = false } = {}) {
 async function loadFilterOptions() {
   if (!selectedView.value) {
     filterOptions.value = {
-      townships: [],
-      supportsTownshipFilter: false,
-      supportsSurveyStatusFilter: false,
+      filterFields: [],
     };
+    activeFilters.value = {};
     return;
   }
 
   try {
     const payload = await fetchMapFilterOptions(selectedView.value);
     filterOptions.value = {
-      townships: payload.townships || [],
-      supportsTownshipFilter: Boolean(payload.supports_township_filter),
-      supportsSurveyStatusFilter: Boolean(payload.supports_survey_status_filter),
+      filterFields: normalizeFilterFields(payload),
     };
+    activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
   } catch (loadError) {
     filterOptions.value = {
-      townships: [],
-      supportsTownshipFilter: currentView.value.columns.includes("乡镇"),
-      supportsSurveyStatusFilter: currentView.value.columns.includes("调查日期"),
+      filterFields: buildLegacyFilterFields({}),
     };
+    activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
     if (isUnauthorizedError(loadError)) {
       return;
     }
@@ -194,29 +251,17 @@ function applyFilter() {
 }
 
 function resetFilter() {
-  townshipFilter.value = "";
-  surveyStatusFilter.value = "";
+  activeFilters.value = buildDefaultFilterValues();
   loadGeoJson({ autoFit: false });
-  info("筛选条件已清空。", "已恢复全部点位");
+  info("筛选条件已恢复默认。", "已刷新点位");
 }
 
 watch(selectedView, async () => {
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
-  if (!supportsTownshipFilter.value) {
-    townshipFilter.value = "";
-  }
-  if (!supportsSurveyStatusFilter.value) {
-    surveyStatusFilter.value = "";
-  }
+  activeFilters.value = {};
   await loadFilterOptions();
-  if (!supportsTownshipFilter.value) {
-    townshipFilter.value = "";
-  }
-  if (!supportsSurveyStatusFilter.value) {
-    surveyStatusFilter.value = "";
-  }
   await loadGeoJson({ autoFit: true });
 });
 
@@ -244,35 +289,24 @@ onMounted(async () => {
           </div>
 
           <div class="sidebar-field-stack">
-            <div class="field-block">
-              <label for="township-select">乡镇 / 街道</label>
+            <div v-for="field in filterFields" :key="field.key" class="field-block">
+              <label :for="`map-filter-${field.key}`">{{ field.label }}</label>
               <select
-                id="township-select"
-                data-testid="township-select"
-                v-model="townshipFilter"
-                :disabled="!supportsTownshipFilter"
+                :id="`map-filter-${field.key}`"
+                v-model="activeFilters[field.key]"
+                :data-testid="`map-filter-${field.key}`"
+                :disabled="loading || field.options.length === 0"
               >
-                <option value="">全部乡镇</option>
-                <option v-for="township in townshipOptions" :key="township" :value="township">
-                  {{ township }}
+                <option value="">全部{{ field.label }}</option>
+                <option v-for="option in field.options" :key="option.value" :value="option.value">
+                  {{ option.label }}
                 </option>
               </select>
             </div>
 
-            <div class="field-block">
-              <label for="survey-status-select">调查状态</label>
-              <select
-                id="survey-status-select"
-                data-testid="survey-status-select"
-                v-model="surveyStatusFilter"
-                :disabled="!supportsSurveyStatusFilter"
-              >
-                <option value="">全部状态</option>
-                <option value="调查">调查</option>
-                <option value="未调查">未调查</option>
-              </select>
+            <div v-if="!hasFilterFields" class="filter-empty-state">
+              当前视图暂无筛选字段
             </div>
-
           </div>
 
           <div class="filter-actions">
@@ -353,6 +387,15 @@ onMounted(async () => {
   display: grid;
   gap: 0.85rem;
   margin-bottom: 0.9rem;
+}
+
+.filter-empty-state {
+  padding: 0.85rem;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .filter-actions {
