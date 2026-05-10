@@ -7,10 +7,10 @@
 
 这是一个林业调查工作台项目，采用 FastAPI + Vue 3 + Leaflet 架构。
 
-- 后端位于 `backend/`，负责认证、Supabase PostgreSQL/PostGIS 数据访问、地图接口和工作单生成。
+- 后端位于 `backend/`，负责认证、PostgreSQL/PostGIS 数据访问、地图接口和工作单生成。
 - 前端位于 `frontend/`，负责登录、工单录入、调查导入、地图展示和文件下载。
 - 工作单模板位于 `templates/`。
-- 数据库默认通过 `DATABASE_URL` 连接 Supabase PostgreSQL，不在前端直接使用 `supabase-js`。
+- 数据库默认通过 `DATABASE_URL` 连接本机 PostgreSQL/PostGIS，不在前端直接使用 `supabase-js`。
 
 ## 常用命令
 
@@ -51,7 +51,7 @@ npm run build
 ## 数据库与配置
 
 - 环境变量从项目根目录 `.env` 读取，字段参考 `.env.example`。
-- 业务数据来自 Supabase/PostGIS，核心 schema 包括 `survey`、`sites`、`views`、`reference`。
+- 业务数据来自本机 PostgreSQL/PostGIS，核心 schema 包括 `app_auth`、`ledger`、`reference`、`sites`、`survey`、`views`。
 - 认证表为 `app_auth.users`，后端启动时会自动确保表结构存在。
 - 地图视图来自 `views` schema 下包含 `geom` 字段的视图。
 - Word 转换依赖 LibreOffice CLI，默认命令为 `soffice`，可通过 `LIBREOFFICE_BIN` 覆盖。
@@ -84,4 +84,4 @@ npm run build
 - 文档类改动至少执行格式或 diff 检查。
 - 前端行为改动优先运行相关 Vitest。
 - 后端逻辑改动优先运行对应 `unittest`。
-- 涉及 Supabase 数据结构或查询时，需要确认对象名、schema、字段和 PostGIS 几何转换逻辑一致。
+- 涉及数据库结构或查询时，需要确认对象名、schema、字段和 PostGIS 几何转换逻辑一致。

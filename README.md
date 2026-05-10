@@ -2,11 +2,11 @@
 
 林业调查工作台是面向林业有害生物调查、防治工单整理和点位监测的
 Web 应用。项目采用 FastAPI + Vue 3 + Leaflet 的前后端分离架构，后端通过
-PostgreSQL 连接串访问 Supabase 数据库，前端通过 Cookie 会话访问受保护接口。
+`DATABASE_URL` 访问本机 PostgreSQL/PostGIS 数据库，前端通过 Cookie 会话访问受保护接口。
 
 ## 核心能力
 
-- 调查导入：按调查日期从 Supabase/PostGIS 读取春尺蠖、国槐尺蠖和其他害虫问题点位。
+- 调查导入：按调查日期从本机 PostgreSQL/PostGIS 读取春尺蠖、国槐尺蠖和其他害虫问题点位。
 - 工作单生成：导入记录后补充字段与现场图片，逐条生成 Word 工作单。
 - 地图监测：自动读取 `views` schema 下带 `geom` 的视图，展示点位、行政区边界和筛选器。
 - 登录保护：后端维护 `app_auth.users`，除登录和健康检查外的业务接口均需登录。
@@ -16,7 +16,7 @@ PostgreSQL 连接串访问 Supabase 数据库，前端通过 Cookie 会话访问
 
 - 后端：FastAPI、asyncpg、Pydantic Settings、docxtpl、python-docx
 - 前端：Vue 3、Vue Router、Vite、Vitest、Leaflet
-- 数据库：Supabase PostgreSQL / PostGIS
+- 数据库：PostgreSQL / PostGIS
 - 文档转换：LibreOffice CLI，将渲染后的 `.docx` 转为 `.doc`
 
 ## 目录说明
@@ -36,7 +36,7 @@ PostgreSQL 连接串访问 Supabase 数据库，前端通过 Cookie 会话访问
 
 - Python 3.10+
 - Node.js 18+
-- Supabase 项目，数据库需启用 PostGIS，并准备好业务表、视图和边界数据
+- 本机 PostgreSQL 数据库，需启用 PostGIS，并准备好业务表、视图和边界数据
 - LibreOffice CLI，默认命令为 `soffice`
 
 ## 快速启动
@@ -62,15 +62,14 @@ npm install
 cp .env.example .env
 ```
 
-至少需要将 `.env` 中的 `DATABASE_URL` 改成 Supabase 项目的 PostgreSQL
-连接串。云端连接通常需要 SSL，例如：
+`.env.example` 默认指向本机数据库 `forestry_survey`：
 
 ```bash
-DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres?sslmode=require
+DATABASE_URL="postgresql://yandi@localhost:5432/forestry_survey"
 ```
 
-如果只做离线开发，也可以临时指向本地 PostgreSQL/PostGIS。`.env.example`
-只提供字段清单，不代表生产连接地址。
+本机密码可通过 `~/.pgpass` 管理。生产部署时将 `DATABASE_URL` 改为对应服务器上的
+PostgreSQL/PostGIS 连接串即可。
 
 4. 启动开发服务：
 
@@ -106,7 +105,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 生产环境务必覆盖以下配置：
 
-- `DATABASE_URL`：Supabase PostgreSQL 连接串
+- `DATABASE_URL`：PostgreSQL/PostGIS 连接串
 - `AUTH_SECRET_KEY`：会话签名密钥
 - `AUTH_DEFAULT_ADMIN_USERNAME` / `AUTH_DEFAULT_ADMIN_PASSWORD`：初始管理员账号
 - `AUTH_COOKIE_SECURE=true`：HTTPS 部署时启用安全 Cookie
@@ -114,8 +113,11 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 ## 数据库约定
 
-应用通过 `DATABASE_URL` 直接连接 Supabase PostgreSQL，不在前端使用
-`supabase-js`，也不依赖 Supabase Data API 暴露业务表。
+应用通过 `DATABASE_URL` 直接连接 PostgreSQL/PostGIS。前端不使用 `supabase-js`，
+也不依赖 Supabase Data API 暴露业务表。
+
+当前业务数据已迁回本机 `forestry_survey` 数据库，核心 schema 包括：
+`app_auth`、`ledger`、`reference`、`sites`、`survey`、`views`。
 
 后端当前依赖这些 schema 和对象：
 
@@ -151,7 +153,7 @@ WGS84 GeoJSON。若视图包含 `乡镇` 字段，会启用乡镇筛选；若包
 
 1. 进入 `/workorder`。
 2. 选择害虫类型和统防统治任务。
-3. 点击“导入调查数据”，按日期从 Supabase 查询可导入记录。
+3. 点击“导入调查数据”，按日期从本机数据库查询可导入记录。
 4. 导入后在表格中点开记录，补充描述、备注和现场图片。
 5. 点击“生成工作单”，前端会逐条调用后端接口并下载多个 `.doc` 文件。
 
@@ -215,7 +217,7 @@ npm run build
 
 ## 常见问题
 
-- 数据库连接失败：检查 `DATABASE_URL`、Supabase 数据库密码、SSL 参数和网络访问权限。
+- 数据库连接失败：检查 `DATABASE_URL`、本机 PostgreSQL 服务、`~/.pgpass` 和 5432 端口。
 - 地图没有视图：确认 `views` schema 下存在带 `geom` 字段的视图。
 - 地图边界为空：确认 `reference.admin_boundary` 存在且 `geom` 不为空。
 - 工作单生成失败：确认模板文件存在，并检查 `LIBREOFFICE_BIN` 是否能在服务器执行。
