@@ -9,6 +9,8 @@ const HOVER_PRIORITY_KEYS = [
   "location_id",
 ];
 
+const POINT_LABEL_KEYS = ["编号", "location_id", "locationId", "id"];
+
 const SURVEY_DATE_KEYS = ["调查日期", "survey_date", "report_time"];
 
 export function buildPopupRows(columns = [], properties = {}) {
@@ -95,6 +97,17 @@ export function resolveFeatureHoverLabel(columns = [], properties = {}) {
   ];
 
   for (const key of candidates) {
+    const value = properties?.[key];
+    if (value !== undefined && value !== null && `${value}`.trim() !== "") {
+      return `${value}`.trim();
+    }
+  }
+
+  return "";
+}
+
+export function resolveFeaturePointLabel(properties = {}) {
+  for (const key of POINT_LABEL_KEYS) {
     const value = properties?.[key];
     if (value !== undefined && value !== null && `${value}`.trim() !== "") {
       return `${value}`.trim();

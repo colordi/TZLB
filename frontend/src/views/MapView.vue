@@ -23,6 +23,7 @@ const { error, info, success } = useToast();
 const views = ref([]);
 const selectedView = ref("");
 const basemapMode = ref("standard");
+const showPointLabels = ref(false);
 const geojson = ref(createEmptyFeatureCollection());
 const boundaryGeojson = ref(createEmptyFeatureCollection());
 const activeFilters = ref({});
@@ -349,9 +350,11 @@ onMounted(async () => {
             :loading="loading"
             :loading-views="loadingViews"
             :popup-fields="currentView.columns"
+            :show-point-labels="showPointLabels"
             :view-name="selectedView"
             :views="views"
             @update:basemap-mode="basemapMode = $event"
+            @update:show-point-labels="showPointLabels = $event"
             @update:view-name="selectedView = $event"
           />
         </section>

@@ -3,6 +3,7 @@ import {
   buildPopupRows,
   buildSurveyStatusSummary,
   resolveFeatureHoverLabel,
+  resolveFeaturePointLabel,
   resolveFeatureSeverity,
 } from "../popupFields.js";
 
@@ -45,6 +46,29 @@ describe("buildPopupRows", () => {
         点位名称: "城东林场A区",
       }),
     ).toBe("城东林场A区");
+  });
+
+  it("编号标签优先使用中文编号字段", () => {
+    expect(
+      resolveFeaturePointLabel({
+        编号: " CN-001 ",
+        location_id: "LOC-001",
+      }),
+    ).toBe("CN-001");
+  });
+
+  it("编号标签按 location_id、locationId、id 顺序回退", () => {
+    expect(
+      resolveFeaturePointLabel({
+        location_id: "LOC-001",
+        locationId: "LOC-002",
+        id: "fallback-id",
+      }),
+    ).toBe("LOC-001");
+  });
+
+  it("编号标签在缺少编号或空值时返回空字符串", () => {
+    expect(resolveFeaturePointLabel({ 编号: " ", location_id: null })).toBe("");
   });
 
   it("调查状态统计会按已完成、待调查、调查中归类", () => {

@@ -32,6 +32,10 @@ const LeafletMapStub = defineComponent({
       type: Array,
       default: () => [],
     },
+    showPointLabels: {
+      type: Boolean,
+      default: false,
+    },
     viewName: {
       type: String,
       default: "",
@@ -41,7 +45,7 @@ const LeafletMapStub = defineComponent({
       default: () => [],
     },
   },
-  emits: ["update:viewName"],
+  emits: ["update:viewName", "update:showPointLabels"],
   template: `
     <div>
       <select
@@ -53,6 +57,13 @@ const LeafletMapStub = defineComponent({
           {{ view.name }}
         </option>
       </select>
+      <button
+        type="button"
+        data-testid="point-label-toggle"
+        @click="$emit('update:showPointLabels', !showPointLabels)"
+      >
+        {{ showPointLabels ? "隐藏编号" : "显示编号" }}
+      </button>
       <div class="map-integrated-panel">
         <div class="panel-header">
           <strong>{{ geojson.features.length }}</strong><span>个调查点位</span>
@@ -135,7 +146,22 @@ describe("MapView", () => {
 
       expect(mapStub.props("viewName")).toBe("虫情总览");
       expect(mapStub.props("popupFields")).toEqual(["乡镇", "村", "调查日期"]);
+      expect(mapStub.props("showPointLabels")).toBe(false);
     });
+  });
+
+  it("点击编号开关后更新传给 LeafletMap 的 showPointLabels", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
+    });
+
+    await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
+    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
+
+    await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
+    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {

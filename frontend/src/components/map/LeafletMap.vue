@@ -7,6 +7,7 @@ import { useToast } from "../../composables/useToast.js";
 import {
   buildPopupRows,
   resolveFeatureHoverLabel,
+  resolveFeaturePointLabel,
   resolveFeatureSeverity,
 } from "./popupFields.js";
 
@@ -35,6 +36,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  showPointLabels: {
+    type: Boolean,
+    default: false,
+  },
   viewName: {
     type: String,
     default: "",
@@ -49,7 +54,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:viewName", "update:basemapMode"]);
+const emit = defineEmits(["update:viewName", "update:basemapMode", "update:showPointLabels"]);
 
 const { error, info } = useToast();
 const showLayerMenu = ref(false);
@@ -59,6 +64,7 @@ const zoomControlRef = shallowRef(null);
 const basemapLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
+const pointLabelLayerRef = shallowRef(null);
 const locateMarkerRef = shallowRef(null);
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
@@ -187,12 +193,39 @@ function drawBoundaryGeoJson(data) {
   fitMapToAvailableLayer();
 }
 
+function addPointLabel(feature, latlng) {
+  const label = resolveFeaturePointLabel(feature.properties);
+  if (!props.showPointLabels || !label || !pointLabelLayerRef.value) {
+    return;
+  }
+
+  L.marker(latlng, {
+    interactive: false,
+    keyboard: false,
+    icon: L.divIcon({
+      className: "map-point-label-anchor",
+      html: "",
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+    }),
+  })
+    .bindTooltip(label, {
+      permanent: true,
+      direction: "right",
+      offset: [10, 0],
+      opacity: 0.96,
+      className: "map-point-label-tooltip",
+    })
+    .addTo(pointLabelLayerRef.value);
+}
+
 function drawGeoJson(data, shouldFit = true) {
   if (!mapRef.value) {
     return;
   }
 
   clearLayer(pointLayerRef);
+  clearLayer(pointLabelLayerRef);
   if (!data?.features?.length) {
     if (shouldFit) {
       fitMapToAvailableLayer();
@@ -209,10 +242,15 @@ function drawGeoJson(data, shouldFit = true) {
     }),
   };
 
+  if (props.showPointLabels) {
+    pointLabelLayerRef.value = L.layerGroup().addTo(mapRef.value);
+  }
+
   pointLayerRef.value = L.geoJSON(sortedData, {
     pointToLayer: (feature, latlng) => {
       const severity = resolveFeatureSeverity(feature.properties);
       const isBlank = severity.key === "level0";
+      addPointLabel(feature, latlng);
       return L.circleMarker(latlng, {
         radius: severity.radius,
         fillColor: severity.color,
@@ -328,10 +366,18 @@ watch(
   { deep: true },
 );
 
+watch(
+  () => props.showPointLabels,
+  () => {
+    drawGeoJson(props.geojson, false);
+  },
+);
+
 onBeforeUnmount(() => {
   clearLayer(basemapLayerRef);
   clearLayer(boundaryLayerRef);
   clearLayer(pointLayerRef);
+  clearLayer(pointLabelLayerRef);
   clearLayer(locateMarkerRef);
 
   if (zoomControlRef.value) {
@@ -402,6 +448,17 @@ onBeforeUnmount(() => {
              >
                <strong>卫星地图</strong>
                <span>高分辨率影像</span>
+             </button>
+             <button
+               type="button"
+               class="layer-menu-item"
+               :class="{ 'is-active': showPointLabels }"
+               :aria-pressed="showPointLabels"
+               data-testid="point-label-toggle"
+               @click="emit('update:showPointLabels', !showPointLabels)"
+             >
+               <strong>显示编号</strong>
+               <span>{{ showPointLabels ? "编号标签已开启" : "点位旁显示编号" }}</span>
              </button>
           </div>
         </transition>
@@ -803,6 +860,26 @@ onBeforeUnmount(() => {
 
 :deep(.leaflet-tooltip-top:before) {
   border-top-color: rgba(21, 47, 31, 0.86);
+}
+
+:deep(.map-point-label-anchor) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.map-point-label-tooltip) {
+  padding: 0.26rem 0.48rem;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-primary-strong);
+  font-size: 0.76rem;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(18, 52, 29, 0.16);
+}
+
+:deep(.leaflet-tooltip-right.map-point-label-tooltip:before) {
+  border-right-color: rgba(255, 255, 255, 0.92);
 }
 
 :deep(.leaflet-popup-content-wrapper) {
