@@ -9,9 +9,12 @@ export async function listMapViews() {
 export async function fetchMapView(name, filters = {}) {
   const search = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && `${value}`.trim() !== "") {
-      search.set(key, value);
-    }
+    const values = Array.isArray(value) ? value : [value];
+    values.forEach((item) => {
+      if (item !== undefined && item !== null && `${item}`.trim() !== "") {
+        search.append(key, `${item}`.trim());
+      }
+    });
   });
 
   const query = search.toString();

@@ -66,10 +66,19 @@ const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
 const pointLabelLayerRef = shallowRef(null);
 const locateMarkerRef = shallowRef(null);
+const locateWatchId = ref(null);
+const latestLocateLatLng = shallowRef(null);
+const hasCenteredInitialLocate = ref(false);
+const isLocatePending = ref(false);
+const hasReportedLocateError = ref(false);
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
 const activeBasemapLabel = computed(() =>
   props.basemapMode === "satellite" ? "卫星底图" : "标准底图",
+);
+const isRealtimeLocating = computed(() => locateWatchId.value !== null);
+const locateButtonLabel = computed(() =>
+  isRealtimeLocating.value ? "重新居中到当前位置" : "开启实时定位",
 );
 
 const legendEntries = computed(() => [
@@ -281,47 +290,118 @@ function drawGeoJson(data, shouldFit = true) {
   }
 }
 
+function centerMapToLocatedPosition(latlng) {
+  if (!mapRef.value) {
+    return;
+  }
+
+  mapRef.value.setView(latlng, Math.max(mapRef.value.getZoom(), 13), {
+    animate: true,
+  });
+}
+
+function updateLocateMarker(latlng) {
+  if (!mapRef.value) {
+    return;
+  }
+
+  if (locateMarkerRef.value?.setLatLng) {
+    locateMarkerRef.value.setLatLng(latlng);
+    return;
+  }
+
+  clearLayer(locateMarkerRef);
+  locateMarkerRef.value = L.marker(latlng, {
+    icon: L.divIcon({
+      className: "locate-user-marker-wrapper",
+      html: LOCATE_MARKER_HTML,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    }),
+  }).addTo(mapRef.value);
+}
+
+function clearLocateWatch() {
+  if (locateWatchId.value === null || !navigator.geolocation?.clearWatch) {
+    locateWatchId.value = null;
+    return;
+  }
+
+  navigator.geolocation.clearWatch(locateWatchId.value);
+  locateWatchId.value = null;
+}
+
+function handleLocateSuccess(position) {
+  if (!mapRef.value) {
+    return;
+  }
+
+  const latlng = [position.coords.latitude, position.coords.longitude];
+  latestLocateLatLng.value = latlng;
+  isLocatePending.value = false;
+  hasReportedLocateError.value = false;
+  updateLocateMarker(latlng);
+
+  if (!hasCenteredInitialLocate.value) {
+    centerMapToLocatedPosition(latlng);
+    hasCenteredInitialLocate.value = true;
+    info("实时定位已开启，当前位置会持续更新。", "定位成功");
+  }
+}
+
+function handleLocateError(positionError) {
+  isLocatePending.value = false;
+  const message =
+    positionError?.code === 1
+      ? "未授予定位权限，请在浏览器中允许访问位置信息。"
+      : "暂时无法获取当前位置，请检查定位权限或网络。";
+
+  if (positionError?.code === 1) {
+    clearLocateWatch();
+  }
+
+  if (!hasReportedLocateError.value) {
+    error(message, "定位失败");
+    hasReportedLocateError.value = true;
+  }
+}
+
 function locateToUser() {
-  if (!navigator.geolocation) {
+  if (!navigator.geolocation?.watchPosition) {
     error("当前浏览器不支持定位能力。", "定位不可用");
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      if (!mapRef.value) {
-        return;
-      }
+  if (isRealtimeLocating.value) {
+    if (latestLocateLatLng.value) {
+      centerMapToLocatedPosition(latestLocateLatLng.value);
+      info("地图已重新居中到当前位置。", "定位成功");
+      return;
+    }
+    info("正在获取当前位置，请稍候。", "定位中");
+    return;
+  }
 
-      const latlng = [position.coords.latitude, position.coords.longitude];
-      clearLayer(locateMarkerRef);
-      locateMarkerRef.value = L.marker(latlng, {
-        icon: L.divIcon({
-          className: "locate-user-marker-wrapper",
-          html: LOCATE_MARKER_HTML,
-          iconSize: [32, 32],
-          iconAnchor: [16, 16],
-        }),
-      }).addTo(mapRef.value);
+  isLocatePending.value = true;
+  latestLocateLatLng.value = null;
+  hasCenteredInitialLocate.value = false;
+  hasReportedLocateError.value = false;
 
-      mapRef.value.setView(latlng, Math.max(mapRef.value.getZoom(), 13), {
-        animate: true,
-      });
-      info("地图已定位到当前设备位置。", "定位成功");
-    },
-    (positionError) => {
-      const message =
-        positionError?.code === 1
-          ? "未授予定位权限，请在浏览器中允许访问位置信息。"
-          : "暂时无法获取当前位置，请检查定位权限或网络。";
-      error(message, "定位失败");
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 60_000,
-    },
-  );
+  try {
+    locateWatchId.value = navigator.geolocation.watchPosition(
+      handleLocateSuccess,
+      handleLocateError,
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 60_000,
+      },
+    );
+  } catch (locateError) {
+    isLocatePending.value = false;
+    hasReportedLocateError.value = true;
+    error(`${locateError.message || locateError}`, "定位失败");
+  }
 }
 
 defineExpose({
@@ -374,6 +454,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  clearLocateWatch();
   clearLayer(basemapLayerRef);
   clearLayer(boundaryLayerRef);
   clearLayer(pointLayerRef);
@@ -414,12 +495,13 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="map-overlay top-right map-side-action">
-      <div class="map-layer-control" @mouseleave="showLayerMenu = false">
+      <div class="map-layer-control">
         <button
           type="button"
           class="map-fab"
           aria-label="切换图层"
-          @mouseenter="showLayerMenu = true"
+          aria-controls="map-layer-menu"
+          :aria-expanded="showLayerMenu"
           @click="showLayerMenu = !showLayerMenu"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
@@ -430,7 +512,7 @@ onBeforeUnmount(() => {
         </button>
         
         <transition name="fade">
-          <div v-show="showLayerMenu" class="layer-menu-popup">
+          <div id="map-layer-menu" v-show="showLayerMenu" class="layer-menu-popup">
             <button
                type="button"
                class="layer-menu-item"
@@ -484,8 +566,10 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="map-fab"
+        :class="{ 'is-active': isRealtimeLocating, 'is-loading': isLocatePending }"
         data-testid="map-locate-button"
-        aria-label="定位到当前位置"
+        :aria-label="locateButtonLabel"
+        :aria-pressed="isRealtimeLocating"
         @click="locateToUser"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -767,10 +851,31 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.9);
 }
 
+.map-fab.is-active {
+  border-color: rgba(47, 128, 237, 0.34);
+  background: rgba(232, 241, 255, 0.92);
+  color: #2f80ed;
+}
+
+.map-fab.is-loading svg {
+  animation: locate-pulse 1.1s ease-in-out infinite;
+}
+
 .map-fab svg {
   width: 1.15rem;
   height: 1.15rem;
   fill: currentColor;
+}
+
+@keyframes locate-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(0.88);
+  }
 }
 
 :deep(.leaflet-bar) {

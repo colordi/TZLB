@@ -372,15 +372,17 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
         "国槐尺蠖幼虫历年发生情况",
         {
-          年份: "2025",
+          年份: ["2025"],
         },
       );
     });
 
-    expect(wrapper.get('[data-testid="map-filter-年份"]').element.value).toBe("2025");
-    expect(wrapper.get('[data-testid="map-filter-危害程度"]').element.value).toBe("");
+    expect(wrapper.get('[data-testid="map-filter-年份-2025"]').element.checked).toBe(true);
+    expect(wrapper.get('[data-testid="map-filter-危害程度-中"]').element.checked).toBe(false);
+    expect(wrapper.get('[data-testid="map-filter-危害程度-重"]').element.checked).toBe(false);
 
-    await wrapper.get('[data-testid="map-filter-危害程度"]').setValue("重");
+    await wrapper.get('[data-testid="map-filter-危害程度-中"]').setValue(true);
+    await wrapper.get('[data-testid="map-filter-危害程度-重"]').setValue(true);
     await wrapper
       .findAll("button")
       .find((button) => button.text() === "应用筛选")
@@ -390,8 +392,8 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenLastCalledWith(
         "国槐尺蠖幼虫历年发生情况",
         {
-          年份: "2025",
-          危害程度: "重",
+          年份: ["2025"],
+          危害程度: ["中", "重"],
         },
       );
     });

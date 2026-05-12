@@ -29,9 +29,13 @@ async def get_view_geojson(view_name: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail=f"视图不存在：{view_name}")
 
     try:
+        filters: dict[str, list[str]] = {}
+        for key, value in request.query_params.multi_items():
+            filters.setdefault(key, []).append(value)
+
         return await fetch_view_feature_collection(
             view_name=view_name,
-            filters={key: value for key, value in request.query_params.items()},
+            filters=filters,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

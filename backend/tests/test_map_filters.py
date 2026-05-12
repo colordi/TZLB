@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from backend.db.postgres import (
     fetch_map_filter_options,
+    fetch_view_feature_collection,
     sort_filter_values,
 )
 
@@ -78,6 +79,39 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
             sort_filter_values("危害程度", ["重", "轻", "白", "中"]),
             ["白", "轻", "中", "重"],
         )
+
+    async def test_feature_collection_accepts_multi_value_filters(self) -> None:
+        fetch_mock = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "国槐尺蠖幼虫历年发生情况",
+                        "columns": ["编号", "年份", "危害程度", "调查日期"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=fetch_mock),
+        ):
+            payload = await fetch_view_feature_collection(
+                "国槐尺蠖幼虫历年发生情况",
+                {
+                    "年份": ["2024", "2025"],
+                    "危害程度": "重",
+                    "调查状态": ["调查"],
+                },
+            )
+
+        self.assertEqual(payload["features"], [])
+        query = fetch_mock.await_args.args[0]
+        args = fetch_mock.await_args.args[1:]
+
+        self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', query)
+        self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
+        self.assertIn('"调查日期" IS NOT NULL', query)
+        self.assertEqual(args, (["2024", "2025"], ["重"]))
 
 
 if __name__ == "__main__":

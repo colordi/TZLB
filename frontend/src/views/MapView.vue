@@ -65,6 +65,15 @@ function normalizeFilterOptions(options = []) {
     .filter((option) => option.value !== "");
 }
 
+function normalizeSelectedFilterValues(value) {
+  const values = Array.isArray(value) ? value : [value];
+  const selectedValues = values
+    .map((item) => `${item ?? ""}`.trim())
+    .filter((item) => item !== "");
+
+  return Array.from(new Set(selectedValues));
+}
+
 function buildLegacyFilterFields(payload) {
   const fields = [];
   const columns = currentView.value.columns || [];
@@ -76,7 +85,7 @@ function buildLegacyFilterFields(payload) {
       label: "乡镇 / 街道",
       type: "select",
       options: normalizeFilterOptions(townships),
-      defaultValue: "",
+      defaultValues: [],
     });
   }
 
@@ -86,7 +95,7 @@ function buildLegacyFilterFields(payload) {
       label: "调查状态",
       type: "select",
       options: normalizeFilterOptions(["调查", "未调查"]),
-      defaultValue: "",
+      defaultValues: [],
     });
   }
 
@@ -103,22 +112,22 @@ function normalizeFilterFields(payload) {
     label: `${field.label || field.key || ""}`,
     type: field.type || "select",
     options: normalizeFilterOptions(field.options || []),
-    defaultValue: `${field.default_value ?? ""}`,
+    defaultValues: normalizeSelectedFilterValues(field.default_values ?? field.default_value),
   })).filter((field) => field.key && field.label);
 }
 
 function buildDefaultFilterValues(fields = filterFields.value) {
   return fields.reduce((values, field) => {
-    values[field.key] = field.defaultValue || "";
+    values[field.key] = [...(field.defaultValues || [])];
     return values;
   }, {});
 }
 
 function buildActiveFilterPayload() {
   return filterFields.value.reduce((filters, field) => {
-    const value = `${activeFilters.value[field.key] ?? ""}`.trim();
-    if (value !== "") {
-      filters[field.key] = value;
+    const values = normalizeSelectedFilterValues(activeFilters.value[field.key]);
+    if (values.length > 0) {
+      filters[field.key] = values;
     }
     return filters;
   }, {});
@@ -291,18 +300,40 @@ onMounted(async () => {
 
           <div class="sidebar-field-stack">
             <div v-for="field in filterFields" :key="field.key" class="field-block">
-              <label :for="`map-filter-${field.key}`">{{ field.label }}</label>
-              <select
-                :id="`map-filter-${field.key}`"
-                v-model="activeFilters[field.key]"
+              <span class="field-label">{{ field.label }}</span>
+              <div
+                class="filter-option-list"
                 :data-testid="`map-filter-${field.key}`"
-                :disabled="loading || field.options.length === 0"
+                role="group"
+                :aria-label="field.label"
+                :aria-disabled="loading || field.options.length === 0"
               >
-                <option value="">全部{{ field.label }}</option>
-                <option v-for="option in field.options" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
+                <label
+                  v-for="option in field.options"
+                  :key="option.value"
+                  class="filter-option"
+                  :class="{ 'is-disabled': loading }"
+                >
+                  <input
+                    v-model="activeFilters[field.key]"
+                    type="checkbox"
+                    :value="option.value"
+                    :data-testid="`map-filter-${field.key}-${option.value}`"
+                    :disabled="loading"
+                  />
+                  <span>{{ option.label }}</span>
+                </label>
+                <div v-if="field.options.length === 0" class="filter-empty-state">
+                  暂无可选项
+                </div>
+              </div>
+              <div
+                v-if="activeFilters[field.key]?.length"
+                class="filter-selected-count"
+                :data-testid="`map-filter-${field.key}-selected-count`"
+              >
+                已选 {{ activeFilters[field.key].length }} 项
+              </div>
             </div>
 
             <div v-if="!hasFilterFields" class="filter-empty-state">
@@ -398,6 +429,61 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   color: var(--color-muted);
   font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.filter-option-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 11.25rem;
+  overflow: auto;
+  padding: 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+}
+
+.filter-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-option:hover {
+  background: rgba(90, 165, 110, 0.1);
+}
+
+.filter-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
+.filter-option input {
+  width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  accent-color: var(--color-primary);
+}
+
+.filter-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.filter-selected-count {
+  color: var(--color-muted);
+  font-size: 0.78rem;
   font-weight: 700;
 }
 

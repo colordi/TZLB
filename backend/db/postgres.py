@@ -36,8 +36,21 @@ SURVEY_STATUS_FILTER_OPTIONS = [
     {"value": "调查", "label": "调查"},
     {"value": "未调查", "label": "未调查"},
 ]
+SURVEY_STATUS_FILTER_VALUES = {option["value"] for option in SURVEY_STATUS_FILTER_OPTIONS}
 
 _pool: asyncpg.Pool | None = None
+
+
+def normalize_filter_values(value: Any) -> list[str]:
+    """将单值或多值筛选条件统一为去重后的字符串列表。"""
+
+    raw_values = value if isinstance(value, (list, tuple, set)) else [value]
+    values = [
+        str(item).strip()
+        for item in raw_values
+        if item is not None and str(item).strip() != ""
+    ]
+    return list(dict.fromkeys(values))
 
 
 async def ensure_pool() -> asyncpg.Pool:
@@ -275,7 +288,7 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
 
 async def fetch_view_feature_collection(
     view_name: str,
-    filters: dict[str, str] | None = None,
+    filters: dict[str, str | list[str]] | None = None,
 ) -> dict[str, Any]:
     """读取指定视图并返回标准 GeoJSON。"""
 
@@ -287,24 +300,33 @@ async def fetch_view_feature_collection(
     filters = filters or {}
 
     where_clauses: list[str] = []
-    args: list[str] = []
-    for column, value in filters.items():
+    args: list[Any] = []
+    for column, raw_value in filters.items():
+        values = normalize_filter_values(raw_value)
         if column == "调查状态":
-            if "调查日期" not in allowed_columns or value == "":
+            if "调查日期" not in allowed_columns or not values:
                 continue
-            if value == "调查":
+            unsupported_values = [
+                value for value in values if value not in SURVEY_STATUS_FILTER_VALUES
+            ]
+            if unsupported_values:
+                raise ValueError(f"不支持的调查状态：{unsupported_values[0]}")
+            if {"调查", "未调查"}.issubset(values):
+                continue
+            if "调查" in values:
                 where_clauses.append(f'{quote_identifier("调查日期")} IS NOT NULL')
                 continue
-            if value == "未调查":
+            if "未调查" in values:
                 where_clauses.append(f'{quote_identifier("调查日期")} IS NULL')
                 continue
-            raise ValueError(f"不支持的调查状态：{value}")
         if column not in allowed_columns:
             raise ValueError(f"不支持的过滤字段：{column}")
-        if value == "":
+        if not values:
             continue
-        args.append(value)
-        where_clauses.append(f"{quote_identifier(column)} = ${len(args)}")
+        args.append(values)
+        where_clauses.append(
+            f"BTRIM({quote_identifier(column)}::text) = ANY(${len(args)}::text[])"
+        )
 
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
