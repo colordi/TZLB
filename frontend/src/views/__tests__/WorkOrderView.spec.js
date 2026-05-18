@@ -146,7 +146,14 @@ describe("WorkOrderView", () => {
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
     expect(wrapper.get("#task-type").element.value).toBe("国槐尺蠖防治");
-    expect(wrapper.get("#task-name").element.value).toBe("2026国槐尺蠖防治");
+    expect(wrapper.get("#task-name").element.value).toBe("2026国槐尺蠖第一代防治");
+    expect(
+      Array.from(wrapper.get("#task-name").element.options).map((option) => option.value),
+    ).toEqual([
+      "2026国槐尺蠖第一代防治",
+      "2026国槐尺蠖第二代防治",
+      "2026国槐尺蠖第三代防治",
+    ]);
   });
 
   it("导入调查记录时会保留自动图片，并在已有记录后继续追加", async () => {
@@ -243,6 +250,8 @@ describe("WorkOrderView", () => {
     const wrapper = mountWorkOrderView();
 
     await wrapper.get("#pest-type").setValue("国槐尺蠖");
+    await wrapper.vm.$nextTick();
+    await wrapper.get("#task-name").setValue("2026国槐尺蠖第三代防治");
     await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
 
     await importRecords(wrapper, [
@@ -268,7 +277,7 @@ describe("WorkOrderView", () => {
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
       pest_type: "国槐尺蠖",
       task_type: "国槐尺蠖防治",
-      task: "2026国槐尺蠖防治",
+      task: "2026国槐尺蠖第三代防治",
       records: [
         expect.objectContaining({
           location_id: "1001-1",

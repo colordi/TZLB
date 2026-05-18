@@ -4,6 +4,7 @@ import {
   createEmptyRecord,
   getDefaultControlType,
   getDefaultTask,
+  getTaskOptions,
   getVisibleFields,
   toPayloadRecord,
   validateRecords,
@@ -72,7 +73,12 @@ describe("fieldConfig", () => {
 
   it("国槐尺蠖默认统防统治类型与任务改为国槐尺蠖防治", () => {
     expect(getDefaultControlType("国槐尺蠖")).toBe("国槐尺蠖防治");
-    expect(getDefaultTask("国槐尺蠖")).toBe("2026国槐尺蠖防治");
+    expect(getDefaultTask("国槐尺蠖")).toBe("2026国槐尺蠖第一代防治");
+    expect(getTaskOptions("国槐尺蠖").map((option) => option.value)).toEqual([
+      "2026国槐尺蠖第一代防治",
+      "2026国槐尺蠖第二代防治",
+      "2026国槐尺蠖第三代防治",
+    ]);
   });
 
   it("春尺蠖导出载荷只保留模板字段", () => {
