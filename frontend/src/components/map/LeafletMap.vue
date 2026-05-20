@@ -609,16 +609,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .map-shell {
   position: relative;
-  min-height: 34rem;
-  border: 1px solid rgba(46, 125, 50, 0.14);
-  border-radius: 26px;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
   overflow: hidden;
   background: rgba(229, 244, 230, 0.54);
 }
 
 .map-canvas {
-  min-height: 34rem;
   width: 100%;
+  height: 100%;
+  min-height: 100%;
 }
 
 .map-overlay {
@@ -1089,7 +1090,7 @@ onBeforeUnmount(() => {
 @media (max-width: 760px) {
   .map-shell,
   .map-canvas {
-    min-height: 28rem;
+    min-height: 100%;
   }
 
   .top-left {

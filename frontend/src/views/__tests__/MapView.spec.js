@@ -281,7 +281,29 @@ describe("MapView", () => {
     expect(wrapper.text()).not.toContain("聚合");
   });
 
-  it("侧栏文案使用图例配置，并且仅保留危害程度字段", async () => {
+  it("默认隐藏筛选配置内容，点击侧栏入口后显示", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
+    });
+
+    const toggle = wrapper.get('[data-testid="map-filter-toggle"]');
+
+    expect(toggle.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.find(".page-content-grid").exists()).toBe(false);
+    expect(wrapper.find(".filter-drawer").exists()).toBe(true);
+    expect(wrapper.find(".sidebar-field-stack").exists()).toBe(false);
+    expect(wrapper.find(".filter-actions").exists()).toBe(false);
+
+    await toggle.trigger("click");
+
+    expect(toggle.attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find(".sidebar-field-stack").exists()).toBe(true);
+    expect(wrapper.find(".filter-actions").exists()).toBe(true);
+  });
+
+  it("地图页移除标题栏，并且仅保留图例配置", async () => {
     apiMocks.fetchMapView.mockResolvedValue(
       createFeatureCollection([
         {
@@ -315,7 +337,7 @@ describe("MapView", () => {
     const legendText = wrapper.get(".map-legend").text();
 
     expect(wrapper.text()).toContain("筛选配置");
-    expect(wrapper.text()).toContain("调查点位分布");
+    expect(wrapper.text()).not.toContain("调查点位分布");
     expect(wrapper.text()).not.toContain("可用视图");
     expect(wrapper.text()).not.toContain("点位总数");
     expect(wrapper.text()).not.toContain("已完成调查");
@@ -376,6 +398,8 @@ describe("MapView", () => {
         },
       );
     });
+
+    await wrapper.get('[data-testid="map-filter-toggle"]').trigger("click");
 
     expect(wrapper.get('[data-testid="map-filter-年份-2025"]').element.checked).toBe(true);
     expect(wrapper.get('[data-testid="map-filter-危害程度-中"]').element.checked).toBe(false);

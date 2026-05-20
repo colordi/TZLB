@@ -30,6 +30,7 @@ const activeFilters = ref({});
 const filterOptions = ref({
   filterFields: [],
 });
+const isFilterPanelOpen = ref(false);
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
@@ -282,10 +283,25 @@ onMounted(async () => {
 
 <template>
   <section class="page-shell map-page">
-    <div class="page-content-grid">
-      <aside class="page-sidebar">
-        <article class="panel-card sidebar-panel sidebar-panel-slim">
-          <div class="panel-head panel-head-slim">
+    <div class="map-workspace">
+      <aside
+        class="filter-drawer"
+        :class="{ 'is-open': isFilterPanelOpen }"
+        aria-label="地图筛选"
+      >
+        <article
+          class="panel-card sidebar-panel sidebar-panel-slim"
+          :class="{ 'is-collapsed': !isFilterPanelOpen }"
+        >
+          <button
+            type="button"
+            class="filter-panel-toggle"
+            data-testid="map-filter-toggle"
+            :aria-expanded="isFilterPanelOpen"
+            aria-controls="map-filter-panel-body"
+            :aria-label="isFilterPanelOpen ? '收起筛选配置' : '展开筛选配置'"
+            @click="isFilterPanelOpen = !isFilterPanelOpen"
+          >
             <span class="icon-badge" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path
@@ -293,128 +309,235 @@ onMounted(async () => {
                 />
               </svg>
             </span>
-            <div class="panel-head-copy">
-              <h2>筛选配置</h2>
-            </div>
-          </div>
+            <span class="filter-toggle-title">筛选配置</span>
+            <span class="filter-toggle-chevron" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
+              </svg>
+            </span>
+          </button>
 
-          <div class="sidebar-field-stack">
-            <div v-for="field in filterFields" :key="field.key" class="field-block">
-              <span class="field-label">{{ field.label }}</span>
-              <div
-                class="filter-option-list"
-                :data-testid="`map-filter-${field.key}`"
-                role="group"
-                :aria-label="field.label"
-                :aria-disabled="loading || field.options.length === 0"
-              >
-                <label
-                  v-for="option in field.options"
-                  :key="option.value"
-                  class="filter-option"
-                  :class="{ 'is-disabled': loading }"
+          <div v-if="isFilterPanelOpen" id="map-filter-panel-body" class="filter-panel-body">
+            <div class="sidebar-field-stack">
+              <div v-for="field in filterFields" :key="field.key" class="field-block">
+                <span class="field-label">{{ field.label }}</span>
+                <div
+                  class="filter-option-list"
+                  :data-testid="`map-filter-${field.key}`"
+                  role="group"
+                  :aria-label="field.label"
+                  :aria-disabled="loading || field.options.length === 0"
                 >
-                  <input
-                    v-model="activeFilters[field.key]"
-                    type="checkbox"
-                    :value="option.value"
-                    :data-testid="`map-filter-${field.key}-${option.value}`"
-                    :disabled="loading"
-                  />
-                  <span>{{ option.label }}</span>
-                </label>
-                <div v-if="field.options.length === 0" class="filter-empty-state">
-                  暂无可选项
+                  <label
+                    v-for="option in field.options"
+                    :key="option.value"
+                    class="filter-option"
+                    :class="{ 'is-disabled': loading }"
+                  >
+                    <input
+                      v-model="activeFilters[field.key]"
+                      type="checkbox"
+                      :value="option.value"
+                      :data-testid="`map-filter-${field.key}-${option.value}`"
+                      :disabled="loading"
+                    />
+                    <span>{{ option.label }}</span>
+                  </label>
+                  <div v-if="field.options.length === 0" class="filter-empty-state">
+                    暂无可选项
+                  </div>
+                </div>
+                <div
+                  v-if="activeFilters[field.key]?.length"
+                  class="filter-selected-count"
+                  :data-testid="`map-filter-${field.key}-selected-count`"
+                >
+                  已选 {{ activeFilters[field.key].length }} 项
                 </div>
               </div>
-              <div
-                v-if="activeFilters[field.key]?.length"
-                class="filter-selected-count"
-                :data-testid="`map-filter-${field.key}-selected-count`"
-              >
-                已选 {{ activeFilters[field.key].length }} 项
+
+              <div v-if="!hasFilterFields" class="filter-empty-state">
+                当前视图暂无筛选字段
               </div>
             </div>
 
-            <div v-if="!hasFilterFields" class="filter-empty-state">
-              当前视图暂无筛选字段
+            <div class="filter-actions">
+              <button type="button" :disabled="loading || !selectedView" @click="applyFilter">
+                应用筛选
+              </button>
+              <button type="button" class="button-secondary" @click="refreshViewsAndData">
+                刷新
+              </button>
+              <button
+                type="button"
+                class="button-secondary"
+                :disabled="loading"
+                @click="resetFilter"
+              >
+                清空
+              </button>
             </div>
-          </div>
 
-          <div class="filter-actions">
-            <button type="button" :disabled="loading || !selectedView" @click="applyFilter">
-              应用筛选
-            </button>
-            <button type="button" class="button-secondary" @click="refreshViewsAndData">刷新</button>
-            <button type="button" class="button-secondary" :disabled="loading" @click="resetFilter">
-              清空
-            </button>
+            <p class="muted-note">{{ filterHint }}</p>
           </div>
-
-          <p class="muted-note">{{ filterHint }}</p>
         </article>
       </aside>
 
-      <div class="page-main-column">
-        <section class="panel-card map-panel">
-          <div class="map-panel-head">
-            <div class="panel-head map-panel-title">
-              <span class="icon-badge" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path
-                    d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 5.02 5.8 10.39 6.05 10.61a1.8 1.8 0 0 0 2.4 0c.25-.22 6.05-5.59 6.05-10.61A7.25 7.25 0 0 0 12 2.75Zm0 16.52C10.5 17.76 6.25 13.4 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.4-4.25 7.76-5.75 9.27Zm0-12.52A3.25 3.25 0 1 0 15.25 10 3.25 3.25 0 0 0 12 6.75Zm0 5A1.75 1.75 0 1 1 13.75 10 1.75 1.75 0 0 1 12 11.75Z"
-                  />
-                </svg>
-              </span>
-              <div class="panel-head-copy">
-                <h2>调查点位分布</h2>
-                <p>支持点位弹窗详情、名称悬停与底图切换。</p>
-              </div>
-            </div>
-          </div>
-
-          <LeafletMap
-            :auto-fit-on-data-change="autoFitOnDataChange"
-            :basemap-mode="basemapMode"
-            :boundary-geojson="boundaryGeojson"
-            :geojson="geojson"
-            :loading="loading"
-            :loading-views="loadingViews"
-            :popup-fields="currentView.columns"
-            :show-point-labels="showPointLabels"
-            :view-name="selectedView"
-            :views="views"
-            @update:basemap-mode="basemapMode = $event"
-            @update:show-point-labels="showPointLabels = $event"
-            @update:view-name="selectedView = $event"
-          />
-        </section>
-      </div>
+      <section class="map-panel" aria-label="调查点位地图">
+        <LeafletMap
+          :auto-fit-on-data-change="autoFitOnDataChange"
+          :basemap-mode="basemapMode"
+          :boundary-geojson="boundaryGeojson"
+          :geojson="geojson"
+          :loading="loading"
+          :loading-views="loadingViews"
+          :popup-fields="currentView.columns"
+          :show-point-labels="showPointLabels"
+          :view-name="selectedView"
+          :views="views"
+          @update:basemap-mode="basemapMode = $event"
+          @update:show-point-labels="showPointLabels = $event"
+          @update:view-name="selectedView = $event"
+        />
+      </section>
     </div>
   </section>
 </template>
 
 <style scoped>
 .map-page {
+  flex: 1;
   gap: 0;
+  min-height: 0;
+}
+
+.map-workspace {
+  position: relative;
+  flex: 1;
+  min-height: calc(100vh - 6.85rem);
+  overflow: hidden;
+  background: rgba(229, 244, 230, 0.54);
+}
+
+.filter-drawer {
+  position: absolute;
+  top: 5.35rem;
+  left: 1rem;
+  z-index: 1200;
+  width: 3.4rem;
+  max-width: calc(100% - 2rem);
+  max-height: calc(100% - 6.35rem);
+  pointer-events: none;
+  transition:
+    top 180ms ease,
+    width 180ms ease;
+}
+
+.filter-drawer.is-open {
+  top: 1rem;
+  width: min(20rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
 }
 
 .sidebar-panel {
-  padding: 1rem;
+  width: 100%;
+  max-height: inherit;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.65rem;
+  pointer-events: auto;
 }
 
 .sidebar-panel-slim {
-  border-radius: 22px;
+  border-radius: 18px;
 }
 
-.panel-head-slim {
-  margin-bottom: 0.9rem;
+.sidebar-panel.is-collapsed {
+  display: flex;
+  justify-content: center;
+  padding: 0.35rem;
 }
 
-.sidebar-panel .panel-head-copy h2 {
+.filter-panel-toggle {
+  width: 100%;
+  min-height: 2.8rem;
+  justify-content: flex-start;
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: none;
+  text-align: left;
+}
+
+.filter-panel-toggle:hover {
+  background: var(--color-surface-container-low);
+  box-shadow: none;
+  transform: none;
+}
+
+.filter-panel-toggle:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.sidebar-panel.is-collapsed .filter-panel-toggle {
+  width: 2.6rem;
+  height: 2.6rem;
+  min-height: 2.6rem;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-panel.is-collapsed .icon-badge {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.sidebar-panel.is-collapsed .filter-toggle-title,
+.sidebar-panel.is-collapsed .filter-toggle-chevron {
+  display: none;
+}
+
+.filter-toggle-title {
+  min-width: 0;
+  flex: 1;
   font-size: 1.12rem;
   line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.filter-toggle-chevron {
+  width: 1.8rem;
+  height: 1.8rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--color-muted);
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.filter-toggle-chevron svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: currentColor;
+}
+
+.filter-panel-toggle[aria-expanded="true"] .filter-toggle-chevron {
+  color: var(--color-primary);
+  transform: rotate(180deg);
+}
+
+.filter-panel-body {
+  min-height: 0;
+  margin-top: 0.9rem;
+  overflow: auto;
 }
 
 .sidebar-field-stack {
@@ -499,18 +622,38 @@ onMounted(async () => {
 }
 
 .map-panel {
-  padding: 1.15rem;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
 }
 
-.map-panel-head {
-  margin-bottom: 0.9rem;
-}
-
-.map-panel-title {
-  margin-bottom: 0;
+.map-panel :deep(.map-shell) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 @media (max-width: 760px) {
+  .map-workspace {
+    min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
+  }
+
+  .filter-drawer {
+    top: 4.85rem;
+    left: 0.75rem;
+    width: 3.1rem;
+    max-width: calc(100% - 1.5rem);
+    max-height: calc(100% - 5.6rem);
+  }
+
+  .filter-drawer.is-open {
+    top: 0.75rem;
+    width: min(19rem, calc(100% - 1.5rem));
+    max-height: calc(100% - 1.5rem);
+  }
+
   .filter-actions {
     grid-template-columns: 1fr;
   }
@@ -519,8 +662,7 @@ onMounted(async () => {
     grid-column: auto;
   }
 
-  .filter-actions > button,
-  .sidebar-panel {
+  .filter-actions > button {
     flex: 1;
   }
 }

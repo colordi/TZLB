@@ -41,6 +41,7 @@ async function mountApp(initialPath = "/workorder") {
         component: MapStub,
         meta: {
           section: "调查点位",
+          fullBleed: true,
         },
       },
     ],
@@ -93,6 +94,12 @@ describe("App 壳层导航", () => {
 
     expect(router.currentRoute.value.path).toBe("/map");
     expect(wrapper.find('[data-testid="mobile-drawer-overlay"]').exists()).toBe(false);
+  });
+
+  it("地图页使用满宽主内容区", async () => {
+    const { wrapper } = await mountApp("/map");
+
+    expect(wrapper.get(".site-main").classes()).toContain("is-full-bleed");
   });
 
   it("登录页使用独立布局，不展示顶部导航", async () => {

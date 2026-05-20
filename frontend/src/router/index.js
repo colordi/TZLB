@@ -37,6 +37,7 @@ const routes = [
     meta: {
       section: "调查点位",
       blurb: "",
+      fullBleed: true,
     },
   },
 ];

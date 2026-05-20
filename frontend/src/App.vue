@@ -10,6 +10,7 @@ const route = useRoute();
 const router = useRouter();
 const mobileNavOpen = ref(false);
 const hideShell = computed(() => Boolean(route.meta?.hideShell));
+const useFullBleedMain = computed(() => Boolean(route.meta?.fullBleed));
 const loggingOut = ref(false);
 const { user, signOut } = useAuthSession();
 const { error, info } = useToast();
@@ -218,7 +219,10 @@ onBeforeUnmount(() => {
         </div>
       </transition>
 
-      <main class="site-main" :class="{ 'is-standalone': hideShell }">
+      <main
+        class="site-main"
+        :class="{ 'is-standalone': hideShell, 'is-full-bleed': useFullBleedMain }"
+      >
         <RouterView />
       </main>
     </div>
@@ -473,6 +477,13 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: none;
   min-height: 100vh;
+  padding: 0;
+}
+
+.site-main.is-full-bleed {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
   padding: 0;
 }
 
