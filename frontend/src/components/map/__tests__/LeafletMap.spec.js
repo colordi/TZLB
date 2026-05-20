@@ -108,7 +108,7 @@ function mockPosition(latitude, longitude) {
   };
 }
 
-function mountLeafletMap() {
+function mountLeafletMap(props = {}) {
   return mount(LeafletMap, {
     props: {
       boundaryGeojson: {
@@ -121,6 +121,7 @@ function mountLeafletMap() {
       },
       viewName: "虫情总览",
       views: [{ name: "虫情总览", columns: [] }],
+      ...props,
     },
   });
 }
@@ -259,6 +260,85 @@ describe("LeafletMap 实时定位", () => {
     );
     expect(wrapper.get('[data-testid="map-locate-button"]').attributes("aria-pressed")).toBe(
       "false",
+    );
+  });
+});
+
+describe("LeafletMap 点位样式", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+  });
+
+  it("已调查点位使用带叉号的图标并保留危害程度颜色", () => {
+    const feature = {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [116.73, 39.92] },
+      properties: {
+        危害程度: "重",
+        调查日期: "2026-05-02",
+      },
+    };
+
+    mountLeafletMap({
+      geojson: {
+        type: "FeatureCollection",
+        features: [feature],
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
+
+    expect(leafletMocks.circleMarker).not.toHaveBeenCalled();
+    expect(leafletMocks.divIcon).toHaveBeenCalledWith(
+      expect.objectContaining({
+        className: "map-surveyed-point-icon",
+        html: expect.stringContaining("--point-fill: #EC6D64"),
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      }),
+    );
+    expect(leafletMocks.marker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        icon: expect.objectContaining({
+          className: "map-surveyed-point-icon",
+        }),
+      }),
+    );
+  });
+
+  it("未调查点位继续使用原有圆点样式", () => {
+    const feature = {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [116.73, 39.92] },
+      properties: {
+        危害程度: "轻",
+        调查日期: "",
+      },
+    };
+
+    mountLeafletMap({
+      geojson: {
+        type: "FeatureCollection",
+        features: [feature],
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
+
+    expect(leafletMocks.marker).not.toHaveBeenCalled();
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        radius: 7,
+        fillColor: "#68C17A",
+        fillOpacity: 0.9,
+      }),
     );
   });
 });

@@ -67,6 +67,17 @@ export function shouldAttachLocalAuthBypass(locationLike = globalThis.window?.lo
   return isLocalhostHostname(locationLike?.hostname);
 }
 
+export function shouldUseLocalDevAuthBypass(
+  locationLike = globalThis.window?.location,
+  env = import.meta.env,
+) {
+  return (
+    env?.MODE === "development" &&
+    env?.VITE_AUTH_BYPASS_LOCALHOST !== "false" &&
+    shouldAttachLocalAuthBypass(locationLike)
+  );
+}
+
 async function parseError(response) {
   try {
     const payload = await response.json();
@@ -83,7 +94,10 @@ export async function ensureApiSuccess(response, options = {}) {
 
   const message = await parseError(response);
   if (response.status === 401) {
-    if (options.redirectOnUnauthorized !== false) {
+    if (
+      options.redirectOnUnauthorized !== false &&
+      !shouldUseLocalDevAuthBypass(options.locationLike, options.env)
+    ) {
       redirectToLogin(options.locationLike);
     }
     throw new UnauthorizedError(message);

@@ -7,6 +7,7 @@ import {
   isLocalhostHostname,
   resetUnauthorizedRedirectState,
   shouldAttachLocalAuthBypass,
+  shouldUseLocalDevAuthBypass,
 } from "../http.js";
 
 describe("api/http", () => {
@@ -63,5 +64,32 @@ describe("api/http", () => {
     expect(shouldAttachLocalAuthBypass({ hostname: "127.0.0.1" })).toBe(true);
     expect(shouldAttachLocalAuthBypass({ hostname: "localhost" })).toBe(true);
     expect(shouldAttachLocalAuthBypass({ hostname: "192.168.1.20" })).toBe(false);
+  });
+
+  it("本机开发会话只在 development 模式和本机地址启用", () => {
+    expect(
+      shouldUseLocalDevAuthBypass(
+        { hostname: "127.0.0.1" },
+        { MODE: "development" },
+      ),
+    ).toBe(true);
+    expect(
+      shouldUseLocalDevAuthBypass(
+        { hostname: "127.0.0.1" },
+        { MODE: "test" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevAuthBypass(
+        { hostname: "192.168.1.20" },
+        { MODE: "development" },
+      ),
+    ).toBe(false);
+    expect(
+      shouldUseLocalDevAuthBypass(
+        { hostname: "localhost" },
+        { MODE: "development", VITE_AUTH_BYPASS_LOCALHOST: "false" },
+      ),
+    ).toBe(false);
   });
 });

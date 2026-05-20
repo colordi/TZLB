@@ -9,6 +9,7 @@ import {
   resolveFeatureHoverLabel,
   resolveFeaturePointLabel,
   resolveFeatureSeverity,
+  resolveSurveyStatus,
 } from "./popupFields.js";
 
 const props = defineProps({
@@ -228,6 +229,26 @@ function addPointLabel(feature, latlng) {
     .addTo(pointLabelLayerRef.value);
 }
 
+function buildSurveyedPointMarker(latlng, severity, isBlank) {
+  const diameter = severity.radius * 2;
+  const borderColor = isBlank ? "rgba(24, 50, 35, 0.5)" : "rgba(24, 50, 35, 0.78)";
+
+  return L.marker(latlng, {
+    icon: L.divIcon({
+      className: "map-surveyed-point-icon",
+      html: `
+        <span
+          class="map-surveyed-point"
+          style="--point-size: ${diameter}px; --point-fill: ${severity.color}; --point-border: ${borderColor};"
+          aria-hidden="true"
+        ></span>
+      `,
+      iconSize: [diameter, diameter],
+      iconAnchor: [diameter / 2, diameter / 2],
+    }),
+  });
+}
+
 function drawGeoJson(data, shouldFit = true) {
   if (!mapRef.value) {
     return;
@@ -260,6 +281,9 @@ function drawGeoJson(data, shouldFit = true) {
       const severity = resolveFeatureSeverity(feature.properties);
       const isBlank = severity.key === "level0";
       addPointLabel(feature, latlng);
+      if (resolveSurveyStatus(feature.properties) === "completed") {
+        return buildSurveyedPointMarker(latlng, severity, isBlank);
+      }
       return L.circleMarker(latlng, {
         radius: severity.radius,
         fillColor: severity.color,
@@ -985,6 +1009,46 @@ onBeforeUnmount(() => {
 
 :deep(.leaflet-tooltip-right.map-point-label-tooltip:before) {
   border-right-color: rgba(255, 255, 255, 0.92);
+}
+
+:deep(.map-surveyed-point-icon) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.map-surveyed-point) {
+  position: relative;
+  display: block;
+  width: var(--point-size);
+  height: var(--point-size);
+  box-sizing: border-box;
+  border: 1.25px solid var(--point-border);
+  border-radius: 999px;
+  background: var(--point-fill);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.82),
+    0 5px 12px rgba(18, 52, 29, 0.2);
+}
+
+:deep(.map-surveyed-point::before),
+:deep(.map-surveyed-point::after) {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 58%;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(24, 50, 35, 0.82);
+  transform-origin: center;
+}
+
+:deep(.map-surveyed-point::before) {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+:deep(.map-surveyed-point::after) {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 :deep(.leaflet-popup-content-wrapper) {

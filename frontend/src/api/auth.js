@@ -1,4 +1,16 @@
-import { apiFetch, ensureApiSuccess } from "./http.js";
+import { apiFetch, ensureApiSuccess, shouldUseLocalDevAuthBypass } from "./http.js";
+
+const LOCAL_DEV_USER = {
+  id: 0,
+  username: "local-dev",
+  display_name: "本机测试用户",
+  is_active: true,
+  last_login_at: null,
+};
+
+function buildLocalDevUser() {
+  return { ...LOCAL_DEV_USER };
+}
 
 export async function login(payload) {
   const response = await apiFetch("/api/auth/login", {
@@ -13,8 +25,20 @@ export async function login(payload) {
   return response.json();
 }
 
-export async function fetchCurrentUser() {
-  const response = await apiFetch("/api/auth/me");
+export async function fetchCurrentUser(options = {}) {
+  let response;
+  try {
+    response = await apiFetch("/api/auth/me");
+  } catch (requestError) {
+    if (shouldUseLocalDevAuthBypass(options.locationLike, options.env)) {
+      return buildLocalDevUser();
+    }
+    throw requestError;
+  }
+
+  if (!response.ok && shouldUseLocalDevAuthBypass(options.locationLike, options.env)) {
+    return buildLocalDevUser();
+  }
 
   if (response.status === 401) {
     return null;

@@ -221,7 +221,11 @@ npm run build
 - 地图没有视图：确认 `views` schema 下存在带 `geom` 字段的视图。
 - 地图边界为空：确认 `reference.admin_boundary` 存在且 `geom` 不为空。
 - 工作单生成失败：确认模板文件存在，并检查 `LIBREOFFICE_BIN` 是否能在服务器执行。
-- 本机开发想临时免登：设置 `AUTH_BYPASS_LOCALHOST=true`。该能力只应在本地调试使用。
+- 本机开发想临时免登：`npm run dev` 在 localhost 下会使用前端本机测试用户，
+  避免路由守卫卡在登录页；若要后端业务接口也返回真实数据，仍需设置
+  `AUTH_BYPASS_LOCALHOST=true`。该能力只应在本地调试使用。
+- 如需在前端开发服测试登录页流程，可设置 `VITE_AUTH_BYPASS_LOCALHOST=false`
+  后重新启动前端开发服务。
 
 ## 维护提示
 
