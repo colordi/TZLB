@@ -123,7 +123,10 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `survey.chun_chi_huo_larva`：春尺蠖幼虫调查表
 - `survey.guo_huai_chi_huo_larva`：国槐尺蠖幼虫调查表
+- `survey.mei_guo_bai_e_first_generation_inspection`：美国白蛾第一代巡查表
 - `survey.other_pest_inspection`：其他害虫调查表
+- `ledger."2026年美国白蛾第一代问题点位事件流水表"`：美国白蛾第一代问题点位事件流水表
+- `ledger."2026年美国白蛾第一代问题点位台账"`：美国白蛾第一代问题点位台账
 - `sites.poplar_sites`：杨树点位基础表
 - `sites.sophora_sites`：国槐点位基础表，要求 `编号` 唯一且 `geom` 不为空
 - `sites.other_pest_sites`：其他害虫点位基础表
