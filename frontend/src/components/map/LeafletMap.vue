@@ -61,7 +61,6 @@ const { error, info } = useToast();
 const showLayerMenu = ref(false);
 const mapElement = ref(null);
 const mapRef = shallowRef(null);
-const zoomControlRef = shallowRef(null);
 const basemapLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
@@ -80,6 +79,9 @@ const activeBasemapLabel = computed(() =>
 const isRealtimeLocating = computed(() => locateWatchId.value !== null);
 const locateButtonLabel = computed(() =>
   isRealtimeLocating.value ? "重新居中到当前位置" : "开启实时定位",
+);
+const pointLabelMenuDescription = computed(() =>
+  props.showPointLabels ? "当前范围编号已开启" : "放大后显示当前范围编号",
 );
 
 const legendEntries = computed(() => [
@@ -119,6 +121,9 @@ const LOCATE_MARKER_HTML = `
     </span>
   </div>
 `;
+
+const POINT_LABEL_MIN_ZOOM = 14;
+const POINT_LABEL_RENDER_LIMIT = 200;
 
 function renderPopup(properties = {}) {
   const rows = buildPopupRows(props.popupFields, properties);
@@ -203,13 +208,8 @@ function drawBoundaryGeoJson(data) {
   fitMapToAvailableLayer();
 }
 
-function addPointLabel(feature, latlng) {
-  const label = resolveFeaturePointLabel(feature.properties);
-  if (!props.showPointLabels || !label || !pointLabelLayerRef.value) {
-    return;
-  }
-
-  L.marker(latlng, {
+function buildPointLabelMarker(label, latlng) {
+  return L.marker(latlng, {
     interactive: false,
     keyboard: false,
     icon: L.divIcon({
@@ -218,15 +218,77 @@ function addPointLabel(feature, latlng) {
       iconSize: [0, 0],
       iconAnchor: [0, 0],
     }),
-  })
-    .bindTooltip(label, {
-      permanent: true,
-      direction: "right",
-      offset: [10, 0],
-      opacity: 0.96,
-      className: "map-point-label-tooltip",
-    })
-    .addTo(pointLabelLayerRef.value);
+  }).bindTooltip(label, {
+    permanent: true,
+    direction: "right",
+    offset: [10, 0],
+    opacity: 0.96,
+    className: "map-point-label-tooltip",
+  });
+}
+
+function extractFeatureLatLng(feature) {
+  if (feature?.geometry?.type !== "Point") {
+    return null;
+  }
+
+  const coordinates = feature.geometry.coordinates;
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    return null;
+  }
+
+  const [lng, lat] = coordinates;
+  const numericLng = Number(lng);
+  const numericLat = Number(lat);
+  if (!Number.isFinite(numericLng) || !Number.isFinite(numericLat)) {
+    return null;
+  }
+
+  return [numericLat, numericLng];
+}
+
+function renderPointLabels(data = props.geojson) {
+  clearLayer(pointLabelLayerRef);
+
+  if (!mapRef.value || !props.showPointLabels || !data?.features?.length) {
+    return;
+  }
+
+  const currentZoom = mapRef.value.getZoom?.();
+  if (!Number.isFinite(currentZoom) || currentZoom < POINT_LABEL_MIN_ZOOM) {
+    return;
+  }
+
+  const bounds = mapRef.value.getBounds?.();
+  if (!bounds?.contains) {
+    return;
+  }
+
+  let renderedCount = 0;
+  for (const feature of data.features) {
+    if (renderedCount >= POINT_LABEL_RENDER_LIMIT) {
+      break;
+    }
+
+    const label = resolveFeaturePointLabel(feature?.properties || {});
+    if (!label) {
+      continue;
+    }
+
+    const latlng = extractFeatureLatLng(feature);
+    if (!latlng || !bounds.contains(latlng)) {
+      continue;
+    }
+
+    if (!pointLabelLayerRef.value) {
+      pointLabelLayerRef.value = L.layerGroup().addTo(mapRef.value);
+    }
+
+    buildPointLabelMarker(label, latlng).addTo(pointLabelLayerRef.value);
+    renderedCount += 1;
+  }
+
+  pointLabelLayerRef.value?.bringToFront?.();
 }
 
 function buildSurveyedPointMarker(latlng, severity, isBlank) {
@@ -255,7 +317,6 @@ function drawGeoJson(data, shouldFit = true) {
   }
 
   clearLayer(pointLayerRef);
-  clearLayer(pointLabelLayerRef);
   if (!data?.features?.length) {
     if (shouldFit) {
       fitMapToAvailableLayer();
@@ -272,15 +333,10 @@ function drawGeoJson(data, shouldFit = true) {
     }),
   };
 
-  if (props.showPointLabels) {
-    pointLabelLayerRef.value = L.layerGroup().addTo(mapRef.value);
-  }
-
   pointLayerRef.value = L.geoJSON(sortedData, {
     pointToLayer: (feature, latlng) => {
       const severity = resolveFeatureSeverity(feature.properties);
       const isBlank = severity.key === "level0";
-      addPointLabel(feature, latlng);
       if (resolveSurveyStatus(feature.properties) === "completed") {
         return buildSurveyedPointMarker(latlng, severity, isBlank);
       }
@@ -312,6 +368,10 @@ function drawGeoJson(data, shouldFit = true) {
   if (shouldFit) {
     fitMapToAvailableLayer();
   }
+}
+
+function refreshPointLabels() {
+  renderPointLabels(props.geojson);
 }
 
 function centerMapToLocatedPosition(latlng) {
@@ -438,13 +498,12 @@ onMounted(() => {
     attributionControl: true,
   }).setView([39.91, 116.72], 11);
 
-  zoomControlRef.value = L.control.zoom({
-    position: "bottomright",
-  }).addTo(mapRef.value);
-
   drawBasemap(props.basemapMode);
   drawBoundaryGeoJson(props.boundaryGeojson);
   drawGeoJson(props.geojson, props.autoFitOnDataChange);
+  renderPointLabels(props.geojson);
+  mapRef.value.on?.("moveend", refreshPointLabels);
+  mapRef.value.on?.("zoomend", refreshPointLabels);
 });
 
 watch(
@@ -466,6 +525,7 @@ watch(
   () => props.geojson,
   (value) => {
     drawGeoJson(value, props.autoFitOnDataChange);
+    renderPointLabels(value);
   },
   { deep: true },
 );
@@ -473,7 +533,7 @@ watch(
 watch(
   () => props.showPointLabels,
   () => {
-    drawGeoJson(props.geojson, false);
+    renderPointLabels(props.geojson);
   },
 );
 
@@ -485,12 +545,9 @@ onBeforeUnmount(() => {
   clearLayer(pointLabelLayerRef);
   clearLayer(locateMarkerRef);
 
-  if (zoomControlRef.value) {
-    zoomControlRef.value.remove();
-    zoomControlRef.value = null;
-  }
-
   if (mapRef.value) {
+    mapRef.value.off?.("moveend", refreshPointLabels);
+    mapRef.value.off?.("zoomend", refreshPointLabels);
     mapRef.value.remove();
     mapRef.value = null;
   }
@@ -562,10 +619,10 @@ onBeforeUnmount(() => {
                :aria-pressed="showPointLabels"
                data-testid="point-label-toggle"
                @click="emit('update:showPointLabels', !showPointLabels)"
-             >
-               <strong>显示编号</strong>
-               <span>{{ showPointLabels ? "编号标签已开启" : "点位旁显示编号" }}</span>
-             </button>
+              >
+                <strong>显示编号</strong>
+                <span>{{ pointLabelMenuDescription }}</span>
+              </button>
           </div>
         </transition>
       </div>
@@ -650,7 +707,7 @@ onBeforeUnmount(() => {
 
 .right-fab {
   right: 1.25rem;
-  bottom: 8.5rem;
+  bottom: 1.5rem;
   pointer-events: auto;
 }
 
@@ -912,28 +969,6 @@ onBeforeUnmount(() => {
   -webkit-backdrop-filter: blur(24px);
 }
 
-:deep(.leaflet-control-zoom) {
-  border: none;
-  box-shadow: none;
-}
-
-:deep(.leaflet-control-zoom a) {
-  width: 2.8rem;
-  height: 2.8rem;
-  line-height: 2.7rem;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 0;
-  color: var(--color-primary-strong);
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-}
-
-:deep(.leaflet-control-zoom a:last-child) {
-  border-bottom: none;
-}
-
 :deep(.leaflet-bar a:hover) {
   background: rgba(244, 250, 244, 0.96);
 }
@@ -1110,7 +1145,7 @@ onBeforeUnmount(() => {
 
   .right-fab {
     right: 1rem;
-    bottom: 8rem;
+    bottom: 1rem;
   }
 
   :deep(.leaflet-right .leaflet-control) {
