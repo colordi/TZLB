@@ -401,7 +401,20 @@ describe("MapView", () => {
 
     await wrapper.get('[data-testid="map-filter-toggle"]').trigger("click");
 
+    const yearTrigger = wrapper.get('[data-testid="map-filter-trigger-年份"]');
+    const severityTrigger = wrapper.get('[data-testid="map-filter-trigger-危害程度"]');
+
+    expect(yearTrigger.text()).toContain("2025");
+    expect(yearTrigger.attributes("aria-expanded")).toBe("false");
+    expect(severityTrigger.attributes("aria-expanded")).toBe("false");
+
+    await yearTrigger.trigger("click");
+    expect(yearTrigger.attributes("aria-expanded")).toBe("true");
     expect(wrapper.get('[data-testid="map-filter-年份-2025"]').element.checked).toBe(true);
+
+    await severityTrigger.trigger("click");
+    expect(severityTrigger.attributes("aria-expanded")).toBe("true");
+    expect(wrapper.find('[data-testid="map-filter-年份"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="map-filter-危害程度-中"]').element.checked).toBe(false);
     expect(wrapper.get('[data-testid="map-filter-危害程度-重"]').element.checked).toBe(false);
 

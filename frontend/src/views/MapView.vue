@@ -31,6 +31,7 @@ const filterOptions = ref({
   filterFields: [],
 });
 const isFilterPanelOpen = ref(false);
+const openFilterMenus = ref({});
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
@@ -124,6 +125,59 @@ function buildDefaultFilterValues(fields = filterFields.value) {
   }, {});
 }
 
+function buildFilterMenuState(fields = filterFields.value) {
+  return fields.reduce((menus, field) => {
+    menus[field.key] = false;
+    return menus;
+  }, {});
+}
+
+function isFilterMenuOpen(fieldKey) {
+  return Boolean(openFilterMenus.value[fieldKey]);
+}
+
+function setFilterMenuOpen(fieldKey, open) {
+  const nextState = buildFilterMenuState();
+  if (open && Object.hasOwn(nextState, fieldKey)) {
+    nextState[fieldKey] = true;
+  }
+  openFilterMenus.value = nextState;
+}
+
+function toggleFilterMenu(fieldKey) {
+  setFilterMenuOpen(fieldKey, !isFilterMenuOpen(fieldKey));
+}
+
+function getFilterOptionLabel(field, value) {
+  return field.options.find((option) => option.value === value)?.label || value;
+}
+
+function getFilterSummary(field) {
+  if (!field.options.length) {
+    return "暂无可选项";
+  }
+
+  const selectedValues = normalizeSelectedFilterValues(activeFilters.value[field.key]);
+  if (!selectedValues.length) {
+    return `选择${field.label}`;
+  }
+
+  const selectedLabels = selectedValues.map((value) => getFilterOptionLabel(field, value));
+  if (selectedLabels.length <= 2) {
+    return selectedLabels.join("、");
+  }
+
+  return `${selectedLabels.slice(0, 2).join("、")} 等 ${selectedLabels.length} 项`;
+}
+
+function hasSelectedFilterValues(fieldKey) {
+  return normalizeSelectedFilterValues(activeFilters.value[fieldKey]).length > 0;
+}
+
+function isFilterSummaryMuted(field) {
+  return !field.options.length || !hasSelectedFilterValues(field.key);
+}
+
 function buildActiveFilterPayload() {
   return filterFields.value.reduce((filters, field) => {
     const values = normalizeSelectedFilterValues(activeFilters.value[field.key]);
@@ -207,6 +261,7 @@ async function loadFilterOptions() {
       filterFields: [],
     };
     activeFilters.value = {};
+    openFilterMenus.value = {};
     return;
   }
 
@@ -216,11 +271,13 @@ async function loadFilterOptions() {
       filterFields: normalizeFilterFields(payload),
     };
     activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
+    openFilterMenus.value = buildFilterMenuState(filterOptions.value.filterFields);
   } catch (loadError) {
     filterOptions.value = {
       filterFields: buildLegacyFilterFields({}),
     };
     activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
+    openFilterMenus.value = buildFilterMenuState(filterOptions.value.filterFields);
     if (isUnauthorizedError(loadError)) {
       return;
     }
@@ -272,8 +329,15 @@ watch(selectedView, async () => {
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
   activeFilters.value = {};
+  openFilterMenus.value = {};
   await loadFilterOptions();
   await loadGeoJson({ autoFit: true });
+});
+
+watch(isFilterPanelOpen, (open) => {
+  if (!open) {
+    openFilterMenus.value = buildFilterMenuState();
+  }
 });
 
 onMounted(async () => {
@@ -319,40 +383,71 @@ onMounted(async () => {
 
           <div v-if="isFilterPanelOpen" id="map-filter-panel-body" class="filter-panel-body">
             <div class="sidebar-field-stack">
-              <div v-for="field in filterFields" :key="field.key" class="field-block">
-                <span class="field-label">{{ field.label }}</span>
-                <div
-                  class="filter-option-list"
-                  :data-testid="`map-filter-${field.key}`"
-                  role="group"
-                  :aria-label="field.label"
-                  :aria-disabled="loading || field.options.length === 0"
-                >
-                  <label
-                    v-for="option in field.options"
-                    :key="option.value"
-                    class="filter-option"
-                    :class="{ 'is-disabled': loading }"
+              <div
+                v-for="field in filterFields"
+                :key="field.key"
+                class="field-block filter-field-card"
+                :class="{ 'is-open': isFilterMenuOpen(field.key) }"
+              >
+                <div class="filter-select">
+                  <button
+                    type="button"
+                    class="filter-select-trigger"
+                    :class="{ 'is-open': isFilterMenuOpen(field.key) }"
+                    :data-testid="`map-filter-trigger-${field.key}`"
+                    :aria-expanded="isFilterMenuOpen(field.key)"
+                    :aria-controls="`map-filter-menu-${field.key}`"
+                    :disabled="loading || field.options.length === 0"
+                    @click="toggleFilterMenu(field.key)"
                   >
-                    <input
-                      v-model="activeFilters[field.key]"
-                      type="checkbox"
-                      :value="option.value"
-                      :data-testid="`map-filter-${field.key}-${option.value}`"
-                      :disabled="loading"
-                    />
-                    <span>{{ option.label }}</span>
-                  </label>
-                  <div v-if="field.options.length === 0" class="filter-empty-state">
-                    暂无可选项
+                    <span class="filter-select-copy">
+                      <span class="filter-select-label">{{ field.label }}</span>
+                      <span
+                        class="filter-select-summary"
+                        :class="{ 'is-muted': isFilterSummaryMuted(field) }"
+                      >
+                        {{ getFilterSummary(field) }}
+                      </span>
+                    </span>
+                    <span class="filter-select-meta">
+                      <span v-if="hasSelectedFilterValues(field.key)" class="filter-select-count" aria-hidden="true">
+                        {{ activeFilters[field.key].length }}
+                      </span>
+                      <span class="filter-select-chevron" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path
+                            d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z"
+                          />
+                        </svg>
+                      </span>
+                    </span>
+                  </button>
+
+                  <div
+                    v-if="isFilterMenuOpen(field.key)"
+                    :id="`map-filter-menu-${field.key}`"
+                    class="filter-option-dropdown"
+                    :data-testid="`map-filter-${field.key}`"
+                    role="group"
+                    :aria-label="field.label"
+                    :aria-disabled="loading || field.options.length === 0"
+                  >
+                    <label
+                      v-for="option in field.options"
+                      :key="option.value"
+                      class="filter-option"
+                      :class="{ 'is-disabled': loading }"
+                    >
+                      <input
+                        v-model="activeFilters[field.key]"
+                        type="checkbox"
+                        :value="option.value"
+                        :data-testid="`map-filter-${field.key}-${option.value}`"
+                        :disabled="loading"
+                      />
+                      <span>{{ option.label }}</span>
+                    </label>
                   </div>
-                </div>
-                <div
-                  v-if="activeFilters[field.key]?.length"
-                  class="filter-selected-count"
-                  :data-testid="`map-filter-${field.key}-selected-count`"
-                >
-                  已选 {{ activeFilters[field.key].length }} 项
                 </div>
               </div>
 
@@ -435,12 +530,14 @@ onMounted(async () => {
 
 .filter-drawer.is-open {
   top: 1rem;
+  bottom: 1rem;
   width: min(20rem, calc(100% - 2rem));
-  max-height: calc(100% - 2rem);
+  max-height: none;
 }
 
 .sidebar-panel {
   width: 100%;
+  height: 100%;
   max-height: inherit;
   display: flex;
   flex-direction: column;
@@ -535,15 +632,26 @@ onMounted(async () => {
 }
 
 .filter-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
   min-height: 0;
   margin-top: 0.9rem;
-  overflow: auto;
 }
 
 .sidebar-field-stack {
   display: grid;
-  gap: 0.85rem;
-  margin-bottom: 0.9rem;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.18rem;
+  border: 1px solid rgba(46, 125, 50, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .filter-empty-state {
@@ -555,15 +663,155 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.filter-option-list {
+.filter-field-card {
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.filter-field-card + .filter-field-card {
+  border-top: 1px solid rgba(46, 125, 50, 0.12);
+}
+
+.filter-field-card.is-open {
+  background: rgba(244, 250, 245, 0.92);
+  box-shadow: none;
+}
+
+.filter-select {
+  display: grid;
+  gap: 0;
+}
+
+.filter-select-trigger {
+  width: 100%;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.8rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: none;
+  text-align: left;
+}
+
+.filter-select-trigger:hover {
+  background: rgba(90, 165, 110, 0.1);
+  transform: none;
+}
+
+.filter-select-trigger:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.filter-select-trigger:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+.filter-select-trigger.is-open {
+  background: rgba(90, 165, 110, 0.12);
+}
+
+.filter-select-copy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.filter-select-label {
+  color: var(--color-muted);
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.filter-select-summary {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.filter-select-summary.is-muted {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.filter-select-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.filter-select-count {
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(46, 125, 50, 0.12);
+  color: var(--color-primary-strong);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.filter-select-chevron {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.filter-select-chevron svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
+.filter-select-trigger.is-open .filter-select-chevron {
+  color: var(--color-primary);
+  transform: rotate(180deg);
+}
+
+.filter-option-dropdown {
   display: grid;
   gap: 0.45rem;
-  max-height: 11.25rem;
+  max-height: 11rem;
   overflow: auto;
-  padding: 0.55rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-container-low);
+  margin: 0 0.8rem 0.65rem;
+  padding: 0.55rem 0 0;
+  border-top: 1px solid rgba(46, 125, 50, 0.12);
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  border-radius: 0;
+  background: transparent;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .filter-option {
@@ -604,17 +852,10 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
-.filter-selected-count {
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
 .filter-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
-  margin-bottom: 0.7rem;
 }
 
 .filter-actions > button:first-child {
@@ -650,8 +891,9 @@ onMounted(async () => {
 
   .filter-drawer.is-open {
     top: 0.75rem;
+    bottom: 0.75rem;
     width: min(19rem, calc(100% - 1.5rem));
-    max-height: calc(100% - 1.5rem);
+    max-height: none;
   }
 
   .filter-actions {
