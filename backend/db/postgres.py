@@ -432,10 +432,9 @@ def serialize_date_value(value: Any) -> str:
     return str(value)
 
 
-def build_point_screenshot_index() -> dict[str, Path]:
+def build_point_screenshot_index(screenshot_dir: Path) -> dict[str, Path]:
     """扫描本地点位截图目录，返回可唯一匹配的点位截图索引。"""
 
-    screenshot_dir = get_settings().point_screenshot_dir
     if not screenshot_dir.exists() or not screenshot_dir.is_dir():
         return {}
 
@@ -477,11 +476,11 @@ def encode_image_as_data_url(image_path: Path) -> str | None:
     return f"data:{mime_type};base64,{encoded}"
 
 
-def load_spring_inchworm_images(
+def load_point_screenshot_images(
     location_id: str,
     screenshot_index: dict[str, Path],
 ) -> list[str]:
-    """按点位编号匹配春尺蠖导入默认截图。"""
+    """按点位编号匹配导入记录的默认截图。"""
 
     normalized_location_id = (location_id or "").strip()
     if not normalized_location_id:
@@ -555,7 +554,7 @@ async def fetch_spring_inchworm_survey_candidates(
         survey_date,
     )
 
-    screenshot_index = build_point_screenshot_index()
+    screenshot_index = build_point_screenshot_index(get_settings().point_screenshot_dir)
     candidates: list[dict[str, Any]] = []
     for row in rows:
         location_id = str(row["location_id"] or "").strip()
@@ -575,7 +574,7 @@ async def fetch_spring_inchworm_survey_candidates(
                 "total_insect_count": insect_count,
                 "damage_level": damage_level,
                 "note": (row["note"] or "").strip(),
-                "images": load_spring_inchworm_images(location_id, screenshot_index),
+                "images": load_point_screenshot_images(location_id, screenshot_index),
                 "description": build_spring_inchworm_description(
                     town_or_street=town_or_street,
                     location_name=location_name,
@@ -624,6 +623,9 @@ async def fetch_guo_huai_inchworm_survey_candidates(
         survey_date,
     )
 
+    screenshot_index = build_point_screenshot_index(
+        get_settings().sophora_point_screenshot_dir
+    )
     candidates: list[dict[str, Any]] = []
     for row in rows:
         location_id = str(row["location_id"] or "").strip()
@@ -643,7 +645,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
                 "total_insect_count": insect_count,
                 "damage_level": damage_level,
                 "note": (row["note"] or "").strip(),
-                "images": [],
+                "images": load_point_screenshot_images(location_id, screenshot_index),
                 "description": build_guo_huai_inchworm_description(
                     town_or_street=town_or_street,
                     location_name=location_name,

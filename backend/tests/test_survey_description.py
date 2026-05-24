@@ -190,6 +190,49 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(candidates[0]["images"], [expected_image])
 
+    async def test_guo_huai_matching_point_screenshot_is_encoded_as_first_image(
+        self,
+    ) -> None:
+        image_bytes = b"fake-guo-huai-jpeg-bytes"
+
+        with TemporaryDirectory() as tempdir:
+            image_path = Path(tempdir) / "1001-1.jpg"
+            image_path.write_bytes(image_bytes)
+
+            with (
+                patch(
+                    "backend.db.postgres.fetch",
+                    new=AsyncMock(
+                        return_value=[
+                            {
+                                "location_id": "1001-1",
+                                "survey_date": "2026-05-02",
+                                "total_insect_count": 45,
+                                "damage_level": "重",
+                                "note": "树冠中上部虫口集中",
+                                "town_or_street": "宋庄镇",
+                                "location_name": "管头村",
+                            }
+                        ]
+                    ),
+                ),
+                patch(
+                    "backend.db.postgres.get_settings",
+                    return_value=SimpleNamespace(
+                        sophora_point_screenshot_dir=Path(tempdir)
+                    ),
+                ),
+            ):
+                candidates = await fetch_survey_candidates(
+                    "2026-05-02",
+                    pest_type="国槐尺蠖",
+                )
+
+        expected_image = (
+            "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii")
+        )
+        self.assertEqual(candidates[0]["images"], [expected_image])
+
     async def test_note_is_preserved_but_not_merged_into_description(self) -> None:
         with TemporaryDirectory() as tempdir, patch(
             "backend.db.postgres.fetch",
@@ -276,7 +319,13 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch("backend.db.postgres.fetch", new=mocked_fetch):
+        with TemporaryDirectory() as tempdir, patch(
+            "backend.db.postgres.fetch",
+            new=mocked_fetch,
+        ), patch(
+            "backend.db.postgres.get_settings",
+            return_value=SimpleNamespace(sophora_point_screenshot_dir=Path(tempdir)),
+        ):
             candidates = await fetch_survey_candidates(
                 "2026-05-02",
                 pest_type="国槐尺蠖",

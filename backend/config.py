@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     frontend_dist_dir: Path = BASE_DIR / "frontend" / "dist"
     templates_dir: Path = BASE_DIR / "templates"
     point_screenshot_dir: Path = BASE_DIR / "points" / "杨树点位截图"
+    sophora_point_screenshot_dir: Path = BASE_DIR / "points" / "国槐点位截图"
     temp_dir: Path = BASE_DIR / ".tmp" / "workorder_images"
     libreoffice_bin: str = Field(
         default="soffice",
