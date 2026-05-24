@@ -83,13 +83,25 @@ const locateButtonLabel = computed(() =>
 const pointLabelMenuDescription = computed(() =>
   props.showPointLabels ? "当前范围编号已开启" : "放大后显示当前范围编号",
 );
+const preferIdentifierHover = computed(() => props.viewName.includes("美国白蛾"));
+const hasSurveyStatusFields = computed(() =>
+  props.popupFields.some((field) => field === "调查日期" || field === "调查状态"),
+);
 
-const legendEntries = computed(() => [
+const severityLegendEntries = computed(() => [
   resolveFeatureSeverity("白"),
   resolveFeatureSeverity("轻"),
   resolveFeatureSeverity("中"),
   resolveFeatureSeverity("重"),
 ]);
+const surveyLegendEntries = computed(() =>
+  hasSurveyStatusFields.value
+    ? [
+        { key: "survey-completed", label: "调查", className: "is-completed" },
+        { key: "survey-pending", label: "未调查", className: "is-pending" },
+      ]
+    : [],
+);
 
 const BASEMAP_CONFIG = {
   standard: {
@@ -123,7 +135,16 @@ const LOCATE_MARKER_HTML = `
 `;
 
 const POINT_LABEL_MIN_ZOOM = 14;
-const POINT_LABEL_RENDER_LIMIT = 200;
+const POINT_LABEL_RENDER_LIMIT = 50;
+
+function escapeHtml(value) {
+  return `${value ?? ""}`
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 
 function renderPopup(properties = {}) {
   const rows = buildPopupRows(props.popupFields, properties);
@@ -209,42 +230,81 @@ function drawBoundaryGeoJson(data) {
 }
 
 function buildPointLabelMarker(label, latlng) {
+  const safeLabel = escapeHtml(label);
+
   return L.marker(latlng, {
     interactive: false,
     keyboard: false,
     icon: L.divIcon({
-      className: "map-point-label-anchor",
-      html: "",
-      iconSize: [0, 0],
+      className: "map-point-label-marker",
+      html: `<span class="map-point-label-text">${safeLabel}</span>`,
+      iconSize: [1, 1],
       iconAnchor: [0, 0],
     }),
-  }).bindTooltip(label, {
-    permanent: true,
-    direction: "right",
-    offset: [10, 0],
-    opacity: 0.96,
-    className: "map-point-label-tooltip",
   });
 }
 
-function extractFeatureLatLng(feature) {
-  if (feature?.geometry?.type !== "Point") {
+function isValidLngLatPair(value) {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    Number.isFinite(Number(value[0])) &&
+    Number.isFinite(Number(value[1]))
+  );
+}
+
+function collectFeatureCoordinatePairs(coordinates, pairs = []) {
+  if (isValidLngLatPair(coordinates)) {
+    pairs.push([Number(coordinates[0]), Number(coordinates[1])]);
+    return pairs;
+  }
+
+  if (Array.isArray(coordinates)) {
+    coordinates.forEach((item) => collectFeatureCoordinatePairs(item, pairs));
+  }
+
+  return pairs;
+}
+
+function extractFeatureLabelLatLng(feature) {
+  if (!feature?.geometry) {
     return null;
   }
 
   const coordinates = feature.geometry.coordinates;
-  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+  if (feature.geometry.type === "Point") {
+    if (!isValidLngLatPair(coordinates)) {
+      return null;
+    }
+
+    return [Number(coordinates[1]), Number(coordinates[0])];
+  }
+
+  const pairs = collectFeatureCoordinatePairs(coordinates);
+  if (!pairs.length) {
     return null;
   }
 
-  const [lng, lat] = coordinates;
-  const numericLng = Number(lng);
-  const numericLat = Number(lat);
-  if (!Number.isFinite(numericLng) || !Number.isFinite(numericLat)) {
+  const bounds = pairs.reduce(
+    (result, [lng, lat]) => ({
+      minLng: Math.min(result.minLng, lng),
+      maxLng: Math.max(result.maxLng, lng),
+      minLat: Math.min(result.minLat, lat),
+      maxLat: Math.max(result.maxLat, lat),
+    }),
+    {
+      minLng: Infinity,
+      maxLng: -Infinity,
+      minLat: Infinity,
+      maxLat: -Infinity,
+    },
+  );
+
+  if (!Number.isFinite(bounds.minLng) || !Number.isFinite(bounds.minLat)) {
     return null;
   }
 
-  return [numericLat, numericLng];
+  return [(bounds.minLat + bounds.maxLat) / 2, (bounds.minLng + bounds.maxLng) / 2];
 }
 
 function renderPointLabels(data = props.geojson) {
@@ -275,7 +335,7 @@ function renderPointLabels(data = props.geojson) {
       continue;
     }
 
-    const latlng = extractFeatureLatLng(feature);
+    const latlng = extractFeatureLabelLatLng(feature);
     if (!latlng || !bounds.contains(latlng)) {
       continue;
     }
@@ -311,6 +371,39 @@ function buildSurveyedPointMarker(latlng, severity, isBlank) {
   });
 }
 
+function resolveFeaturePathStyle(properties = {}) {
+  const status = resolveSurveyStatus(properties);
+
+  if (status === "completed") {
+    return {
+      color: "#2E7D32",
+      fillColor: "#DFF3E1",
+      fillOpacity: 0.42,
+      opacity: 0.95,
+      weight: 1.5,
+    };
+  }
+
+  if (status === "in_progress") {
+    return {
+      color: "#D89A2B",
+      fillColor: "#FFF3D8",
+      fillOpacity: 0.38,
+      opacity: 0.9,
+      weight: 1.35,
+    };
+  }
+
+  return {
+    color: "#2F80ED",
+    dashArray: "4 4",
+    fillColor: "#E7F0FF",
+    fillOpacity: 0.34,
+    opacity: 0.9,
+    weight: 1.25,
+  };
+}
+
 function drawGeoJson(data, shouldFit = true) {
   if (!mapRef.value) {
     return;
@@ -334,6 +427,7 @@ function drawGeoJson(data, shouldFit = true) {
   };
 
   pointLayerRef.value = L.geoJSON(sortedData, {
+    style: (feature) => resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
       const severity = resolveFeatureSeverity(feature.properties);
       const isBlank = severity.key === "level0";
@@ -349,7 +443,9 @@ function drawGeoJson(data, shouldFit = true) {
       });
     },
     onEachFeature: (feature, layer) => {
-      const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties);
+      const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties, {
+        preferIdentifier: preferIdentifierHover.value,
+      });
       if (hoverLabel) {
         layer.bindTooltip(hoverLabel, {
           direction: "top",
@@ -635,8 +731,14 @@ onBeforeUnmount(() => {
         </div>
         <div class="panel-divider"></div>
         <div class="map-legend">
-          <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
+          <div v-for="entry in severityLegendEntries" :key="entry.key" class="legend-item">
             <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
+            <span>{{ entry.label }}</span>
+          </div>
+        </div>
+        <div v-if="surveyLegendEntries.length" class="map-legend map-status-legend">
+          <div v-for="entry in surveyLegendEntries" :key="entry.key" class="legend-item">
+            <span class="legend-status-symbol" :class="entry.className"></span>
             <span>{{ entry.label }}</span>
           </div>
         </div>
@@ -887,6 +989,12 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
+.map-status-legend {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(46, 125, 50, 0.12);
+}
+
 .map-legend .legend-item {
   display: flex;
   align-items: center;
@@ -902,6 +1010,23 @@ onBeforeUnmount(() => {
   height: 0.85rem;
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
+}
+
+.legend-status-symbol {
+  width: 0.95rem;
+  height: 0.72rem;
+  border-radius: 0.24rem;
+  box-sizing: border-box;
+}
+
+.legend-status-symbol.is-completed {
+  border: 1.5px solid #2e7d32;
+  background: #dff3e1;
+}
+
+.legend-status-symbol.is-pending {
+  border: 1.5px dashed #2f80ed;
+  background: #e7f0ff;
 }
 
 .map-loading {
@@ -1027,24 +1152,30 @@ onBeforeUnmount(() => {
   border-top-color: rgba(21, 47, 31, 0.86);
 }
 
-:deep(.map-point-label-anchor) {
+:deep(.map-point-label-marker) {
+  width: 0;
+  height: 0;
   background: transparent;
   border: none;
+  pointer-events: none;
 }
 
-:deep(.map-point-label-tooltip) {
-  padding: 0.26rem 0.48rem;
-  border: 1px solid rgba(46, 125, 50, 0.2);
-  background: rgba(255, 255, 255, 0.92);
+:deep(.map-point-label-text) {
+  position: absolute;
+  left: 8px;
+  top: -0.45rem;
   color: var(--color-primary-strong);
   font-size: 0.76rem;
   font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 8px 18px rgba(18, 52, 29, 0.16);
-}
-
-:deep(.leaflet-tooltip-right.map-point-label-tooltip:before) {
-  border-right-color: rgba(255, 255, 255, 0.92);
+  text-shadow:
+    0 1px 0 #fff,
+    1px 0 0 #fff,
+    0 -1px 0 #fff,
+    -1px 0 0 #fff,
+    0 2px 4px rgba(18, 52, 29, 0.18);
 }
 
 :deep(.map-surveyed-point-icon) {

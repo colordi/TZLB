@@ -48,6 +48,20 @@ describe("buildPopupRows", () => {
     ).toBe("城东林场A区");
   });
 
+  it("悬停提示可按场景优先返回编号", () => {
+    expect(
+      resolveFeatureHoverLabel(
+        ["id", "编号", "点位名称"],
+        {
+          id: 12,
+          编号: "CC-001",
+          点位名称: "城东林场A区",
+        },
+        { preferIdentifier: true },
+      ),
+    ).toBe("CC-001");
+  });
+
   it("编号标签优先使用中文编号字段", () => {
     expect(
       resolveFeaturePointLabel({

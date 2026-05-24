@@ -146,13 +146,43 @@ function createPointFeature(code, longitude, latitude, properties = {}) {
   };
 }
 
+function createPolygonFeature(code, properties = {}) {
+  return {
+    type: "Feature",
+    geometry: {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [116.72, 39.91],
+            [116.75, 39.91],
+            [116.75, 39.94],
+            [116.72, 39.94],
+            [116.72, 39.91],
+          ],
+        ],
+      ],
+    },
+    properties: {
+      编号: code,
+      点位名称: "如意园",
+      调查状态: "未调查",
+      ...properties,
+    },
+  };
+}
+
 function getPointLabelMarkerCalls() {
   return leafletMocks.marker.mock.calls.filter(
     ([, options]) =>
       options?.interactive === false &&
       options?.keyboard === false &&
-      options?.icon?.className === "map-point-label-anchor",
+      options?.icon?.className === "map-point-label-marker",
   );
+}
+
+function getPointLabelMarkerHtml() {
+  return getPointLabelMarkerCalls().map(([, options]) => options?.icon?.html || "");
 }
 
 function setMapViewport({ zoom = 11, contains = () => true } = {}) {
@@ -401,6 +431,54 @@ describe("LeafletMap 点位样式", () => {
       }),
     );
   });
+
+  it("多边形图层会按调查状态区分样式", () => {
+    const completedFeature = createPolygonFeature("MGB-001", { 调查状态: "调查" });
+    const pendingFeature = createPolygonFeature("MGB-002", { 调查状态: "未调查" });
+
+    mountLeafletMap({
+      popupFields: ["编号", "调查日期", "调查状态"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [completedFeature, pendingFeature],
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+
+    expect(geoJsonCall[1].style(completedFeature)).toMatchObject({
+      color: "#2E7D32",
+      fillColor: "#DFF3E1",
+    });
+    expect(geoJsonCall[1].style(pendingFeature)).toMatchObject({
+      color: "#2F80ED",
+      dashArray: "4 4",
+      fillColor: "#E7F0FF",
+    });
+  });
+
+  it("美国白蛾视图悬停提示优先显示编号", () => {
+    const feature = createPolygonFeature("MGB-001", { id: 12, 点位名称: "如意园" });
+    const layer = {
+      bindTooltip: vi.fn(),
+      bindPopup: vi.fn(),
+    };
+
+    mountLeafletMap({
+      viewName: "2026_美国白蛾第 1 代调查",
+      views: [{ name: "2026_美国白蛾第 1 代调查", columns: ["id", "编号", "点位名称"] }],
+      popupFields: ["id", "编号", "点位名称"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [feature],
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].onEachFeature(feature, layer);
+
+    expect(layer.bindTooltip).toHaveBeenCalledWith("MGB-001", expect.any(Object));
+  });
 });
 
 describe("LeafletMap 编号标签性能优化", () => {
@@ -458,9 +536,31 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(1);
     expect(getPointLabelMarkerCalls()).toHaveLength(1);
     expect(getPointLabelMarkerCalls()[0][0]).toEqual([39.92, 116.73]);
+    expect(getPointLabelMarkerHtml()[0]).toContain("A-001");
   });
 
-  it("当前视口内编号超过上限时最多只渲染200个", () => {
+  it("多边形点位也会在当前视口内渲染编号", () => {
+    mountLeafletMap({
+      geojson: {
+        type: "FeatureCollection",
+        features: [createPolygonFeature("MGB-001")],
+      },
+      showPointLabels: true,
+    });
+    const mapInstance = setMapViewport({
+      zoom: 14,
+      contains: () => true,
+    });
+
+    mapInstance.trigger("zoomend");
+
+    expect(getPointLabelMarkerCalls()).toHaveLength(1);
+    expect(getPointLabelMarkerCalls()[0][0]).toEqual([39.925, 116.735]);
+    expect(getPointLabelMarkerHtml()[0]).toContain("MGB-001");
+    expect(leafletMocks.markers[0].bindTooltip).not.toHaveBeenCalled();
+  });
+
+  it("当前视口内编号超过上限时最多只渲染50个", () => {
     const features = Array.from({ length: 260 }, (_, index) =>
       createPointFeature(`A-${index + 1}`, 116.5 + index * 0.001, 39.8 + index * 0.001),
     );
@@ -479,7 +579,7 @@ describe("LeafletMap 编号标签性能优化", () => {
 
     mapInstance.trigger("zoomend");
 
-    expect(getPointLabelMarkerCalls()).toHaveLength(200);
+    expect(getPointLabelMarkerCalls()).toHaveLength(50);
   });
 
   it("缩放和平移事件只刷新编号，不重建点位图层", () => {

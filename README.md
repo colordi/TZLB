@@ -131,6 +131,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - `sites.sophora_sites`：国槐点位基础表，要求 `编号` 唯一且 `geom` 不为空
 - `sites.other_pest_sites`：其他害虫点位基础表
 - `views.*`：地图展示视图，必须包含 `geom` 字段
+- `views."2026_美国白蛾第 1 代调查"`：将 `reference.tongzhou_communities` 与美国白蛾第一代巡查记录关联为地图图层
 - `views."国槐尺蠖幼虫历年发生情况"`：将 `sites.sophora_sites` 中的年度发生情况宽字段展开为 `年份`、`发生情况`、`危害程度`
 - `reference.admin_boundary`：行政区边界图层
 - `app_auth.users`：登录用户表，后端启动时自动创建并写入默认管理员

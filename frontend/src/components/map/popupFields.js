@@ -1,15 +1,21 @@
-const HOVER_PRIORITY_KEYS = [
+const HOVER_NAME_KEYS = [
   "点位名称",
   "位置名称",
   "location_name",
   "locationName",
   "名称",
   "name",
-  "编号",
-  "location_id",
 ];
 
-const POINT_LABEL_KEYS = ["编号", "location_id", "locationId", "id"];
+const HOVER_IDENTIFIER_KEYS = [
+  "编号",
+  "点位编号",
+  "location_id",
+  "locationId",
+  "id",
+];
+
+const POINT_LABEL_KEYS = ["编号", "点位编号", "location_id", "locationId", "id"];
 
 const SURVEY_DATE_KEYS = ["调查日期", "survey_date", "report_time"];
 
@@ -83,20 +89,27 @@ export function resolveFeatureSeverity(properties = {}) {
   };
 }
 
-export function resolveFeatureHoverLabel(columns = [], properties = {}) {
-  const preferredColumns = (columns || []).filter((label) => /名称|name|编号/i.test(label));
+export function resolveFeatureHoverLabel(columns = [], properties = {}, options = {}) {
+  const preferredColumns = (columns || []).filter((label) =>
+    /名称|name|编号|id/i.test(label),
+  );
   const preferredNameColumns = preferredColumns.filter((label) => /名称|name/i.test(label));
   const preferredCodeColumns = preferredColumns.filter((label) => !/名称|name/i.test(label));
-  const builtinNameKeys = HOVER_PRIORITY_KEYS.filter((key) => /名称|name/i.test(key));
-  const builtinCodeKeys = HOVER_PRIORITY_KEYS.filter((key) => !/名称|name/i.test(key));
-  const candidates = [
-    ...preferredNameColumns,
-    ...builtinNameKeys,
-    ...preferredCodeColumns,
-    ...builtinCodeKeys,
-  ];
+  const candidates = options.preferIdentifier
+    ? [
+        ...HOVER_IDENTIFIER_KEYS,
+        ...preferredCodeColumns,
+        ...preferredNameColumns,
+        ...HOVER_NAME_KEYS,
+      ]
+    : [
+        ...preferredNameColumns,
+        ...HOVER_NAME_KEYS,
+        ...preferredCodeColumns,
+        ...HOVER_IDENTIFIER_KEYS,
+      ];
 
-  for (const key of candidates) {
+  for (const key of Array.from(new Set(candidates))) {
     const value = properties?.[key];
     if (value !== undefined && value !== null && `${value}`.trim() !== "") {
       return `${value}`.trim();
