@@ -4,6 +4,7 @@ const LOCAL_DEV_USER = {
   id: 0,
   username: "local-dev",
   display_name: "本机测试用户",
+  role: "admin",
   is_active: true,
   last_login_at: null,
 };

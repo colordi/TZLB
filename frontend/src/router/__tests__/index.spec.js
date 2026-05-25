@@ -3,6 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAuthSessionState } from "../../composables/useAuthSession.js";
 import router from "../index.js";
 
+function mockCurrentUser(user) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        user,
+      }),
+    }),
+  );
+}
+
 describe("router", () => {
   beforeEach(() => {
     resetAuthSessionState();
@@ -35,5 +48,39 @@ describe("router", () => {
     await router.isReady();
 
     expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/map");
+  });
+
+  it("调查员访问工单录入时会跳转到地图页", async () => {
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 2,
+      username: "dc01",
+      display_name: "调查员 dc01",
+      role: "investigator",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/workorder");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/map");
+  });
+
+  it("已登录调查员从登录页携带工单重定向时仍进入地图页", async () => {
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 2,
+      username: "dc01",
+      display_name: "调查员 dc01",
+      role: "investigator",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/login?redirect=/workorder");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/map");
   });
 });

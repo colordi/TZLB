@@ -6,11 +6,12 @@ from urllib.parse import urlsplit
 from fastapi import Depends, HTTPException, Request, status
 
 from backend.auth.security import parse_session_token
-from backend.auth.store import get_active_user
+from backend.auth.store import USER_ROLE_ADMIN, get_active_user
 from backend.config import get_settings
 
 
 AUTH_REQUIRED_MESSAGE = "未登录或登录状态已失效"
+AUTH_FORBIDDEN_MESSAGE = "当前账号无权访问该功能"
 LOCAL_AUTH_BYPASS_HEADER = "x-tzlb-local-auth-bypass"
 
 
@@ -73,6 +74,7 @@ def _build_local_bypass_user(settings) -> dict:
         "id": 0,
         "username": username,
         "display_name": display_name,
+        "role": USER_ROLE_ADMIN,
         "is_active": True,
         "last_login_at": None,
     }
@@ -123,3 +125,21 @@ async def require_authenticated_user(current_user: dict = Depends(get_current_us
     """要求当前请求必须处于已登录状态。"""
 
     return current_user
+
+
+def require_user_role(*allowed_roles: str):
+    """要求当前用户具备指定角色。"""
+
+    normalized_roles = {role.strip() for role in allowed_roles if role.strip()}
+
+    async def dependency(
+        current_user: dict = Depends(require_authenticated_user),
+    ) -> dict:
+        if current_user.get("role") not in normalized_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AUTH_FORBIDDEN_MESSAGE,
+            )
+        return current_user
+
+    return dependency

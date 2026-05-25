@@ -2,6 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 
+import {
+  getDefaultRouteForUser,
+  userHasAnyRole,
+  USER_ROLES,
+} from "./auth/permissions.js";
 import ToastViewport from "./components/ui/ToastViewport.vue";
 import { useAuthSession } from "./composables/useAuthSession.js";
 import { useToast } from "./composables/useToast.js";
@@ -16,12 +21,14 @@ const { user, signOut } = useAuthSession();
 const { error, info } = useToast();
 
 const currentUserName = computed(() => user.value?.display_name || user.value?.username || "");
+const homePath = computed(() => (user.value ? getDefaultRouteForUser(user.value) : "/workorder"));
 
 const navItems = [
   {
     to: "/workorder",
     label: "工单录入",
     icon: "upload",
+    requiredRoles: [USER_ROLES.ADMIN],
   },
   {
     to: "/map",
@@ -29,6 +36,9 @@ const navItems = [
     icon: "pin",
   },
 ];
+const visibleNavItems = computed(() =>
+  navItems.filter((item) => !user.value || userHasAnyRole(user.value, item.requiredRoles)),
+);
 
 function closeMobileNav() {
   mobileNavOpen.value = false;
@@ -98,7 +108,7 @@ onBeforeUnmount(() => {
     <div class="shell-layout" :class="{ 'is-standalone': hideShell }">
       <header v-if="!hideShell" class="site-header">
         <div class="site-header-shell">
-          <RouterLink to="/workorder" class="site-brand">
+          <RouterLink :to="homePath" class="site-brand">
             <div class="brand-icon-card" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path
@@ -115,7 +125,7 @@ onBeforeUnmount(() => {
 
           <nav class="site-nav" aria-label="主导航">
             <RouterLink
-              v-for="item in navItems"
+              v-for="item in visibleNavItems"
               :key="item.to"
               :to="item.to"
               class="site-nav-link"
@@ -182,7 +192,7 @@ onBeforeUnmount(() => {
 
             <nav class="drawer-nav" aria-label="移动端主导航">
               <RouterLink
-                v-for="item in navItems"
+                v-for="item in visibleNavItems"
                 :key="`mobile-${item.to}`"
                 :to="item.to"
                 class="drawer-link"

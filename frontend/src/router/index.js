@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
 
+import {
+  canAccessRoute,
+  getDefaultRouteForUser,
+  USER_ROLES,
+} from "../auth/permissions.js";
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
@@ -28,6 +33,7 @@ const routes = [
     meta: {
       section: "工单录入",
       blurb: "通过调查导入整理工单记录，补充图片后生成 Word 工作单。",
+      requiredRoles: [USER_ROLES.ADMIN],
     },
   },
   {
@@ -47,18 +53,21 @@ const router = createRouter({
   routes,
 });
 
+function resolveAccessibleRedirect(user, redirect) {
+  const target =
+    typeof redirect === "string" && redirect.startsWith("/") && redirect !== "/login"
+      ? redirect
+      : getDefaultRouteForUser(user);
+  const resolvedTarget = router.resolve(target);
+  return canAccessRoute(user, resolvedTarget) ? target : getDefaultRouteForUser(user);
+}
+
 router.beforeEach(async (to) => {
   const requiresAuth = to.meta?.requiresAuth !== false;
   const currentUser = await ensureSessionLoaded();
 
   if (!requiresAuth && to.name === "login" && currentUser) {
-    const redirect =
-      typeof to.query.redirect === "string" &&
-      to.query.redirect.startsWith("/") &&
-      to.query.redirect !== "/login"
-        ? to.query.redirect
-        : "/map";
-    return redirect;
+    return resolveAccessibleRedirect(currentUser, to.query.redirect);
   }
 
   if (requiresAuth && !currentUser) {
@@ -68,6 +77,11 @@ router.beforeEach(async (to) => {
         redirect: to.fullPath,
       },
     };
+  }
+
+  if (requiresAuth && !canAccessRoute(currentUser, to)) {
+    const fallback = getDefaultRouteForUser(currentUser);
+    return fallback === to.fullPath ? false : fallback;
   }
 
   return true;

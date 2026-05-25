@@ -70,6 +70,7 @@ class AuthenticatedUser(BaseModel):
     id: int
     username: str
     display_name: str
+    role: Literal["admin", "investigator"]
     is_active: bool
     last_login_at: str | None = None
 

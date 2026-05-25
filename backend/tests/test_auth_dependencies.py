@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 from starlette.requests import Request
 
-from backend.auth.dependencies import get_current_user
+from backend.auth.dependencies import get_current_user, require_user_role
 
 
 def build_request(
@@ -58,6 +58,7 @@ class AuthDependenciesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(user["id"], 0)
         self.assertEqual(user["username"], "admin")
         self.assertEqual(user["display_name"], "系统管理员")
+        self.assertEqual(user["role"], "admin")
 
     async def test_local_bypass_rejects_non_loopback_referer(self) -> None:
         request = build_request(
@@ -87,6 +88,38 @@ class AuthDependenciesTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(user["username"], "admin")
         self.assertTrue(user["is_active"])
+
+    async def test_role_dependency_accepts_allowed_role(self) -> None:
+        dependency = require_user_role("admin")
+
+        user = await dependency(
+            {
+                "id": 1,
+                "username": "admin",
+                "display_name": "系统管理员",
+                "role": "admin",
+                "is_active": True,
+            }
+        )
+
+        self.assertEqual(user["username"], "admin")
+
+    async def test_role_dependency_rejects_disallowed_role(self) -> None:
+        dependency = require_user_role("admin")
+
+        with self.assertRaises(HTTPException) as context:
+            await dependency(
+                {
+                    "id": 2,
+                    "username": "dc01",
+                    "display_name": "调查员 dc01",
+                    "role": "investigator",
+                    "is_active": True,
+                }
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(context.exception.detail, "当前账号无权访问该功能")
 
 
 if __name__ == "__main__":

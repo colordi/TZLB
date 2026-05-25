@@ -1,9 +1,10 @@
 import { defineComponent } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App.vue";
+import { resetAuthSessionState, signIn } from "../composables/useAuthSession.js";
 
 const WorkorderStub = defineComponent({
   template: "<div>工单页内容</div>",
@@ -17,7 +18,26 @@ const LoginStub = defineComponent({
   template: "<div data-testid=\"login-shell-stub\">登录页内容</div>",
 });
 
-async function mountApp(initialPath = "/workorder") {
+async function seedAuthUser(user) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        user,
+      }),
+    }),
+  );
+  await signIn({ username: user.username, password: "test-password" });
+}
+
+async function mountApp(initialPath = "/workorder", options = {}) {
+  resetAuthSessionState();
+  if (options.user) {
+    await seedAuthUser(options.user);
+  }
+
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -64,6 +84,15 @@ async function mountApp(initialPath = "/workorder") {
 }
 
 describe("App 壳层导航", () => {
+  beforeEach(() => {
+    resetAuthSessionState();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetAuthSessionState();
+  });
+
   it("顶部导航会高亮当前路由，且不再展示当前页面卡片", async () => {
     const { wrapper } = await mountApp("/workorder");
 
@@ -94,6 +123,26 @@ describe("App 壳层导航", () => {
 
     expect(router.currentRoute.value.path).toBe("/map");
     expect(wrapper.find('[data-testid="mobile-drawer-overlay"]').exists()).toBe(false);
+  });
+
+  it("调查员账号不展示工单录入入口", async () => {
+    const { wrapper } = await mountApp("/map", {
+      user: {
+        id: 2,
+        username: "dc01",
+        display_name: "调查员 dc01",
+        role: "investigator",
+        is_active: true,
+        last_login_at: null,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="header-link-workorder"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="header-link-map"]').text()).toContain("调查点位");
+
+    await wrapper.get('[data-testid="mobile-menu-trigger"]').trigger("click");
+    expect(wrapper.find('[data-testid="drawer-link-workorder"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="drawer-link-map"]').text()).toContain("调查点位");
   });
 
   it("地图页使用满宽主内容区", async () => {

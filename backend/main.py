@@ -7,8 +7,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
-from backend.auth.dependencies import require_authenticated_user
-from backend.auth.store import ensure_auth_storage
+from backend.auth.dependencies import require_authenticated_user, require_user_role
+from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
 from backend.config import get_settings
 from backend.db.postgres import close_pool
 from backend.routers import auth as auth_router
@@ -44,7 +44,7 @@ app.include_router(
     workorder_router.router,
     prefix="/api/workorder",
     tags=["工作单"],
-    dependencies=[Depends(require_authenticated_user)],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(
     map_router.router,
@@ -56,7 +56,7 @@ app.include_router(
     survey_router.router,
     prefix="/api/survey",
     tags=["调查导入"],
-    dependencies=[Depends(require_authenticated_user)],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 
 

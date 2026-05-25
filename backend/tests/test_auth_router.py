@@ -24,6 +24,7 @@ class AuthRouterTest(unittest.IsolatedAsyncioTestCase):
             "id": 1,
             "username": "admin",
             "display_name": "系统管理员",
+            "role": "admin",
             "is_active": True,
             "last_login_at": None,
         }

@@ -134,7 +134,8 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - `views."2026_美国白蛾第 1 代调查"`：将 `reference.tongzhou_communities` 与美国白蛾第一代巡查记录关联为地图图层
 - `views."国槐尺蠖幼虫历年发生情况"`：将 `sites.sophora_sites` 中的年度发生情况宽字段展开为 `年份`、`发生情况`、`危害程度`
 - `reference.admin_boundary`：行政区边界图层
-- `app_auth.users`：登录用户表，后端启动时自动创建并写入默认管理员
+- `app_auth.users`：登录用户表，后端启动时自动创建并写入默认管理员，使用
+  `role` 字段区分管理员和调查员
 
 地图接口会自动枚举 `views` schema 下所有带 `geom` 的视图，并将几何统一转换为
 WGS84 GeoJSON。若视图包含 `乡镇` 字段，会启用乡镇筛选；若包含 `调查日期`
@@ -152,6 +153,11 @@ WGS84 GeoJSON。若视图包含 `乡镇` 字段，会启用乡镇筛选；若包
 
 默认账号已存在时不会覆盖。正式部署前请在 `.env` 中改掉默认账号、密码和
 `AUTH_SECRET_KEY`。
+
+用户角色：
+
+- `admin`：可访问工单录入、调查导入和地图点位。
+- `investigator`：仅可访问地图点位；前端不会展示工单录入入口，后端也会拒绝工单和调查导入接口。
 
 ### 工单录入
 
@@ -187,12 +193,15 @@ WGS84 GeoJSON。若视图包含 `乡镇` 字段，会启用乡镇筛选；若包
 需要有效会话：
 
 - `GET /api/auth/me`
-- `GET /api/survey/candidates?date=YYYY-MM-DD&pest_type=春尺蠖`
-- `POST /api/workorder/generate`
 - `GET /api/map/views`
 - `GET /api/map/views/{view_name}`
 - `GET /api/map/views/{view_name}/filter-options`
 - `GET /api/map/layers/admin-boundary`
+
+需要管理员角色：
+
+- `GET /api/survey/candidates?date=YYYY-MM-DD&pest_type=春尺蠖`
+- `POST /api/workorder/generate`
 
 `POST /api/workorder/generate` 只接受单条记录。批量压缩导出已取消，前端会按记录逐条
 调用接口并分别下载文件。

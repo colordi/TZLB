@@ -9,6 +9,9 @@ from backend.db.postgres import ensure_pool, fetchrow
 
 AUTH_SCHEMA = "app_auth"
 AUTH_USER_TABLE = "users"
+USER_ROLE_ADMIN = "admin"
+USER_ROLE_INVESTIGATOR = "investigator"
+USER_ROLES = (USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR)
 
 
 def _qualified_users_table() -> str:
@@ -22,6 +25,7 @@ def serialize_user(row: Any) -> dict[str, Any]:
         "id": row["id"],
         "username": row["username"],
         "display_name": row["display_name"],
+        "role": row["role"],
         "is_active": bool(row["is_active"]),
         "last_login_at": row["last_login_at"].isoformat() if row["last_login_at"] else None,
     }
@@ -50,11 +54,43 @@ async def ensure_auth_storage() -> None:
                     username TEXT NOT NULL,
                     display_name TEXT NOT NULL,
                     password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'admin',
                     is_active BOOLEAN NOT NULL DEFAULT TRUE,
                     last_login_at TIMESTAMPTZ NULL,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """
+            )
+            await connection.execute(
+                f"""
+                ALTER TABLE {users_table}
+                ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'admin'
+                """
+            )
+            await connection.execute(
+                f"""
+                UPDATE {users_table}
+                SET role = 'admin'
+                WHERE role IS NULL OR role <> ALL($1::text[])
+                """,
+                list(USER_ROLES),
+            )
+            await connection.execute(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'auth_users_role_check'
+                          AND conrelid = '{AUTH_SCHEMA}.{AUTH_USER_TABLE}'::regclass
+                    ) THEN
+                        ALTER TABLE {users_table}
+                        ADD CONSTRAINT auth_users_role_check
+                        CHECK (role IN ('admin', 'investigator'));
+                    END IF;
+                END $$;
                 """
             )
             await connection.execute(
@@ -65,13 +101,14 @@ async def ensure_auth_storage() -> None:
             )
             await connection.execute(
                 f"""
-                INSERT INTO {users_table} (username, display_name, password_hash, is_active)
-                VALUES ($1, $2, $3, TRUE)
+                INSERT INTO {users_table} (username, display_name, password_hash, role, is_active)
+                VALUES ($1, $2, $3, $4, TRUE)
                 ON CONFLICT DO NOTHING
                 """,
                 username,
                 display_name,
                 hash_password(password),
+                USER_ROLE_ADMIN,
             )
 
 
@@ -84,6 +121,7 @@ async def get_user_by_username(username: str) -> dict[str, Any] | None:
             id,
             username,
             display_name,
+            role,
             password_hash,
             is_active,
             last_login_at
