@@ -362,7 +362,7 @@ describe("LeafletMap 点位样式", () => {
     installGeolocationMock();
   });
 
-  it("已调查点位使用带叉号的图标并保留危害程度颜色", () => {
+  it("已调查点位使用带勾的图标并保留危害程度颜色", () => {
     const feature = {
       type: "Feature",
       geometry: { type: "Point", coordinates: [116.73, 39.92] },
@@ -401,7 +401,7 @@ describe("LeafletMap 点位样式", () => {
     );
   });
 
-  it("未调查点位继续使用原有圆点样式", () => {
+  it("未调查点位使用白色填充", () => {
     const feature = {
       type: "Feature",
       geometry: { type: "Point", coordinates: [116.73, 39.92] },
@@ -426,13 +426,13 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 7,
-        fillColor: "#68C17A",
-        fillOpacity: 0.9,
+        fillColor: "#FFFFFF",
+        fillOpacity: 0.92,
       }),
     );
   });
 
-  it("多边形图层会按调查状态区分样式", () => {
+  it("多边形图层按调查状态区分样式，未调查使用柔和配色", () => {
     const completedFeature = createPolygonFeature("MGB-001", { 调查状态: "调查" });
     const pendingFeature = createPolygonFeature("MGB-002", { 调查状态: "未调查" });
 
@@ -451,9 +451,8 @@ describe("LeafletMap 点位样式", () => {
       fillColor: "#DFF3E1",
     });
     expect(geoJsonCall[1].style(pendingFeature)).toMatchObject({
-      color: "#2F80ED",
-      dashArray: "4 4",
-      fillColor: "#E7F0FF",
+      color: "#4285F4",
+      fillColor: "rgba(66, 133, 244, 0.15)",
     });
   });
 
@@ -462,6 +461,7 @@ describe("LeafletMap 点位样式", () => {
     const layer = {
       bindTooltip: vi.fn(),
       bindPopup: vi.fn(),
+      on: vi.fn(),
     };
 
     mountLeafletMap({

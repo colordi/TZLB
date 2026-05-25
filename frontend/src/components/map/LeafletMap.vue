@@ -5,7 +5,6 @@ import "leaflet/dist/leaflet.css";
 
 import { useToast } from "../../composables/useToast.js";
 import {
-  buildPopupRows,
   resolveFeatureHoverLabel,
   resolveFeaturePointLabel,
   resolveFeatureSeverity,
@@ -55,7 +54,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["update:viewName", "update:basemapMode", "update:showPointLabels"]);
+const emit = defineEmits(["update:viewName", "update:basemapMode", "update:showPointLabels", "feature-click"]);
 
 const { error, info } = useToast();
 const showLayerMenu = ref(false);
@@ -71,6 +70,8 @@ const latestLocateLatLng = shallowRef(null);
 const hasCenteredInitialLocate = ref(false);
 const isLocatePending = ref(false);
 const hasReportedLocateError = ref(false);
+const showLegend = ref(true);
+const fitPending = ref(false);
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
 const activeBasemapLabel = computed(() =>
@@ -83,7 +84,7 @@ const locateButtonLabel = computed(() =>
 const pointLabelMenuDescription = computed(() =>
   props.showPointLabels ? "当前范围编号已开启" : "放大后显示当前范围编号",
 );
-const preferIdentifierHover = computed(() => props.viewName.includes("美国白蛾"));
+const preferIdentifierHover = computed(() => true);
 const hasSurveyStatusFields = computed(() =>
   props.popupFields.some((field) => field === "调查日期" || field === "调查状态"),
 );
@@ -137,6 +138,8 @@ const LOCATE_MARKER_HTML = `
 const POINT_LABEL_MIN_ZOOM = 14;
 const POINT_LABEL_RENDER_LIMIT = 50;
 
+
+
 function escapeHtml(value) {
   return `${value ?? ""}`
     .replaceAll("&", "&amp;")
@@ -144,25 +147,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function renderPopup(properties = {}) {
-  const rows = buildPopupRows(props.popupFields, properties);
-
-  return `
-    <div class="map-popup">
-      ${rows
-        .map(
-          ([label, value]) => `
-            <div class="map-popup-row">
-              <strong>${label}</strong>
-              <span>${value ?? "-"}</span>
-            </div>
-          `,
-        )
-        .join("")}
-    </div>
-  `;
 }
 
 function resolveBoundaryStyle() {
@@ -191,20 +175,28 @@ function drawBasemap(mode = "standard") {
 }
 
 function fitMapToAvailableLayer() {
-  if (!mapRef.value) {
+  if (!mapRef.value || fitPending.value) {
     return;
   }
 
-  const pointBounds = pointLayerRef.value?.getBounds?.();
-  if (pointBounds?.isValid?.()) {
-    mapRef.value.fitBounds(pointBounds.pad(0.16));
-    return;
-  }
+  fitPending.value = true;
+  window.requestAnimationFrame(() => {
+    fitPending.value = false;
+    if (!mapRef.value) {
+      return;
+    }
 
-  const boundaryBounds = boundaryLayerRef.value?.getBounds?.();
-  if (boundaryBounds?.isValid?.()) {
-    mapRef.value.fitBounds(boundaryBounds.pad(0.03));
-  }
+    const pointBounds = pointLayerRef.value?.getBounds?.();
+    if (pointBounds?.isValid?.()) {
+      mapRef.value.fitBounds(pointBounds.pad(0.16));
+      return;
+    }
+
+    const boundaryBounds = boundaryLayerRef.value?.getBounds?.();
+    if (boundaryBounds?.isValid?.()) {
+      mapRef.value.fitBounds(boundaryBounds.pad(0.03));
+    }
+  });
 }
 
 function drawBoundaryGeoJson(data) {
@@ -363,7 +355,11 @@ function buildSurveyedPointMarker(latlng, severity, isBlank) {
           class="map-surveyed-point"
           style="--point-size: ${diameter}px; --point-fill: ${severity.color}; --point-border: ${borderColor};"
           aria-hidden="true"
-        ></span>
+        >
+          <svg class="map-surveyed-check" viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </span>
       `,
       iconSize: [diameter, diameter],
       iconAnchor: [diameter / 2, diameter / 2],
@@ -395,12 +391,11 @@ function resolveFeaturePathStyle(properties = {}) {
   }
 
   return {
-    color: "#2F80ED",
-    dashArray: "4 4",
-    fillColor: "#E7F0FF",
-    fillOpacity: 0.34,
+    color: "#4285F4",
+    fillColor: "rgba(66, 133, 244, 0.15)",
+    fillOpacity: 1,
     opacity: 0.9,
-    weight: 1.25,
+    weight: 2,
   };
 }
 
@@ -427,7 +422,8 @@ function drawGeoJson(data, shouldFit = true) {
   };
 
   pointLayerRef.value = L.geoJSON(sortedData, {
-    style: (feature) => resolveFeaturePathStyle(feature?.properties || {}),
+    style: (feature) =>
+      feature?.geometry?.type === "Point" ? {} : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
       const severity = resolveFeatureSeverity(feature.properties);
       const isBlank = severity.key === "level0";
@@ -436,10 +432,10 @@ function drawGeoJson(data, shouldFit = true) {
       }
       return L.circleMarker(latlng, {
         radius: severity.radius,
-        fillColor: severity.color,
-        color: isBlank ? "rgba(24, 50, 35, 0.5)" : "rgba(24, 50, 35, 0.78)",
+        fillColor: "#FFFFFF",
+        color: isBlank ? "rgba(24, 50, 35, 0.55)" : "rgba(24, 50, 35, 0.85)",
         weight: isBlank ? 1.0 : 1.25,
-        fillOpacity: 0.9,
+        fillOpacity: 0.92,
       });
     },
     onEachFeature: (feature, layer) => {
@@ -454,8 +450,8 @@ function drawGeoJson(data, shouldFit = true) {
         });
       }
 
-      layer.bindPopup(renderPopup(feature.properties), {
-        className: "survey-popup",
+      layer.on("click", () => {
+        emit("feature-click", feature);
       });
     },
   }).addTo(mapRef.value);
@@ -725,9 +721,23 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="map-overlay bottom-left">
-      <div class="map-integrated-panel">
+      <div v-show="showLegend" class="map-integrated-panel">
         <div class="panel-header">
-          <strong>{{ featureCount }}</strong><span class="panel-header-suffix">个调查点位</span>
+          <span class="panel-header-title-group">
+            <strong>{{ featureCount }}</strong>
+            <span class="panel-header-suffix">个调查点位</span>
+          </span>
+          <button
+            type="button"
+            class="legend-close-btn"
+            aria-label="收起图例"
+            @click="showLegend = false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
         </div>
         <div class="panel-divider"></div>
         <div class="map-legend">
@@ -743,6 +753,23 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
+      <button
+        v-show="!showLegend"
+        type="button"
+        class="legend-restore-btn"
+        aria-label="显示图例"
+        @click="showLegend = true"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <circle cx="4" cy="6" r="1" fill="currentColor" stroke="none" />
+          <circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="4" cy="18" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <span>图例</span>
+      </button>
     </div>
 
     <div class="map-overlay right-fab map-side-action">
@@ -947,6 +974,7 @@ onBeforeUnmount(() => {
 }
 
 .map-integrated-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 0.85rem 1.05rem;
@@ -960,10 +988,16 @@ onBeforeUnmount(() => {
 
 .map-integrated-panel .panel-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 0.6rem;
   color: var(--color-primary-strong);
+}
+
+.panel-header-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
 }
 
 .map-integrated-panel .panel-header strong {
@@ -975,6 +1009,50 @@ onBeforeUnmount(() => {
 .map-integrated-panel .panel-header-suffix {
   font-size: 0.82rem;
   font-weight: 600;
+}
+
+.legend-close-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  margin-left: 0.5rem;
+}
+
+.legend-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.legend-restore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--color-primary-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(18, 52, 29, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  cursor: pointer;
+  transition: all 0.15s;
+  pointer-events: auto;
+}
+
+.legend-restore-btn:hover {
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .map-integrated-panel .panel-divider {
@@ -1013,20 +1091,33 @@ onBeforeUnmount(() => {
 }
 
 .legend-status-symbol {
-  width: 0.95rem;
-  height: 0.72rem;
-  border-radius: 0.24rem;
-  box-sizing: border-box;
+  position: relative;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .legend-status-symbol.is-completed {
-  border: 1.5px solid #2e7d32;
-  background: #dff3e1;
+  background: #2e7d32;
+  border: 1.5px solid #1b5e20;
+}
+
+.legend-status-symbol.is-completed::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 32%;
+  height: 52%;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -55%) rotate(45deg);
 }
 
 .legend-status-symbol.is-pending {
-  border: 1.5px dashed #2f80ed;
-  background: #e7f0ff;
+  background: #fff;
+  border: 1.5px solid rgba(24, 50, 35, 0.6);
 }
 
 .map-loading {
@@ -1185,7 +1276,9 @@ onBeforeUnmount(() => {
 
 :deep(.map-surveyed-point) {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: var(--point-size);
   height: var(--point-size);
   box-sizing: border-box;
@@ -1197,61 +1290,17 @@ onBeforeUnmount(() => {
     0 5px 12px rgba(18, 52, 29, 0.2);
 }
 
-:deep(.map-surveyed-point::before),
-:deep(.map-surveyed-point::after) {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 58%;
-  height: 2px;
-  border-radius: 999px;
-  background: rgba(24, 50, 35, 0.82);
-  transform-origin: center;
+:deep(.map-surveyed-check) {
+  width: 72%;
+  height: 72%;
+  stroke: rgba(24, 50, 35, 0.85);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  filter: drop-shadow(0 1px 1.5px rgba(255, 255, 255, 0.55));
 }
 
-:deep(.map-surveyed-point::before) {
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-:deep(.map-surveyed-point::after) {
-  transform: translate(-50%, -50%) rotate(-45deg);
-}
-
-:deep(.leaflet-popup-content-wrapper) {
-  border-radius: 18px;
-  box-shadow: 0 18px 36px rgba(18, 52, 29, 0.16);
-}
-
-:deep(.leaflet-popup-content) {
-  margin: 0;
-}
-
-:deep(.map-popup) {
-  padding: 0.9rem 1rem;
-  min-width: 15rem;
-}
-
-:deep(.map-popup-row) {
-  display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
-}
-
-:deep(.map-popup-row + .map-popup-row) {
-  margin-top: 0.65rem;
-}
-
-:deep(.map-popup-row strong) {
-  color: var(--color-muted);
-  font-size: 0.76rem;
-}
-
-:deep(.map-popup-row span) {
-  color: var(--color-ink);
-  font-size: 0.88rem;
-  font-weight: 600;
-}
 
 @media (max-width: 760px) {
   .map-shell,

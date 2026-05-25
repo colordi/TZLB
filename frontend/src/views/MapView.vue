@@ -9,6 +9,10 @@ import {
   listMapViews,
 } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
+import {
+  buildPopupRows,
+  resolveFeatureHoverLabel,
+} from "../components/map/popupFields.js";
 import LeafletMap from "../components/map/LeafletMap.vue";
 
 function createEmptyFeatureCollection() {
@@ -35,7 +39,28 @@ const openFilterMenus = ref({});
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
+const selectedFeature = ref(null);
 let geojsonRequestToken = 0;
+
+const featureTitle = computed(() => {
+  if (!selectedFeature.value?.properties) return "";
+  return resolveFeatureHoverLabel(currentView.value.columns, selectedFeature.value.properties, {
+    preferIdentifier: false,
+  });
+});
+
+const featureRows = computed(() => {
+  if (!selectedFeature.value?.properties) return [];
+  return buildPopupRows(currentView.value.columns, selectedFeature.value.properties);
+});
+
+function onFeatureClick(feature) {
+  selectedFeature.value = feature;
+}
+
+function closeDetail() {
+  selectedFeature.value = null;
+}
 
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
@@ -325,6 +350,7 @@ function resetFilter() {
 }
 
 watch(selectedView, async () => {
+  selectedFeature.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
@@ -478,6 +504,35 @@ onMounted(async () => {
         </article>
       </aside>
 
+      <aside
+        v-if="selectedFeature"
+        class="detail-drawer"
+      >
+        <article class="panel-card detail-card">
+          <header class="detail-header">
+            <span class="detail-title">{{ featureTitle || '点位详情' }}</span>
+            <button
+              type="button"
+              class="detail-close-btn"
+              aria-label="关闭详情"
+              @click="closeDetail"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </header>
+          <div class="detail-divider"></div>
+          <div class="detail-body">
+            <div v-for="[label, value] in featureRows" :key="label" class="detail-row">
+              <span class="detail-label">{{ label }}</span>
+              <span class="detail-value">{{ value }}</span>
+            </div>
+          </div>
+        </article>
+      </aside>
+
       <section class="map-panel" aria-label="调查点位地图">
         <LeafletMap
           :auto-fit-on-data-change="autoFitOnDataChange"
@@ -490,6 +545,7 @@ onMounted(async () => {
           :show-point-labels="showPointLabels"
           :view-name="selectedView"
           :views="views"
+          @feature-click="onFeatureClick"
           @update:basemap-mode="basemapMode = $event"
           @update:show-point-labels="showPointLabels = $event"
           @update:view-name="selectedView = $event"
@@ -876,6 +932,121 @@ onMounted(async () => {
   height: 100%;
 }
 
+.detail-drawer {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  width: min(20rem, calc(100% - 2rem));
+  pointer-events: none;
+}
+
+.detail-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  pointer-events: auto;
+  animation: detail-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes detail-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0.85rem;
+}
+
+.detail-title {
+  min-width: 0;
+  flex: 1;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-primary-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-close-btn {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.detail-close-btn:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-ink);
+}
+
+.detail-divider {
+  height: 1px;
+  background: linear-gradient(to right, var(--color-line-strong), transparent);
+  margin: 0 1.25rem;
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 0;
+  padding: 0.65rem 1.25rem 1.1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  padding: 0.6rem 0;
+}
+
+.detail-row + .detail-row {
+  border-top: 1px solid var(--color-line);
+}
+
+.detail-label {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.detail-value {
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .map-workspace {
     min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
@@ -906,6 +1077,13 @@ onMounted(async () => {
 
   .filter-actions > button {
     flex: 1;
+  }
+
+  .detail-drawer {
+    top: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: min(19rem, calc(100% - 1.5rem));
   }
 }
 </style>
