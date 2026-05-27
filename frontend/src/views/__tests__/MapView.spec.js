@@ -25,6 +25,10 @@ vi.mock("../../api/map.js", () => ({
 const LeafletMapStub = defineComponent({
   name: "LeafletMap",
   props: {
+    autoFitOnDataChange: {
+      type: Boolean,
+      default: true,
+    },
     geojson: {
       type: Object,
       default: () => ({
@@ -140,6 +144,7 @@ function getLeafletMapStub(wrapper) {
 describe("MapView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     apiMocks.listMapViews.mockResolvedValue([
       {
         name: "虫情总览",
@@ -193,6 +198,21 @@ describe("MapView", () => {
     });
   });
 
+  it("刷新页面后优先恢复浏览器记住的上次视图", async () => {
+    window.localStorage.setItem("tzlb.map.selectedView", "高风险点位");
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      const mapStub = getLeafletMapStub(wrapper);
+
+      expect(mapStub.props("viewName")).toBe("高风险点位");
+      expect(mapStub.props("popupFields")).toEqual(["编号", "总虫口数"]);
+    });
+
+    expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
+  });
+
   it("点击编号开关后更新传给 LeafletMap 的 showPointLabels", async () => {
     const wrapper = mountMapView();
 
@@ -223,6 +243,7 @@ describe("MapView", () => {
 
       expect(mapStub.props("viewName")).toBe("高风险点位");
       expect(mapStub.props("popupFields")).toEqual(["编号", "总虫口数"]);
+      expect(window.localStorage.getItem("tzlb.map.selectedView")).toBe("高风险点位");
     });
   });
 
@@ -506,6 +527,26 @@ describe("MapView", () => {
     });
   });
 
+  it("进入新增点位模式后先保留地图可选点，点选后再显示录入表单", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+    });
+
+    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+
+    expect(getLeafletMapStub(wrapper).props("whiteMothSiteAddMode")).toBe(true);
+    expect(wrapper.find('[data-testid="white-moth-site-code"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="map-click-target"]').trigger("click");
+
+    expect(wrapper.get('[data-testid="white-moth-site-code"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="white-moth-site-location"]').text()).toContain(
+      "116.500000",
+    );
+  });
+
   it("编号前缀不支持时阻止新增美国白蛾点位", async () => {
     const wrapper = mountMapView();
 
@@ -559,6 +600,32 @@ describe("MapView", () => {
 
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+      expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
+    });
+  });
+
+  it("已经在美国白蛾点位视图时保存点位不会触发自动缩放", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "乡镇", "点位名称"],
+      },
+    ]);
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+    });
+
+    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-click-target"]').trigger("click");
+    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("MQ001");
+    await wrapper.get(".site-add-form").trigger("submit");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.createWhiteMothSite).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
     });
   });
 });

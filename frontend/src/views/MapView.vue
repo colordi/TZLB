@@ -26,6 +26,7 @@ function createEmptyFeatureCollection() {
 
 const { error, info, success } = useToast();
 const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
+const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
 
 const views = ref([]);
 const selectedView = ref("");
@@ -52,6 +53,28 @@ const whiteMothSiteForm = ref({
 const isAddingWhiteMothSite = ref(false);
 const isSavingWhiteMothSite = ref(false);
 let geojsonRequestToken = 0;
+let shouldAutoFitOnNextViewChange = true;
+
+function readStoredSelectedView() {
+  try {
+    return globalThis.localStorage?.getItem(SELECTED_VIEW_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function storeSelectedView(viewName) {
+  const normalizedViewName = `${viewName || ""}`.trim();
+  if (!normalizedViewName) {
+    return;
+  }
+
+  try {
+    globalThis.localStorage?.setItem(SELECTED_VIEW_STORAGE_KEY, normalizedViewName);
+  } catch {
+    // 浏览器禁用本地存储时不影响地图正常使用。
+  }
+}
 
 const featureTitle = computed(() => {
   if (!selectedFeature.value?.properties) return "";
@@ -293,7 +316,9 @@ async function loadViews() {
     }
 
     if (!payload.some((view) => view.name === selectedView.value)) {
-      selectedView.value = payload[0].name;
+      const storedViewName = readStoredSelectedView();
+      const restoredView = payload.find((view) => view.name === storedViewName);
+      selectedView.value = restoredView?.name || payload[0].name;
     }
     return true;
   } catch (loadError) {
@@ -427,12 +452,13 @@ async function refreshWhiteMothSiteView() {
     (view) => view.name === WHITE_MOTH_SITE_VIEW_NAME,
   );
   if (hasWhiteMothSiteView && selectedView.value !== WHITE_MOTH_SITE_VIEW_NAME) {
+    shouldAutoFitOnNextViewChange = false;
     selectedView.value = WHITE_MOTH_SITE_VIEW_NAME;
     return true;
   }
 
   await loadFilterOptions();
-  return loadGeoJson({ autoFit: true });
+  return loadGeoJson({ autoFit: false });
 }
 
 function applyFilter() {
@@ -529,6 +555,9 @@ async function submitWhiteMothSite() {
 }
 
 watch(selectedView, async () => {
+  const shouldAutoFit = shouldAutoFitOnNextViewChange;
+  shouldAutoFitOnNextViewChange = true;
+  storeSelectedView(selectedView.value);
   selectedFeature.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
@@ -536,7 +565,7 @@ watch(selectedView, async () => {
   activeFilters.value = {};
   openFilterMenus.value = {};
   await loadFilterOptions();
-  await loadGeoJson({ autoFit: true });
+  await loadGeoJson({ autoFit: shouldAutoFit });
 });
 
 watch(isFilterPanelOpen, (open) => {
@@ -713,7 +742,7 @@ onMounted(async () => {
       </aside>
 
       <aside
-        v-if="isAddingWhiteMothSite"
+        v-if="isAddingWhiteMothSite && whiteMothSiteDraftLocation"
         class="site-add-drawer"
         aria-label="新增美国白蛾点位"
       >
