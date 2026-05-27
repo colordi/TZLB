@@ -6,6 +6,24 @@ export async function listMapViews() {
   return response.json();
 }
 
+export async function fetchWhiteMothSiteCodeRules() {
+  const response = await apiFetch("/api/map/white-moth-sites/code-rules");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function createWhiteMothSite(payload) {
+  const response = await apiFetch("/api/map/white-moth-sites", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function fetchMapView(name, filters = {}) {
   const search = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {

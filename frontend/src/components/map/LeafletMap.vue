@@ -52,9 +52,28 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  whiteMothSiteAddMode: {
+    type: Boolean,
+    default: false,
+  },
+  whiteMothSiteDraftLocation: {
+    type: Object,
+    default: null,
+  },
+  whiteMothSiteSaving: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(["update:viewName", "update:basemapMode", "update:showPointLabels", "feature-click"]);
+const emit = defineEmits([
+  "update:viewName",
+  "update:basemapMode",
+  "update:showPointLabels",
+  "feature-click",
+  "map-click",
+  "toggle-white-moth-site-add",
+]);
 
 const { error, info } = useToast();
 const showLayerMenu = ref(false);
@@ -65,6 +84,7 @@ const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
 const pointLabelLayerRef = shallowRef(null);
 const locateMarkerRef = shallowRef(null);
+const whiteMothSiteDraftMarkerRef = shallowRef(null);
 const locateWatchId = ref(null);
 const latestLocateLatLng = shallowRef(null);
 const hasCenteredInitialLocate = ref(false);
@@ -80,6 +100,9 @@ const activeBasemapLabel = computed(() =>
 const isRealtimeLocating = computed(() => locateWatchId.value !== null);
 const locateButtonLabel = computed(() =>
   isRealtimeLocating.value ? "重新居中到当前位置" : "开启实时定位",
+);
+const whiteMothSiteAddButtonLabel = computed(() =>
+  props.whiteMothSiteAddMode ? "取消添加美国白蛾点位" : "添加美国白蛾点位",
 );
 const pointLabelMenuDescription = computed(() =>
   props.showPointLabels ? "当前范围编号已开启" : "放大后显示当前范围编号",
@@ -135,6 +158,12 @@ const LOCATE_MARKER_HTML = `
   </div>
 `;
 
+const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
+  <div class="white-moth-site-draft-marker">
+    <span></span>
+  </div>
+`;
+
 const POINT_LABEL_MIN_ZOOM = 14;
 const POINT_LABEL_RENDER_LIMIT = 50;
 
@@ -162,6 +191,28 @@ function clearLayer(layerRef) {
     layerRef.value.remove();
     layerRef.value = null;
   }
+}
+
+function updateWhiteMothSiteDraftMarker(location = props.whiteMothSiteDraftLocation) {
+  if (!mapRef.value) {
+    return;
+  }
+
+  clearLayer(whiteMothSiteDraftMarkerRef);
+  if (!location || !Number.isFinite(Number(location.latitude)) || !Number.isFinite(Number(location.longitude))) {
+    return;
+  }
+
+  whiteMothSiteDraftMarkerRef.value = L.marker([location.latitude, location.longitude], {
+    interactive: false,
+    keyboard: false,
+    icon: L.divIcon({
+      className: "white-moth-site-draft-marker-wrapper",
+      html: WHITE_MOTH_SITE_DRAFT_MARKER_HTML,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    }),
+  }).addTo(mapRef.value);
 }
 
 function drawBasemap(mode = "standard") {
@@ -580,6 +631,17 @@ function locateToUser() {
   }
 }
 
+function handleMapClick(event) {
+  if (!props.whiteMothSiteAddMode || !event?.latlng) {
+    return;
+  }
+
+  emit("map-click", {
+    latitude: event.latlng.lat,
+    longitude: event.latlng.lng,
+  });
+}
+
 defineExpose({
   locateToUser,
 });
@@ -594,8 +656,10 @@ onMounted(() => {
   drawBoundaryGeoJson(props.boundaryGeojson);
   drawGeoJson(props.geojson, props.autoFitOnDataChange);
   renderPointLabels(props.geojson);
+  updateWhiteMothSiteDraftMarker();
   mapRef.value.on?.("moveend", refreshPointLabels);
   mapRef.value.on?.("zoomend", refreshPointLabels);
+  mapRef.value.on?.("click", handleMapClick);
 });
 
 watch(
@@ -629,6 +693,14 @@ watch(
   },
 );
 
+watch(
+  () => props.whiteMothSiteDraftLocation,
+  (value) => {
+    updateWhiteMothSiteDraftMarker(value);
+  },
+  { deep: true },
+);
+
 onBeforeUnmount(() => {
   clearLocateWatch();
   clearLayer(basemapLayerRef);
@@ -636,10 +708,12 @@ onBeforeUnmount(() => {
   clearLayer(pointLayerRef);
   clearLayer(pointLabelLayerRef);
   clearLayer(locateMarkerRef);
+  clearLayer(whiteMothSiteDraftMarkerRef);
 
   if (mapRef.value) {
     mapRef.value.off?.("moveend", refreshPointLabels);
     mapRef.value.off?.("zoomend", refreshPointLabels);
+    mapRef.value.off?.("click", handleMapClick);
     mapRef.value.remove();
     mapRef.value = null;
   }
@@ -772,7 +846,23 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="map-overlay right-fab map-side-action">
+    <div class="map-overlay right-fab map-side-action map-fab-stack">
+      <button
+        type="button"
+        class="map-fab"
+        :class="{ 'is-active': whiteMothSiteAddMode, 'is-loading': whiteMothSiteSaving }"
+        data-testid="map-add-white-moth-site-button"
+        :aria-label="whiteMothSiteAddButtonLabel"
+        :aria-pressed="whiteMothSiteAddMode"
+        :disabled="whiteMothSiteSaving"
+        @click="emit('toggle-white-moth-site-add')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 4.97 5.67 10.22 5.91 10.44a2 2 0 0 0 2.68 0c.24-.22 5.91-5.47 5.91-10.44A7.25 7.25 0 0 0 12 2.75Zm0 16.58C10.53 17.88 6.25 13.48 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.48-4.28 7.88-5.75 9.33ZM12.75 7.25a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z"
+          />
+        </svg>
+      </button>
       <button
         type="button"
         class="map-fab"
@@ -1130,6 +1220,12 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
+.map-fab-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .map-fab {
   min-height: 0;
   width: 3rem;
@@ -1228,6 +1324,48 @@ onBeforeUnmount(() => {
   filter:
     drop-shadow(0 8px 12px rgba(47, 128, 237, 0.3))
     drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.9));
+}
+
+:deep(.white-moth-site-draft-marker-wrapper) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.white-moth-site-draft-marker) {
+  position: relative;
+  width: 30px;
+  height: 30px;
+}
+
+:deep(.white-moth-site-draft-marker::before) {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 999px;
+  background: rgba(47, 128, 237, 0.18);
+  animation: draft-marker-pulse 1.3s ease-in-out infinite;
+}
+
+:deep(.white-moth-site-draft-marker span) {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  background: #2f80ed;
+  border: 2px solid #fff;
+  box-shadow: 0 8px 16px rgba(47, 128, 237, 0.34);
+}
+
+@keyframes draft-marker-pulse {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.72;
+  }
+
+  50% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
 }
 
 :deep(.leaflet-tooltip) {

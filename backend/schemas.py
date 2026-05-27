@@ -68,6 +68,33 @@ class MapViewSummary(BaseModel):
     columns: list[str]
 
 
+class WhiteMothSiteCreateRequest(BaseModel):
+    """美国白蛾点位新增请求。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    code: str = Field(min_length=1)
+    site_name: str = ""
+    longitude: float = Field(ge=-180, le=180)
+    latitude: float = Field(ge=-90, le=90)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class WhiteMothSiteResponse(BaseModel):
+    """美国白蛾点位新增响应。"""
+
+    gid: int | None = None
+    code: str
+    township: str
+    site_name: str = ""
+    longitude: float
+    latitude: float
+
+
 class AuthenticatedUser(BaseModel):
     """已登录用户信息。"""
 

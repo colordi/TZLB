@@ -37,4 +37,38 @@ describe("api/map", () => {
     expect(search.getAll("危害程度")).toEqual(["重"]);
     expect(search.has("空值")).toBe(false);
   });
+
+  it("新增美国白蛾点位时提交 JSON 载荷", async () => {
+    const { createWhiteMothSite } = await import("../map.js");
+
+    await createWhiteMothSite({
+      code: "MQ001",
+      site_name: "示范点",
+      longitude: 116.5,
+      latitude: 39.7,
+    });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/map/white-moth-sites", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code: "MQ001",
+        site_name: "示范点",
+        longitude: 116.5,
+        latitude: 39.7,
+      }),
+    });
+  });
+
+  it("读取美国白蛾编号规则", async () => {
+    const { fetchWhiteMothSiteCodeRules } = await import("../map.js");
+
+    await fetchWhiteMothSiteCodeRules();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/white-moth-sites/code-rules",
+    );
+  });
 });

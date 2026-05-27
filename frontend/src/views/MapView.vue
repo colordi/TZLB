@@ -3,9 +3,11 @@ import { computed, onMounted, ref, watch } from "vue";
 
 import { useToast } from "../composables/useToast.js";
 import {
+  createWhiteMothSite,
   fetchAdminBoundary,
   fetchMapFilterOptions,
   fetchMapView,
+  fetchWhiteMothSiteCodeRules,
   listMapViews,
 } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
@@ -23,6 +25,7 @@ function createEmptyFeatureCollection() {
 }
 
 const { error, info, success } = useToast();
+const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
 
 const views = ref([]);
 const selectedView = ref("");
@@ -40,6 +43,14 @@ const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
 const selectedFeature = ref(null);
+const whiteMothSiteCodeRules = ref(null);
+const whiteMothSiteDraftLocation = ref(null);
+const whiteMothSiteForm = ref({
+  code: "",
+  siteName: "",
+});
+const isAddingWhiteMothSite = ref(false);
+const isSavingWhiteMothSite = ref(false);
 let geojsonRequestToken = 0;
 
 const featureTitle = computed(() => {
@@ -55,6 +66,9 @@ const featureRows = computed(() => {
 });
 
 function onFeatureClick(feature) {
+  if (isAddingWhiteMothSite.value) {
+    return;
+  }
   selectedFeature.value = feature;
 }
 
@@ -67,6 +81,58 @@ const currentView = computed(
 );
 const filterFields = computed(() => filterOptions.value.filterFields || []);
 const hasFilterFields = computed(() => filterFields.value.length > 0);
+const whiteMothSiteCodeExample = computed(
+  () => whiteMothSiteCodeRules.value?.code_example || "MQ001",
+);
+const whiteMothSitePrefixTownships = computed(
+  () => whiteMothSiteCodeRules.value?.prefix_townships || {},
+);
+const normalizedWhiteMothSiteCode = computed(() =>
+  whiteMothSiteForm.value.code.trim().toUpperCase(),
+);
+const whiteMothSiteCodeRegex = computed(() => {
+  const pattern = whiteMothSiteCodeRules.value?.code_pattern || "";
+  try {
+    return pattern ? new RegExp(pattern) : null;
+  } catch {
+    return null;
+  }
+});
+const resolvedWhiteMothSiteTownship = computed(() => {
+  const code = normalizedWhiteMothSiteCode.value;
+  if (!code || !whiteMothSiteCodeRegex.value?.test(code)) {
+    return "";
+  }
+  return whiteMothSitePrefixTownships.value[code.slice(0, 2)] || "";
+});
+const whiteMothSiteCodeError = computed(() => {
+  if (!whiteMothSiteCodeRules.value) {
+    return "正在读取编号规则";
+  }
+
+  const code = normalizedWhiteMothSiteCode.value;
+  if (!code) {
+    return "请输入编号";
+  }
+  if (!whiteMothSiteCodeRegex.value?.test(code) || !resolvedWhiteMothSiteTownship.value) {
+    return `编号格式不正确，请输入类似 ${whiteMothSiteCodeExample.value} 的编号`;
+  }
+  return "";
+});
+const whiteMothSiteLocationText = computed(() => {
+  if (!whiteMothSiteDraftLocation.value) {
+    return "请在地图上点击点位位置";
+  }
+
+  const { latitude, longitude } = whiteMothSiteDraftLocation.value;
+  return `${Number(longitude).toFixed(6)}, ${Number(latitude).toFixed(6)}`;
+});
+const canSubmitWhiteMothSite = computed(
+  () =>
+    Boolean(whiteMothSiteDraftLocation.value) &&
+    !whiteMothSiteCodeError.value &&
+    !isSavingWhiteMothSite.value,
+);
 
 const filterHint = computed(() => {
   if (hasFilterFields.value) {
@@ -244,6 +310,18 @@ async function loadViews() {
   }
 }
 
+async function loadWhiteMothSiteCodeRules() {
+  try {
+    whiteMothSiteCodeRules.value = await fetchWhiteMothSiteCodeRules();
+  } catch (loadError) {
+    whiteMothSiteCodeRules.value = null;
+    if (isUnauthorizedError(loadError)) {
+      return;
+    }
+    error(`${loadError.message || loadError}`, "编号规则读取失败");
+  }
+}
+
 async function loadGeoJson({ autoFit = false } = {}) {
   if (!selectedView.value) {
     loading.value = false;
@@ -339,6 +417,24 @@ async function refreshViewsAndData() {
   }
 }
 
+async function refreshWhiteMothSiteView() {
+  const loadedViews = await loadViews();
+  if (!loadedViews) {
+    return false;
+  }
+
+  const hasWhiteMothSiteView = views.value.some(
+    (view) => view.name === WHITE_MOTH_SITE_VIEW_NAME,
+  );
+  if (hasWhiteMothSiteView && selectedView.value !== WHITE_MOTH_SITE_VIEW_NAME) {
+    selectedView.value = WHITE_MOTH_SITE_VIEW_NAME;
+    return true;
+  }
+
+  await loadFilterOptions();
+  return loadGeoJson({ autoFit: true });
+}
+
 function applyFilter() {
   loadGeoJson({ autoFit: false });
 }
@@ -347,6 +443,89 @@ function resetFilter() {
   activeFilters.value = buildDefaultFilterValues();
   loadGeoJson({ autoFit: false });
   info("筛选条件已恢复默认。", "已刷新点位");
+}
+
+function resetWhiteMothSiteDraft() {
+  whiteMothSiteDraftLocation.value = null;
+  whiteMothSiteForm.value = {
+    code: "",
+    siteName: "",
+  };
+}
+
+function startWhiteMothSiteAdd() {
+  selectedFeature.value = null;
+  isAddingWhiteMothSite.value = true;
+  info("请在地图上点击新点位位置。", "添加点位");
+}
+
+function cancelWhiteMothSiteAdd() {
+  isAddingWhiteMothSite.value = false;
+  resetWhiteMothSiteDraft();
+}
+
+function toggleWhiteMothSiteAdd() {
+  if (isAddingWhiteMothSite.value) {
+    cancelWhiteMothSiteAdd();
+    return;
+  }
+  startWhiteMothSiteAdd();
+}
+
+function onMapClick(location) {
+  if (!isAddingWhiteMothSite.value) {
+    return;
+  }
+
+  whiteMothSiteDraftLocation.value = {
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
+  };
+  selectedFeature.value = null;
+}
+
+function onWhiteMothSiteCodeInput(event) {
+  whiteMothSiteForm.value.code = event.target.value.toUpperCase();
+}
+
+function normalizeWhiteMothSiteCodeInput() {
+  whiteMothSiteForm.value.code = normalizedWhiteMothSiteCode.value;
+}
+
+async function submitWhiteMothSite() {
+  normalizeWhiteMothSiteCodeInput();
+  if (!whiteMothSiteDraftLocation.value) {
+    error("请先在地图上点击点位位置。", "新增点位失败");
+    return;
+  }
+  if (whiteMothSiteCodeError.value) {
+    error(whiteMothSiteCodeError.value, "新增点位失败");
+    return;
+  }
+
+  isSavingWhiteMothSite.value = true;
+  try {
+    const createdSite = await createWhiteMothSite({
+      code: normalizedWhiteMothSiteCode.value,
+      site_name: whiteMothSiteForm.value.siteName.trim(),
+      longitude: whiteMothSiteDraftLocation.value.longitude,
+      latitude: whiteMothSiteDraftLocation.value.latitude,
+    });
+    success(
+      `点位 ${createdSite.code} 已保存到 ${createdSite.township}。`,
+      "新增成功",
+    );
+    isAddingWhiteMothSite.value = false;
+    resetWhiteMothSiteDraft();
+    await refreshWhiteMothSiteView();
+  } catch (saveError) {
+    if (isUnauthorizedError(saveError)) {
+      return;
+    }
+    error(`${saveError.message || saveError}`, "新增点位失败");
+  } finally {
+    isSavingWhiteMothSite.value = false;
+  }
 }
 
 watch(selectedView, async () => {
@@ -367,7 +546,7 @@ watch(isFilterPanelOpen, (open) => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadViews(), loadAdminBoundary()]);
+  await Promise.all([loadViews(), loadAdminBoundary(), loadWhiteMothSiteCodeRules()]);
 });
 </script>
 
@@ -533,6 +712,97 @@ onMounted(async () => {
         </article>
       </aside>
 
+      <aside
+        v-if="isAddingWhiteMothSite"
+        class="site-add-drawer"
+        aria-label="新增美国白蛾点位"
+      >
+        <article class="panel-card site-add-card">
+          <header class="detail-header">
+            <span class="detail-title">新增美国白蛾点位</span>
+            <button
+              type="button"
+              class="detail-close-btn"
+              aria-label="关闭新增点位"
+              :disabled="isSavingWhiteMothSite"
+              @click="cancelWhiteMothSiteAdd"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </header>
+          <div class="detail-divider"></div>
+
+          <form class="site-add-form" @submit.prevent="submitWhiteMothSite">
+            <div class="site-add-location">
+              <span class="detail-label">坐标</span>
+              <strong data-testid="white-moth-site-location">
+                {{ whiteMothSiteLocationText }}
+              </strong>
+            </div>
+
+            <label class="site-add-field">
+              <span>编号</span>
+              <input
+                :value="whiteMothSiteForm.code"
+                data-testid="white-moth-site-code"
+                inputmode="text"
+                autocomplete="off"
+                :placeholder="whiteMothSiteCodeExample"
+                :disabled="isSavingWhiteMothSite"
+                @blur="normalizeWhiteMothSiteCodeInput"
+                @input="onWhiteMothSiteCodeInput"
+              />
+              <small
+                v-if="whiteMothSiteCodeError"
+                class="site-add-error"
+                data-testid="white-moth-site-code-error"
+              >
+                {{ whiteMothSiteCodeError }}
+              </small>
+            </label>
+
+            <div class="site-add-location">
+              <span class="detail-label">自动识别乡镇</span>
+              <strong data-testid="white-moth-site-township">
+                {{ resolvedWhiteMothSiteTownship || '待识别' }}
+              </strong>
+            </div>
+
+            <label class="site-add-field">
+              <span>点位名称</span>
+              <input
+                v-model="whiteMothSiteForm.siteName"
+                data-testid="white-moth-site-name"
+                autocomplete="off"
+                :disabled="isSavingWhiteMothSite"
+                placeholder="可不填写"
+              />
+            </label>
+
+            <div class="site-add-actions">
+              <button
+                type="submit"
+                data-testid="white-moth-site-submit"
+                :disabled="!canSubmitWhiteMothSite"
+              >
+                {{ isSavingWhiteMothSite ? '保存中' : '保存点位' }}
+              </button>
+              <button
+                type="button"
+                class="button-secondary"
+                :disabled="isSavingWhiteMothSite"
+                @click="cancelWhiteMothSiteAdd"
+              >
+                取消
+              </button>
+            </div>
+          </form>
+        </article>
+      </aside>
+
       <section class="map-panel" aria-label="调查点位地图">
         <LeafletMap
           :auto-fit-on-data-change="autoFitOnDataChange"
@@ -545,7 +815,12 @@ onMounted(async () => {
           :show-point-labels="showPointLabels"
           :view-name="selectedView"
           :views="views"
+          :white-moth-site-add-mode="isAddingWhiteMothSite"
+          :white-moth-site-draft-location="whiteMothSiteDraftLocation"
+          :white-moth-site-saving="isSavingWhiteMothSite"
           @feature-click="onFeatureClick"
+          @map-click="onMapClick"
+          @toggle-white-moth-site-add="toggleWhiteMothSiteAdd"
           @update:basemap-mode="basemapMode = $event"
           @update:show-point-labels="showPointLabels = $event"
           @update:view-name="selectedView = $event"
@@ -932,7 +1207,8 @@ onMounted(async () => {
   height: 100%;
 }
 
-.detail-drawer {
+.detail-drawer,
+.site-add-drawer {
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -942,7 +1218,8 @@ onMounted(async () => {
   pointer-events: none;
 }
 
-.detail-card {
+.detail-card,
+.site-add-card {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1047,6 +1324,83 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
+.site-add-card {
+  height: auto;
+  max-height: 100%;
+}
+
+.site-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+}
+
+.site-add-location {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container);
+}
+
+.site-add-location strong {
+  color: var(--color-ink);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.site-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.site-add-field input {
+  min-width: 0;
+  width: 100%;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--color-ink);
+  font: inherit;
+  font-weight: 650;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.site-add-field input:focus {
+  border-color: rgba(46, 125, 50, 0.45);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.12);
+}
+
+.site-add-field input:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.site-add-error {
+  color: #b3261e;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.site-add-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}
+
 @media (max-width: 760px) {
   .map-workspace {
     min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
@@ -1079,11 +1433,16 @@ onMounted(async () => {
     flex: 1;
   }
 
-  .detail-drawer {
+  .detail-drawer,
+  .site-add-drawer {
     top: 0.75rem;
     right: 0.75rem;
     bottom: 0.75rem;
     width: min(19rem, calc(100% - 1.5rem));
+  }
+
+  .site-add-actions {
+    grid-template-columns: 1fr;
   }
 }
 </style>

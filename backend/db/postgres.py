@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import re
 from datetime import date as date_cls
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,20 @@ SITE_SCHEMA = "sites"
 SITE_TABLE = "poplar_sites"
 SOPHORA_SITE_TABLE = "sophora_sites"
 OTHER_PEST_SITE_TABLE = "other_pest_sites"
+WHITE_MOTH_SITE_TABLE = "white_moth_sites"
+WHITE_MOTH_SITE_CODE_PATTERN = re.compile(r"^[A-Z]{2}\d{3}$")
+WHITE_MOTH_SITE_CODE_EXAMPLE = "MQ001"
+WHITE_MOTH_SITE_PREFIX_TOWNSHIPS = {
+    "MQ": "马驹桥镇",
+    "TH": "台湖镇",
+    "ZW": "张家湾镇",
+    "YF": "于家务乡",
+    "YL": "永乐店镇",
+    "HX": "漷县镇",
+    "XJ": "西集镇",
+    "LC": "潞城镇",
+    "SZ": "宋庄镇",
+}
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",
     "危害程度": "危害程度",
@@ -42,6 +57,14 @@ SURVEY_STATUS_FILTER_VALUES = {option["value"] for option in SURVEY_STATUS_FILTE
 _pool: asyncpg.Pool | None = None
 
 
+class WhiteMothSiteCodeError(ValueError):
+    """美国白蛾点位编号格式错误。"""
+
+
+class WhiteMothSiteDuplicateError(ValueError):
+    """美国白蛾点位编号重复。"""
+
+
 def normalize_filter_values(value: Any) -> list[str]:
     """将单值或多值筛选条件统一为去重后的字符串列表。"""
 
@@ -52,6 +75,41 @@ def normalize_filter_values(value: Any) -> list[str]:
         if item is not None and str(item).strip() != ""
     ]
     return list(dict.fromkeys(values))
+
+
+def get_white_moth_site_code_rules() -> dict[str, Any]:
+    """返回美国白蛾点位编号规则。"""
+
+    return {
+        "code_pattern": r"^[A-Z]{2}\d{3}$",
+        "code_example": WHITE_MOTH_SITE_CODE_EXAMPLE,
+        "prefix_townships": WHITE_MOTH_SITE_PREFIX_TOWNSHIPS,
+    }
+
+
+def normalize_white_moth_site_code(value: str) -> str:
+    """标准化美国白蛾点位编号。"""
+
+    return (value or "").strip().upper()
+
+
+def resolve_white_moth_site_township(code: str) -> tuple[str, str]:
+    """根据美国白蛾点位编号解析标准编号和乡镇。"""
+
+    normalized_code = normalize_white_moth_site_code(code)
+    if not WHITE_MOTH_SITE_CODE_PATTERN.fullmatch(normalized_code):
+        raise WhiteMothSiteCodeError(
+            f"编号格式不正确，请输入类似 {WHITE_MOTH_SITE_CODE_EXAMPLE} 的编号"
+        )
+
+    prefix = normalized_code[:2]
+    township = WHITE_MOTH_SITE_PREFIX_TOWNSHIPS.get(prefix)
+    if township is None:
+        raise WhiteMothSiteCodeError(
+            f"编号格式不正确，请输入类似 {WHITE_MOTH_SITE_CODE_EXAMPLE} 的编号"
+        )
+
+    return normalized_code, township
 
 
 async def ensure_pool() -> asyncpg.Pool:
@@ -231,6 +289,55 @@ async def fetch_admin_boundary_feature_collection() -> dict[str, Any]:
         """,
     )
     return records_to_feature_collection(rows)
+
+
+async def create_white_moth_site(
+    *,
+    code: str,
+    site_name: str,
+    longitude: float,
+    latitude: float,
+) -> dict[str, Any]:
+    """新增美国白蛾点位。"""
+
+    normalized_code, township = resolve_white_moth_site_township(code)
+    qualified_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(WHITE_MOTH_SITE_TABLE)}"
+    )
+
+    try:
+        row = await fetchrow(
+            f"""
+            INSERT INTO {qualified_table} (
+                "编号",
+                "乡镇",
+                "点位名称",
+                geom
+            )
+            VALUES (
+                $1,
+                $2,
+                $3,
+                ST_SetSRID(ST_MakePoint($4, $5), 4326)
+            )
+            RETURNING
+                gid,
+                "编号" AS code,
+                "乡镇" AS township,
+                COALESCE("点位名称", '') AS site_name,
+                ST_X(geom) AS longitude,
+                ST_Y(geom) AS latitude
+            """,
+            normalized_code,
+            township,
+            (site_name or "").strip(),
+            longitude,
+            latitude,
+        )
+    except asyncpg.UniqueViolationError as exc:
+        raise WhiteMothSiteDuplicateError(f"编号已存在：{normalized_code}") from exc
+
+    return dict(row or {})
 
 
 async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:

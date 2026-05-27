@@ -83,8 +83,8 @@ const leafletMocks = vi.hoisted(() => {
         setView: vi.fn(function setView() {
           return this;
         }),
-        trigger(event) {
-          eventHandlers[event]?.();
+        trigger(event, payload) {
+          eventHandlers[event]?.(payload);
         },
       };
       maps.push(mapInstance);
@@ -350,6 +350,63 @@ describe("LeafletMap 实时定位", () => {
     );
     expect(wrapper.get('[data-testid="map-locate-button"]').attributes("aria-pressed")).toBe(
       "false",
+    );
+  });
+
+  it("添加点位模式下点击地图会抛出经纬度", () => {
+    const wrapper = mountLeafletMap({
+      whiteMothSiteAddMode: true,
+    });
+    const mapInstance = leafletMocks.maps[0];
+
+    mapInstance.trigger("click", {
+      latlng: {
+        lat: 39.7,
+        lng: 116.5,
+      },
+    });
+
+    expect(wrapper.emitted("map-click")).toEqual([
+      [
+        {
+          latitude: 39.7,
+          longitude: 116.5,
+        },
+      ],
+    ]);
+  });
+
+  it("添加点位模式关闭时点击地图不会抛出经纬度", () => {
+    const wrapper = mountLeafletMap();
+    const mapInstance = leafletMocks.maps[0];
+
+    mapInstance.trigger("click", {
+      latlng: {
+        lat: 39.7,
+        lng: 116.5,
+      },
+    });
+
+    expect(wrapper.emitted("map-click")).toBeUndefined();
+  });
+
+  it("收到新增点位草稿坐标时渲染临时标记", () => {
+    mountLeafletMap({
+      whiteMothSiteDraftLocation: {
+        latitude: 39.7,
+        longitude: 116.5,
+      },
+    });
+
+    expect(leafletMocks.marker).toHaveBeenCalledWith(
+      [39.7, 116.5],
+      expect.objectContaining({
+        interactive: false,
+        keyboard: false,
+        icon: expect.objectContaining({
+          className: "white-moth-site-draft-marker-wrapper",
+        }),
+      }),
     );
   });
 });
