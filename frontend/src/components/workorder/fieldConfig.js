@@ -1,18 +1,21 @@
 export const PEST_OPTIONS = [
   { value: "春尺蠖", label: "春尺蠖" },
   { value: "国槐尺蠖", label: "国槐尺蠖" },
+  { value: "美国白蛾", label: "美国白蛾" },
   { value: "其他害虫", label: "其他害虫" },
 ];
 
 export const CONTROL_TYPE_OPTIONS = [
   { value: "春尺蠖防治", label: "春尺蠖防治" },
   { value: "国槐尺蠖防治", label: "国槐尺蠖防治" },
+  { value: "美国白蛾防治", label: "美国白蛾防治" },
   { value: "其他害虫防治", label: "其他害虫防治" },
 ];
 
 const DEFAULT_CONTROL_TYPE_BY_PEST = {
   春尺蠖: "春尺蠖防治",
   国槐尺蠖: "国槐尺蠖防治",
+  美国白蛾: "美国白蛾防治",
   其他害虫: "其他害虫防治",
 };
 
@@ -24,6 +27,9 @@ const CONTROL_TASK_OPTIONS_BY_PEST = {
     { value: "2026国槐尺蠖第一代防治", label: "2026国槐尺蠖第一代防治" },
     { value: "2026国槐尺蠖第二代防治", label: "2026国槐尺蠖第二代防治" },
     { value: "2026国槐尺蠖第三代防治", label: "2026国槐尺蠖第三代防治" },
+  ],
+  美国白蛾: [
+    { value: "2026美国白蛾第一代防治", label: "2026美国白蛾第一代防治" },
   ],
   其他害虫: [
     { value: "2026其他害虫防治", label: "2026其他害虫防治" },
@@ -39,6 +45,13 @@ export const REQUIRED_FIELD_KEYS_BY_PEST = {
     "description",
   ],
   国槐尺蠖: [
+    "survey_date",
+    "town_or_street",
+    "location_id",
+    "location_name",
+    "description",
+  ],
+  美国白蛾: [
     "survey_date",
     "town_or_street",
     "location_id",
@@ -111,6 +124,26 @@ const FIELD_DEFINITIONS = {
     label: "寄主树种",
     type: "text",
   },
+  green_space_type: {
+    key: "green_space_type",
+    label: "绿地性质",
+    type: "text",
+  },
+  pest_hosts: {
+    key: "pest_hosts",
+    label: "危害寄主",
+    type: "text",
+  },
+  damaged_plant_count: {
+    key: "damaged_plant_count",
+    label: "受害株数",
+    type: "number",
+  },
+  web_nest_count: {
+    key: "web_nest_count",
+    label: "网幕数量",
+    type: "number",
+  },
   plot_type: {
     key: "plot_type",
     label: "地块类型",
@@ -164,8 +197,25 @@ const OTHER_PEST_FIELD_KEYS = [
   "description",
 ];
 
+const MEI_GUO_BAI_E_FIELD_KEYS = [
+  "survey_date",
+  "town_or_street",
+  "location_id",
+  "location_name",
+  "green_space_type",
+  "pest_hosts",
+  "damaged_plant_count",
+  "web_nest_count",
+  "note",
+  "description",
+];
+
 export function isChiHuo(pestType) {
   return pestType === "春尺蠖" || pestType === "国槐尺蠖";
+}
+
+export function isMeiGuoBaiE(pestType) {
+  return pestType === "美国白蛾";
 }
 
 export function getDefaultControlType(pestType) {
@@ -187,6 +237,10 @@ function getFieldKeysByPest(pestType) {
 
   if (pestType === "国槐尺蠖") {
     return GUO_HUAI_FIELD_KEYS;
+  }
+
+  if (isMeiGuoBaiE(pestType)) {
+    return MEI_GUO_BAI_E_FIELD_KEYS;
   }
 
   return OTHER_PEST_FIELD_KEYS;
@@ -269,6 +323,10 @@ export function createEmptyRecord(pestType) {
       damage_level: "",
       pest_name: "",
       host_plant: "",
+      green_space_type: "",
+      pest_hosts: "",
+      damaged_plant_count: "",
+      web_nest_count: "",
       description: "",
       note: "",
       plot_type: "",
@@ -280,7 +338,7 @@ export function createEmptyRecord(pestType) {
 }
 
 export function normalizeRecordForPest(record, pestType) {
-  const defaultRegion = isChiHuo(pestType) ? "乡镇" : "城区";
+  const defaultRegion = isChiHuo(pestType) || isMeiGuoBaiE(pestType) ? "乡镇" : "城区";
   const next = {
     survey_date: record.survey_date || getTodayDate(),
     region: record.region || defaultRegion,
@@ -292,6 +350,10 @@ export function normalizeRecordForPest(record, pestType) {
     damage_level: record.damage_level || "",
     pest_name: record.pest_name || "",
     host_plant: record.host_plant || "",
+    green_space_type: record.green_space_type || "",
+    pest_hosts: record.pest_hosts || "",
+    damaged_plant_count: record.damaged_plant_count ?? "",
+    web_nest_count: record.web_nest_count ?? "",
     description: record.description || "",
     note: record.note || "",
     plot_type: record.plot_type || "",
@@ -308,6 +370,16 @@ export function normalizeRecordForPest(record, pestType) {
   return next;
 }
 
+function normalizeOptionalInteger(value) {
+  const raw = `${value ?? ""}`.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? numeric : raw;
+}
+
 export function toPayloadRecord(record, pestType) {
   const normalized = normalizeRecordForPest(record, pestType);
   const sharedPayload = {
@@ -322,6 +394,16 @@ export function toPayloadRecord(record, pestType) {
 
   if (pestType === "春尺蠖" || pestType === "国槐尺蠖") {
     return sharedPayload;
+  }
+
+  if (isMeiGuoBaiE(pestType)) {
+    return {
+      ...sharedPayload,
+      green_space_type: normalized.green_space_type.trim(),
+      pest_hosts: normalized.pest_hosts.trim(),
+      damaged_plant_count: normalizeOptionalInteger(normalized.damaged_plant_count),
+      web_nest_count: normalizeOptionalInteger(normalized.web_nest_count),
+    };
   }
 
   return {
@@ -344,12 +426,16 @@ export function validateRecords(records, pestType) {
       }
     });
 
-    if (getFieldKeysByPest(pestType).includes("total_insect_count") && current.total_insect_count !== "") {
-      const numeric = Number(current.total_insect_count);
-      if (!Number.isFinite(numeric) || numeric < 0) {
-        errors.total_insect_count = "需为非负数字";
+    ["total_insect_count", "damaged_plant_count", "web_nest_count"].forEach((key) => {
+      if (!getFieldKeysByPest(pestType).includes(key) || current[key] === "") {
+        return;
       }
-    }
+
+      const numeric = Number(current[key]);
+      if (!Number.isFinite(numeric) || numeric < 0) {
+        errors[key] = "需为非负数字";
+      }
+    });
 
     if ((current.images || []).length > 4) {
       errors.images = "最多 4 张";

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import io
+import mimetypes
+import re
 import subprocess
 import tempfile
 import uuid
@@ -22,6 +24,7 @@ IMAGE_WIDTH_MM = 70
 DOC_MEDIA_TYPE = "application/msword"
 DOC_CONVERT_FILTER = "MS Word 97"
 CHI_HUO_TYPES = {"春尺蠖", "国槐尺蠖"}
+MEI_GUO_BAI_E_TYPE = "美国白蛾"
 DOC_FIELD_MAPPING = {
     "description": "detailed_description",
     "host_plant": "host",
@@ -41,6 +44,7 @@ def get_template_path(pest_type: str) -> Path:
     mapping = {
         "春尺蠖": settings.templates_dir / "春尺蠖工作单模板.docx",
         "国槐尺蠖": settings.templates_dir / "国槐尺蠖工作单模板.docx",
+        "美国白蛾": settings.templates_dir / "美国白蛾工作单模板.docx",
         "其他害虫": settings.templates_dir / "其他害虫工作单模板.docx",
     }
     path = mapping.get(pest_type)
@@ -75,6 +79,121 @@ def cleanup_temp_images(paths: list[Path]) -> None:
             continue
 
 
+def is_image_file(path: Path) -> bool:
+    mime_type, _ = mimetypes.guess_type(path.name)
+    return bool(mime_type and mime_type.startswith("image/"))
+
+
+def natural_path_sort_key(path: Path) -> tuple[tuple[int, int | str], ...]:
+    parts = re.split(r"(\d+)", path.stem.lower())
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part)
+        for part in parts
+        if part
+    )
+
+
+def unique_existing_images(paths: list[Path]) -> list[Path]:
+    images: list[Path] = []
+    seen: set[str] = set()
+
+    for path in paths:
+        if not path.is_file() or not is_image_file(path):
+            continue
+
+        marker = str(path.resolve())
+        if marker in seen:
+            continue
+
+        seen.add(marker)
+        images.append(path)
+        if len(images) >= MAX_IMAGES:
+            break
+
+    return images
+
+
+def find_point_screenshot(screenshot_dir: Path, location_id: str) -> Path | None:
+    normalized_location_id = (location_id or "").strip()
+    if not normalized_location_id or not screenshot_dir.is_dir():
+        return None
+
+    matches = sorted(
+        (
+            path
+            for path in screenshot_dir.iterdir()
+            if path.is_file()
+            and is_image_file(path)
+            and path.stem.strip() == normalized_location_id
+        ),
+        key=natural_path_sort_key,
+    )
+    return matches[0] if matches else None
+
+
+def find_dated_location_images(images_dir: Path, survey_date: str, location_id: str) -> list[Path]:
+    normalized_location_id = (location_id or "").strip()
+    normalized_date = (survey_date or "").strip()[:10]
+    if not normalized_location_id or not normalized_date:
+        return []
+
+    dated_dir = images_dir / normalized_date
+    if not dated_dir.is_dir():
+        return []
+
+    return sorted(
+        (
+            path
+            for path in dated_dir.iterdir()
+            if path.is_file()
+            and is_image_file(path)
+            and (
+                path.stem == normalized_location_id
+                or path.stem.startswith(f"{normalized_location_id}-")
+            )
+        ),
+        key=natural_path_sort_key,
+    )
+
+
+def resolve_meiguobaie_image_paths(record: WorkOrderRecord) -> list[Path]:
+    """按美国白蛾工作单规则自动装配图片，最多 4 张。"""
+
+    settings = get_settings()
+    image_paths: list[Path] = []
+
+    point_screenshot = find_point_screenshot(
+        settings.meiguobaie_point_screenshot_dir,
+        record.location_id,
+    )
+    if point_screenshot is not None:
+        image_paths.append(point_screenshot)
+
+    image_paths.extend(
+        find_dated_location_images(
+            settings.images_dir,
+            record.survey_date,
+            record.location_id,
+        )
+    )
+
+    return unique_existing_images(image_paths)
+
+
+def resolve_record_image_paths(
+    record: WorkOrderRecord,
+    pest_type: str,
+    row_id: str,
+    temp_images: list[Path],
+) -> list[Path]:
+    if pest_type == MEI_GUO_BAI_E_TYPE:
+        return resolve_meiguobaie_image_paths(record)
+
+    image_paths = save_base64_images(record.images, row_id) if record.images else []
+    temp_images.extend(image_paths)
+    return image_paths
+
+
 def build_context(
     doc: DocxTemplate,
     record: WorkOrderRecord,
@@ -93,6 +212,12 @@ def build_context(
     context["task"] = task_name or task_type
     context["serial_number"] = str(serial_number).zfill(3)
     context["note"] = context.get("note") or ""
+    context["damaged_plant_count"] = context.get("damaged_plant_count")
+    context["web_nest_count"] = context.get("web_nest_count")
+    if context["damaged_plant_count"] is None:
+        context["damaged_plant_count"] = ""
+    if context["web_nest_count"] is None:
+        context["web_nest_count"] = ""
 
     if pest_type in CHI_HUO_TYPES:
         context["plot_type"] = context.get("plot_type") or "平原造林"
@@ -170,8 +295,12 @@ def render_single_document(
 
     doc = DocxTemplate(template_path)
     row_id = f"row_{index}_{uuid.uuid4().hex[:8]}"
-    image_paths = save_base64_images(record.images, row_id) if record.images else []
-    temp_images.extend(image_paths)
+    image_paths = resolve_record_image_paths(
+        record=record,
+        pest_type=pest_type,
+        row_id=row_id,
+        temp_images=temp_images,
+    )
 
     context = build_context(doc, record, pest_type, task_type, task_name, index, image_paths)
     ensure_template_context_complete(doc, context, template_path)

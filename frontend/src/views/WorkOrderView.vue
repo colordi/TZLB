@@ -40,7 +40,7 @@ const showDetailModal = ref(false);
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
 const canImportSurvey = computed(() =>
-  ["春尺蠖", "国槐尺蠖", "其他害虫"].includes(pestType.value),
+  ["春尺蠖", "国槐尺蠖", "美国白蛾", "其他害虫"].includes(pestType.value),
 );
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],

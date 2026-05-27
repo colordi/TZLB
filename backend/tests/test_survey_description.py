@@ -354,6 +354,71 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sites\".\"sophora_sites", query)
         self.assertIn("NOT IN ('', '白', '无需防治')", query)
 
+    async def test_meiguobaie_candidates_include_template_required_fields(self) -> None:
+        image_bytes = b"fake-meiguobaie-jpeg-bytes"
+        mocked_fetch = AsyncMock(
+            return_value=[
+                {
+                    "location_id": "MQ001",
+                    "survey_date": "2026-05-26",
+                    "region": "城区",
+                    "town_or_street": "梨园镇",
+                    "location_name": "玉桥东路",
+                    "occurrence_position": "道路东侧",
+                    "green_space_type": "道路绿化",
+                    "pest_hosts": "白蜡",
+                    "damaged_plant_count": 3,
+                    "web_nest_count": 5,
+                    "description": "发现美国白蛾网幕，已安排剪网处置。",
+                    "note": "需复查",
+                }
+            ]
+        )
+
+        with TemporaryDirectory() as tempdir:
+            image_path = Path(tempdir) / "MQ001.jpg"
+            image_path.write_bytes(image_bytes)
+
+            with patch(
+                "backend.db.postgres.fetch",
+                new=mocked_fetch,
+            ), patch(
+                "backend.db.postgres.get_settings",
+                return_value=SimpleNamespace(meiguobaie_point_screenshot_dir=Path(tempdir)),
+            ):
+                candidates = await fetch_survey_candidates(
+                    "2026-05-26",
+                    pest_type="美国白蛾",
+                )
+
+        expected_image = (
+            "data:image/jpeg;base64," + base64.b64encode(image_bytes).decode("ascii")
+        )
+        self.assertEqual(
+            candidates,
+            [
+                {
+                    "survey_date": "2026-05-26",
+                    "region": "城区",
+                    "town_or_street": "梨园镇",
+                    "location_id": "MQ001",
+                    "location_name": "玉桥东路",
+                    "occurrence_position": "道路东侧",
+                    "green_space_type": "道路绿化",
+                    "pest_hosts": "白蜡",
+                    "damaged_plant_count": 3,
+                    "web_nest_count": 5,
+                    "description": "发现美国白蛾网幕，已安排剪网处置。",
+                    "note": "需复查",
+                    "images": [expected_image],
+                }
+            ],
+        )
+
+        query = mocked_fetch.call_args.args[0]
+        self.assertIn("survey\".\"mei_guo_bai_e_first_generation_inspection", query)
+        self.assertIn('BTRIM(COALESCE(i."详细描述", \'\')) <> \'\'', query)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -131,7 +131,7 @@ describe("WorkOrderView", () => {
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("春尺蠖、国槐尺蠖和其他害虫都显示调查导入入口", async () => {
+  it("春尺蠖、国槐尺蠖、美国白蛾和其他害虫都显示调查导入入口", async () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
@@ -141,6 +141,12 @@ describe("WorkOrderView", () => {
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
     expect(wrapper.get("#task-type").element.value).toBe("其他害虫防治");
     expect(wrapper.get("#task-name").element.value).toBe("2026其他害虫防治");
+
+    await wrapper.get("#pest-type").setValue("美国白蛾");
+
+    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.get("#task-type").element.value).toBe("美国白蛾防治");
+    expect(wrapper.get("#task-name").element.value).toBe("2026美国白蛾第一代防治");
 
     await wrapper.get("#pest-type").setValue("国槐尺蠖");
 
@@ -291,6 +297,59 @@ describe("WorkOrderView", () => {
     );
     expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0]).not.toHaveProperty(
       "damage_level",
+    );
+  });
+
+  it("美国白蛾导入后保留模板字段并支持导出", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await wrapper.get("#pest-type").setValue("美国白蛾");
+    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
+
+    await importRecords(wrapper, [
+      {
+        survey_date: "2026-05-26",
+        region: "城区",
+        town_or_street: "梨园镇",
+        location_id: "MQ001",
+        location_name: "玉桥东路",
+        occurrence_position: "道路东侧",
+        green_space_type: "道路绿化",
+        pest_hosts: "白蜡",
+        damaged_plant_count: 3,
+        web_nest_count: 5,
+        description: "发现美国白蛾网幕，已安排剪网处置。",
+        note: "需复查",
+        images: [],
+      },
+    ]);
+
+    await findButtonByText(wrapper, "生成工作单").trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+    });
+
+    expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
+      pest_type: "美国白蛾",
+      task_type: "美国白蛾防治",
+      task: "2026美国白蛾第一代防治",
+      records: [
+        expect.objectContaining({
+          location_id: "MQ001",
+          green_space_type: "道路绿化",
+          pest_hosts: "白蜡",
+          damaged_plant_count: 3,
+          web_nest_count: 5,
+          serial_number: 1,
+        }),
+      ],
+    });
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0]).not.toHaveProperty(
+      "region",
+    );
+    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0]).not.toHaveProperty(
+      "occurrence_position",
     );
   });
 

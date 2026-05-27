@@ -196,4 +196,55 @@ describe("SurveyImportDialog", () => {
     expect(wrapper.text()).toContain("1001-1");
     expect(wrapper.text()).toContain("重");
   });
+
+  it("美国白蛾查询时带上 pest_type 并展示美国白蛾列头", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse([
+        {
+          survey_date: "2026-05-26",
+          region: "城区",
+          town_or_street: "梨园镇",
+          location_id: "MQ001",
+          location_name: "玉桥东路",
+          occurrence_position: "道路东侧",
+          green_space_type: "道路绿化",
+          pest_hosts: "白蜡",
+          damaged_plant_count: 3,
+          web_nest_count: 5,
+          description: "发现美国白蛾网幕，已安排剪网处置。",
+          note: "需复查",
+          images: [],
+        },
+      ]),
+    );
+
+    const wrapper = mount(SurveyImportDialog, {
+      props: {
+        open: true,
+        pestType: "美国白蛾",
+      },
+      global: {
+        stubs: {
+          teleport: true,
+        },
+      },
+    });
+
+    await wrapper.get("#survey-import-date").setValue("2026-05-26");
+    await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/candidates?date=2026-05-26&pest_type=%E7%BE%8E%E5%9B%BD%E7%99%BD%E8%9B%BE",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
+    expect(wrapper.text()).toContain("美国白蛾第一代问题点位");
+    expect(wrapper.text()).toContain("绿地性质");
+    expect(wrapper.text()).toContain("危害寄主");
+    expect(wrapper.text()).toContain("受害株数");
+    expect(wrapper.text()).toContain("网幕数量");
+    expect(wrapper.text()).toContain("白蜡");
+  });
 });

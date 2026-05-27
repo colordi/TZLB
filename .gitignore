@@ -38,5 +38,6 @@ frontend/dist/
 # Worktrees
 .worktrees/
 
-# 点位图
+# 附件
 points/
+images/

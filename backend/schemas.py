@@ -5,8 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-PestType = Literal["春尺蠖", "国槐尺蠖", "其他害虫"]
-TaskType = Literal["春尺蠖防治", "国槐尺蠖防治", "其他害虫防治"]
+PestType = Literal["春尺蠖", "国槐尺蠖", "美国白蛾", "其他害虫"]
+TaskType = Literal["春尺蠖防治", "国槐尺蠖防治", "美国白蛾防治", "其他害虫防治"]
 
 
 class WorkOrderRecord(BaseModel):
@@ -24,6 +24,10 @@ class WorkOrderRecord(BaseModel):
     damage_level: str = ""
     pest_name: str = ""
     host_plant: str = ""
+    green_space_type: str = ""
+    pest_hosts: str = ""
+    damaged_plant_count: int | None = None
+    web_nest_count: int | None = None
     report_time: str = ""
     description: str
     note: str = ""

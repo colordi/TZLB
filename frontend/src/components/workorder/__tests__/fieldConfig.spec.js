@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PEST_OPTIONS,
   createEmptyRecord,
   getDefaultControlType,
   getDefaultTask,
@@ -66,9 +67,38 @@ describe("fieldConfig", () => {
     ]);
   });
 
+  it("美国白蛾只保留模板所需字段", () => {
+    const fieldKeys = getVisibleFields("美国白蛾").map((field) => field.key);
+
+    expect(fieldKeys).toEqual([
+      "survey_date",
+      "town_or_street",
+      "location_id",
+      "location_name",
+      "green_space_type",
+      "pest_hosts",
+      "damaged_plant_count",
+      "web_nest_count",
+      "note",
+      "description",
+    ]);
+  });
+
+  it("害虫类型选项包含美国白蛾", () => {
+    expect(PEST_OPTIONS.map((option) => option.value)).toContain("美国白蛾");
+  });
+
   it("其他害虫默认统防统治类型与任务改为其他害虫防治", () => {
     expect(getDefaultControlType("其他害虫")).toBe("其他害虫防治");
     expect(getDefaultTask("其他害虫")).toBe("2026其他害虫防治");
+  });
+
+  it("美国白蛾默认统防统治类型与任务为第一代防治", () => {
+    expect(getDefaultControlType("美国白蛾")).toBe("美国白蛾防治");
+    expect(getDefaultTask("美国白蛾")).toBe("2026美国白蛾第一代防治");
+    expect(getTaskOptions("美国白蛾").map((option) => option.value)).toEqual([
+      "2026美国白蛾第一代防治",
+    ]);
   });
 
   it("国槐尺蠖默认统防统治类型与任务改为国槐尺蠖防治", () => {
@@ -184,5 +214,43 @@ describe("fieldConfig", () => {
       description: "现场描述",
       images: [],
     });
+  });
+
+  it("美国白蛾导出载荷只保留模板字段", () => {
+    const payload = toPayloadRecord(
+      {
+        ...createEmptyRecord("美国白蛾"),
+        survey_date: "2026-05-26",
+        region: "城区",
+        town_or_street: "梨园镇",
+        location_id: "MQ001",
+        location_name: "玉桥东路",
+        occurrence_position: "道路东侧",
+        green_space_type: "道路绿化",
+        pest_hosts: "白蜡",
+        damaged_plant_count: "3",
+        web_nest_count: "5",
+        note: "需复查",
+        description: "发现美国白蛾网幕，已安排剪网处置。",
+        report_time: "2026-05-26",
+      },
+      "美国白蛾",
+    );
+
+    expect(payload).toEqual({
+      survey_date: "2026-05-26",
+      town_or_street: "梨园镇",
+      location_id: "MQ001",
+      location_name: "玉桥东路",
+      green_space_type: "道路绿化",
+      pest_hosts: "白蜡",
+      damaged_plant_count: 3,
+      web_nest_count: 5,
+      description: "发现美国白蛾网幕，已安排剪网处置。",
+      note: "需复查",
+      images: [],
+    });
+    expect(payload).not.toHaveProperty("region");
+    expect(payload).not.toHaveProperty("occurrence_position");
   });
 });

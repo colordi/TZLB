@@ -19,6 +19,7 @@ SURVEY_SCHEMA = "survey"
 SURVEY_LARVA_TABLE = "chun_chi_huo_larva"
 GUO_HUAI_LARVA_TABLE = "guo_huai_chi_huo_larva"
 OTHER_PEST_SURVEY_TABLE = "other_pest_inspection"
+MEI_GUO_BAI_E_SURVEY_TABLE = "mei_guo_bai_e_first_generation_inspection"
 SITE_SCHEMA = "sites"
 SITE_TABLE = "poplar_sites"
 SOPHORA_SITE_TABLE = "sophora_sites"
@@ -518,6 +519,8 @@ async def fetch_survey_candidates_by_type(
         return await fetch_spring_inchworm_survey_candidates(survey_date)
     if pest_type == "国槐尺蠖":
         return await fetch_guo_huai_inchworm_survey_candidates(survey_date)
+    if pest_type == "美国白蛾":
+        return await fetch_meiguobaie_survey_candidates(survey_date)
     raise ValueError(f"暂不支持 {pest_type} 的调查导入")
 
 
@@ -710,3 +713,66 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
         }
         for row in rows
     ]
+
+
+async def fetch_meiguobaie_survey_candidates(
+    survey_date: date_cls,
+) -> list[dict[str, Any]]:
+    """读取指定日期的美国白蛾第一代调查导入候选记录。"""
+
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(MEI_GUO_BAI_E_SURVEY_TABLE)}"
+    )
+
+    rows = await fetch(
+        f"""
+        SELECT
+            BTRIM(i."编号") AS location_id,
+            i."调查日期" AS survey_date,
+            COALESCE(NULLIF(BTRIM(i."区域"), ''), '乡镇') AS region,
+            COALESCE(i."乡镇", '') AS town_or_street,
+            COALESCE(i."点位名称", '') AS location_name,
+            COALESCE(i."发生位置", '') AS occurrence_position,
+            COALESCE(i."绿地性质", '') AS green_space_type,
+            COALESCE(i."危害寄主", '') AS pest_hosts,
+            COALESCE(i."受害株数", 0) AS damaged_plant_count,
+            COALESCE(i."网幕数量", 0) AS web_nest_count,
+            COALESCE(i."详细描述", '') AS description,
+            COALESCE(i."备注", '') AS note
+        FROM {qualified_survey_table} AS i
+        WHERE i."调查日期" = $1
+          AND BTRIM(COALESCE(i."详细描述", '')) <> ''
+        ORDER BY
+            COALESCE(i."乡镇", ''),
+            BTRIM(i."编号")
+        """,
+        survey_date,
+    )
+
+    screenshot_index = build_point_screenshot_index(
+        get_settings().meiguobaie_point_screenshot_dir
+    )
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        location_id = str(row["location_id"] or "").strip()
+        damaged_plant_count = row["damaged_plant_count"]
+        web_nest_count = row["web_nest_count"]
+        candidates.append(
+            {
+                "survey_date": serialize_date_value(row["survey_date"]),
+                "region": (row["region"] or "").strip(),
+                "town_or_street": (row["town_or_street"] or "").strip(),
+                "location_id": location_id,
+                "location_name": (row["location_name"] or "").strip(),
+                "occurrence_position": (row["occurrence_position"] or "").strip(),
+                "green_space_type": (row["green_space_type"] or "").strip(),
+                "pest_hosts": (row["pest_hosts"] or "").strip(),
+                "damaged_plant_count": int(damaged_plant_count or 0),
+                "web_nest_count": int(web_nest_count or 0),
+                "description": (row["description"] or "").strip(),
+                "note": (row["note"] or "").strip(),
+                "images": load_point_screenshot_images(location_id, screenshot_index),
+            }
+        )
+
+    return candidates
