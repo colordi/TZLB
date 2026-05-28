@@ -38,7 +38,7 @@ const props = defineProps({
   },
   showPointLabels: {
     type: Boolean,
-    default: false,
+    default: true,
   },
   viewName: {
     type: String,
@@ -105,7 +105,7 @@ const whiteMothSiteAddButtonLabel = computed(() =>
   props.whiteMothSiteAddMode ? "取消添加美国白蛾点位" : "添加美国白蛾点位",
 );
 const pointLabelMenuDescription = computed(() =>
-  props.showPointLabels ? "当前范围编号已开启" : "放大后显示当前范围编号",
+  props.showPointLabels ? "当前范围编号已开启" : "开启后显示当前范围编号",
 );
 const preferIdentifierHover = computed(() => true);
 const hasSurveyStatusFields = computed(() =>
@@ -164,8 +164,7 @@ const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
   </div>
 `;
 
-const POINT_LABEL_MIN_ZOOM = 14;
-const POINT_LABEL_RENDER_LIMIT = 50;
+const POINT_LABEL_RENDER_LIMIT = 100;
 
 
 
@@ -354,11 +353,6 @@ function renderPointLabels(data = props.geojson) {
   clearLayer(pointLabelLayerRef);
 
   if (!mapRef.value || !props.showPointLabels || !data?.features?.length) {
-    return;
-  }
-
-  const currentZoom = mapRef.value.getZoom?.();
-  if (!Number.isFinite(currentZoom) || currentZoom < POINT_LABEL_MIN_ZOOM) {
     return;
   }
 

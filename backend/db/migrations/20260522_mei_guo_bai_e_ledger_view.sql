@@ -148,14 +148,14 @@ SELECT
     f."发生位置",
     f."绿地性质",
     f."危害寄主",
+    a."受害株数汇总",
+    a."网幕数量汇总",
     COALESCE(dd."下派日期列表", '') AS "下派日期列表",
     a."下派次数",
     COALESCE(sd."调查日期列表", '') AS "调查日期列表",
     a."调查次数",
     COALESCE(td."防治日期列表", '') AS "防治日期列表",
     a."防治次数",
-    a."受害株数汇总",
-    a."网幕数量汇总",
     CASE a.pruning_rank
         WHEN 2 THEN '是'
         WHEN 1 THEN '否'
