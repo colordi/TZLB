@@ -179,9 +179,8 @@ function escapeHtml(value) {
 
 function resolveBoundaryStyle() {
   return {
-    color: "#6AA570",
-    fillColor: "#B9DDB3",
-    fillOpacity: 0.08,
+    color: "#ff7f00",
+    fillOpacity: 0,
   };
 }
 
