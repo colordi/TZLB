@@ -418,6 +418,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         query = mocked_fetch.call_args.args[0]
         self.assertIn("survey\".\"mei_guo_bai_e_first_generation_inspection", query)
         self.assertIn('BTRIM(COALESCE(i."详细描述", \'\')) <> \'\'', query)
+        self.assertIn('COALESCE(i."受害株数", 0) > 0', query)
+        self.assertIn('OR COALESCE(i."网幕数量", 0) > 0', query)
 
 
 if __name__ == "__main__":

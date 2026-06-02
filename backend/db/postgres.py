@@ -849,6 +849,10 @@ async def fetch_meiguobaie_survey_candidates(
         FROM {qualified_survey_table} AS i
         WHERE i."调查日期" = $1
           AND BTRIM(COALESCE(i."详细描述", '')) <> ''
+          AND (
+              COALESCE(i."受害株数", 0) > 0
+              OR COALESCE(i."网幕数量", 0) > 0
+          )
         ORDER BY
             COALESCE(i."乡镇", ''),
             BTRIM(i."编号")
