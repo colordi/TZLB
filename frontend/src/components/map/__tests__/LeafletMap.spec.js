@@ -228,6 +228,59 @@ function installGeolocationMock() {
   });
 }
 
+describe("LeafletMap 底图图层", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+  });
+
+  it("标准底图只加载基础瓦片层", () => {
+    mountLeafletMap({ basemapMode: "standard" });
+
+    expect(leafletMocks.tileLayer).toHaveBeenCalledTimes(1);
+    expect(leafletMocks.tileLayer).toHaveBeenCalledWith(
+      expect.stringContaining("openstreetmap"),
+      expect.objectContaining({ maxZoom: 19 }),
+    );
+  });
+
+  it("默认卫星底图会叠加天地图影像注记", () => {
+    mountLeafletMap();
+
+    expect(leafletMocks.tileLayer).toHaveBeenCalledTimes(2);
+    expect(leafletMocks.tileLayer).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("World_Imagery"),
+      expect.objectContaining({ maxZoom: 19 }),
+    );
+    expect(leafletMocks.tileLayer).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("LAYER=cia"),
+      expect.objectContaining({
+        maxZoom: 19,
+        maxNativeZoom: 18,
+        attribution: "&copy; 天地图",
+      }),
+    );
+  });
+
+  it("切回标准底图会移除影像注记层", async () => {
+    const wrapper = mountLeafletMap({ basemapMode: "satellite" });
+    const annotationLayer = leafletMocks.tileLayer.mock.results[1].value;
+
+    await wrapper.setProps({ basemapMode: "standard" });
+
+    expect(annotationLayer.remove).toHaveBeenCalledTimes(1);
+    expect(leafletMocks.tileLayer).toHaveBeenCalledTimes(3);
+    expect(leafletMocks.tileLayer).toHaveBeenLastCalledWith(
+      expect.stringContaining("openstreetmap"),
+      expect.objectContaining({ maxZoom: 19 }),
+    );
+  });
+});
+
 describe("LeafletMap 实时定位", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -559,7 +612,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerCalls()).toHaveLength(0);
   });
 
-  it("缩放级别低于阈值时不渲染编号", () => {
+  it("低缩放级别也会渲染当前视口内编号", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -568,11 +621,12 @@ describe("LeafletMap 编号标签性能优化", () => {
       showPointLabels: true,
     });
 
-    expect(leafletMocks.layerGroup).not.toHaveBeenCalled();
-    expect(getPointLabelMarkerCalls()).toHaveLength(0);
+    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(1);
+    expect(getPointLabelMarkerCalls()).toHaveLength(1);
+    expect(getPointLabelMarkerCalls()[0][0]).toEqual([39.92, 116.73]);
   });
 
-  it("达到缩放阈值后仅渲染当前视口内编号", () => {
+  it("刷新编号时仅渲染当前视口内编号", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -583,6 +637,9 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
+    leafletMocks.marker.mockClear();
+    leafletMocks.markers.length = 0;
+    leafletMocks.layerGroup.mockClear();
     const mapInstance = setMapViewport({
       zoom: 14,
       contains: ([lat, lng]) => lat === 39.92 && lng === 116.73,
@@ -604,6 +661,9 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
+    leafletMocks.marker.mockClear();
+    leafletMocks.markers.length = 0;
+    leafletMocks.layerGroup.mockClear();
     const mapInstance = setMapViewport({
       zoom: 14,
       contains: () => true,
@@ -617,7 +677,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(leafletMocks.markers[0].bindTooltip).not.toHaveBeenCalled();
   });
 
-  it("当前视口内编号超过上限时最多只渲染50个", () => {
+  it("当前视口内编号超过上限时最多只渲染100个", () => {
     const features = Array.from({ length: 260 }, (_, index) =>
       createPointFeature(`A-${index + 1}`, 116.5 + index * 0.001, 39.8 + index * 0.001),
     );
@@ -629,14 +689,8 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
-    const mapInstance = setMapViewport({
-      zoom: 14,
-      contains: () => true,
-    });
 
-    mapInstance.trigger("zoomend");
-
-    expect(getPointLabelMarkerCalls()).toHaveLength(50);
+    expect(getPointLabelMarkerCalls()).toHaveLength(100);
   });
 
   it("缩放和平移事件只刷新编号，不重建点位图层", () => {
@@ -658,8 +712,8 @@ describe("LeafletMap 编号标签性能优化", () => {
     mapInstance.trigger("moveend");
 
     expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(1);
-    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(2);
-    expect(getPointLabelMarkerCalls()).toHaveLength(2);
+    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(3);
+    expect(getPointLabelMarkerCalls()).toHaveLength(3);
   });
 
   it("切换显示编号开关时只影响编号图层", async () => {

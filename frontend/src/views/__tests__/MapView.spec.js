@@ -29,6 +29,10 @@ const LeafletMapStub = defineComponent({
       type: Boolean,
       default: true,
     },
+    basemapMode: {
+      type: String,
+      default: "satellite",
+    },
     geojson: {
       type: Object,
       default: () => ({
@@ -59,6 +63,7 @@ const LeafletMapStub = defineComponent({
   },
   emits: [
     "update:viewName",
+    "update:basemapMode",
     "update:showPointLabels",
     "toggle-white-moth-site-add",
     "map-click",
@@ -194,7 +199,8 @@ describe("MapView", () => {
 
       expect(mapStub.props("viewName")).toBe("虫情总览");
       expect(mapStub.props("popupFields")).toEqual(["乡镇", "村", "调查日期"]);
-      expect(mapStub.props("showPointLabels")).toBe(false);
+      expect(mapStub.props("basemapMode")).toBe("satellite");
+      expect(mapStub.props("showPointLabels")).toBe(true);
     });
   });
 
@@ -217,14 +223,14 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
+      expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
     });
 
     await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
-    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
+    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
 
     await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
-    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
+    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {

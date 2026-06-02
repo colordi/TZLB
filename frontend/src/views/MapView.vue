@@ -30,7 +30,7 @@ const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
 
 const views = ref([]);
 const selectedView = ref("");
-const basemapMode = ref("standard");
+const basemapMode = ref("satellite");
 const showPointLabels = ref(true);
 const geojson = ref(createEmptyFeatureCollection());
 const boundaryGeojson = ref(createEmptyFeatureCollection());

@@ -18,7 +18,7 @@ const props = defineProps({
   },
   basemapMode: {
     type: String,
-    default: "standard",
+    default: "satellite",
   },
   boundaryGeojson: {
     type: Object,
@@ -80,6 +80,7 @@ const showLayerMenu = ref(false);
 const mapElement = ref(null);
 const mapRef = shallowRef(null);
 const basemapLayerRef = shallowRef(null);
+const basemapAnnotationLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
 const pointLabelLayerRef = shallowRef(null);
@@ -127,6 +128,9 @@ const surveyLegendEntries = computed(() =>
     : [],
 );
 
+const TIANDITU_IMAGERY_ANNOTATION_URL =
+  "https://t0.tianditu.gov.cn/cia_w/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=cia&STYLE=default&FORMAT=tiles&TILEMATRIXSET=w&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=4267820f43926eaf808d61dc07269beb";
+
 const BASEMAP_CONFIG = {
   standard: {
     url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
@@ -141,6 +145,14 @@ const BASEMAP_CONFIG = {
     options: {
       maxZoom: 19,
       attribution: "Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+    },
+    annotation: {
+      url: TIANDITU_IMAGERY_ANNOTATION_URL,
+      options: {
+        maxZoom: 19,
+        maxNativeZoom: 18,
+        attribution: "&copy; 天地图",
+      },
     },
   },
 };
@@ -219,8 +231,16 @@ function drawBasemap(mode = "standard") {
   }
 
   const config = BASEMAP_CONFIG[mode] ?? BASEMAP_CONFIG.standard;
+  clearLayer(basemapAnnotationLayerRef);
   clearLayer(basemapLayerRef);
   basemapLayerRef.value = L.tileLayer(config.url, config.options).addTo(mapRef.value);
+
+  if (config.annotation) {
+    basemapAnnotationLayerRef.value = L.tileLayer(
+      config.annotation.url,
+      config.annotation.options,
+    ).addTo(mapRef.value);
+  }
 }
 
 function fitMapToAvailableLayer() {
@@ -696,6 +716,7 @@ watch(
 
 onBeforeUnmount(() => {
   clearLocateWatch();
+  clearLayer(basemapAnnotationLayerRef);
   clearLayer(basemapLayerRef);
   clearLayer(boundaryLayerRef);
   clearLayer(pointLayerRef);
