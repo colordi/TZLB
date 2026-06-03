@@ -88,8 +88,8 @@ const ICONS = {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-primary);
-  color: var(--color-ink-soft);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
   font-size: 0.95rem;
   font-weight: 700;
 }

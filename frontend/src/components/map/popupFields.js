@@ -80,7 +80,7 @@ export function resolveFeatureSeverity(properties = {}) {
   ) {
     return {
       key: "level0",
-      color: "#FFFFFF",
+      color: "#E7F3E8",
       radius: 7,
       label: "无",
     };
@@ -89,7 +89,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("轻")) {
     return {
       key: "level1",
-      color: "#68C17A",
+      color: "#8BC34A",
       radius: 7,
       label: "轻",
     };
@@ -98,7 +98,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("中")) {
     return {
       key: "level2",
-      color: "#F0C048",
+      color: "#F2B705",
       radius: 9,
       label: "中",
     };
@@ -107,7 +107,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("重")) {
     return {
       key: "level3",
-      color: "#EC6D64",
+      color: "#D9480F",
       radius: 11,
       label: "重",
     };
@@ -115,7 +115,7 @@ export function resolveFeatureSeverity(properties = {}) {
 
   return {
     key: "level0",
-    color: "#FFFFFF",
+    color: "#E7F3E8",
     radius: 7,
     label: "无",
   };

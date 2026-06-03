@@ -1109,7 +1109,7 @@ onMounted(async () => {
   justify-content: center;
   border-radius: var(--radius-pill);
   background: var(--color-primary);
-  color: var(--color-ink-soft);
+  color: var(--color-accent-on);
   font-size: 0.75rem;
   font-weight: 700;
 }

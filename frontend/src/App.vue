@@ -574,7 +574,7 @@ onBeforeUnmount(() => {
   height: 28rem;
   top: -8rem;
   left: -10rem;
-  background: radial-gradient(circle, rgba(242, 217, 220, 0.4), rgba(242, 217, 220, 0));
+  background: radial-gradient(circle, rgba(47, 125, 70, 0.18), rgba(47, 125, 70, 0));
 }
 
 .orb-right {
@@ -582,7 +582,7 @@ onBeforeUnmount(() => {
   height: 32rem;
   top: 14rem;
   right: -12rem;
-  background: radial-gradient(circle, rgba(217, 242, 216, 0.3), rgba(217, 242, 216, 0));
+  background: radial-gradient(circle, rgba(107, 143, 62, 0.16), rgba(107, 143, 62, 0));
 }
 
 .backdrop-grid {
@@ -645,7 +645,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   border-radius: var(--radius-md);
   background: var(--color-primary);
-  color: var(--color-ink-soft);
+  color: var(--color-accent-on);
   box-shadow: var(--elev-ring);
 }
 
@@ -702,7 +702,7 @@ onBeforeUnmount(() => {
   padding: 0.45rem 0.85rem;
   border-radius: var(--radius-pill);
   background: var(--color-primary);
-  color: var(--color-ink-soft);
+  color: var(--color-accent-on);
   font-size: 0.88rem;
   font-weight: 600;
   border: none;
@@ -711,7 +711,7 @@ onBeforeUnmount(() => {
 }
 
 .user-pill:hover {
-  background: var(--color-surface-container);
+  background: var(--color-accent-hover);
 }
 
 .logout-button {
@@ -758,8 +758,8 @@ onBeforeUnmount(() => {
 
 .site-nav-link:hover,
 .drawer-link:hover {
-  background: var(--color-primary);
-  color: var(--color-ink);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
 }
 
 .site-nav-link.router-link-active,
@@ -842,7 +842,7 @@ onBeforeUnmount(() => {
 
 .map-pill:hover {
   background: var(--color-primary);
-  color: var(--color-ink);
+  color: var(--color-accent-on);
 }
 
 .map-pill.router-link-active {
@@ -955,6 +955,7 @@ onBeforeUnmount(() => {
   gap: 0.25rem;
   border: 1px solid var(--border-soft);
   background: var(--color-surface);
+  color: var(--color-ink-soft);
 }
 
 .user-pill--map svg {
@@ -1239,6 +1240,7 @@ onBeforeUnmount(() => {
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--color-ink);
   text-align: left;
   cursor: pointer;
   transition: all var(--motion-fast) var(--ease-standard);

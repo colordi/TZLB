@@ -403,7 +403,7 @@ async function handleGenerate() {
   background: var(--color-primary);
   padding: 1.5rem;
   border-radius: var(--radius-md);
-  color: var(--color-ink);
+  color: var(--color-accent-on);
   box-shadow: var(--elev-ring);
 }
 
@@ -444,14 +444,14 @@ async function handleGenerate() {
   font-size: 2.5rem;
   font-weight: 700;
   line-height: 1;
-  color: var(--color-ink);
+  color: var(--color-accent-on);
 }
 
 .status-label-hero {
   font-size: 0.875rem;
   font-weight: 600;
   margin-top: 0.25rem;
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .status-card {

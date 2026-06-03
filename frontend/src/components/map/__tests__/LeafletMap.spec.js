@@ -529,8 +529,8 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 11,
-        fillColor: "#EC6D64",
-        color: "#000000",
+        fillColor: "#D9480F",
+        color: "#1F2933",
         weight: 1.45,
         fillOpacity: 0.88,
       }),
@@ -563,8 +563,8 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 7,
-        fillColor: "#68C17A",
-        color: "#000000",
+        fillColor: "#8BC34A",
+        color: "#1F2933",
         weight: 1.45,
       }),
     );
@@ -597,8 +597,8 @@ describe("LeafletMap 点位样式", () => {
     leafletMocks.circleMarker.mock.calls.forEach(([, options]) => {
       expect(options).toMatchObject({
         radius: 7,
-        fillColor: "#FFFFFF",
-        color: "#000000",
+        fillColor: "#E7F3E8",
+        color: "#1F2933",
         weight: 1.45,
       });
     });
@@ -630,8 +630,8 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 8,
-        fillColor: "#EC6D64",
-        color: "#000000",
+        fillColor: "#D9480F",
+        color: "#1F2933",
         weight: 1.45,
       }),
     );
@@ -651,8 +651,8 @@ describe("LeafletMap 点位样式", () => {
 
     let geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     expect(geoJsonCall[1].style(severityFeature)).toMatchObject({
-      color: "#000000",
-      fillColor: "#F0C048",
+      color: "#1F2933",
+      fillColor: "#F2B705",
     });
 
     vi.clearAllMocks();
@@ -670,8 +670,8 @@ describe("LeafletMap 点位样式", () => {
 
     geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     expect(geoJsonCall[1].style(regularFeature)).toMatchObject({
-      color: "#000000",
-      fillColor: "#EC6D64",
+      color: "#1F2933",
+      fillColor: "#D9480F",
     });
   });
 

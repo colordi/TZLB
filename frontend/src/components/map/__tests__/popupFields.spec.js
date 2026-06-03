@@ -109,7 +109,7 @@ describe("buildPopupRows", () => {
   it("空值和无危害值会归一为无等级", () => {
     expect(resolveFeatureSeverity(0)).toMatchObject({
       key: "level0",
-      color: "#FFFFFF",
+      color: "#E7F3E8",
       label: "无",
     });
     expect(resolveFeatureSeverity("白").label).toBe("无");

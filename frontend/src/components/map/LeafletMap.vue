@@ -94,8 +94,8 @@ const hasReportedLocateError = ref(false);
 const showLegend = ref(true);
 const fitPending = ref(false);
 
-const HAZARD_POINT_COLOR = "#EC6D64";
-const POINT_OUTLINE_COLOR = "#000000";
+const HAZARD_POINT_COLOR = "#D9480F";
+const POINT_OUTLINE_COLOR = "#1F2933";
 const HAZARD_POINT_STYLE = {
   key: "hazard-point",
   color: HAZARD_POINT_COLOR,
@@ -194,7 +194,9 @@ function escapeHtml(value) {
 
 function resolveBoundaryStyle() {
   return {
-    color: "#ff7f00",
+    color: "#D97706",
+    weight: 3,
+    opacity: 0.72,
     fillOpacity: 0,
   };
 }

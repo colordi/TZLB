@@ -227,8 +227,8 @@ onMounted(() => {
   position: absolute;
   inset: 0;
   background: 
-    radial-gradient(ellipse at 20% 20%, rgba(242, 217, 220, 0.4), transparent 50%),
-    radial-gradient(ellipse at 80% 80%, rgba(217, 242, 216, 0.3), transparent 50%),
+    radial-gradient(ellipse at 20% 20%, rgba(47, 125, 70, 0.16), transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(107, 143, 62, 0.14), transparent 50%),
     var(--color-bg);
 }
 
@@ -279,7 +279,7 @@ onMounted(() => {
   justify-content: center;
   border-radius: var(--radius-lg);
   background: var(--color-primary);
-  color: var(--color-ink-soft);
+  color: var(--color-accent-on);
   margin-bottom: var(--space-5);
 }
 
