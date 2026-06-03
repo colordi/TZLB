@@ -96,6 +96,7 @@ const fitPending = ref(false);
 
 const HAZARD_POINT_COLOR = "#D9480F";
 const POINT_OUTLINE_COLOR = "#1F2933";
+const POINT_CLUSTER_COLOR = "#14532D";
 const HAZARD_POINT_STYLE = {
   key: "hazard-point",
   color: HAZARD_POINT_COLOR,
@@ -180,6 +181,11 @@ const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
 `;
 
 const POINT_LABEL_RENDER_LIMIT = 100;
+const POINT_LABEL_MIN_ZOOM = 13;
+const POINT_CLUSTER_PIXEL_RADIUS = 34;
+const POINT_CLUSTER_MAX_ZOOM = 18;
+
+const clusteredLabelFeatureSetRef = shallowRef(new WeakSet());
 
 
 
@@ -373,10 +379,122 @@ function extractFeatureLabelLatLng(feature) {
   return [(bounds.minLat + bounds.maxLat) / 2, (bounds.minLng + bounds.maxLng) / 2];
 }
 
+function isPointFeature(feature) {
+  return feature?.geometry?.type === "Point" && isValidLngLatPair(feature.geometry.coordinates);
+}
+
+function getPointFeatureLatLng(feature) {
+  if (!isPointFeature(feature)) {
+    return null;
+  }
+
+  const [lng, lat] = feature.geometry.coordinates;
+  return [Number(lat), Number(lng)];
+}
+
+function isPointClusterFeature(feature) {
+  return Boolean(feature?.properties?.__isPointCluster);
+}
+
+function getProjectedPoint(latlng) {
+  const projected = mapRef.value?.latLngToLayerPoint?.(latlng);
+  if (
+    projected &&
+    Number.isFinite(Number(projected.x)) &&
+    Number.isFinite(Number(projected.y))
+  ) {
+    return {
+      x: Number(projected.x),
+      y: Number(projected.y),
+    };
+  }
+
+  return null;
+}
+
+function createPointClusterFeature(cluster) {
+  const count = cluster.features.length;
+
+  return {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [cluster.lngSum / count, cluster.latSum / count],
+    },
+    properties: {
+      __isPointCluster: true,
+      __clusterCount: count,
+      __clusterFeatures: cluster.features,
+    },
+  };
+}
+
+function buildDensityAwareFeatures(features = []) {
+  const hiddenLabelFeatures = new WeakSet();
+  clusteredLabelFeatureSetRef.value = hiddenLabelFeatures;
+
+  if (!mapRef.value || mapRef.value.getZoom?.() >= POINT_CLUSTER_MAX_ZOOM) {
+    return features;
+  }
+
+  const clusters = [];
+  const output = [];
+
+  for (const feature of features) {
+    const latlng = getPointFeatureLatLng(feature);
+    const projected = latlng ? getProjectedPoint(latlng) : null;
+
+    if (!latlng || !projected) {
+      output.push(feature);
+      continue;
+    }
+
+    const matchedCluster = clusters.find((cluster) => {
+      const dx = projected.x - cluster.x;
+      const dy = projected.y - cluster.y;
+      return Math.sqrt(dx * dx + dy * dy) <= POINT_CLUSTER_PIXEL_RADIUS;
+    });
+
+    if (matchedCluster) {
+      const previousCount = matchedCluster.features.length;
+      matchedCluster.features.push(feature);
+      matchedCluster.x = (matchedCluster.x * previousCount + projected.x) / matchedCluster.features.length;
+      matchedCluster.y = (matchedCluster.y * previousCount + projected.y) / matchedCluster.features.length;
+      matchedCluster.latSum += latlng[0];
+      matchedCluster.lngSum += latlng[1];
+      continue;
+    }
+
+    clusters.push({
+      features: [feature],
+      x: projected.x,
+      y: projected.y,
+      latSum: latlng[0],
+      lngSum: latlng[1],
+    });
+  }
+
+  for (const cluster of clusters) {
+    if (cluster.features.length === 1) {
+      output.push(cluster.features[0]);
+      continue;
+    }
+
+    cluster.features.forEach((feature) => hiddenLabelFeatures.add(feature));
+    output.push(createPointClusterFeature(cluster));
+  }
+
+  return output;
+}
+
 function renderPointLabels(data = props.geojson) {
   clearLayer(pointLabelLayerRef);
 
   if (!mapRef.value || !props.showPointLabels || !data?.features?.length) {
+    return;
+  }
+
+  if (mapRef.value.getZoom?.() < POINT_LABEL_MIN_ZOOM) {
     return;
   }
 
@@ -389,6 +507,10 @@ function renderPointLabels(data = props.geojson) {
   for (const feature of data.features) {
     if (renderedCount >= POINT_LABEL_RENDER_LIMIT) {
       break;
+    }
+
+    if (clusteredLabelFeatureSetRef.value.has(feature)) {
+      continue;
     }
 
     const label = resolveFeaturePointLabel(feature?.properties || {});
@@ -444,21 +566,36 @@ function drawGeoJson(data, shouldFit = true) {
     return;
   }
 
+  const sortedFeatures = usesSeverityLegend.value
+    ? [...data.features].sort((a, b) => {
+        const sa = resolveFeatureSeverity(a.properties).key;
+        const sb = resolveFeatureSeverity(b.properties).key;
+        return sa.localeCompare(sb);
+      })
+    : [...data.features];
+
   const sortedData = {
     ...data,
-    features: usesSeverityLegend.value
-      ? [...data.features].sort((a, b) => {
-          const sa = resolveFeatureSeverity(a.properties).key;
-          const sb = resolveFeatureSeverity(b.properties).key;
-          return sa.localeCompare(sb);
-        })
-      : [...data.features],
+    features: buildDensityAwareFeatures(sortedFeatures),
   };
 
   pointLayerRef.value = L.geoJSON(sortedData, {
     style: (feature) =>
       feature?.geometry?.type === "Point" ? {} : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
+      if (isPointClusterFeature(feature)) {
+        const count = feature.properties.__clusterCount || 0;
+        const size = Math.min(48, 30 + Math.log2(count + 1) * 4);
+        return L.marker(latlng, {
+          icon: L.divIcon({
+            className: "map-point-cluster-marker",
+            html: `<span style="width:${size}px;height:${size}px">${count}</span>`,
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+          }),
+        });
+      }
+
       const severity = resolvePointStyle(feature.properties);
       const isBlank = usesSeverityLegend.value && severity.key === "level0";
       return L.circleMarker(latlng, {
@@ -473,7 +610,13 @@ function drawGeoJson(data, shouldFit = true) {
       const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties, {
         preferIdentifier: preferIdentifierHover.value,
       });
-      if (hoverLabel) {
+      if (isPointClusterFeature(feature)) {
+        layer.bindTooltip(`${feature.properties.__clusterCount} 个点位`, {
+          direction: "top",
+          sticky: true,
+          opacity: 0.96,
+        });
+      } else if (hoverLabel) {
         layer.bindTooltip(hoverLabel, {
           direction: "top",
           sticky: true,
@@ -482,6 +625,16 @@ function drawGeoJson(data, shouldFit = true) {
       }
 
       layer.on("click", () => {
+        if (isPointClusterFeature(feature)) {
+          const latlng = getPointFeatureLatLng(feature);
+          if (latlng) {
+            mapRef.value?.setView?.(latlng, Math.min((mapRef.value?.getZoom?.() || 11) + 2, 19), {
+              animate: true,
+            });
+          }
+          return;
+        }
+
         emit("feature-click", feature);
       });
     },
@@ -494,6 +647,11 @@ function drawGeoJson(data, shouldFit = true) {
 }
 
 function refreshPointLabels() {
+  renderPointLabels(props.geojson);
+}
+
+function refreshPointDensity() {
+  drawGeoJson(props.geojson, false);
   renderPointLabels(props.geojson);
 }
 
@@ -638,7 +796,7 @@ onMounted(() => {
   renderPointLabels(props.geojson);
   updateWhiteMothSiteDraftMarker();
   mapRef.value.on?.("moveend", refreshPointLabels);
-  mapRef.value.on?.("zoomend", refreshPointLabels);
+  mapRef.value.on?.("zoomend", refreshPointDensity);
   mapRef.value.on?.("click", handleMapClick);
 });
 
@@ -701,7 +859,7 @@ onBeforeUnmount(() => {
 
   if (mapRef.value) {
     mapRef.value.off?.("moveend", refreshPointLabels);
-    mapRef.value.off?.("zoomend", refreshPointLabels);
+    mapRef.value.off?.("zoomend", refreshPointDensity);
     mapRef.value.off?.("click", handleMapClick);
     mapRef.value.remove();
     mapRef.value = null;
@@ -1184,6 +1342,27 @@ onBeforeUnmount(() => {
   background: transparent;
   border: none;
   pointer-events: none;
+}
+
+:deep(.map-point-cluster-marker) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.map-point-cluster-marker span) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow:
+    0 10px 24px rgba(18, 52, 29, 0.28),
+    0 0 0 4px rgba(20, 83, 45, 0.18);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 :deep(.map-point-label-text) {

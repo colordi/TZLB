@@ -1,8 +1,9 @@
-import { defineComponent } from "vue";
+import { defineComponent, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MapView from "../MapView.vue";
+import { mapActions, mapStore } from "../../stores/mapStore.js";
 
 const apiMocks = vi.hoisted(() => ({
   listMapViews: vi.fn(),
@@ -248,9 +249,25 @@ function getLeafletMapStub(wrapper) {
   return wrapper.getComponent(LeafletMapStub);
 }
 
+function resetMapContext() {
+  mapActions.setReady(false);
+  mapActions.setViews([]);
+  mapActions.setSelectedView("");
+  mapActions.setLoadingViews(false);
+  mapActions.setFilterFields([]);
+  mapActions.setActiveFilters({});
+  mapActions.setOpenFilterMenus({});
+  mapActions.setBasemapMode("standard");
+  mapActions.setShowPointLabels(true);
+  mapActions.setLoading(false);
+  mapActions.setFilterPanelOpen(false);
+  mapActions.setActiveFilterCount(0);
+}
+
 describe("MapView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetMapContext();
     window.localStorage.clear();
     apiMocks.listMapViews.mockResolvedValue([
       {
@@ -326,13 +343,21 @@ describe("MapView", () => {
 
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
+      expect(mapStore.loadingViews).toBe(false);
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
-    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
+    mapActions.togglePointLabels();
+    await nextTick();
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
+    });
 
-    await wrapper.get('[data-testid="point-label-toggle"]').trigger("click");
-    expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
+    mapActions.togglePointLabels();
+    await nextTick();
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
+    });
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {
@@ -344,7 +369,7 @@ describe("MapView", () => {
       expect(mapStub.props("viewName")).toBe("虫情总览");
     });
 
-    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
+    mapActions.setSelectedView("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -375,7 +400,7 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
     });
 
-    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
+    mapActions.setSelectedView("高风险点位");
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -404,7 +429,7 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledTimes(1);
     });
 
-    await wrapper.get('[data-testid="view-select"]').setValue("高风险点位");
+    mapActions.setSelectedView("高风险点位");
 
     secondRequest.resolve(
       createFeatureCollection([
@@ -475,14 +500,13 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    const toggle = wrapper.get('[data-testid="map-filter-toggle"]');
+    expect(mapStore.isFilterPanelOpen).toBe(false);
 
-    expect(toggle.attributes("aria-expanded")).toBe("false");
+    mapActions.toggleFilterPanel();
 
-    await toggle.trigger("click");
-
-    expect(toggle.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find(".filter-panel-content").exists()).toBe(true);
+    await vi.waitFor(() => {
+      expect(mapStore.isFilterPanelOpen).toBe(true);
+    });
   });
 
   it("地图页移除标题栏，并且仅保留图例配置", async () => {
@@ -604,20 +628,12 @@ describe("MapView", () => {
       );
     });
 
-    await wrapper.get('[data-testid="map-filter-toggle"]').trigger("click");
-
-    const yearTrigger = wrapper.get('[data-testid="map-filter-trigger-年份"]');
-    const severityTrigger = wrapper.get('[data-testid="map-filter-trigger-危害程度"]');
-
-    expect(yearTrigger.text()).toContain("年份");
-
-    await yearTrigger.trigger("click");
-
-    await severityTrigger.trigger("click");
-
-    await wrapper.get('[data-testid="map-filter-危害程度-中"]').setValue(true);
-    await wrapper.get('[data-testid="map-filter-危害程度-重"]').setValue(true);
-    await wrapper.get('[data-testid="filter-apply"]').trigger("click");
+    mapActions.setFilterPanelOpen(true);
+    mapActions.toggleFilterMenu("年份");
+    mapActions.toggleFilterMenu("危害程度");
+    mapActions.setFilterValues("危害程度", ["中", "重"]);
+    await nextTick();
+    mapActions.applyFilter();
 
     await vi.waitFor(() => {
       expect(apiMocks.fetchMapView).toHaveBeenLastCalledWith(
