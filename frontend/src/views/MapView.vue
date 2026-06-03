@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 
 import { useToast } from "../composables/useToast.js";
 import {
@@ -16,7 +16,7 @@ import {
   resolveFeatureHoverLabel,
 } from "../components/map/popupFields.js";
 import LeafletMap from "../components/map/LeafletMap.vue";
-import MapToolbar from "../components/map/MapToolbar.vue";
+import { mapStore, mapActions } from "../stores/mapStore.js";
 
 function createEmptyFeatureCollection() {
   return {
@@ -555,6 +555,113 @@ async function submitWhiteMothSite() {
   }
 }
 
+const activeFilterCount = computed(() => {
+  return filterFields.value.reduce((count, field) => {
+    const values = normalizeSelectedFilterValues(activeFilters.value[field.key]);
+    return count + values.length;
+  }, 0);
+});
+
+function isSamePlainState(left, right) {
+  try {
+    return JSON.stringify(left || {}) === JSON.stringify(right || {});
+  } catch {
+    return false;
+  }
+}
+
+/* ---- register actions so App.vue can call them via the store ---- */
+mapActions.registerFilterActions({ applyFilter, resetFilter });
+
+/* ---- sync local state → store (so App.vue header can read it) ---- */
+let _syncingFromStore = false;
+
+function syncToStore() {
+  if (_syncingFromStore) return; // prevent circular update
+  mapActions.setViews(views.value);
+  mapActions.setSelectedView(selectedView.value);
+  mapActions.setLoadingViews(loadingViews.value);
+  mapActions.setFilterFields(filterFields.value);
+  if (!isSamePlainState(mapStore.activeFilters, activeFilters.value)) {
+    mapActions.setActiveFilters(activeFilters.value);
+  }
+  if (!isSamePlainState(mapStore.openFilterMenus, openFilterMenus.value)) {
+    mapActions.setOpenFilterMenus(openFilterMenus.value);
+  }
+  mapActions.setBasemapMode(basemapMode.value);
+  mapActions.setShowPointLabels(showPointLabels.value);
+  mapActions.setLoading(loading.value);
+  mapActions.setActiveFilterCount(activeFilterCount.value);
+  mapActions.setFilterPanelOpen(isFilterPanelOpen.value);
+  mapActions.setReady(true);
+}
+
+// Sync immediately and on every relevant change
+syncToStore();
+watch(
+  [views, selectedView, loadingViews, filterFields, activeFilters, openFilterMenus, basemapMode, showPointLabels, loading, activeFilterCount, isFilterPanelOpen],
+  syncToStore,
+  { deep: true },
+);
+
+/* ---- watch store for changes triggered by App.vue ---- */
+watch(
+  () => mapStore.isFilterPanelOpen,
+  (val) => {
+    if (isFilterPanelOpen.value === val) return;
+    _syncingFromStore = true;
+    isFilterPanelOpen.value = val;
+    _syncingFromStore = false;
+  },
+);
+watch(
+  () => mapStore.selectedView,
+  (val) => {
+    if (selectedView.value === val) return;
+    _syncingFromStore = true;
+    selectedView.value = val;
+    _syncingFromStore = false;
+  },
+);
+watch(
+  () => mapStore.basemapMode,
+  (val) => {
+    if (basemapMode.value === val) return;
+    _syncingFromStore = true;
+    basemapMode.value = val;
+    _syncingFromStore = false;
+  },
+);
+watch(
+  () => mapStore.showPointLabels,
+  (val) => {
+    if (showPointLabels.value === val) return;
+    _syncingFromStore = true;
+    showPointLabels.value = val;
+    _syncingFromStore = false;
+  },
+);
+watch(
+  () => mapStore.activeFilters,
+  (val) => {
+    if (isSamePlainState(activeFilters.value, val)) return;
+    _syncingFromStore = true;
+    activeFilters.value = { ...(val || {}) };
+    _syncingFromStore = false;
+  },
+  { deep: true },
+);
+watch(
+  () => mapStore.openFilterMenus,
+  (val) => {
+    if (isSamePlainState(openFilterMenus.value, val)) return;
+    _syncingFromStore = true;
+    openFilterMenus.value = { ...(val || {}) };
+    _syncingFromStore = false;
+  },
+  { deep: true },
+);
+
 watch(selectedView, async () => {
   const shouldAutoFit = shouldAutoFitOnNextViewChange;
   shouldAutoFitOnNextViewChange = true;
@@ -583,23 +690,7 @@ onMounted(async () => {
 <template>
   <section class="page-shell map-page">
     <div class="map-workspace">
-      <MapToolbar
-        :views="views"
-        :view-name="selectedView"
-        :loading-views="loadingViews"
-        :filter-fields="filterFields"
-        :active-filters="activeFilters"
-        :filter-options="filterOptions"
-        :basemap-mode="basemapMode"
-        :show-point-labels="showPointLabels"
-        :loading="loading"
-        @update:view-name="selectedView = $event"
-        @update:basemap-mode="basemapMode = $event"
-        @update:show-point-labels="showPointLabels = $event"
-        @update:active-filters="activeFilters = $event"
-        @apply-filters="applyFilter"
-        @reset-filters="resetFilter"
-      />
+      <!-- MapToolbar removed — controls moved to App.vue header for map mode -->
 
       <aside
         v-if="selectedFeature"
@@ -758,9 +849,9 @@ onMounted(async () => {
 .map-workspace {
   position: relative;
   flex: 1;
-  min-height: calc(100vh - 6.85rem);
+  min-height: calc(100vh - var(--header-h-map, 52px) - 2rem);
   overflow: hidden;
-  background: rgba(229, 244, 230, 0.54);
+  background: var(--color-surface-container-low);
 }
 
 .filter-drawer {
@@ -818,7 +909,7 @@ onMounted(async () => {
 }
 
 .filter-panel-toggle:hover {
-  background: var(--color-surface-container-low);
+  background: var(--color-surface-container);
   box-shadow: none;
   transform: none;
 }
@@ -896,9 +987,9 @@ onMounted(async () => {
   min-height: 0;
   overflow: auto;
   padding-right: 0.18rem;
-  border: 1px solid rgba(46, 125, 50, 0.14);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -925,11 +1016,11 @@ onMounted(async () => {
 }
 
 .filter-field-card + .filter-field-card {
-  border-top: 1px solid rgba(46, 125, 50, 0.12);
+  border-top: 1px solid var(--color-border);
 }
 
 .filter-field-card.is-open {
-  background: rgba(244, 250, 245, 0.92);
+  background: var(--color-surface-container-low);
   box-shadow: none;
 }
 
@@ -955,7 +1046,7 @@ onMounted(async () => {
 }
 
 .filter-select-trigger:hover {
-  background: rgba(90, 165, 110, 0.1);
+  background: var(--color-surface-container);
   transform: none;
 }
 
@@ -969,7 +1060,7 @@ onMounted(async () => {
 }
 
 .filter-select-trigger.is-open {
-  background: rgba(90, 165, 110, 0.12);
+  background: var(--color-surface-container-low);
 }
 
 .filter-select-copy {
@@ -1016,11 +1107,11 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  background: rgba(46, 125, 50, 0.12);
-  color: var(--color-primary-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-ink-soft);
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .filter-select-chevron {
@@ -1042,7 +1133,7 @@ onMounted(async () => {
 }
 
 .filter-select-trigger.is-open .filter-select-chevron {
-  color: var(--color-primary);
+  color: var(--color-accent);
   transform: rotate(180deg);
 }
 
@@ -1053,7 +1144,7 @@ onMounted(async () => {
   overflow: auto;
   margin: 0 0.8rem 0.65rem;
   padding: 0.55rem 0 0;
-  border-top: 1px solid rgba(46, 125, 50, 0.12);
+  border-top: 1px solid var(--color-border);
   border-right: none;
   border-bottom: none;
   border-left: none;
@@ -1078,7 +1169,7 @@ onMounted(async () => {
 }
 
 .filter-option:hover {
-  background: rgba(90, 165, 110, 0.1);
+  background: var(--color-surface-container);
 }
 
 .filter-option.is-disabled {
@@ -1093,7 +1184,7 @@ onMounted(async () => {
   padding: 0;
   margin: 0;
   box-shadow: none;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-accent);
 }
 
 .filter-option span {
@@ -1171,8 +1262,8 @@ onMounted(async () => {
   font-size: 1.05rem;
   line-height: 1.25;
   font-family: var(--font-display);
-  font-weight: 800;
-  color: var(--color-primary-strong);
+  font-weight: 700;
+  color: var(--color-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1184,18 +1275,18 @@ onMounted(async () => {
   height: 2rem;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .detail-close-btn:hover {
-  background: var(--color-surface-container-high);
+  background: var(--color-surface-container);
   color: var(--color-ink);
 }
 
@@ -1261,7 +1352,7 @@ onMounted(async () => {
   gap: 0.18rem;
   padding: 0.65rem 0.75rem;
   border-radius: var(--radius-sm);
-  background: var(--color-surface-container);
+  background: var(--color-surface-container-low);
 }
 
 .site-add-location strong {
@@ -1283,21 +1374,21 @@ onMounted(async () => {
   min-width: 0;
   width: 100%;
   padding: 0.72rem 0.82rem;
-  border: 1px solid var(--color-line-strong);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--color-surface);
   color: var(--color-ink);
   font: inherit;
   font-weight: 650;
   outline: none;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .site-add-field input:focus {
-  border-color: rgba(46, 125, 50, 0.45);
-  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
 }
 
 .site-add-field input:disabled {
@@ -1306,7 +1397,7 @@ onMounted(async () => {
 }
 
 .site-add-error {
-  color: #b3261e;
+  color: var(--color-danger);
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.35;

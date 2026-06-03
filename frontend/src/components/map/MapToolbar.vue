@@ -297,11 +297,11 @@ watch(isFilterPanelOpen, (isOpen) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--color-surface);
   backdrop-filter: blur(24px);
-  border-radius: 16px;
-  border: 1px solid rgba(46, 125, 50, 0.1);
-  box-shadow: 0 8px 24px rgba(18, 52, 29, 0.08);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--elev-ring);
 }
 
 .toolbar-view-select {
@@ -312,28 +312,28 @@ watch(isFilterPanelOpen, (isOpen) => {
   appearance: none;
   min-width: 10rem;
   padding: 0.625rem 2rem 0.625rem 0.75rem;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-ink);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 150ms ease;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23707973' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  transition: all var(--motion-fast) var(--ease-standard);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23796f91' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.5rem center;
 }
 
 .view-select:hover {
-  border-color: rgba(46, 125, 50, 0.24);
-  background-color: #fff;
+  border-color: var(--color-line-strong);
+  background-color: var(--color-surface);
 }
 
 .view-select:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.12);
+  box-shadow: var(--focus-ring);
 }
 
 .view-select:disabled {
@@ -350,23 +350,23 @@ watch(isFilterPanelOpen, (isOpen) => {
   height: 2.75rem;
   padding: 0 0.5rem;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-soft);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--motion-fast) var(--ease-standard);
   gap: 0.35rem;
 }
 
 .toolbar-btn:hover {
-  background: rgba(46, 125, 50, 0.08);
-  color: var(--color-primary);
+  background: var(--color-surface-container);
+  color: var(--color-accent);
 }
 
 .toolbar-btn.is-active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  background: var(--color-accent);
+  color: var(--color-accent-on);
+  border-color: var(--color-accent);
 }
 
 .filter-badge {
@@ -376,9 +376,9 @@ watch(isFilterPanelOpen, (isOpen) => {
   min-width: 1rem;
   height: 1rem;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-surface);
   font-size: 0.625rem;
   font-weight: 700;
   line-height: 1rem;
@@ -395,11 +395,11 @@ watch(isFilterPanelOpen, (isOpen) => {
   right: 0;
   min-width: 14rem;
   padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--color-surface);
   backdrop-filter: blur(24px);
-  border-radius: 12px;
-  border: 1px solid rgba(46, 125, 50, 0.1);
-  box-shadow: 0 12px 32px rgba(18, 52, 29, 0.12);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--elev-raised);
   transform-origin: top right;
 }
 
@@ -411,20 +411,20 @@ watch(isFilterPanelOpen, (isOpen) => {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border: 2px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .layer-menu-item:hover {
-  background: rgba(46, 125, 50, 0.06);
+  background: var(--color-surface-container-low);
 }
 
 .layer-menu-item.is-active {
-  border-color: var(--color-primary);
-  background: rgba(46, 125, 50, 0.08);
+  border-color: var(--color-accent);
+  background: var(--color-surface-container-low);
 }
 
 .layer-menu-item strong {
@@ -443,11 +443,11 @@ watch(isFilterPanelOpen, (isOpen) => {
 }
 
 .toolbar-filter-panel {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--color-surface);
   backdrop-filter: blur(24px);
-  border-radius: 16px;
-  border: 1px solid rgba(46, 125, 50, 0.1);
-  box-shadow: 0 12px 36px rgba(18, 52, 29, 0.1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--elev-raised);
   overflow: hidden;
 }
 
@@ -473,21 +473,21 @@ watch(isFilterPanelOpen, (isOpen) => {
   justify-content: space-between;
   width: 100%;
   padding: 0.6rem 0.75rem;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .filter-field-trigger:hover {
-  border-color: rgba(46, 125, 50, 0.24);
-  background: #fff;
+  border-color: var(--color-line-strong);
+  background: var(--color-surface);
 }
 
 .filter-field-trigger.is-open {
-  border-color: var(--color-primary);
-  background: #fff;
+  border-color: var(--color-accent);
+  background: var(--color-surface);
 }
 
 .filter-field-copy {
@@ -505,7 +505,7 @@ watch(isFilterPanelOpen, (isOpen) => {
 }
 
 .filter-field-summary {
-  color: var(--color-primary);
+  color: var(--color-accent);
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -524,9 +524,9 @@ watch(isFilterPanelOpen, (isOpen) => {
   min-width: 1.25rem;
   height: 1.25rem;
   padding: 0 4px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #fff;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-on);
   font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1.25rem;
@@ -548,10 +548,10 @@ watch(isFilterPanelOpen, (isOpen) => {
   left: 0;
   right: 0;
   padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 10px;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  box-shadow: 0 8px 24px rgba(18, 52, 29, 0.1);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--elev-raised);
   z-index: 10;
   max-height: 12rem;
   overflow-y: auto;
@@ -562,15 +562,15 @@ watch(isFilterPanelOpen, (isOpen) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: background var(--motion-fast) var(--ease-standard);
   font-size: 0.8125rem;
   color: var(--color-ink);
 }
 
 .filter-option:hover {
-  background: rgba(46, 125, 50, 0.06);
+  background: var(--color-surface-container-low);
 }
 
 .filter-option.is-disabled {
@@ -581,7 +581,7 @@ watch(isFilterPanelOpen, (isOpen) => {
 .filter-option input[type="checkbox"] {
   width: 1rem;
   height: 1rem;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-accent);
   cursor: inherit;
 }
 
@@ -597,25 +597,26 @@ watch(isFilterPanelOpen, (isOpen) => {
   gap: 0.5rem;
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(46, 125, 50, 0.08);
+  border-top: 1px solid var(--color-border);
 }
 
 .filter-apply-btn {
   flex: 1;
   padding: 0.6rem 1rem;
   border: none;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-container));
-  color: #fff;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-accent-on);
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .filter-apply-btn:hover:not(:disabled) {
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.25);
+  background: var(--color-accent-hover);
   transform: translateY(-1px);
+  box-shadow: var(--elev-raised);
 }
 
 .filter-apply-btn:disabled {
@@ -625,19 +626,19 @@ watch(isFilterPanelOpen, (isOpen) => {
 
 .filter-reset-btn {
   padding: 0.6rem 1rem;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-ink-soft);
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .filter-reset-btn:hover:not(:disabled) {
-  background: rgba(46, 125, 50, 0.06);
-  border-color: rgba(46, 125, 50, 0.2);
+  background: var(--color-surface-container-low);
+  border-color: var(--color-line-strong);
 }
 
 .filter-reset-btn:disabled {
@@ -654,10 +655,10 @@ watch(isFilterPanelOpen, (isOpen) => {
 
 .toolbar-loading {
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--color-surface);
   backdrop-filter: blur(24px);
-  border-radius: 10px;
-  color: var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
   font-size: 0.8125rem;
   font-weight: 500;
   text-align: center;
@@ -719,7 +720,7 @@ watch(isFilterPanelOpen, (isOpen) => {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(18, 36, 25, 0.4);
+    background: rgba(29, 24, 54, 0.3);
     backdrop-filter: blur(4px);
     z-index: 1299;
   }

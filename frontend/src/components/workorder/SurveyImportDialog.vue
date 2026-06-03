@@ -332,8 +332,8 @@ function handleImport() {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  background: rgba(18, 36, 25, 0.36);
+  padding: var(--space-4);
+  background: rgba(29, 24, 54, 0.3);
   backdrop-filter: blur(8px);
 }
 
@@ -342,13 +342,13 @@ function handleImport() {
   max-height: min(46rem, calc(100vh - 2rem));
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
   overflow: hidden;
-  padding: 1.25rem;
-  border: 1px solid rgba(46, 125, 50, 0.16);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 30px 60px rgba(12, 35, 20, 0.18);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--elev-raised);
 }
 
 .dialog-head {
@@ -359,7 +359,9 @@ function handleImport() {
 }
 
 .dialog-head h3 {
-  font-size: 1.4rem;
+  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  font-weight: 700;
   line-height: 1.15;
 }
 
@@ -376,13 +378,11 @@ function handleImport() {
 .query-panel {
   display: flex;
   align-items: flex-end;
-  gap: 1rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid rgba(46, 125, 50, 0.14);
-  border-radius: 24px;
-  background:
-    linear-gradient(135deg, rgba(46, 125, 50, 0.07), rgba(46, 125, 50, 0.03)),
-    rgba(245, 250, 243, 0.94);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
 }
 
 .query-field {
@@ -392,10 +392,10 @@ function handleImport() {
 
 .query-field label {
   display: block;
-  margin-bottom: 0.35rem;
-  color: var(--color-primary-strong);
-  font-size: 0.88rem;
-  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .result-toolbar {
@@ -416,9 +416,9 @@ function handleImport() {
   min-height: 18rem;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(46, 125, 50, 0.12);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   overflow: hidden;
 }
 
@@ -437,21 +437,21 @@ function handleImport() {
 .result-table th,
 .result-table td {
   padding: 0.9rem 0.85rem;
-  border-bottom: 1px solid rgba(46, 125, 50, 0.08);
+  border-bottom: 1px solid var(--color-border);
   text-align: left;
 }
 
 .result-table thead th {
   position: sticky;
   top: 0;
-  background: linear-gradient(180deg, rgba(236, 249, 238, 0.98), rgba(228, 246, 230, 0.96));
-  color: var(--color-primary-strong);
+  background: var(--color-surface-container);
+  color: var(--color-ink-soft);
   font-size: var(--text-sm);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .result-table tbody tr:nth-child(2n) td {
-  background: rgba(240, 249, 238, 0.55);
+  background: var(--color-surface-container-low);
 }
 
 .cell-check {
@@ -464,6 +464,7 @@ function handleImport() {
   min-height: 1.1rem;
   height: 1.1rem;
   padding: 0;
+  accent-color: var(--color-accent);
 }
 
 .result-state {
@@ -490,7 +491,9 @@ function handleImport() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
 .footer-hint {
@@ -501,7 +504,7 @@ function handleImport() {
 .footer-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 @media (max-width: 760px) {

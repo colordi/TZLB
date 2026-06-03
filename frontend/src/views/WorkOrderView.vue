@@ -400,11 +400,11 @@ async function handleGenerate() {
 
 .status-bento-hero {
   grid-column: 1 / -1;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-container));
+  background: var(--color-primary);
   padding: 1.5rem;
   border-radius: var(--radius-md);
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(15, 82, 56, 0.2);
+  color: var(--color-ink);
+  box-shadow: var(--elev-ring);
 }
 
 .status-bento-hero-head {
@@ -415,39 +415,43 @@ async function handleGenerate() {
 }
 
 .icon-badge-glass {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-surface);
   padding: 0.5rem;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
   display: inline-flex;
+  box-shadow: var(--elev-ring);
 }
 
 .icon-badge-glass svg {
   width: 1.5rem;
   height: 1.5rem;
+  color: var(--color-accent);
 }
 
 .pulse-tag {
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-sm);
 }
 
 .status-value-hero {
   font-family: var(--font-display);
   font-size: 2.5rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
+  color: var(--color-ink);
 }
 
 .status-label-hero {
   font-size: 0.875rem;
-  opacity: 0.8;
-  font-weight: 500;
+  font-weight: 600;
   margin-top: 0.25rem;
+  color: var(--color-ink-soft);
 }
 
 .status-card {
@@ -500,6 +504,7 @@ async function handleGenerate() {
 .sidebar-panel .panel-head-copy h2 {
   font-size: 1.2rem;
   font-family: var(--font-display);
+  font-weight: 700;
 }
 
 .sidebar-field-stack {
@@ -516,10 +521,13 @@ async function handleGenerate() {
 }
 
 .sidebar-field-stack select {
-  background: var(--color-surface-container-low);
-  border: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   font-weight: 600;
   color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
 }
 
 .action-toolbar-glass {
@@ -533,7 +541,8 @@ async function handleGenerate() {
 
 .page-title-display {
   font-size: 1.75rem;
-  font-weight: 800;
+  font-weight: 700;
+  font-family: var(--font-display);
 }
 
 .tb-subtitle {

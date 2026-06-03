@@ -62,40 +62,40 @@ const ICONS = {
   align-items: start;
   gap: 0.75rem;
   padding: 0.875rem 0.95rem;
-  border-radius: 18px;
-  border: 1px solid rgba(46, 125, 50, 0.16);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 40px rgba(22, 60, 33, 0.14);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--elev-raised);
   backdrop-filter: blur(18px);
 }
 
 .toast-card.is-success {
-  border-color: rgba(46, 125, 50, 0.2);
+  border-color: var(--color-success);
 }
 
 .toast-card.is-error {
-  border-color: rgba(211, 84, 48, 0.22);
+  border-color: var(--color-danger);
 }
 
 .toast-card.is-info {
-  border-color: rgba(70, 125, 103, 0.18);
+  border-color: var(--color-border);
 }
 
 .toast-icon {
   width: 2rem;
   height: 2rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(46, 125, 50, 0.1);
-  color: var(--color-primary-strong);
+  background: var(--color-primary);
+  color: var(--color-ink-soft);
   font-size: 0.95rem;
   font-weight: 700;
 }
 
 .toast-card.is-error .toast-icon {
-  background: rgba(211, 84, 48, 0.1);
+  background: rgba(229, 72, 77, 0.1);
   color: var(--color-danger);
 }
 
@@ -122,14 +122,14 @@ const ICONS = {
   height: 1.5rem;
   padding: 0;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
   box-shadow: none;
 }
 
 .toast-close:hover {
-  background: rgba(18, 52, 29, 0.08);
+  background: var(--color-surface-container);
   color: var(--color-ink);
 }
 

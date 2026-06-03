@@ -1,16 +1,26 @@
-import { defineComponent } from "vue";
+import { defineComponent, onMounted } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App.vue";
 import { resetAuthSessionState, signIn } from "../composables/useAuthSession.js";
+import { mapActions } from "../stores/mapStore.js";
 
 const WorkorderStub = defineComponent({
   template: "<div>工单页内容</div>",
 });
 
 const MapStub = defineComponent({
+  setup() {
+    onMounted(() => {
+      mapActions.setReady(true);
+      mapActions.setViews([{ name: "虫情总览" }]);
+      mapActions.setSelectedView("虫情总览");
+      mapActions.setBasemapMode("satellite");
+      mapActions.setShowPointLabels(true);
+    });
+  },
   template: "<div>地图页内容</div>",
 });
 
@@ -91,6 +101,7 @@ describe("App 壳层导航", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     resetAuthSessionState();
+    mapActions.setReady(false);
   });
 
   it("顶部导航会高亮当前路由，且不再展示当前页面卡片", async () => {
@@ -149,6 +160,23 @@ describe("App 壳层导航", () => {
     const { wrapper } = await mountApp("/map");
 
     expect(wrapper.get(".site-main").classes()).toContain("is-full-bleed");
+  });
+
+  it("地图页顶部栏展示并展开图层菜单", async () => {
+    const { wrapper } = await mountApp("/map");
+
+    await flushPromises();
+
+    const layerButton = wrapper.get('button[aria-label="切换图层"]');
+    expect(layerButton.text()).toContain("图层");
+
+    await layerButton.trigger("click");
+    await flushPromises();
+
+    const layerMenu = wrapper.get("#map-layer-menu");
+    expect(layerMenu.text()).toContain("标准地图");
+    expect(layerMenu.text()).toContain("卫星地图");
+    expect(layerMenu.text()).toContain("显示编号");
   });
 
   it("登录页使用独立布局，不展示顶部导航", async () => {

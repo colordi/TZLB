@@ -186,13 +186,13 @@ function handleRowClick(index) {
   top: 0;
   z-index: 1;
   padding: 1rem 0.8rem;
-  background: var(--color-surface-container-high);
+  background: var(--color-surface-container);
   color: var(--color-muted);
   text-align: left;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
   border: none;
 }
@@ -210,7 +210,7 @@ function handleRowClick(index) {
 
 .record-table tbody tr:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(15, 82, 56, 0.05); /* slight lift */
+  box-shadow: var(--elev-ring);
 }
 
 .record-table tbody td {
@@ -250,7 +250,7 @@ function handleRowClick(index) {
 .cb-custom {
   width: 1.15rem;
   height: 1.15rem;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-accent);
   cursor: pointer;
   margin: 0;
 }
@@ -354,10 +354,11 @@ function handleRowClick(index) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  background: var(--color-surface-container-high);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-container);
   color: var(--color-muted);
-  font-weight: 800;
+  font-weight: 700;
+  font-size: var(--text-sm);
   letter-spacing: 0.02em;
 }
 
@@ -397,17 +398,17 @@ function handleRowClick(index) {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
-  border: none;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-container-lowest);
-  box-shadow: var(--shadow-soft);
+  background: var(--color-surface);
+  box-shadow: var(--elev-ring);
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .mobile-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--elev-raised);
 }
 
 .mobile-card-head {
