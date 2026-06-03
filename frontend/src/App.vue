@@ -168,8 +168,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="shell-layout" :class="{ 'is-standalone': hideShell }">
-      <!-- ===== HEADER: standard mode ===== -->
-      <header v-if="!hideShell && !isMapRoute" class="site-header">
+      <header v-if="!hideShell" class="site-header">
         <div class="site-header-shell">
           <RouterLink :to="homePath" class="site-brand">
             <div class="brand-icon-card" aria-hidden="true">
@@ -195,105 +194,56 @@ onBeforeUnmount(() => {
             </RouterLink>
           </nav>
 
-          <div class="site-actions">
-            <span v-if="currentUserName" class="user-pill">{{ currentUserName }}</span>
-            <button type="button" class="logout-button" :disabled="loggingOut" @click="handleLogout">
-              {{ loggingOut ? "退出中" : "退出登录" }}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="mobile-nav-toggle"
-            data-testid="mobile-menu-trigger"
-            :aria-expanded="mobileNavOpen ? 'true' : 'false'"
-            aria-label="打开导航菜单"
-            @click="toggleMobileNav"
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-        </div>
-      </header>
-
-      <!-- ===== HEADER: map mode (compact toolbar) ===== -->
-      <header v-if="!hideShell && isMapRoute" class="site-header map-header">
-        <div class="site-header-shell site-header-shell--map">
-          <!-- brand (compact) -->
-          <RouterLink :to="homePath" class="site-brand site-brand--compact">
-            <div class="brand-icon-card brand-icon-card--sm" aria-hidden="true">
-              <TreePine :size="16" :stroke-width="2" />
-            </div>
-            <span class="brand-text-short">林业</span>
-          </RouterLink>
-
-          <!-- nav pills -->
-          <nav class="map-nav-pills" aria-label="主导航">
-            <RouterLink
-              v-for="item in visibleNavItems"
-              :key="item.to"
-              :to="item.to"
-              class="map-pill"
-              :data-testid="`header-link-${item.to.slice(1)}`"
-            >
-              <Upload v-if="item.icon === 'upload'" :size="15" :stroke-width="2" />
-              <MapPin v-else :size="15" :stroke-width="2" />
-              <span>{{ item.label }}</span>
-            </RouterLink>
-          </nav>
-
-          <!-- map toolbar controls (only when context is ready) -->
-          <div v-if="mapCtx.ready" class="map-toolbar-controls">
-            <!-- view select -->
-            <div class="map-view-select-wrap">
-              <select
-                class="map-view-select"
-                :value="mapCtx.selectedView"
-                :disabled="mapCtx.loadingViews || !mapCtx.views.length"
-                @change="mapCtx.setSelectedView($event.target.value)"
-              >
-                <option v-if="!mapCtx.views.length" value="">暂无可用视图</option>
-                <option
-                  v-for="view in mapCtx.views"
-                  :key="view.name"
-                  :value="view.name"
+          <div class="context-tools" :class="{ 'is-empty': !isMapRoute || !mapCtx.ready }">
+            <div v-if="isMapRoute && mapCtx.ready" class="map-toolbar-controls">
+              <div class="map-view-select-wrap">
+                <select
+                  class="map-view-select"
+                  :value="mapCtx.selectedView"
+                  :disabled="mapCtx.loadingViews || !mapCtx.views.length"
+                  @change="mapCtx.setSelectedView($event.target.value)"
                 >
-                  {{ view.name }}
-                </option>
-              </select>
-            </div>
+                  <option v-if="!mapCtx.views.length" value="">暂无可用视图</option>
+                  <option
+                    v-for="view in mapCtx.views"
+                    :key="view.name"
+                    :value="view.name"
+                  >
+                    {{ view.name }}
+                  </option>
+                </select>
+              </div>
 
-            <!-- filter button -->
-            <div class="map-filter-wrap">
-              <button
-                type="button"
-                class="map-toolbar-btn"
-                :class="{
-                  'is-active': mapCtx.isFilterPanelOpen,
-                  'has-badge': mapCtx.activeFilterCount > 0,
-                }"
-                aria-label="筛选配置"
-                :aria-expanded="mapCtx.isFilterPanelOpen"
-                @click.stop="mapCtx.toggleFilterPanel()"
-              >
-                <Filter :size="16" :stroke-width="2" />
-                <span class="map-toolbar-btn-text">筛选</span>
-                <span
-                  v-if="mapCtx.activeFilterCount > 0"
-                  class="map-filter-badge"
+              <!-- filter button -->
+              <div class="map-filter-wrap">
+                <button
+                  type="button"
+                  class="map-toolbar-btn"
+                  :class="{
+                    'is-active': mapCtx.isFilterPanelOpen,
+                    'has-badge': mapCtx.activeFilterCount > 0,
+                  }"
+                  aria-label="筛选配置"
+                  :aria-expanded="mapCtx.isFilterPanelOpen"
+                  @click.stop="mapCtx.toggleFilterPanel()"
                 >
-                  {{ mapCtx.activeFilterCount }}
-                </span>
-              </button>
+                  <Filter :size="16" :stroke-width="2" />
+                  <span class="map-toolbar-btn-text">筛选</span>
+                  <span
+                    v-if="mapCtx.activeFilterCount > 0"
+                    class="map-filter-badge"
+                  >
+                    {{ mapCtx.activeFilterCount }}
+                  </span>
+                </button>
 
-              <!-- filter panel popover -->
-              <transition name="popover-fade">
-                <div
-                  v-if="mapCtx.isFilterPanelOpen"
-                  class="map-filter-popover"
-                  @click.stop
-                >
+                <!-- filter panel popover -->
+                <transition name="popover-fade">
+                  <div
+                    v-if="mapCtx.isFilterPanelOpen"
+                    class="map-filter-popover"
+                    @click.stop
+                  >
                   <div class="filter-popover-inner">
                     <div
                       v-if="mapCtx.filterFields.length"
@@ -382,32 +332,32 @@ onBeforeUnmount(() => {
                       </button>
                     </div>
                   </div>
-                </div>
-              </transition>
-            </div>
+                  </div>
+                </transition>
+              </div>
 
-            <!-- layer menu -->
-            <div class="map-layer-wrap">
-              <button
-                type="button"
-                class="map-toolbar-btn"
-                :class="{ 'is-active': layerMenuOpen }"
-                aria-label="切换图层"
-                aria-controls="map-layer-menu"
-                :aria-expanded="layerMenuOpen"
-                @click.stop="layerMenuOpen = !layerMenuOpen"
-              >
-                <Layers :size="16" :stroke-width="2" />
-                <span class="map-toolbar-btn-text">图层</span>
-              </button>
-
-              <transition name="popover-fade">
-                <div
-                  v-if="layerMenuOpen"
-                  id="map-layer-menu"
-                  class="layer-menu-popup"
-                  @click.stop
+              <!-- layer menu -->
+              <div class="map-layer-wrap">
+                <button
+                  type="button"
+                  class="map-toolbar-btn"
+                  :class="{ 'is-active': layerMenuOpen }"
+                  aria-label="切换图层"
+                  aria-controls="map-layer-menu"
+                  :aria-expanded="layerMenuOpen"
+                  @click.stop="layerMenuOpen = !layerMenuOpen"
                 >
+                  <Layers :size="16" :stroke-width="2" />
+                  <span class="map-toolbar-btn-text">图层</span>
+                </button>
+
+                <transition name="popover-fade">
+                  <div
+                    v-if="layerMenuOpen"
+                    id="map-layer-menu"
+                    class="layer-menu-popup"
+                    @click.stop
+                  >
                   <button
                     type="button"
                     class="layer-menu-item"
@@ -436,38 +386,39 @@ onBeforeUnmount(() => {
                     <strong>显示编号</strong>
                     <span>{{ mapCtx.showPointLabels ? '当前已开启' : '当前已关闭' }}</span>
                   </button>
+                  </div>
+                </transition>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-actions">
+            <div class="user-dropdown-wrap">
+              <button
+                type="button"
+                class="user-pill"
+                :aria-expanded="userDropdownOpen"
+                @click.stop="toggleUserDropdown"
+              >
+                <span>{{ currentUserName || "账号" }}</span>
+                <ChevronDown :size="14" :stroke-width="2" />
+              </button>
+              <transition name="popover-fade">
+                <div v-if="userDropdownOpen" class="user-dropdown" @click.stop>
+                  <button
+                    type="button"
+                    class="dropdown-item"
+                    :disabled="loggingOut"
+                    @click="handleLogout"
+                  >
+                    <LogOut :size="16" :stroke-width="2" />
+                    <span>{{ loggingOut ? "退出中" : "退出登录" }}</span>
+                  </button>
                 </div>
               </transition>
             </div>
           </div>
 
-          <!-- user dropdown -->
-          <div class="user-dropdown-wrap">
-            <button
-              type="button"
-              class="user-pill user-pill--map"
-              :aria-expanded="userDropdownOpen"
-              @click.stop="toggleUserDropdown"
-            >
-              <span>{{ currentUserName }}</span>
-              <ChevronDown :size="14" :stroke-width="2" />
-            </button>
-            <transition name="popover-fade">
-              <div v-if="userDropdownOpen" class="user-dropdown" @click.stop>
-                <button
-                  type="button"
-                  class="dropdown-item"
-                  :disabled="loggingOut"
-                  @click="handleLogout"
-                >
-                  <LogOut :size="16" :stroke-width="2" />
-                  <span>{{ loggingOut ? "退出中" : "退出登录" }}</span>
-                </button>
-              </div>
-            </transition>
-          </div>
-
-          <!-- mobile hamburger -->
           <button
             type="button"
             class="mobile-nav-toggle"
@@ -574,7 +525,7 @@ onBeforeUnmount(() => {
   height: 28rem;
   top: -8rem;
   left: -10rem;
-  background: radial-gradient(circle, rgba(242, 217, 220, 0.4), rgba(242, 217, 220, 0));
+  background: radial-gradient(circle, rgba(47, 125, 70, 0.18), rgba(47, 125, 70, 0));
 }
 
 .orb-right {
@@ -582,7 +533,7 @@ onBeforeUnmount(() => {
   height: 32rem;
   top: 14rem;
   right: -12rem;
-  background: radial-gradient(circle, rgba(217, 242, 216, 0.3), rgba(217, 242, 216, 0));
+  background: radial-gradient(circle, rgba(107, 143, 62, 0.16), rgba(107, 143, 62, 0));
 }
 
 .backdrop-grid {
@@ -607,9 +558,12 @@ onBeforeUnmount(() => {
 }
 
 /* ================================================================
-   STANDARD HEADER
+   UNIFIED HEADER
    ================================================================ */
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1500;
   padding: 0.9rem clamp(0.85rem, 2vw, 1.35rem) 0;
 }
 
@@ -619,11 +573,11 @@ onBeforeUnmount(() => {
   min-height: var(--header-h-standard);
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.8rem;
   padding: 0.7rem 0.9rem 0.7rem 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--elev-ring);
   backdrop-filter: blur(20px);
 }
@@ -645,7 +599,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   border-radius: var(--radius-md);
   background: var(--color-primary);
-  color: var(--color-ink-soft);
+  color: var(--color-accent-on);
   box-shadow: var(--elev-ring);
 }
 
@@ -684,64 +638,73 @@ onBeforeUnmount(() => {
 .site-nav {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
 
-.site-actions {
+.context-tools {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.context-tools.is-empty {
+  display: none;
+}
+
+.site-actions {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+}
+
+.context-tools.is-empty + .site-actions {
+  margin-left: auto;
 }
 
 .user-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 2.5rem;
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary);
+  gap: 0.3rem;
+  min-height: 2.45rem;
+  max-width: 12rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-ink-soft);
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  border: none;
+  border: 1px solid var(--color-border);
   cursor: pointer;
   transition: all var(--motion-fast) var(--ease-standard);
 }
 
 .user-pill:hover {
   background: var(--color-surface-container);
-}
-
-.logout-button {
-  min-height: 2.9rem;
-  padding: 0.65rem 1rem;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-ink-soft);
-  box-shadow: none;
-  font-size: var(--text-sm);
-}
-
-.logout-button:hover {
-  background: var(--color-surface-container);
   color: var(--color-ink);
-  box-shadow: var(--elev-ring);
+}
+
+.user-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .site-nav-link,
 .drawer-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
-  min-height: 3rem;
-  padding: 0.72rem 1rem;
-  border-radius: var(--radius-sm);
+  gap: 0.45rem;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-pill);
   color: var(--color-ink-soft);
   text-decoration: none;
+  font-size: 0.88rem;
   font-weight: 600;
+  white-space: nowrap;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
@@ -758,8 +721,8 @@ onBeforeUnmount(() => {
 
 .site-nav-link:hover,
 .drawer-link:hover {
-  background: var(--color-primary);
-  color: var(--color-ink);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
 }
 
 .site-nav-link.router-link-active,
@@ -769,93 +732,14 @@ onBeforeUnmount(() => {
   box-shadow: var(--elev-ring);
 }
 
-/* ================================================================
-   MAP MODE HEADER
-   ================================================================ */
-.map-header {
-  position: sticky;
-  top: 0;
-  z-index: 1500;
-  padding: 0.5rem clamp(0.5rem, 1.5vw, 0.85rem) 0;
-}
-
-.site-header-shell--map {
-  min-height: var(--header-h-map);
-  padding: 0.4rem 0.6rem;
-  border-radius: var(--radius-md);
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-soft);
-}
-
-.site-brand--compact {
-  gap: 0.4rem;
-}
-
-.brand-icon-card--sm {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-sm);
-}
-
-.brand-icon-card--sm svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.brand-text-short {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--color-ink);
-  letter-spacing: var(--tracking-display);
-  white-space: nowrap;
-}
-
-/* nav pills */
-.map-nav-pills {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.map-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  height: 2rem;
-  padding: 0 0.65rem;
-  border-radius: var(--radius-pill);
-  color: var(--color-ink-soft);
-  text-decoration: none;
-  font-size: 0.78rem;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.map-pill svg {
-  width: 0.85rem;
-  height: 0.85rem;
-  flex-shrink: 0;
-}
-
-.map-pill:hover {
-  background: var(--color-primary);
-  color: var(--color-ink);
-}
-
-.map-pill.router-link-active {
-  background: var(--color-accent);
-  color: var(--color-accent-on);
-}
-
 /* map toolbar controls (view select, filter, layer) */
 .map-toolbar-controls {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-left: auto;
+  gap: 0.4rem;
+  min-width: 0;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-border);
 }
 
 .map-view-select-wrap {
@@ -866,7 +750,7 @@ onBeforeUnmount(() => {
   appearance: none;
   min-width: 8rem;
   max-width: 14rem;
-  height: 2rem;
+  height: 2.45rem;
   padding: 0 1.6rem 0 0.6rem;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
@@ -902,8 +786,8 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  height: 2rem;
-  padding: 0 0.55rem;
+  height: 2.45rem;
+  padding: 0 0.7rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -943,23 +827,8 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-/* user dropdown (map mode) */
 .user-dropdown-wrap {
   position: relative;
-}
-
-.user-pill--map {
-  height: 2rem;
-  padding: 0 0.6rem;
-  font-size: 0.78rem;
-  gap: 0.25rem;
-  border: 1px solid var(--border-soft);
-  background: var(--color-surface);
-}
-
-.user-pill--map svg {
-  flex-shrink: 0;
-  opacity: 0.6;
 }
 
 .user-dropdown {
@@ -1239,6 +1108,7 @@ onBeforeUnmount(() => {
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--color-ink);
   text-align: left;
   cursor: pointer;
   transition: all var(--motion-fast) var(--ease-standard);
@@ -1326,10 +1196,25 @@ onBeforeUnmount(() => {
 
 .user-pill--drawer {
   justify-content: center;
+  max-width: none;
 }
 
 .logout-button--drawer {
   width: 100%;
+  min-height: 2.9rem;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink-soft);
+  box-shadow: none;
+  font-size: var(--text-sm);
+}
+
+.logout-button--drawer:hover {
+  background: var(--color-surface-container);
+  color: var(--color-ink);
+  box-shadow: var(--elev-ring);
 }
 
 /* ================================================================
@@ -1432,16 +1317,18 @@ onBeforeUnmount(() => {
   }
 }
 
-/* map mode responsive */
 @media (max-width: 760px) {
-  .map-header .site-header-shell--map {
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    padding: 0.35rem 0.5rem;
+  .context-tools {
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
   }
 
-  .map-nav-pills {
-    display: none;
+  .map-toolbar-controls {
+    flex: 1;
+    justify-content: flex-end;
+    padding-left: 0;
+    border-left: none;
   }
 
   .map-toolbar-btn-text {
@@ -1449,7 +1336,8 @@ onBeforeUnmount(() => {
   }
 
   .map-view-select {
-    min-width: 0;
+    min-width: 7rem;
+    max-width: min(11rem, 42vw);
     flex: 1;
     font-size: 0.75rem;
   }
@@ -1476,6 +1364,10 @@ onBeforeUnmount(() => {
     min-height: 4rem;
   }
 
+  .brand-copy span {
+    display: none;
+  }
+
   .brand-icon-card {
     width: 2.7rem;
     height: 2.7rem;
@@ -1489,10 +1381,6 @@ onBeforeUnmount(() => {
 
   .brand-copy strong {
     font-size: 0.96rem;
-  }
-
-  .brand-copy span {
-    font-size: 0.74rem;
   }
 
   .mobile-nav-toggle {

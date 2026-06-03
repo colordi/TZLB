@@ -107,10 +107,34 @@ describe("App 壳层导航", () => {
   it("顶部导航会高亮当前路由，且不再展示当前页面卡片", async () => {
     const { wrapper } = await mountApp("/workorder");
 
+    expect(wrapper.findAll(".site-header")).toHaveLength(1);
+    expect(wrapper.get(".site-header").classes()).not.toContain("map-header");
+
     const activeLink = wrapper.get(".site-nav-link.router-link-active");
     expect(activeLink.text()).toContain("工单录入");
     expect(wrapper.find(".sidebar-context").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("当前页面");
+  });
+
+  it("普通页账号入口使用统一下拉菜单", async () => {
+    const { wrapper } = await mountApp("/workorder", {
+      user: {
+        id: 1,
+        username: "admin",
+        display_name: "管理员",
+        role: "admin",
+        is_active: true,
+        last_login_at: null,
+      },
+    });
+
+    expect(wrapper.find(".logout-button:not(.logout-button--drawer)").exists()).toBe(false);
+
+    await wrapper.get(".user-dropdown-wrap .user-pill").trigger("click");
+    await flushPromises();
+
+    const dropdown = wrapper.get(".user-dropdown");
+    expect(dropdown.text()).toContain("退出登录");
   });
 
   it("移动抽屉点击遮罩后会关闭", async () => {
@@ -166,6 +190,11 @@ describe("App 壳层导航", () => {
     const { wrapper } = await mountApp("/map");
 
     await flushPromises();
+
+    expect(wrapper.findAll(".site-header")).toHaveLength(1);
+    expect(wrapper.get(".site-header").classes()).not.toContain("map-header");
+    expect(wrapper.find(".site-header-shell--map").exists()).toBe(false);
+    expect(wrapper.get(".site-brand").text()).toContain("林业调查工作台");
 
     const layerButton = wrapper.get('button[aria-label="切换图层"]');
     expect(layerButton.text()).toContain("图层");
