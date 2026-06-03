@@ -16,6 +16,7 @@ import {
   resolveFeatureHoverLabel,
 } from "../components/map/popupFields.js";
 import LeafletMap from "../components/map/LeafletMap.vue";
+import MapToolbar from "../components/map/MapToolbar.vue";
 
 function createEmptyFeatureCollection() {
   return {
@@ -582,135 +583,23 @@ onMounted(async () => {
 <template>
   <section class="page-shell map-page">
     <div class="map-workspace">
-      <aside
-        class="filter-drawer"
-        :class="{ 'is-open': isFilterPanelOpen }"
-        aria-label="地图筛选"
-      >
-        <article
-          class="panel-card sidebar-panel sidebar-panel-slim"
-          :class="{ 'is-collapsed': !isFilterPanelOpen }"
-        >
-          <button
-            type="button"
-            class="filter-panel-toggle"
-            data-testid="map-filter-toggle"
-            :aria-expanded="isFilterPanelOpen"
-            aria-controls="map-filter-panel-body"
-            :aria-label="isFilterPanelOpen ? '收起筛选配置' : '展开筛选配置'"
-            @click="isFilterPanelOpen = !isFilterPanelOpen"
-          >
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v.31a1.75 1.75 0 0 1-.36 1.06l-4.64 6.04v4.09a1.75 1.75 0 0 1-1.02 1.59l-2 1A1.75 1.75 0 0 1 9 18.25v-5.09L4.36 7.12A1.75 1.75 0 0 1 4 6.06v-.31Zm1.75-.25a.25.25 0 0 0-.25.25v.31c0 .05.02.11.05.15l4.8 6.24a.75.75 0 0 1 .15.46v5.34a.25.25 0 0 0 .36.22l2-1a.25.25 0 0 0 .14-.22v-4.34a.75.75 0 0 1 .15-.46l4.8-6.24a.25.25 0 0 0 .05-.15v-.31a.25.25 0 0 0-.25-.25H5.75Z"
-                />
-              </svg>
-            </span>
-            <span class="filter-toggle-title">筛选配置</span>
-            <span class="filter-toggle-chevron" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z" />
-              </svg>
-            </span>
-          </button>
-
-          <div v-if="isFilterPanelOpen" id="map-filter-panel-body" class="filter-panel-body">
-            <div class="sidebar-field-stack">
-              <div
-                v-for="field in filterFields"
-                :key="field.key"
-                class="field-block filter-field-card"
-                :class="{ 'is-open': isFilterMenuOpen(field.key) }"
-              >
-                <div class="filter-select">
-                  <button
-                    type="button"
-                    class="filter-select-trigger"
-                    :class="{ 'is-open': isFilterMenuOpen(field.key) }"
-                    :data-testid="`map-filter-trigger-${field.key}`"
-                    :aria-expanded="isFilterMenuOpen(field.key)"
-                    :aria-controls="`map-filter-menu-${field.key}`"
-                    :disabled="loading || field.options.length === 0"
-                    @click="toggleFilterMenu(field.key)"
-                  >
-                    <span class="filter-select-copy">
-                      <span class="filter-select-label">{{ field.label }}</span>
-                      <span
-                        class="filter-select-summary"
-                        :class="{ 'is-muted': isFilterSummaryMuted(field) }"
-                      >
-                        {{ getFilterSummary(field) }}
-                      </span>
-                    </span>
-                    <span class="filter-select-meta">
-                      <span v-if="hasSelectedFilterValues(field.key)" class="filter-select-count" aria-hidden="true">
-                        {{ activeFilters[field.key].length }}
-                      </span>
-                      <span class="filter-select-chevron" aria-hidden="true">
-                        <svg viewBox="0 0 24 24">
-                          <path
-                            d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41Z"
-                          />
-                        </svg>
-                      </span>
-                    </span>
-                  </button>
-
-                  <div
-                    v-if="isFilterMenuOpen(field.key)"
-                    :id="`map-filter-menu-${field.key}`"
-                    class="filter-option-dropdown"
-                    :data-testid="`map-filter-${field.key}`"
-                    role="group"
-                    :aria-label="field.label"
-                    :aria-disabled="loading || field.options.length === 0"
-                  >
-                    <label
-                      v-for="option in field.options"
-                      :key="option.value"
-                      class="filter-option"
-                      :class="{ 'is-disabled': loading }"
-                    >
-                      <input
-                        v-model="activeFilters[field.key]"
-                        type="checkbox"
-                        :value="option.value"
-                        :data-testid="`map-filter-${field.key}-${option.value}`"
-                        :disabled="loading"
-                      />
-                      <span>{{ option.label }}</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="!hasFilterFields" class="filter-empty-state">
-                当前视图暂无筛选字段
-              </div>
-            </div>
-
-            <div class="filter-actions">
-              <button type="button" :disabled="loading || !selectedView" @click="applyFilter">
-                应用筛选
-              </button>
-              <button type="button" class="button-secondary" @click="refreshViewsAndData">
-                刷新
-              </button>
-              <button
-                type="button"
-                class="button-secondary"
-                :disabled="loading"
-                @click="resetFilter"
-              >
-                清空
-              </button>
-            </div>
-
-            <p class="muted-note">{{ filterHint }}</p>
-          </div>
-        </article>
-      </aside>
+      <MapToolbar
+        :views="views"
+        :view-name="selectedView"
+        :loading-views="loadingViews"
+        :filter-fields="filterFields"
+        :active-filters="activeFilters"
+        :filter-options="filterOptions"
+        :basemap-mode="basemapMode"
+        :show-point-labels="showPointLabels"
+        :loading="loading"
+        @update:view-name="selectedView = $event"
+        @update:basemap-mode="basemapMode = $event"
+        @update:show-point-labels="showPointLabels = $event"
+        @update:active-filters="activeFilters = $event"
+        @apply-filters="applyFilter"
+        @reset-filters="resetFilter"
+      />
 
       <aside
         v-if="selectedFeature"

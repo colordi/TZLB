@@ -5,10 +5,10 @@ import "leaflet/dist/leaflet.css";
 
 import { useToast } from "../../composables/useToast.js";
 import {
+  hasFeatureSeverityField,
   resolveFeatureHoverLabel,
   resolveFeaturePointLabel,
   resolveFeatureSeverity,
-  resolveSurveyStatus,
 } from "./popupFields.js";
 
 const props = defineProps({
@@ -94,6 +94,15 @@ const hasReportedLocateError = ref(false);
 const showLegend = ref(true);
 const fitPending = ref(false);
 
+const HAZARD_POINT_COLOR = "#EC6D64";
+const POINT_OUTLINE_COLOR = "#000000";
+const HAZARD_POINT_STYLE = {
+  key: "hazard-point",
+  color: HAZARD_POINT_COLOR,
+  radius: 8,
+  label: "危害点位",
+};
+
 const featureCount = computed(() => props.geojson?.features?.length || 0);
 const activeBasemapLabel = computed(() =>
   props.basemapMode === "satellite" ? "卫星底图" : "标准底图",
@@ -109,23 +118,17 @@ const pointLabelMenuDescription = computed(() =>
   props.showPointLabels ? "当前范围编号已开启" : "开启后显示当前范围编号",
 );
 const preferIdentifierHover = computed(() => true);
-const hasSurveyStatusFields = computed(() =>
-  props.popupFields.some((field) => field === "调查日期" || field === "调查状态"),
-);
+const usesSeverityLegend = computed(() => hasFeatureSeverityField(props.popupFields));
 
-const severityLegendEntries = computed(() => [
-  resolveFeatureSeverity("白"),
-  resolveFeatureSeverity("轻"),
-  resolveFeatureSeverity("中"),
-  resolveFeatureSeverity("重"),
-]);
-const surveyLegendEntries = computed(() =>
-  hasSurveyStatusFields.value
+const severityLegendEntries = computed(() =>
+  usesSeverityLegend.value
     ? [
-        { key: "survey-completed", label: "调查", className: "is-completed" },
-        { key: "survey-pending", label: "未调查", className: "is-pending" },
+        resolveFeatureSeverity("无"),
+        resolveFeatureSeverity("轻"),
+        resolveFeatureSeverity("中"),
+        resolveFeatureSeverity("重"),
       ]
-    : [],
+    : [HAZARD_POINT_STYLE],
 );
 
 const TIANDITU_IMAGERY_ANNOTATION_URL =
@@ -407,60 +410,23 @@ function renderPointLabels(data = props.geojson) {
   pointLabelLayerRef.value?.bringToFront?.();
 }
 
-function buildSurveyedPointMarker(latlng, severity, isBlank) {
-  const diameter = severity.radius * 2;
-  const borderColor = isBlank ? "rgba(24, 50, 35, 0.5)" : "rgba(24, 50, 35, 0.78)";
-
-  return L.marker(latlng, {
-    icon: L.divIcon({
-      className: "map-surveyed-point-icon",
-      html: `
-        <span
-          class="map-surveyed-point"
-          style="--point-size: ${diameter}px; --point-fill: ${severity.color}; --point-border: ${borderColor};"
-          aria-hidden="true"
-        >
-          <svg class="map-surveyed-check" viewBox="0 0 24 24" aria-hidden="true">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </span>
-      `,
-      iconSize: [diameter, diameter],
-      iconAnchor: [diameter / 2, diameter / 2],
-    }),
-  });
-}
-
 function resolveFeaturePathStyle(properties = {}) {
-  const status = resolveSurveyStatus(properties);
-
-  if (status === "completed") {
-    return {
-      color: "#2E7D32",
-      fillColor: "#DFF3E1",
-      fillOpacity: 0.42,
-      opacity: 0.95,
-      weight: 1.5,
-    };
-  }
-
-  if (status === "in_progress") {
-    return {
-      color: "#D89A2B",
-      fillColor: "#FFF3D8",
-      fillOpacity: 0.38,
-      opacity: 0.9,
-      weight: 1.35,
-    };
-  }
+  const severity = usesSeverityLegend.value
+    ? resolveFeatureSeverity(properties)
+    : HAZARD_POINT_STYLE;
+  const isBlank = usesSeverityLegend.value && severity.key === "level0";
 
   return {
-    color: "#4285F4",
-    fillColor: "rgba(66, 133, 244, 0.15)",
-    fillOpacity: 1,
-    opacity: 0.9,
-    weight: 2,
+    color: POINT_OUTLINE_COLOR,
+    fillColor: severity.color,
+    fillOpacity: isBlank ? 0.52 : 0.36,
+    opacity: isBlank ? 0.78 : 0.95,
+    weight: isBlank ? 1.2 : 1.6,
   };
+}
+
+function resolvePointStyle(properties = {}) {
+  return usesSeverityLegend.value ? resolveFeatureSeverity(properties) : HAZARD_POINT_STYLE;
 }
 
 function drawGeoJson(data, shouldFit = true) {
@@ -478,28 +444,27 @@ function drawGeoJson(data, shouldFit = true) {
 
   const sortedData = {
     ...data,
-    features: [...data.features].sort((a, b) => {
-      const sa = resolveFeatureSeverity(a.properties).key;
-      const sb = resolveFeatureSeverity(b.properties).key;
-      return sa.localeCompare(sb);
-    }),
+    features: usesSeverityLegend.value
+      ? [...data.features].sort((a, b) => {
+          const sa = resolveFeatureSeverity(a.properties).key;
+          const sb = resolveFeatureSeverity(b.properties).key;
+          return sa.localeCompare(sb);
+        })
+      : [...data.features],
   };
 
   pointLayerRef.value = L.geoJSON(sortedData, {
     style: (feature) =>
       feature?.geometry?.type === "Point" ? {} : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
-      const severity = resolveFeatureSeverity(feature.properties);
-      const isBlank = severity.key === "level0";
-      if (resolveSurveyStatus(feature.properties) === "completed") {
-        return buildSurveyedPointMarker(latlng, severity, isBlank);
-      }
+      const severity = resolvePointStyle(feature.properties);
+      const isBlank = usesSeverityLegend.value && severity.key === "level0";
       return L.circleMarker(latlng, {
         radius: severity.radius,
-        fillColor: "#FFFFFF",
-        color: isBlank ? "rgba(24, 50, 35, 0.55)" : "rgba(24, 50, 35, 0.85)",
-        weight: isBlank ? 1.0 : 1.25,
-        fillOpacity: 0.92,
+        fillColor: severity.color,
+        color: POINT_OUTLINE_COLOR,
+        weight: 1.45,
+        fillOpacity: isBlank ? 0.96 : 0.88,
       });
     },
     onEachFeature: (feature, layer) => {
@@ -700,6 +665,14 @@ watch(
 );
 
 watch(
+  () => props.popupFields,
+  () => {
+    drawGeoJson(props.geojson, false);
+  },
+  { deep: true },
+);
+
+watch(
   () => props.showPointLabels,
   () => {
     renderPointLabels(props.geojson);
@@ -738,126 +711,44 @@ onBeforeUnmount(() => {
   <section class="map-shell">
     <div ref="mapElement" class="map-canvas"></div>
 
-    <div class="map-overlay top-left map-interactive-controls">
-      <div class="control-row">
-        <select
-          class="map-overlay-select"
-          :value="viewName"
-          :disabled="loadingViews || !views.length"
-          @change="emit('update:viewName', $event.target.value)"
-        >
-          <option v-if="!views.length" value="">暂无可用视图</option>
-          <option v-for="view in views" :key="view.name" :value="view.name">
-            {{ view.name }}
-          </option>
-        </select>
-      </div>
-      <div v-if="loading" class="map-loading">正在刷新点位数据…</div>
-    </div>
-
-    <div class="map-overlay top-right map-side-action">
-      <div class="map-layer-control">
-        <button
-          type="button"
-          class="map-fab"
-          aria-label="切换图层"
-          aria-controls="map-layer-menu"
-          :aria-expanded="showLayerMenu"
-          @click="showLayerMenu = !showLayerMenu"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
-            <path d="M12.01 2.92a1.23 1.23 0 0 0-1.12.02l-8.5 4.5a1.2 1.2 0 0 0 0 2.12l8.5 4.5c.34.18.76.18 1.1 0l8.5-4.5a1.2 1.2 0 0 0 0-2.12l-8.5-4.5a1.23 1.23 0 0 0-1.1-.02ZM12.56 12.06c-.34.18-.76.18-1.1 0L2.96 7.56a.2.2 0 0 1 0-.36l8.5-4.5a.23.23 0 0 1 .2 0l8.5 4.5a.2.2 0 0 1 0 .36l-8.5 4.5Z" />
-            <path d="M2.38 10.94a.5.5 0 0 0 .12.92l9.04 4.79a.99.99 0 0 0 .94 0l9.02-4.78a.5.5 0 0 0-.23-.94l-8.79 4.65a.99.99 0 0 1-.94 0l-8.8-4.66a.5.5 0 0 0-.36.02Z" />
-            <path d="M2.38 14.94a.5.5 0 0 0 .12.92l9.04 4.79c.28.14.65.14.94 0l9.02-4.78a.5.5 0 0 0-.23-.94l-8.79 4.65a.99.99 0 0 1-.94 0l-8.8-4.66a.5.5 0 0 0-.36.02Z" />
-          </svg>
-        </button>
-        
-        <transition name="fade">
-          <div id="map-layer-menu" v-show="showLayerMenu" class="layer-menu-popup">
-            <button
-               type="button"
-               class="layer-menu-item"
-               :class="{ 'is-active': basemapMode === 'standard' }"
-               @click="emit('update:basemapMode', 'standard'); showLayerMenu = false"
-             >
-               <strong>标准地图</strong>
-               <span>包含政区街道</span>
-             </button>
-             <button
-               type="button"
-               class="layer-menu-item"
-               :class="{ 'is-active': basemapMode === 'satellite' }"
-               @click="emit('update:basemapMode', 'satellite'); showLayerMenu = false"
-             >
-               <strong>卫星地图</strong>
-               <span>高分辨率影像</span>
-             </button>
-             <button
-               type="button"
-               class="layer-menu-item"
-               :class="{ 'is-active': showPointLabels }"
-               :aria-pressed="showPointLabels"
-               data-testid="point-label-toggle"
-               @click="emit('update:showPointLabels', !showPointLabels)"
-              >
-                <strong>显示编号</strong>
-                <span>{{ pointLabelMenuDescription }}</span>
-              </button>
-          </div>
-        </transition>
-      </div>
-    </div>
-
     <div class="map-overlay bottom-left">
-      <div v-show="showLegend" class="map-integrated-panel">
-        <div class="panel-header">
-          <span class="panel-header-title-group">
-            <strong>{{ featureCount }}</strong>
-            <span class="panel-header-suffix">个调查点位</span>
-          </span>
-          <button
-            type="button"
-            class="legend-close-btn"
-            aria-label="收起图例"
-            @click="showLegend = false"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="panel-divider"></div>
-        <div class="map-legend">
-          <div v-for="entry in severityLegendEntries" :key="entry.key" class="legend-item">
-            <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
-            <span>{{ entry.label }}</span>
-          </div>
-        </div>
-        <div v-if="surveyLegendEntries.length" class="map-legend map-status-legend">
-          <div v-for="entry in surveyLegendEntries" :key="entry.key" class="legend-item">
-            <span class="legend-status-symbol" :class="entry.className"></span>
-            <span>{{ entry.label }}</span>
-          </div>
-        </div>
-      </div>
-      <button
-        v-show="!showLegend"
-        type="button"
-        class="legend-restore-btn"
-        aria-label="显示图例"
-        @click="showLegend = true"
+      <div
+        class="map-legend-container"
+        @mouseenter="showLegend = true"
+        @mouseleave="showLegend = false"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="8" y1="6" x2="21" y2="6" />
-          <line x1="8" y1="12" x2="21" y2="12" />
-          <line x1="8" y1="18" x2="21" y2="18" />
-          <circle cx="4" cy="6" r="1" fill="currentColor" stroke="none" />
-          <circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" />
-          <circle cx="4" cy="18" r="1" fill="currentColor" stroke="none" />
-        </svg>
-        <span>图例</span>
-      </button>
+        <div v-show="showLegend" class="map-integrated-panel">
+          <div class="panel-header">
+            <span class="panel-header-title-group">
+              <strong>{{ featureCount }}</strong>
+              <span class="panel-header-suffix">个调查点位</span>
+            </span>
+          </div>
+          <div class="panel-divider"></div>
+          <div class="map-legend">
+            <div v-for="entry in severityLegendEntries" :key="entry.key" class="legend-item">
+              <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
+              <span>{{ entry.label }}</span>
+            </div>
+          </div>
+        </div>
+        <button
+          v-show="!showLegend"
+          type="button"
+          class="legend-restore-btn"
+          aria-label="显示图例"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <circle cx="4" cy="6" r="1" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" />
+            <circle cx="4" cy="18" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <span>图例</span>
+        </button>
+      </div>
     </div>
 
     <div class="map-overlay right-fab map-side-action map-fab-stack">
@@ -997,86 +888,6 @@ onBeforeUnmount(() => {
   transition: all 0.2s ease;
 }
 
-.map-overlay-select:focus {
-  border-color: rgba(46, 125, 50, 0.3);
-  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
-}
-
-.map-overlay-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.map-layer-control {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.layer-menu-popup {
-  position: absolute;
-  top: calc(100% + 0.65rem);
-  right: 0;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 18px;
-  box-shadow: 0 16px 40px rgba(18, 52, 29, 0.12);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  width: 10rem;
-}
-
-.layer-menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 0.65rem 0.85rem;
-  border-radius: 12px;
-  text-align: left;
-  border: 2px solid transparent;
-  background: transparent;
-  color: var(--color-ink);
-  transition: all 0.2s;
-  cursor: pointer;
-}
-
-.layer-menu-item:hover {
-  background: rgba(46, 125, 50, 0.05);
-}
-
-.layer-menu-item.is-active {
-  border-color: var(--color-primary-strong);
-  background: rgba(240, 250, 240, 0.9);
-}
-
-.layer-menu-item strong {
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin-bottom: 0.2rem;
-}
-
-.layer-menu-item span {
-  font-size: 0.78rem;
-  color: var(--color-muted);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  transform-origin: top right;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
 .map-integrated-panel {
   position: relative;
   display: flex;
@@ -1136,6 +947,10 @@ onBeforeUnmount(() => {
   background: rgba(0, 0, 0, 0.06);
 }
 
+.map-legend-container {
+  position: relative;
+}
+
 .legend-restore-btn {
   display: inline-flex;
   align-items: center;
@@ -1171,12 +986,6 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
 }
 
-.map-status-legend {
-  margin-top: 0.7rem;
-  padding-top: 0.7rem;
-  border-top: 1px solid rgba(46, 125, 50, 0.12);
-}
-
 .map-legend .legend-item {
   display: flex;
   align-items: center;
@@ -1190,38 +999,10 @@ onBeforeUnmount(() => {
 .map-legend .legend-dot {
   width: 0.85rem;
   height: 0.85rem;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.85);
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
-}
-
-.legend-status-symbol {
-  position: relative;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.legend-status-symbol.is-completed {
-  background: #2e7d32;
-  border: 1.5px solid #1b5e20;
-}
-
-.legend-status-symbol.is-completed::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 44%;
-  width: 32%;
-  height: 52%;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: translate(-50%, -55%) rotate(45deg);
-}
-
-.legend-status-symbol.is-pending {
-  background: #fff;
-  border: 1.5px solid rgba(24, 50, 35, 0.6);
 }
 
 .map-loading {
@@ -1420,39 +1201,6 @@ onBeforeUnmount(() => {
     -1px 0 0 #fff,
     0 2px 4px rgba(18, 52, 29, 0.18);
 }
-
-:deep(.map-surveyed-point-icon) {
-  background: transparent;
-  border: none;
-}
-
-:deep(.map-surveyed-point) {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--point-size);
-  height: var(--point-size);
-  box-sizing: border-box;
-  border: 1.25px solid var(--point-border);
-  border-radius: 999px;
-  background: var(--point-fill);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.82),
-    0 5px 12px rgba(18, 52, 29, 0.2);
-}
-
-:deep(.map-surveyed-check) {
-  width: 72%;
-  height: 72%;
-  stroke: rgba(24, 50, 35, 0.85);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
-  filter: drop-shadow(0 1px 1.5px rgba(255, 255, 255, 0.55));
-}
-
 
 @media (max-width: 760px) {
   .map-shell,

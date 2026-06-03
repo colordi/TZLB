@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPopupRows,
   buildSurveyStatusSummary,
+  hasFeatureSeverityField,
   resolveFeatureHoverLabel,
   resolveFeaturePointLabel,
   resolveFeatureSeverity,
@@ -99,11 +100,20 @@ describe("buildPopupRows", () => {
     });
   });
 
-  it("虫口数为空时会落到白色等级", () => {
+  it("支持识别当前 view 是否包含危害程度字段", () => {
+    expect(hasFeatureSeverityField(["编号", "危害程度"])).toBe(true);
+    expect(hasFeatureSeverityField(["编号", "severity"])).toBe(true);
+    expect(hasFeatureSeverityField(["编号", "调查状态"])).toBe(false);
+  });
+
+  it("空值和无危害值会归一为无等级", () => {
     expect(resolveFeatureSeverity(0)).toMatchObject({
       key: "level0",
       color: "#FFFFFF",
-      label: "白",
+      label: "无",
     });
+    expect(resolveFeatureSeverity("白").label).toBe("无");
+    expect(resolveFeatureSeverity("无需防治").label).toBe("无");
+    expect(resolveFeatureSeverity("无").label).toBe("无");
   });
 });

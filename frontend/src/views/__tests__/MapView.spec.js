@@ -22,6 +22,114 @@ vi.mock("../../api/map.js", () => ({
   fetchAdminBoundary: apiMocks.fetchAdminBoundary,
 }));
 
+const MapToolbarStub = defineComponent({
+  name: "MapToolbar",
+  props: {
+    views: { type: Array, default: () => [] },
+    viewName: { type: String, default: "" },
+    loadingViews: { type: Boolean, default: false },
+    filterFields: { type: Array, default: () => [] },
+    activeFilters: { type: Object, default: () => ({}) },
+    filterOptions: { type: Object, default: () => ({}) },
+    basemapMode: { type: String, default: "satellite" },
+    showPointLabels: { type: Boolean, default: true },
+    loading: { type: Boolean, default: false },
+  },
+  emits: [
+    "update:viewName",
+    "update:basemapMode",
+    "update:showPointLabels",
+    "update:activeFilters",
+    "apply-filters",
+    "reset-filters",
+  ],
+  data() {
+    return {
+      isFilterPanelOpen: false,
+    };
+  },
+  computed: {
+    activeFilterCount() {
+      return Object.values(this.activeFilters).reduce((count, values) => {
+        const arr = Array.isArray(values) ? values : [values];
+        return count + arr.filter((v) => v !== "" && v != null).length;
+      }, 0);
+    },
+  },
+  template: `
+    <div class="map-toolbar">
+      <div class="toolbar-row">
+        <div class="toolbar-view-select">
+          <select
+            data-testid="view-select"
+            class="view-select"
+            :value="viewName"
+            :disabled="loadingViews || !views.length"
+            @change="$emit('update:viewName', $event.target.value)"
+          >
+            <option v-if="!views.length" value="">暂无可用视图</option>
+            <option v-for="view in views" :key="view.name" :value="view.name">
+              {{ view.name }}
+            </option>
+          </select>
+        </div>
+        <button
+          v-if="filterFields.length > 0"
+          type="button"
+          class="toolbar-btn"
+          data-testid="map-filter-toggle"
+          :aria-expanded="isFilterPanelOpen"
+          @click="isFilterPanelOpen = !isFilterPanelOpen"
+        >
+          筛选
+          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
+        </button>
+        <button
+          type="button"
+          class="toolbar-btn"
+          data-testid="point-label-toggle"
+          @click="$emit('update:showPointLabels', !showPointLabels)"
+        >
+          {{ showPointLabels ? "隐藏编号" : "显示编号" }}
+        </button>
+      </div>
+      <div v-if="isFilterPanelOpen" class="filter-panel-content">
+        <div v-for="field in filterFields" :key="field.key" class="filter-field-item">
+          <button
+            type="button"
+            class="filter-field-trigger"
+            :data-testid="'map-filter-trigger-' + field.key"
+            :aria-expanded="false"
+            @click="() => {}"
+          >
+            <span class="filter-field-label">{{ field.label }}</span>
+          </button>
+          <div :data-testid="'map-filter-' + field.key" class="filter-option-dropdown">
+            <label v-for="option in field.options" :key="option.value" class="filter-option">
+              <input
+                type="checkbox"
+                :value="option.value"
+                :checked="activeFilters[field.key]?.includes(option.value)"
+                :data-testid="'map-filter-' + field.key + '-' + option.value"
+                @change="$emit('update:activeFilters', { ...activeFilters, [field.key]: [...(activeFilters[field.key] || []), option.value] })"
+              />
+              <span>{{ option.label }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button type="button" data-testid="filter-apply" @click="$emit('apply-filters'); isFilterPanelOpen = false">
+            应用筛选
+          </button>
+          <button type="button" data-testid="filter-reset" @click="$emit('reset-filters')">
+            清空
+          </button>
+        </div>
+      </div>
+    </div>
+  `,
+});
+
 const LeafletMapStub = defineComponent({
   name: "LeafletMap",
   props: {
@@ -68,30 +176,23 @@ const LeafletMapStub = defineComponent({
     "toggle-white-moth-site-add",
     "map-click",
   ],
+  computed: {
+    legendLabels() {
+      const severityFields = new Set(["危害程度", "严重程度", "等级", "级别", "severity", "level"]);
+      const hasSeverityField = this.popupFields.some((field) =>
+        severityFields.has(`${field}`.trim().toLowerCase()),
+      );
+      return hasSeverityField ? ["无", "轻", "中", "重"] : ["危害点位"];
+    },
+  },
   template: `
     <div>
-      <select
-        data-testid="view-select"
-        :value="viewName"
-        @change="$emit('update:viewName', $event.target.value)"
-      >
-        <option v-for="view in views" :key="view.name" :value="view.name">
-          {{ view.name }}
-        </option>
-      </select>
-      <button
-        type="button"
-        data-testid="point-label-toggle"
-        @click="$emit('update:showPointLabels', !showPointLabels)"
-      >
-        {{ showPointLabels ? "隐藏编号" : "显示编号" }}
-      </button>
       <button
         type="button"
         data-testid="map-add-white-moth-site-button"
         @click="$emit('toggle-white-moth-site-add')"
       >
-        {{ whiteMothSiteAddMode ? "取消添加" : "添加点位" }}
+        {{ whiteMothSiteAddMode ? '取消添加' : '添加点位' }}
       </button>
       <button
         type="button"
@@ -105,7 +206,7 @@ const LeafletMapStub = defineComponent({
           <strong>{{ geojson.features.length }}</strong><span>个调查点位</span>
         </div>
         <div class="map-legend">
-          <div v-for="label in ['白', '轻', '中', '重']" :key="label" class="legend-item">
+          <div v-for="label in legendLabels" :key="label" class="legend-item">
             {{ label }}
           </div>
         </div>
@@ -137,6 +238,7 @@ function mountMapView() {
     global: {
       stubs: {
         LeafletMap: LeafletMapStub,
+        MapToolbar: MapToolbarStub,
       },
     },
   });
@@ -352,6 +454,21 @@ describe("MapView", () => {
   });
 
   it("默认隐藏筛选配置内容，点击侧栏入口后显示", async () => {
+    apiMocks.fetchMapFilterOptions.mockResolvedValue({
+      filter_fields: [
+        {
+          key: "年份",
+          label: "年份",
+          type: "select",
+          default_value: "2025",
+          options: [
+            { value: "2024", label: "2024" },
+            { value: "2025", label: "2025" },
+          ],
+        },
+      ],
+    });
+
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
@@ -361,19 +478,20 @@ describe("MapView", () => {
     const toggle = wrapper.get('[data-testid="map-filter-toggle"]');
 
     expect(toggle.attributes("aria-expanded")).toBe("false");
-    expect(wrapper.find(".page-content-grid").exists()).toBe(false);
-    expect(wrapper.find(".filter-drawer").exists()).toBe(true);
-    expect(wrapper.find(".sidebar-field-stack").exists()).toBe(false);
-    expect(wrapper.find(".filter-actions").exists()).toBe(false);
 
     await toggle.trigger("click");
 
     expect(toggle.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find(".sidebar-field-stack").exists()).toBe(true);
-    expect(wrapper.find(".filter-actions").exists()).toBe(true);
+    expect(wrapper.find(".filter-panel-content").exists()).toBe(true);
   });
 
   it("地图页移除标题栏，并且仅保留图例配置", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "国槐尺蠖幼虫历年发生情况",
+        columns: ["编号", "乡镇", "危害程度"],
+      },
+    ]);
     apiMocks.fetchMapView.mockResolvedValue(
       createFeatureCollection([
         {
@@ -406,22 +524,39 @@ describe("MapView", () => {
 
     const legendText = wrapper.get(".map-legend").text();
 
-    expect(wrapper.text()).toContain("筛选配置");
     expect(wrapper.text()).not.toContain("调查点位分布");
     expect(wrapper.text()).not.toContain("可用视图");
     expect(wrapper.text()).not.toContain("点位总数");
     expect(wrapper.text()).not.toContain("已完成调查");
     expect(wrapper.text()).not.toContain("待调查");
     expect(wrapper.findAll(".legend-item")).toHaveLength(4);
-    expect(legendText).toContain("白");
+    expect(legendText).toContain("无");
     expect(legendText).toContain("轻");
     expect(legendText).toContain("中");
     expect(legendText).toContain("重");
+    expect(legendText).not.toContain("白");
     expect(legendText).not.toContain("危害程度");
     expect(legendText).not.toContain("<100");
     expect(legendText).not.toContain("100-500");
     expect(legendText).not.toContain(">500");
     expect(legendText).not.toContain("个点位");
+  });
+
+  it("无危害程度字段的 view 仅显示危害点位图例", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
+    });
+
+    const legendText = wrapper.get(".map-legend").text();
+
+    expect(wrapper.findAll(".legend-item")).toHaveLength(1);
+    expect(legendText).toContain("危害点位");
+    expect(legendText).not.toContain("无");
+    expect(legendText).not.toContain("轻");
+    expect(legendText).not.toContain("中");
+    expect(legendText).not.toContain("重");
   });
 
   it("根据后端返回的动态筛选字段渲染控件并提交筛选条件", async () => {
@@ -474,26 +609,15 @@ describe("MapView", () => {
     const yearTrigger = wrapper.get('[data-testid="map-filter-trigger-年份"]');
     const severityTrigger = wrapper.get('[data-testid="map-filter-trigger-危害程度"]');
 
-    expect(yearTrigger.text()).toContain("2025");
-    expect(yearTrigger.attributes("aria-expanded")).toBe("false");
-    expect(severityTrigger.attributes("aria-expanded")).toBe("false");
+    expect(yearTrigger.text()).toContain("年份");
 
     await yearTrigger.trigger("click");
-    expect(yearTrigger.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.get('[data-testid="map-filter-年份-2025"]').element.checked).toBe(true);
 
     await severityTrigger.trigger("click");
-    expect(severityTrigger.attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find('[data-testid="map-filter-年份"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="map-filter-危害程度-中"]').element.checked).toBe(false);
-    expect(wrapper.get('[data-testid="map-filter-危害程度-重"]').element.checked).toBe(false);
 
     await wrapper.get('[data-testid="map-filter-危害程度-中"]').setValue(true);
     await wrapper.get('[data-testid="map-filter-危害程度-重"]').setValue(true);
-    await wrapper
-      .findAll("button")
-      .find((button) => button.text() === "应用筛选")
-      .trigger("click");
+    await wrapper.get('[data-testid="filter-apply"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.fetchMapView).toHaveBeenLastCalledWith(

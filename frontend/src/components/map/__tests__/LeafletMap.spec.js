@@ -185,6 +185,10 @@ function getPointLabelMarkerHtml() {
   return getPointLabelMarkerCalls().map(([, options]) => options?.icon?.html || "");
 }
 
+function getLegendLabels(wrapper) {
+  return wrapper.findAll(".map-legend .legend-item").map((item) => item.text());
+}
+
 function setMapViewport({ zoom = 11, contains = () => true } = {}) {
   const mapInstance = leafletMocks.maps[0];
   mapInstance.currentZoom = zoom;
@@ -464,6 +468,33 @@ describe("LeafletMap 实时定位", () => {
   });
 });
 
+describe("LeafletMap 图例", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+  });
+
+  it("含危害程度字段时只显示无、轻、中、重图例", () => {
+    const wrapper = mountLeafletMap({
+      popupFields: ["编号", "危害程度", "调查状态"],
+    });
+
+    expect(getLegendLabels(wrapper)).toEqual(["无", "轻", "中", "重"]);
+    expect(wrapper.find(".map-status-legend").exists()).toBe(false);
+  });
+
+  it("不含危害程度字段时只显示危害点位图例", () => {
+    const wrapper = mountLeafletMap({
+      popupFields: ["编号", "调查日期", "调查状态"],
+    });
+
+    expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
+    expect(wrapper.text()).not.toContain("未调查");
+  });
+});
+
 describe("LeafletMap 点位样式", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -472,7 +503,7 @@ describe("LeafletMap 点位样式", () => {
     installGeolocationMock();
   });
 
-  it("已调查点位使用带勾的图标并保留危害程度颜色", () => {
+  it("危害程度 view 的已调查点位仍按危害程度颜色渲染", () => {
     const feature = {
       type: "Feature",
       geometry: { type: "Point", coordinates: [116.73, 39.92] },
@@ -483,6 +514,7 @@ describe("LeafletMap 点位样式", () => {
     };
 
     mountLeafletMap({
+      popupFields: ["编号", "危害程度", "调查日期"],
       geojson: {
         type: "FeatureCollection",
         features: [feature],
@@ -492,26 +524,20 @@ describe("LeafletMap 点位样式", () => {
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
 
-    expect(leafletMocks.circleMarker).not.toHaveBeenCalled();
-    expect(leafletMocks.divIcon).toHaveBeenCalledWith(
-      expect.objectContaining({
-        className: "map-surveyed-point-icon",
-        html: expect.stringContaining("--point-fill: #EC6D64"),
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-      }),
-    );
-    expect(leafletMocks.marker).toHaveBeenCalledWith(
+    expect(leafletMocks.marker).not.toHaveBeenCalled();
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
       [39.92, 116.73],
       expect.objectContaining({
-        icon: expect.objectContaining({
-          className: "map-surveyed-point-icon",
-        }),
+        radius: 11,
+        fillColor: "#EC6D64",
+        color: "#000000",
+        weight: 1.45,
+        fillOpacity: 0.88,
       }),
     );
   });
 
-  it("未调查点位使用白色填充", () => {
+  it("危害程度 view 的未调查点位也按危害程度颜色渲染", () => {
     const feature = {
       type: "Feature",
       geometry: { type: "Point", coordinates: [116.73, 39.92] },
@@ -522,6 +548,7 @@ describe("LeafletMap 点位样式", () => {
     };
 
     mountLeafletMap({
+      popupFields: ["编号", "危害程度", "调查日期"],
       geojson: {
         type: "FeatureCollection",
         features: [feature],
@@ -536,33 +563,115 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 7,
-        fillColor: "#FFFFFF",
-        fillOpacity: 0.92,
+        fillColor: "#68C17A",
+        color: "#000000",
+        weight: 1.45,
       }),
     );
   });
 
-  it("多边形图层按调查状态区分样式，未调查使用柔和配色", () => {
-    const completedFeature = createPolygonFeature("MGB-001", { 调查状态: "调查" });
-    const pendingFeature = createPolygonFeature("MGB-002", { 调查状态: "未调查" });
+  it("危害程度 view 会把白、无、无需防治和空值都渲染为无等级", () => {
+    const features = ["白", "无", "无需防治", ""].map((level, index) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [116.73 + index * 0.01, 39.92] },
+      properties: {
+        编号: `MGB-${index + 1}`,
+        危害程度: level,
+      },
+    }));
+
+    mountLeafletMap({
+      popupFields: ["编号", "危害程度"],
+      geojson: {
+        type: "FeatureCollection",
+        features,
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    features.forEach((feature, index) => {
+      geoJsonCall[1].pointToLayer(feature, [39.92, 116.73 + index * 0.01]);
+    });
+
+    expect(leafletMocks.circleMarker.mock.calls).toHaveLength(4);
+    leafletMocks.circleMarker.mock.calls.forEach(([, options]) => {
+      expect(options).toMatchObject({
+        radius: 7,
+        fillColor: "#FFFFFF",
+        color: "#000000",
+        weight: 1.45,
+      });
+    });
+  });
+
+  it("非危害程度 view 点位固定显示为红色，不受调查状态或属性影响", () => {
+    const feature = {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [116.73, 39.92] },
+      properties: {
+        危害程度: "轻",
+        调查状态: "调查",
+        调查日期: "2026-05-02",
+      },
+    };
 
     mountLeafletMap({
       popupFields: ["编号", "调查日期", "调查状态"],
       geojson: {
         type: "FeatureCollection",
-        features: [completedFeature, pendingFeature],
+        features: [feature],
       },
     });
 
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
 
-    expect(geoJsonCall[1].style(completedFeature)).toMatchObject({
-      color: "#2E7D32",
-      fillColor: "#DFF3E1",
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        radius: 8,
+        fillColor: "#EC6D64",
+        color: "#000000",
+        weight: 1.45,
+      }),
+    );
+  });
+
+  it("面状图层按当前 view 的危害配置决定颜色", () => {
+    const severityFeature = createPolygonFeature("MGB-001", { 危害程度: "中" });
+    const regularFeature = createPolygonFeature("MGB-002", { 调查状态: "未调查" });
+
+    mountLeafletMap({
+      popupFields: ["编号", "危害程度"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [severityFeature],
+      },
     });
-    expect(geoJsonCall[1].style(pendingFeature)).toMatchObject({
-      color: "#4285F4",
-      fillColor: "rgba(66, 133, 244, 0.15)",
+
+    let geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    expect(geoJsonCall[1].style(severityFeature)).toMatchObject({
+      color: "#000000",
+      fillColor: "#F0C048",
+    });
+
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+
+    mountLeafletMap({
+      popupFields: ["编号", "调查状态"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [regularFeature],
+      },
+    });
+
+    geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    expect(geoJsonCall[1].style(regularFeature)).toMatchObject({
+      color: "#000000",
+      fillColor: "#EC6D64",
     });
   });
 

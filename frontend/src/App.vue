@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+import { TreePine, Upload, MapPin } from "@lucide/vue";
 
 import {
   getDefaultRouteForUser,
@@ -110,11 +111,7 @@ onBeforeUnmount(() => {
         <div class="site-header-shell">
           <RouterLink :to="homePath" class="site-brand">
             <div class="brand-icon-card" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 3.25 7.75 9h1.7l-2.85 4h2.14l-1.64 4.75h9.8L15.27 13h2.14l-2.85-4h1.69L12 3.25Zm0 2.62 1.7 2.28h-1.15l2.84 4h-1.9l1.16 3.35h-5.3l1.16-3.35H8.61l2.84-4h-1.15L12 5.87Z"
-                />
-              </svg>
+              <TreePine :size="21.6" :stroke-width="2" />
             </div>
 
             <div class="brand-copy">
@@ -131,16 +128,8 @@ onBeforeUnmount(() => {
               class="site-nav-link"
               :data-testid="`header-link-${item.to.slice(1)}`"
             >
-              <svg v-if="item.icon === 'upload'" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 3.5a.75.75 0 0 1 .75.75v8.19l2.72-2.72a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 1.06-1.06l2.72 2.72V4.25A.75.75 0 0 1 12 3.5ZM5.25 15A.75.75 0 0 1 6 15.75v1.5c0 .41.34.75.75.75h10.5a.75.75 0 0 0 .75-.75v-1.5a.75.75 0 0 1 1.5 0v1.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 17.25v-1.5a.75.75 0 0 1 .75-.75Z"
-                />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 5.02 5.8 10.39 6.05 10.61a1.8 1.8 0 0 0 2.4 0c.25-.22 6.05-5.59 6.05-10.61A7.25 7.25 0 0 0 12 2.75Zm0 16.52C10.5 17.76 6.25 13.4 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.4-4.25 7.76-5.75 9.27Zm0-12.52A3.25 3.25 0 1 0 15.25 10 3.25 3.25 0 0 0 12 6.75Zm0 5A1.75 1.75 0 1 1 13.75 10 1.75 1.75 0 0 1 12 11.75Z"
-                />
-              </svg>
+              <Upload v-if="item.icon === 'upload'" :size="17.28" :stroke-width="2" />
+              <MapPin v-else :size="17.28" :stroke-width="2" />
               <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
@@ -177,11 +166,7 @@ onBeforeUnmount(() => {
           <aside class="mobile-drawer" @click.stop>
             <div class="mobile-drawer-brand">
               <div class="brand-icon-card brand-icon-card-compact" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path
-                    d="M12 3.25 7.75 9h1.7l-2.85 4h2.14l-1.64 4.75h9.8L15.27 13h2.14l-2.85-4h1.69L12 3.25Zm0 2.62 1.7 2.28h-1.15l2.84 4h-1.9l1.16 3.35h-5.3l1.16-3.35H8.61l2.84-4h-1.15L12 5.87Z"
-                  />
-                </svg>
+                <TreePine :size="17.28" :stroke-width="2" />
               </div>
 
               <div class="brand-copy">
@@ -198,16 +183,8 @@ onBeforeUnmount(() => {
                 class="drawer-link"
                 :data-testid="`drawer-link-${item.to.slice(1)}`"
               >
-                <svg v-if="item.icon === 'upload'" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12 3.5a.75.75 0 0 1 .75.75v8.19l2.72-2.72a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 1.06-1.06l2.72 2.72V4.25A.75.75 0 0 1 12 3.5ZM5.25 15A.75.75 0 0 1 6 15.75v1.5c0 .41.34.75.75.75h10.5a.75.75 0 0 0 .75-.75v-1.5a.75.75 0 0 1 1.5 0v1.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 17.25v-1.5a.75.75 0 0 1 .75-.75Z"
-                  />
-                </svg>
-                <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 5.02 5.8 10.39 6.05 10.61a1.8 1.8 0 0 0 2.4 0c.25-.22 6.05-5.59 6.05-10.61A7.25 7.25 0 0 0 12 2.75Zm0 16.52C10.5 17.76 6.25 13.4 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.4-4.25 7.76-5.75 9.27Zm0-12.52A3.25 3.25 0 1 0 15.25 10 3.25 3.25 0 0 0 12 6.75Zm0 5A1.75 1.75 0 1 1 13.75 10 1.75 1.75 0 0 1 12 11.75Z"
-                  />
-                </svg>
+                <Upload v-if="item.icon === 'upload'" :size="17.28" :stroke-width="2" />
+                <MapPin v-else :size="17.28" :stroke-width="2" />
                 <span>{{ item.label }}</span>
               </RouterLink>
             </nav>
@@ -342,7 +319,7 @@ onBeforeUnmount(() => {
 .brand-icon-card svg {
   width: 1.35rem;
   height: 1.35rem;
-  fill: currentColor;
+  color: currentColor;
 }
 
 .brand-icon-card-compact {
@@ -434,7 +411,7 @@ onBeforeUnmount(() => {
 .drawer-link svg {
   width: 1.08rem;
   height: 1.08rem;
-  fill: currentColor;
+  color: currentColor;
   flex-shrink: 0;
 }
 

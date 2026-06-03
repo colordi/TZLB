@@ -19,6 +19,15 @@ const POINT_LABEL_KEYS = ["编号", "点位编号", "location_id", "locationId",
 
 const SURVEY_DATE_KEYS = ["调查日期", "survey_date", "report_time"];
 
+const SEVERITY_FIELD_KEYS = [
+  "危害程度",
+  "严重程度",
+  "等级",
+  "级别",
+  "severity",
+  "level",
+];
+
 export function buildPopupRows(columns = [], properties = {}) {
   return (columns || []).map((label) => {
     const value = properties?.[label];
@@ -37,6 +46,15 @@ export function normalizeInsectCount(properties = {}) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+export function hasFeatureSeverityField(fields = []) {
+  const severityFieldKeys = new Set(SEVERITY_FIELD_KEYS.map((field) => field.toLowerCase()));
+
+  return (fields || []).some((field) => {
+    const normalizedField = `${field ?? ""}`.trim();
+    return severityFieldKeys.has(normalizedField.toLowerCase());
+  });
+}
+
 export function resolveFeatureSeverity(properties = {}) {
   let rawValue = "";
   if (typeof properties === "string") {
@@ -53,6 +71,20 @@ export function resolveFeatureSeverity(properties = {}) {
   }
 
   const normalized = String(rawValue || "").trim();
+
+  if (
+    !normalized ||
+    normalized === "无" ||
+    normalized === "白" ||
+    normalized === "无需防治"
+  ) {
+    return {
+      key: "level0",
+      color: "#FFFFFF",
+      radius: 7,
+      label: "无",
+    };
+  }
 
   if (normalized.includes("轻")) {
     return {
@@ -84,8 +116,8 @@ export function resolveFeatureSeverity(properties = {}) {
   return {
     key: "level0",
     color: "#FFFFFF",
-    radius: 6,
-    label: "白",
+    radius: 7,
+    label: "无",
   };
 }
 
