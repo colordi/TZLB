@@ -11,6 +11,7 @@ from unittest.mock import patch
 from backend.schemas import WorkOrderGenerateRequest
 from backend.services.docgen import (
     convert_docx_bytes_to_doc,
+    find_dated_location_images,
     generate_workorder_artifact,
     render_single_document,
     resolve_meiguobaie_image_paths,
@@ -261,10 +262,13 @@ class DocgenTest(unittest.TestCase):
             for path in [
                 points_dir / "MQ001.jpg",
                 dated_images_dir / "MQ001-3.jpg",
+                dated_images_dir / "MQ001现场.jpg",
                 dated_images_dir / "MQ001-1.jpg",
+                dated_images_dir / "MQ001_2.jpg",
                 dated_images_dir / "MQ001-2.jpg",
                 dated_images_dir / "MQ001-4.jpg",
                 dated_images_dir / "MQ002-1.jpg",
+                dated_images_dir / "AMQ001-1.jpg",
                 dated_images_dir / "MQ001-说明.txt",
             ]:
                 path.write_bytes(b"fake-image")
@@ -277,11 +281,22 @@ class DocgenTest(unittest.TestCase):
                 ),
             ):
                 image_paths = resolve_meiguobaie_image_paths(payload.records[0])
+                dated_image_names = [
+                    path.name
+                    for path in find_dated_location_images(
+                        root / "images",
+                        "2026-05-26",
+                        "MQ001",
+                    )
+                ]
 
         self.assertEqual(
             [path.name for path in image_paths],
             ["MQ001.jpg", "MQ001-1.jpg", "MQ001-2.jpg", "MQ001-3.jpg"],
         )
+        self.assertIn("MQ001现场.jpg", dated_image_names)
+        self.assertIn("MQ001_2.jpg", dated_image_names)
+        self.assertNotIn("AMQ001-1.jpg", dated_image_names)
 
 
 if __name__ == "__main__":

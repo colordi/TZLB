@@ -147,10 +147,7 @@ def find_dated_location_images(images_dir: Path, survey_date: str, location_id: 
             for path in dated_dir.iterdir()
             if path.is_file()
             and is_image_file(path)
-            and (
-                path.stem == normalized_location_id
-                or path.stem.startswith(f"{normalized_location_id}-")
-            )
+            and path.stem.startswith(normalized_location_id)
         ),
         key=natural_path_sort_key,
     )
