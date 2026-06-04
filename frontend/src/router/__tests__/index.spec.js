@@ -43,6 +43,19 @@ describe("router", () => {
     expect(router.currentRoute.value.fullPath).toBe("/login");
   });
 
+  it("设计预览路由绕过会话加载并使用独立布局", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await router.push("/design/login");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/design/login");
+    expect(router.currentRoute.value.meta.hideShell).toBe(true);
+    expect(router.currentRoute.value.meta.skipSessionLoad).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("未登录访问受保护页面时会跳转到登录页", async () => {
     await router.push("/map");
     await router.isReady();

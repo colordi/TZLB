@@ -1,0 +1,166 @@
+.design-preview-root .design-overview-page {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.design-preview-root .design-overview-container {
+  width: min(1120px, 100%);
+  margin-inline: auto;
+}
+
+.design-preview-root .design-overview-main {
+  display: grid;
+  align-items: center;
+  padding-block: 34px 56px;
+}
+
+.design-preview-root .design-overview-intro {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+.design-preview-root .design-overview-eyebrow {
+  margin-bottom: var(--space-5);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+}
+
+.design-preview-root .design-overview-intro h1 {
+  max-width: 13ch;
+  font-size: var(--text-hero);
+  line-height: var(--line-hero);
+}
+
+.design-preview-root .design-overview-intro > p {
+  max-width: 42ch;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.design-preview-root .design-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+.design-preview-root .design-overview-card {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-10);
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-surface);
+  transition:
+    transform var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    box-shadow var(--motion-base) ease;
+}
+
+.design-preview-root .design-overview-card:hover {
+  border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
+}
+
+.design-preview-root .design-overview-card.is-primary {
+  grid-column: span 2;
+  background: var(--color-nav);
+  color: var(--color-surface);
+}
+
+.design-preview-root .design-overview-card-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-nav);
+}
+
+.design-preview-root .design-overview-card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.design-preview-root .design-overview-card.is-primary .design-overview-card-icon {
+  border-color: color-mix(in oklch, var(--color-surface) 18%, transparent);
+  color: var(--color-surface);
+}
+
+.design-preview-root .design-overview-card h2 {
+  margin-top: auto;
+  font-size: 23px;
+}
+
+.design-preview-root .design-overview-card p {
+  margin-top: 7px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.design-preview-root .design-overview-card.is-primary p {
+  color: color-mix(in oklch, var(--color-surface) 62%, transparent);
+}
+
+.design-preview-root .design-overview-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.design-preview-root .design-overview-card.is-primary .design-overview-card-meta {
+  border-color: color-mix(in oklch, var(--color-surface) 14%, transparent);
+  color: color-mix(in oklch, var(--color-surface) 56%, transparent);
+}
+
+.design-preview-root .design-overview-foot {
+  padding: var(--space-10) 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+}
+
+@media (max-width: 820px) {
+  .design-preview-root .design-overview-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .design-preview-root .design-overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .design-preview-root .design-overview-card.is-primary {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .design-preview-root .design-overview-main {
+    align-items: start;
+    padding-block: 36px;
+  }
+
+  .design-preview-root .design-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .design-preview-root .design-overview-card {
+    min-height: 210px;
+  }
+}

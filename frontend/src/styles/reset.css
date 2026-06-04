@@ -1,0 +1,51 @@
+.design-preview-root,
+.design-preview-root *,
+.design-preview-root *::before,
+.design-preview-root *::after {
+  box-sizing: border-box;
+}
+
+.design-preview-root {
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--line-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.design-preview-root button,
+.design-preview-root input,
+.design-preview-root select,
+.design-preview-root textarea {
+  color: inherit;
+  font: inherit;
+}
+
+.design-preview-root button {
+  cursor: pointer;
+}
+
+.design-preview-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.design-preview-root h1,
+.design-preview-root h2,
+.design-preview-root h3,
+.design-preview-root p {
+  margin: 0;
+}
+
+.design-preview-root h1,
+.design-preview-root h2,
+.design-preview-root h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: var(--line-title);
+  text-wrap: balance;
+}
