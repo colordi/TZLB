@@ -38,6 +38,9 @@ WHITE_MOTH_SITE_PREFIX_TOWNSHIPS = {
     "XJ": "西集镇",
     "LC": "潞城镇",
     "SZ": "宋庄镇",
+    "YS": "永顺镇",
+    "LY": "梨园镇",
+    "WJ": "文景街道",
 }
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",

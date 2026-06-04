@@ -22,6 +22,20 @@ class WhiteMothSiteCodeTest(unittest.TestCase):
         self.assertEqual(code, "MQ001")
         self.assertEqual(township, "马驹桥镇")
 
+    def test_new_township_prefixes_are_resolved(self) -> None:
+        expected_townships = {
+            "YS001": "永顺镇",
+            "LY001": "梨园镇",
+            "WJ001": "文景街道",
+        }
+
+        for code, expected_township in expected_townships.items():
+            with self.subTest(code=code):
+                self.assertEqual(
+                    resolve_white_moth_site_township(code),
+                    (code, expected_township),
+                )
+
     def test_unknown_prefix_is_rejected(self) -> None:
         with self.assertRaises(WhiteMothSiteCodeError):
             resolve_white_moth_site_township("AB001")
