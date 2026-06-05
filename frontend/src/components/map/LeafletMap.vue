@@ -493,10 +493,6 @@ function renderPointLabels(data = props.geojson) {
     return;
   }
 
-  if (mapRef.value.getZoom?.() < POINT_LABEL_MIN_ZOOM) {
-    return;
-  }
-
   const bounds = mapRef.value.getBounds?.();
   if (!bounds?.contains) {
     return;
@@ -592,19 +588,6 @@ function drawGeoJson(data, shouldFit = true) {
         ? {}
         : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
-      if (isPointClusterFeature(feature)) {
-        const count = feature.properties.__clusterCount || 0;
-        const size = Math.min(48, 30 + Math.log2(count + 1) * 4);
-        return L.marker(latlng, {
-          icon: L.divIcon({
-            className: "map-point-cluster-marker",
-            html: `<span style="width:${size}px;height:${size}px">${count}</span>`,
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2],
-          }),
-        });
-      }
-
       const severity = resolvePointStyle(feature.properties);
       const isBlank = usesSeverityLegend.value && severity.key === "level0";
       return L.circleMarker(latlng, {
@@ -619,13 +602,7 @@ function drawGeoJson(data, shouldFit = true) {
       const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties, {
         preferIdentifier: preferIdentifierHover.value,
       });
-      if (isPointClusterFeature(feature)) {
-        layer.bindTooltip(`${feature.properties.__clusterCount} 个点位`, {
-          direction: "top",
-          sticky: true,
-          opacity: 0.96,
-        });
-      } else if (hoverLabel) {
+      if (hoverLabel) {
         layer.bindTooltip(hoverLabel, {
           direction: "top",
           sticky: true,
@@ -634,16 +611,6 @@ function drawGeoJson(data, shouldFit = true) {
       }
 
       layer.on("click", () => {
-        if (isPointClusterFeature(feature)) {
-          const latlng = getPointFeatureLatLng(feature);
-          if (latlng) {
-            mapRef.value?.setView?.(latlng, Math.min((mapRef.value?.getZoom?.() || 11) + 2, 19), {
-              animate: true,
-            });
-          }
-          return;
-        }
-
         emit("feature-click", feature);
       });
     },
@@ -1673,27 +1640,6 @@ onBeforeUnmount(() => {
   background: transparent;
   border: none;
   pointer-events: none;
-}
-
-:deep(.map-point-cluster-marker) {
-  background: transparent;
-  border: none;
-}
-
-:deep(.map-point-cluster-marker span) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #fff;
-  border: 2px solid #fff;
-  box-shadow:
-    0 10px 24px rgba(18, 52, 29, 0.28),
-    0 0 0 4px rgba(20, 83, 45, 0.18);
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1;
 }
 
 :deep(.map-point-label-text) {
