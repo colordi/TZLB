@@ -16,12 +16,17 @@ import { mapStore, mapActions } from "./stores/mapStore.js";
 const route = useRoute();
 const router = useRouter();
 const mobileNavOpen = ref(false);
+const sidebarCollapsed = ref(false);
 const hideShell = computed(() => Boolean(route.meta?.hideShell));
 const useFullBleedMain = computed(() => Boolean(route.meta?.fullBleed));
 const isMapRoute = computed(() => route.path === "/map");
 const loggingOut = ref(false);
 const { user, signOut } = useAuthSession();
 const { error, info } = useToast();
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
 
 /* ---- user dropdown ---- */
 const userDropdownOpen = ref(false);
@@ -168,7 +173,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="shell-layout" :class="{ 'is-standalone': hideShell, 'has-sidebar': !hideShell }">
-      <aside v-if="!hideShell" class="app-sidebar" aria-label="主导航">
+      <aside v-if="!hideShell" class="app-sidebar" :class="{ 'is-collapsed': sidebarCollapsed }" aria-label="主导航">
         <div class="app-sidebar-brand-row">
           <RouterLink :to="homePath" class="app-sidebar-brand">
             <span class="app-sidebar-brand-mark" aria-hidden="true">
@@ -201,11 +206,23 @@ onBeforeUnmount(() => {
             <span class="app-sidebar-avatar" aria-hidden="true">
               {{ (currentUserName || "账").slice(0, 1) }}
             </span>
-            <span>
+            <span v-if="!sidebarCollapsed">
               <strong>{{ currentUserName || "账号" }}</strong>
               <span>当前登录用户</span>
             </span>
           </div>
+          <button
+            type="button"
+            class="sidebar-toggle-btn"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :aria-expanded="!sidebarCollapsed"
+            @click="toggleSidebar"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path v-if="sidebarCollapsed" d="M9 18l6-6-6-6" />
+              <path v-else d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
         </div>
       </aside>
 
@@ -605,6 +622,11 @@ onBeforeUnmount(() => {
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   background: var(--color-bg);
+  transition: grid-template-columns 200ms ease;
+}
+
+.shell-layout.has-sidebar:has(.app-sidebar.is-collapsed) {
+  grid-template-columns: 68px minmax(0, 1fr);
 }
 
 .shell-layout.is-standalone {
@@ -625,6 +647,48 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: var(--color-nav);
   color: var(--color-surface);
+  transition: width 200ms ease;
+  width: 228px;
+}
+
+.app-sidebar.is-collapsed {
+  width: 68px;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-brand-copy,
+.app-sidebar.is-collapsed .app-sidebar-caption,
+.app-sidebar.is-collapsed .app-sidebar-link span,
+.app-sidebar.is-collapsed .app-sidebar-nav .nav-count {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-link {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-link svg {
+  margin: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-profile {
+  justify-content: center;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-profile span {
+  display: none;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-foot {
+  padding: var(--space-6) var(--space-2);
 }
 
 .app-sidebar-brand-row {
@@ -727,6 +791,35 @@ onBeforeUnmount(() => {
   margin-top: auto;
   padding: var(--space-6) var(--space-4);
   border-top: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sidebar-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--color-surface) 15%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--color-surface) 8%, transparent);
+  color: var(--color-surface);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-standard);
+}
+
+.sidebar-toggle-btn:hover {
+  background: color-mix(in oklch, var(--color-surface) 15%, transparent);
+  border-color: color-mix(in oklch, var(--color-surface) 25%, transparent);
+}
+
+.sidebar-toggle-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .app-sidebar-profile {

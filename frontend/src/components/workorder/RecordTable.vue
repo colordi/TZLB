@@ -24,6 +24,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  rowIndexes: {
+    type: Array,
+    default: null,
+  },
 });
 
 const emit = defineEmits(["row-click", "update:selectedIndexes"]);
@@ -36,32 +40,44 @@ const fields = computed(() => {
 });
 
 const hasRows = computed(() => props.records.length > 0);
+const resolvedRowIndexes = computed(() =>
+  props.rowIndexes?.length === props.records.length
+    ? props.rowIndexes
+    : props.records.map((_, index) => index),
+);
 
 const isAllSelected = computed(() => {
-  return hasRows.value && props.selectedIndexes.length === props.records.length;
+  return (
+    hasRows.value &&
+    resolvedRowIndexes.value.every((recordIndex) => props.selectedIndexes.includes(recordIndex))
+  );
 });
 
 function toggleAll() {
+  const visibleIndexes = resolvedRowIndexes.value;
   if (isAllSelected.value) {
-    emit("update:selectedIndexes", []);
+    emit(
+      "update:selectedIndexes",
+      props.selectedIndexes.filter((recordIndex) => !visibleIndexes.includes(recordIndex)),
+    );
   } else {
-    emit("update:selectedIndexes", props.records.map((_, i) => i));
+    emit("update:selectedIndexes", Array.from(new Set([...props.selectedIndexes, ...visibleIndexes])));
   }
 }
 
-function toggleSelection(index) {
+function toggleSelection(recordIndex) {
   const current = [...props.selectedIndexes];
-  const pos = current.indexOf(index);
+  const pos = current.indexOf(recordIndex);
   if (pos === -1) {
-    current.push(index);
+    current.push(recordIndex);
   } else {
     current.splice(pos, 1);
   }
   emit("update:selectedIndexes", current);
 }
 
-function handleRowClick(index) {
-  emit("row-click", index);
+function handleRowClick(recordIndex) {
+  emit("row-click", recordIndex);
 }
 </script>
 
@@ -87,9 +103,19 @@ function handleRowClick(index) {
           </thead>
 
           <tbody>
-            <tr v-for="(record, index) in records" :key="index" @click="handleRowClick(index)" class="clickable-row">
+            <tr
+              v-for="(record, index) in records"
+              :key="resolvedRowIndexes[index]"
+              class="clickable-row"
+              @click="handleRowClick(resolvedRowIndexes[index])"
+            >
               <td class="cell-checkbox" @click.stop>
-                <input type="checkbox" class="cb-custom" :checked="selectedIndexes.includes(index)" @change="toggleSelection(index)" />
+                <input
+                  type="checkbox"
+                  class="cb-custom"
+                  :checked="selectedIndexes.includes(resolvedRowIndexes[index])"
+                  @change="toggleSelection(resolvedRowIndexes[index])"
+                />
               </td>
               <td class="cell-serial">
                 <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
@@ -120,14 +146,19 @@ function handleRowClick(index) {
     <div v-if="hasRows" class="mobile-records">
       <article
         v-for="(record, index) in records"
-        :key="`mobile-${index}`"
+        :key="`mobile-${resolvedRowIndexes[index]}`"
         class="mobile-card"
-        @click="handleRowClick(index)"
+        @click="handleRowClick(resolvedRowIndexes[index])"
       >
         <header class="mobile-card-head">
           <div class="mobile-card-meta">
             <div @click.stop class="mobile-checkbox-wrap">
-              <input type="checkbox" class="cb-custom" :checked="selectedIndexes.includes(index)" @change="toggleSelection(index)"/>
+              <input
+                type="checkbox"
+                class="cb-custom"
+                :checked="selectedIndexes.includes(resolvedRowIndexes[index])"
+                @change="toggleSelection(resolvedRowIndexes[index])"
+              />
             </div>
             <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
             <div>
