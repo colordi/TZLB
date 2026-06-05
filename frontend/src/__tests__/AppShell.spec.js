@@ -108,10 +108,13 @@ describe("App 壳层导航", () => {
     const { wrapper } = await mountApp("/workorder");
 
     expect(wrapper.findAll(".site-header")).toHaveLength(1);
+    expect(wrapper.findAll(".app-sidebar")).toHaveLength(1);
     expect(wrapper.get(".site-header").classes()).not.toContain("map-header");
 
     const activeLink = wrapper.get(".site-nav-link.router-link-active");
     expect(activeLink.text()).toContain("工单录入");
+    const activeSidebarLink = wrapper.get(".app-sidebar-link.router-link-active");
+    expect(activeSidebarLink.text()).toContain("工单录入");
     expect(wrapper.find(".sidebar-context").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("当前页面");
   });
@@ -172,6 +175,8 @@ describe("App 壳层导航", () => {
       },
     });
 
+    expect(wrapper.find('[data-testid="sidebar-link-workorder"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="sidebar-link-map"]').text()).toContain("调查点位");
     expect(wrapper.find('[data-testid="header-link-workorder"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="header-link-map"]').text()).toContain("调查点位");
 

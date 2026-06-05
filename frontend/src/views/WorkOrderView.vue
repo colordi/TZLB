@@ -246,6 +246,14 @@ async function handleGenerate() {
 
 <template>
   <section class="page-shell workorder-page">
+    <header class="workorder-page-head">
+      <div>
+        <p class="workorder-eyebrow">WORK ORDER CONTROL DESK</p>
+        <h1>调查工单</h1>
+        <p>从调查数据中整理工单记录，复核字段与图片后逐条生成标准化工作单。</p>
+      </div>
+    </header>
+
     <div class="page-content-grid">
       <aside class="page-sidebar">
         <div class="status-bento">
@@ -260,6 +268,16 @@ async function handleGenerate() {
             </div>
             <div class="status-value-hero">{{ records.length }}</div>
             <div class="status-label-hero">当前记录</div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-value-sub text-primary">{{ selectedIndexes.length }}</div>
+            <div class="status-label-sub">已选记录</div>
+          </div>
+
+          <div class="status-card">
+            <div class="status-value-sub text-warning">{{ totalImages }}</div>
+            <div class="status-label-sub">现场图片</div>
           </div>
         </div>
 
@@ -326,8 +344,8 @@ async function handleGenerate() {
       <div class="page-main-column workorder-main-column">
         <div class="panel-card action-toolbar-glass">
           <div class="tb-headings">
-            <h1 class="page-title-display">工作单录入工作台</h1>
-            <p class="tb-subtitle">复核现场数据后提交。</p>
+            <h2 class="page-title-display">记录工作区</h2>
+            <p class="tb-subtitle">当前虫害类型：{{ pestType }}，任务：{{ taskName }}</p>
           </div>
           <div class="action-toolbar-buttons">
             <button
@@ -389,7 +407,36 @@ async function handleGenerate() {
 
 <style scoped>
 .workorder-page {
-  gap: 2rem;
+  gap: var(--space-8);
+}
+
+.workorder-page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-9);
+}
+
+.workorder-eyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.workorder-page-head h1 {
+  color: var(--color-text);
+  font-size: var(--text-title);
+  letter-spacing: 0.01em;
+}
+
+.workorder-page-head p:last-child {
+  margin-top: var(--space-2);
+  max-width: 46rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
 }
 
 .status-bento {
@@ -401,10 +448,10 @@ async function handleGenerate() {
 .status-bento-hero {
   grid-column: 1 / -1;
   background: var(--color-primary);
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
+  padding: var(--space-7);
+  border-radius: var(--radius-lg);
   color: var(--color-accent-on);
-  box-shadow: var(--elev-ring);
+  box-shadow: var(--shadow-card);
 }
 
 .status-bento-hero-head {
@@ -456,8 +503,9 @@ async function handleGenerate() {
 
 .status-card {
   background: var(--color-surface-container-lowest);
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
 }
 
@@ -492,7 +540,9 @@ async function handleGenerate() {
 }
 
 .sidebar-panel {
-  padding: 1.5rem;
+  padding: var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
 }
 
 .sidebar-panel .panel-head {
@@ -509,7 +559,7 @@ async function handleGenerate() {
 
 .sidebar-field-stack {
   display: grid;
-  gap: 1.25rem;
+  gap: var(--space-6);
 }
 
 .sidebar-field-stack label {
@@ -531,16 +581,19 @@ async function handleGenerate() {
 }
 
 .action-toolbar-glass {
-  padding: 1.5rem;
+  padding: var(--space-6) var(--space-7);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: var(--space-6);
   flex-wrap: wrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
 }
 
 .page-title-display {
-  font-size: 1.75rem;
+  font-size: var(--text-xl);
   font-weight: 700;
   font-family: var(--font-display);
 }
@@ -554,7 +607,8 @@ async function handleGenerate() {
 
 .action-toolbar-buttons {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 @media (max-width: 980px) {

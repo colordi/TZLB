@@ -167,7 +167,48 @@ onBeforeUnmount(() => {
       <span class="backdrop-grid"></span>
     </div>
 
-    <div class="shell-layout" :class="{ 'is-standalone': hideShell }">
+    <div class="shell-layout" :class="{ 'is-standalone': hideShell, 'has-sidebar': !hideShell }">
+      <aside v-if="!hideShell" class="app-sidebar" aria-label="主导航">
+        <div class="app-sidebar-brand-row">
+          <RouterLink :to="homePath" class="app-sidebar-brand">
+            <span class="app-sidebar-brand-mark" aria-hidden="true">
+              <TreePine :size="22" :stroke-width="2" />
+            </span>
+            <span class="app-sidebar-brand-copy">
+              <strong>林业调查工作台</strong>
+              <span>FORESTRY SURVEY WORKBENCH</span>
+            </span>
+          </RouterLink>
+        </div>
+
+        <div class="app-sidebar-caption">业务管理</div>
+        <nav class="app-sidebar-nav" aria-label="业务管理">
+          <RouterLink
+            v-for="item in visibleNavItems"
+            :key="`sidebar-${item.to}`"
+            :to="item.to"
+            class="app-sidebar-link"
+            :data-testid="`sidebar-link-${item.to.slice(1)}`"
+          >
+            <Upload v-if="item.icon === 'upload'" :size="18" :stroke-width="2" />
+            <MapPin v-else :size="18" :stroke-width="2" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </nav>
+
+        <div class="app-sidebar-foot">
+          <div class="app-sidebar-profile">
+            <span class="app-sidebar-avatar" aria-hidden="true">
+              {{ (currentUserName || "账").slice(0, 1) }}
+            </span>
+            <span>
+              <strong>{{ currentUserName || "账号" }}</strong>
+              <span>当前登录用户</span>
+            </span>
+          </div>
+        </div>
+      </aside>
+
       <header v-if="!hideShell" class="site-header">
         <div class="site-header-shell">
           <RouterLink :to="homePath" class="site-brand">
@@ -179,6 +220,11 @@ onBeforeUnmount(() => {
               <span>Forest Survey Workbench</span>
             </div>
           </RouterLink>
+
+          <div class="site-section-title">
+            <span>工作台</span>
+            <strong>{{ route.meta?.section || "工作界面" }}</strong>
+          </div>
 
           <nav class="site-nav" aria-label="主导航">
             <RouterLink
@@ -553,8 +599,169 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
+.shell-layout.has-sidebar {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
 .shell-layout.is-standalone {
   display: block;
+}
+
+/* ================================================================
+   DESKTOP SIDEBAR
+   ================================================================ */
+.app-sidebar {
+  position: relative;
+  z-index: 20;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-nav);
+  color: var(--color-surface);
+}
+
+.app-sidebar-brand-row {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+}
+
+.app-sidebar-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 11px;
+  padding: 0 18px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-sidebar-brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in oklch, var(--color-surface) 22%, transparent);
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+}
+
+.app-sidebar-brand-copy {
+  min-width: 0;
+}
+
+.app-sidebar-brand-copy strong,
+.app-sidebar-brand-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-brand-copy strong {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.03em;
+}
+
+.app-sidebar-brand-copy span {
+  color: color-mix(in oklch, var(--color-surface) 62%, transparent);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+}
+
+.app-sidebar-caption {
+  padding: 20px 18px 8px;
+  color: color-mix(in oklch, var(--color-surface) 48%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+}
+
+.app-sidebar-nav {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+}
+
+.app-sidebar-link {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: color-mix(in oklch, var(--color-surface) 72%, transparent);
+  font-size: var(--text-md);
+  font-weight: 650;
+  text-decoration: none;
+  transition:
+    background var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    color var(--motion-base) ease;
+}
+
+.app-sidebar-link:hover {
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+  color: var(--color-surface);
+}
+
+.app-sidebar-link.router-link-active {
+  border-color: color-mix(in oklch, var(--color-surface) 13%, transparent);
+  background: color-mix(in oklch, var(--color-surface) 10%, transparent);
+  color: var(--color-surface);
+}
+
+.app-sidebar-foot {
+  margin-top: auto;
+  padding: var(--space-6) var(--space-4);
+  border-top: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+}
+
+.app-sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.app-sidebar-avatar {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-round);
+  background: color-mix(in oklch, var(--color-surface) 14%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.app-sidebar-profile strong,
+.app-sidebar-profile span {
+  display: block;
+  line-height: 1.35;
+}
+
+.app-sidebar-profile strong {
+  font-size: var(--text-sm);
+}
+
+.app-sidebar-profile span span {
+  color: color-mix(in oklch, var(--color-surface) 52%, transparent);
+  font-size: var(--text-2xs);
 }
 
 /* ================================================================
@@ -564,26 +771,26 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 1500;
-  padding: 0.9rem clamp(0.85rem, 2vw, 1.35rem) 0;
+  grid-column: 2;
+  min-width: 0;
+  padding: 0;
 }
 
 .site-header-shell {
-  width: min(100%, var(--content-width));
-  margin: 0 auto;
-  min-height: var(--header-h-standard);
+  width: 100%;
+  min-height: 68px;
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding: 0.7rem 0.9rem 0.7rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--elev-ring);
-  backdrop-filter: blur(20px);
+  gap: var(--space-6);
+  padding: 0 var(--space-10);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
 }
 
 .site-brand {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 0.9rem;
   min-width: 0;
@@ -636,10 +843,38 @@ onBeforeUnmount(() => {
 }
 
 .site-nav {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.35rem;
   flex-wrap: wrap;
+}
+
+.site-section-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.site-section-title span {
+  color: var(--color-text-muted);
+}
+
+.site-section-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-section-title span::after {
+  margin-left: var(--space-3);
+  color: var(--color-border);
+  content: "/";
 }
 
 .context-tools {
@@ -1138,13 +1373,15 @@ onBeforeUnmount(() => {
    MAIN / FULL-BLEED
    ================================================================ */
 .site-main {
-  width: min(100%, var(--content-width));
+  grid-column: 2;
+  width: 100%;
   min-width: 0;
-  margin: 0 auto;
+  margin: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1rem clamp(0.85rem, 2vw, 1.35rem) 2rem;
+  padding: var(--space-10);
+  overflow: auto;
 }
 
 .site-main.is-standalone {
@@ -1270,14 +1507,35 @@ onBeforeUnmount(() => {
    RESPONSIVE
    ================================================================ */
 @media (max-width: 900px) {
+  .shell-layout.has-sidebar {
+    display: flex;
+    overflow: visible;
+  }
+
+  .app-sidebar {
+    display: none;
+  }
+
   .site-header {
-    padding-top: 0.65rem;
+    padding: 0.65rem clamp(0.85rem, 2vw, 1.35rem) 0;
   }
 
   .site-header-shell {
+    width: min(100%, var(--content-width));
+    margin: 0 auto;
     min-height: var(--app-mobile-header-height);
     padding: 0.55rem 0.75rem 0.55rem 0.85rem;
+    border: 1px solid var(--color-border);
     border-radius: 22px;
+    box-shadow: var(--elev-ring);
+  }
+
+  .site-brand {
+    display: inline-flex;
+  }
+
+  .site-section-title {
+    display: none;
   }
 
   .site-nav {

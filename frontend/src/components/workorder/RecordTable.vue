@@ -160,7 +160,12 @@ function handleRowClick(index) {
 
 <style scoped>
 .record-workspace {
-  padding: 1rem;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
 }
 
 .desktop-records,
@@ -176,25 +181,26 @@ function handleRowClick(index) {
 
 .record-table {
   width: 100%;
-  min-width: 1100px; /* Reduced min-width slightly since columns are removed */
-  border-collapse: separate;
-  border-spacing: 0 4px; /* Reduced vertical spacing to make it more compact */
+  min-width: 920px;
+  border-collapse: collapse;
+  font-size: var(--text-md);
 }
 
 .record-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 1rem 0.8rem;
-  background: var(--color-surface-container);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-bg) 60%, var(--color-surface));
   color: var(--color-muted);
   text-align: left;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   font-weight: 700;
   white-space: nowrap;
-  border: none;
 }
 
 .record-table thead th em {
@@ -205,35 +211,26 @@ function handleRowClick(index) {
 
 .record-table tbody tr {
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s;
+  transition:
+    background var(--motion-base) ease,
+    transform var(--motion-base) ease;
 }
 
 .record-table tbody tr:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--elev-ring);
+  transform: none;
+  box-shadow: none;
 }
 
 .record-table tbody td {
-  padding: 0.5rem 0.75rem; /* Reduced padding for compactness */
-  vertical-align: middle; /* Center vertically for cleaner rows */
-  background: var(--color-surface-container-lowest);
-  border: none;
+  padding: 11px var(--space-6);
+  border-bottom: 1px solid color-mix(in oklch, var(--color-border) 60%, transparent);
+  vertical-align: middle;
+  background: var(--color-surface);
   transition: background-color 0.2s;
 }
 
 .record-table tbody tr:hover td {
-  background: var(--color-surface-container-low);
-}
-
-/* Rounded corners for the row segments */
-.record-table tbody td:first-child {
-  border-top-left-radius: var(--radius-sm);
-  border-bottom-left-radius: var(--radius-sm);
-}
-
-.record-table tbody td:last-child {
-  border-top-right-radius: var(--radius-sm);
-  border-bottom-right-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--color-primary) 3%, var(--color-surface));
 }
 
 .cell-serial {
@@ -248,11 +245,15 @@ function handleRowClick(index) {
 }
 
 .cb-custom {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  min-height: 14px;
+  padding: 0;
   accent-color: var(--color-accent);
   cursor: pointer;
   margin: 0;
+  box-shadow: none;
 }
 
 .mobile-checkbox-wrap {
@@ -349,16 +350,17 @@ function handleRowClick(index) {
 }
 
 .serial-badge {
-  width: 2.7rem;
-  height: 2.7rem;
+  min-width: 2.35rem;
+  height: 2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-container);
+  background: var(--color-primary-soft);
   color: var(--color-muted);
   font-weight: 700;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   letter-spacing: 0.02em;
 }
 
@@ -368,7 +370,7 @@ function handleRowClick(index) {
   gap: 0.5rem;
   width: 100%;
   min-height: 2rem;
-  padding: var(--space-2) 0.5rem;
+  padding: 0;
 }
 
 .readonly-text {
@@ -397,18 +399,19 @@ function handleRowClick(index) {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1.25rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
   background: var(--color-surface);
-  box-shadow: var(--elev-ring);
+  box-shadow: none;
   cursor: pointer;
   transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .mobile-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--elev-raised);
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in oklch, var(--color-primary) 3%, var(--color-surface));
 }
 
 .mobile-card-head {
@@ -477,7 +480,7 @@ function handleRowClick(index) {
 
 @media (max-width: 640px) {
   .record-workspace {
-    padding: 0.85rem;
+    border-radius: var(--radius-lg);
   }
 
   .mobile-card-head {

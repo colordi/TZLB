@@ -323,9 +323,13 @@
 | 第一阶段 `/design/*` 静态 Vue 页面和样式还原 | 已完成 |
 | 本计划文档 | 已创建 |
 | 阶段 A：Token 与基础样式收敛 | 已完成 |
-| 正式视觉接入后续阶段 | 待开始 |
+| 阶段 B：正式登录页视觉接入 | 已完成 |
+| 阶段 C：正式应用壳层视觉接入 | 已完成 |
+| 阶段 D：正式工单页视觉接入 | 已完成 |
+| 阶段 E：正式地图页视觉接入 | 已完成 |
+| 阶段 F：清理、回归和文档 | 已完成 |
 
-下一步建议进入阶段 B，只接入正式登录页视觉，不改认证、路由守卫或 API。
+正式视觉接入阶段 A-F 已完成；后续只在用户验收反馈明确后做针对性微调。
 
 ## 8. 执行记录
 
@@ -353,3 +357,123 @@
 
 - 进入阶段 B 前，先确认正式 `/login` 视觉接入范围。
 - 阶段 B 只改正式登录页视觉，不改认证、路由守卫或 API。
+
+### 2026-06-05：阶段 B 完成
+
+已完成：
+
+- 启动子代理 Kant 对阶段 B 做只读核对，子代理未修改文件。
+- 将正式 `LoginView.vue` 接入 OpenDesign 登录页视觉结构，包括背景网格、等高线装饰、树形装饰、居中卡片、品牌区、安全提示和页脚。
+- 保留正式登录行为：`signIn()`、空值校验、toast、`redirect`、`tzlb.rememberedUsername`、`remember_me`、忘记密码和申请加入按钮。
+- 新增密码显示/隐藏按钮，并补充单元测试确保只改变本地输入框类型、不触发接口。
+- 未修改路由守卫、认证 API、`useAuthSession.js` 或 design 预览路由。
+- 未把 `DesignLoginView.vue` 的静态 `@submit.prevent` 逻辑接入正式页面。
+
+验证结果：
+
+- 阶段 B 目标测试：3 个测试文件、14 个测试通过。
+- 完整前端测试：20 个测试文件、146 个测试通过。
+- `npm run build` 通过。
+- Browser 插件访问 `http://127.0.0.1:5174/login` 时返回 `net::ERR_BLOCKED_BY_CLIENT`；按插件安全规则未绕过该限制，浏览器视觉检查留待用户侧或后续可用浏览器会话补做。
+
+下一步：
+
+- 进入阶段 C 前，先确认正式应用壳层视觉接入范围。
+- 阶段 C 只改 `App.vue` 壳层视觉和相关样式，不改权限、路由守卫、退出登录或地图 store 工具栏桥接。
+
+### 2026-06-05：阶段 C 完成
+
+已完成：
+
+- 启动子代理 Ohm 对阶段 C 做只读核对，子代理未修改文件。
+- 将正式 `App.vue` 桌面壳层接入 OpenDesign 的左侧深色侧栏、业务导航、用户摘要、顶栏标题和内容区布局。
+- 保留正式导航数据来源：`visibleNavItems`、`userHasAnyRole`、`homePath` 和 `currentUserName`。
+- 保留退出登录流程：`signOut()`、关闭菜单、toast、跳转 `/login` 和 `loggingOut` 防重复点击。
+- 保留移动抽屉行为：触发按钮 testid、遮罩关闭、路由切换关闭、Escape 关闭和 body overflow 锁定。
+- 保留地图工具栏 store 桥接：视图选择、筛选、图层和显示编号仍全部通过 `mapStore/mapActions`。
+- 保留 `hideShell` 与 `fullBleed` route meta；登录页仍不展示正式壳层，地图页仍满宽。
+- 未接入 `DESIGN_NAV_GROUPS`、`DESIGN_PREVIEW_PROFILE`、`STATIC PREVIEW`、`迁移状态` 或 `/design/*` fixture。
+- 补充 AppShell 测试，覆盖正式侧栏导航和调查员权限过滤。
+
+验证结果：
+
+- 阶段 C 目标测试：4 个测试文件、64 个测试通过。
+- 完整前端测试：20 个测试文件、146 个测试通过。
+- `npm run build` 通过。
+- Browser 插件当前对本地页面返回 URL policy 拒绝；按插件安全规则未绕过该限制，浏览器视觉检查留待用户侧或后续可用浏览器会话补做。
+
+下一步：
+
+- 进入阶段 D 前，先确认正式工单页视觉接入范围。
+- 阶段 D 只改工单页展示层，不改调查导入、字段归一化、校验、编辑、删除或逐条导出链路。
+
+### 2026-06-05：阶段 D 完成
+
+已完成：
+
+- 启动子代理 Godel 对阶段 D 做只读核对，子代理未修改文件。
+- 将正式 `WorkOrderView.vue` 接入 OpenDesign 工单页视觉结构，包括页头、控制台说明、统计卡、记录工作区工具栏和更紧凑的表格面板。
+- 调整 `RecordTable.vue` 的正式表格和移动卡片展示密度，保留 props、events 和 selection 行为。
+- 保留 `SurveyImportDialog`、`RecordDetailModal`、`fieldConfig`、`selectedIndexes`、`normalizeRecordForPest()`、`validateRecords()`、`toPayloadRecord()`、逐条 `generateWorkorder()` 和 `downloadBlob` 链路。
+- 未接入 design workorder fixture、`selectedIds`、`activeOverlay`、静态状态机或静态导入/导出弹窗逻辑。
+- 未修改后端、工单 API、认证或下载工具。
+
+验证结果：
+
+- 阶段 D 目标测试：5 个测试文件、36 个测试通过。
+- 完整前端测试：20 个测试文件、146 个测试通过。
+- `npm run build` 通过。
+- Browser 插件此前对本地页面返回 URL policy/`ERR_BLOCKED_BY_CLIENT`；本阶段未绕过该限制，浏览器视觉检查留待用户侧或后续可用浏览器会话补做。
+
+下一步：
+
+- 进入阶段 E 前，先确认正式地图页视觉接入范围。
+- 阶段 E 只接入地图外层视觉，不用 `MapMockCanvas` 替换 `LeafletMap`，不改地图 API、store 或新增点位流程。
+
+### 2026-06-05：阶段 E 完成
+
+已完成：
+
+- 将正式 `MapView.vue` 接入 OpenDesign 地图页外层视觉，包括沉浸式地图工作区、背景纹理、状态提示、右侧详情抽屉、新增点位抽屉和移动端底部操作条。
+- 保留正式 `LeafletMap.vue`，继续由它负责真实底图、点位、聚合、编号、定位、图例和新增点位地图点击事件。
+- 保留 `listMapViews()`、`fetchMapView()`、`fetchMapFilterOptions()`、`fetchAdminBoundary()`、`fetchWhiteMothSiteCodeRules()` 和 `createWhiteMothSite()` 调用链。
+- 保留 `mapStore/mapActions` 与 `App.vue` 顶部地图工具栏桥接，视图选择、筛选、图层和编号开关仍走正式 store。
+- 保留 GeoJSON 请求 token、旧请求丢弃、保存美国白蛾点位后刷新并切换视图、保存后不自动缩放等行为。
+- 未接入 `MapMockCanvas.vue`、`DESIGN_MAP_MARKERS`、`DESIGN_MAP_CLUSTERS`、`DESIGN_MAP_POINT_DETAILS` 或静态图层 fixture。
+- 未修改地图 API、后端、认证、路由守卫或 `App.vue` 壳层工具栏。
+
+验证结果：
+
+- 阶段 E 目标测试：4 个测试文件、60 个测试通过。
+- 完整前端测试：20 个测试文件、146 个测试通过。
+- `npm run build` 通过。
+- `MapView.vue` 正式样式未使用未定义的 design-only `--color-surface-soft` token。
+- Browser 插件此前对本地页面返回 URL policy/`ERR_BLOCKED_BY_CLIENT`；本阶段未绕过该限制，浏览器视觉检查留待用户侧或后续可用浏览器会话补做。
+
+下一步：
+
+- 进入阶段 F 前，先确认是否开始收口清理。
+- 阶段 F 只做重复样式、阶段文档和最终回归收口，不新增页面、不连接新 API、不改正式业务行为。
+
+### 2026-06-05：阶段 F 完成
+
+已完成：
+
+- 审查正式视觉接入累计改动，重点核对 design fixture、design-only token、地图 store 桥接和旧样式残留。
+- 删除 `MapView.vue` 中已经不再被模板使用的旧筛选抽屉 CSS 和 `filterHint` 计算属性。
+- 保留 `App.vue` 顶部地图筛选、图层、视图和编号工具栏，未改 `mapStore/mapActions`。
+- 保留 `/design/*` 对照入口、design fixture 和预览组件，未做批量删除。
+- 更新本计划状态，标记阶段 A-F 完成。
+
+验证结果：
+
+- 完整前端测试：20 个测试文件、146 个测试通过。
+- `npm run build` 通过。
+- `git diff --check` 通过。
+- `MapView.vue` 不再残留旧筛选抽屉选择器或 `filterHint`。
+- Browser 插件此前对本地页面返回 URL policy/`ERR_BLOCKED_BY_CLIENT`；本阶段未绕过该限制，浏览器视觉检查留待用户侧补做。
+
+后续边界：
+
+- 若继续调整，应基于用户实际预览反馈做单点视觉修正。
+- 不建议在未验收前删除 `/design/*` 预览资产。
