@@ -10,7 +10,6 @@ const apiMocks = vi.hoisted(() => ({
   fetchWhiteMothSiteCodeRules: vi.fn(),
   createWhiteMothSite: vi.fn(),
   fetchMapView: vi.fn(),
-  fetchMapFilterOptions: vi.fn(),
   fetchAdminBoundary: vi.fn(),
 }));
 
@@ -19,117 +18,8 @@ vi.mock("../../api/map.js", () => ({
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
   fetchMapView: apiMocks.fetchMapView,
-  fetchMapFilterOptions: apiMocks.fetchMapFilterOptions,
   fetchAdminBoundary: apiMocks.fetchAdminBoundary,
 }));
-
-const MapToolbarStub = defineComponent({
-  name: "MapToolbar",
-  props: {
-    views: { type: Array, default: () => [] },
-    viewName: { type: String, default: "" },
-    loadingViews: { type: Boolean, default: false },
-    filterFields: { type: Array, default: () => [] },
-    activeFilters: { type: Object, default: () => ({}) },
-    filterOptions: { type: Object, default: () => ({}) },
-    basemapMode: { type: String, default: "satellite" },
-    showPointLabels: { type: Boolean, default: true },
-    loading: { type: Boolean, default: false },
-  },
-  emits: [
-    "update:viewName",
-    "update:basemapMode",
-    "update:showPointLabels",
-    "update:activeFilters",
-    "apply-filters",
-    "reset-filters",
-  ],
-  data() {
-    return {
-      isFilterPanelOpen: false,
-    };
-  },
-  computed: {
-    activeFilterCount() {
-      return Object.values(this.activeFilters).reduce((count, values) => {
-        const arr = Array.isArray(values) ? values : [values];
-        return count + arr.filter((v) => v !== "" && v != null).length;
-      }, 0);
-    },
-  },
-  template: `
-    <div class="map-toolbar">
-      <div class="toolbar-row">
-        <div class="toolbar-view-select">
-          <select
-            data-testid="view-select"
-            class="view-select"
-            :value="viewName"
-            :disabled="loadingViews || !views.length"
-            @change="$emit('update:viewName', $event.target.value)"
-          >
-            <option v-if="!views.length" value="">暂无可用视图</option>
-            <option v-for="view in views" :key="view.name" :value="view.name">
-              {{ view.name }}
-            </option>
-          </select>
-        </div>
-        <button
-          v-if="filterFields.length > 0"
-          type="button"
-          class="toolbar-btn"
-          data-testid="map-filter-toggle"
-          :aria-expanded="isFilterPanelOpen"
-          @click="isFilterPanelOpen = !isFilterPanelOpen"
-        >
-          筛选
-          <span v-if="activeFilterCount > 0" class="filter-badge">{{ activeFilterCount }}</span>
-        </button>
-        <button
-          type="button"
-          class="toolbar-btn"
-          data-testid="point-label-toggle"
-          @click="$emit('update:showPointLabels', !showPointLabels)"
-        >
-          {{ showPointLabels ? "隐藏编号" : "显示编号" }}
-        </button>
-      </div>
-      <div v-if="isFilterPanelOpen" class="filter-panel-content">
-        <div v-for="field in filterFields" :key="field.key" class="filter-field-item">
-          <button
-            type="button"
-            class="filter-field-trigger"
-            :data-testid="'map-filter-trigger-' + field.key"
-            :aria-expanded="false"
-            @click="() => {}"
-          >
-            <span class="filter-field-label">{{ field.label }}</span>
-          </button>
-          <div :data-testid="'map-filter-' + field.key" class="filter-option-dropdown">
-            <label v-for="option in field.options" :key="option.value" class="filter-option">
-              <input
-                type="checkbox"
-                :value="option.value"
-                :checked="activeFilters[field.key]?.includes(option.value)"
-                :data-testid="'map-filter-' + field.key + '-' + option.value"
-                @change="$emit('update:activeFilters', { ...activeFilters, [field.key]: [...(activeFilters[field.key] || []), option.value] })"
-              />
-              <span>{{ option.label }}</span>
-            </label>
-          </div>
-        </div>
-        <div class="filter-actions">
-          <button type="button" data-testid="filter-apply" @click="$emit('apply-filters'); isFilterPanelOpen = false">
-            应用筛选
-          </button>
-          <button type="button" data-testid="filter-reset" @click="$emit('reset-filters')">
-            清空
-          </button>
-        </div>
-      </div>
-    </div>
-  `,
-});
 
 const LeafletMapStub = defineComponent({
   name: "LeafletMap",
@@ -164,6 +54,10 @@ const LeafletMapStub = defineComponent({
     views: {
       type: Array,
       default: () => [],
+    },
+    mapFocusRequest: {
+      type: Object,
+      default: null,
     },
     whiteMothSiteAddMode: {
       type: Boolean,
@@ -239,7 +133,6 @@ function mountMapView() {
     global: {
       stubs: {
         LeafletMap: LeafletMapStub,
-        MapToolbar: MapToolbarStub,
       },
     },
   });
@@ -282,11 +175,6 @@ describe("MapView", () => {
     apiMocks.fetchMapView.mockResolvedValue({
       type: "FeatureCollection",
       features: [],
-    });
-    apiMocks.fetchMapFilterOptions.mockResolvedValue({
-      localities: [],
-      supports_locality_filter: false,
-      supports_survey_status_filter: false,
     });
     apiMocks.fetchAdminBoundary.mockResolvedValue({
       type: "FeatureCollection",
@@ -338,26 +226,74 @@ describe("MapView", () => {
     expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
   });
 
-  it("点击编号开关后更新传给 LeafletMap 的 showPointLabels", async () => {
+  it("地图图层面板切换编号后更新传给 LeafletMap 的 showPointLabels", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
-      expect(mapStore.loadingViews).toBe(false);
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    mapActions.togglePointLabels();
+    getLeafletMapStub(wrapper).vm.$emit("update:showPointLabels", false);
     await nextTick();
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
     });
 
-    mapActions.togglePointLabels();
+    getLeafletMapStub(wrapper).vm.$emit("update:showPointLabels", true);
     await nextTick();
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
     });
+  });
+
+  it("搜索当前视图点位后打开详情并通知地图聚焦", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "MQ001",
+        点位名称: "马大路与230国道交叉口",
+        属地: "马驹桥镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        targetFeature,
+        {
+          type: "Feature",
+          properties: {
+            编号: "TY002",
+            点位名称: "京贸家园",
+            属地: "通运街道",
+          },
+          geometry: { type: "Point", coordinates: [116.6, 39.8] },
+        },
+      ]),
+    );
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(2);
+    });
+
+    await wrapper.get('[data-testid="map-search-input"]').setValue("马驹桥");
+
+    const results = wrapper.get('[data-testid="map-search-results"]');
+    expect(results.text()).toContain("马大路与230国道交叉口");
+    expect(results.text()).toContain("MQ001 · 马驹桥镇");
+
+    await wrapper.get(".map-search-result").trigger("mousedown");
+
+    expect(wrapper.get(".detail-drawer").text()).toContain("马大路与230国道交叉口");
+    expect(getLeafletMapStub(wrapper).props("mapFocusRequest").feature).toStrictEqual(targetFeature);
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {
@@ -369,7 +305,8 @@ describe("MapView", () => {
       expect(mapStub.props("viewName")).toBe("虫情总览");
     });
 
-    mapActions.setSelectedView("高风险点位");
+    getLeafletMapStub(wrapper).vm.$emit("update:viewName", "高风险点位");
+    await nextTick();
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -400,7 +337,8 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
     });
 
-    mapActions.setSelectedView("高风险点位");
+    getLeafletMapStub(wrapper).vm.$emit("update:viewName", "高风险点位");
+    await nextTick();
 
     await vi.waitFor(() => {
       const mapStub = getLeafletMapStub(wrapper);
@@ -429,7 +367,8 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledTimes(1);
     });
 
-    mapActions.setSelectedView("高风险点位");
+    getLeafletMapStub(wrapper).vm.$emit("update:viewName", "高风险点位");
+    await nextTick();
 
     secondRequest.resolve(
       createFeatureCollection([
@@ -478,35 +417,25 @@ describe("MapView", () => {
     expect(wrapper.text()).not.toContain("聚合");
   });
 
-  it("默认隐藏筛选配置内容，点击侧栏入口后显示", async () => {
-    apiMocks.fetchMapFilterOptions.mockResolvedValue({
-      filter_fields: [
-        {
-          key: "年份",
-          label: "年份",
-          type: "select",
-          default_value: "2025",
-          options: [
-            { value: "2024", label: "2024" },
-            { value: "2025", label: "2025" },
-          ],
-        },
-      ],
-    });
-
+  it("不再渲染移动端底部操作栏", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    expect(mapStore.isFilterPanelOpen).toBe(false);
+    expect(wrapper.find(".map-mobile-bar").exists()).toBe(false);
+  });
 
-    mapActions.toggleFilterPanel();
+  it("不再渲染右下角当前视图提示框", async () => {
+    const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(mapStore.isFilterPanelOpen).toBe(true);
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
+
+    expect(wrapper.find(".map-stage-note").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("当前视图：");
   });
 
   it("地图页移除标题栏，并且仅保留图例配置", async () => {
@@ -581,69 +510,6 @@ describe("MapView", () => {
     expect(legendText).not.toContain("轻");
     expect(legendText).not.toContain("中");
     expect(legendText).not.toContain("重");
-  });
-
-  it("根据后端返回的动态筛选字段渲染控件并提交筛选条件", async () => {
-    apiMocks.listMapViews.mockResolvedValue([
-      {
-        name: "国槐尺蠖幼虫历年发生情况",
-        columns: ["编号", "属地", "年份", "危害程度"],
-      },
-    ]);
-    apiMocks.fetchMapFilterOptions.mockResolvedValue({
-      filter_fields: [
-        {
-          key: "年份",
-          label: "年份",
-          type: "select",
-          default_value: "2025",
-          options: [
-            { value: "2024", label: "2024" },
-            { value: "2025", label: "2025" },
-          ],
-        },
-        {
-          key: "危害程度",
-          label: "危害程度",
-          type: "select",
-          default_value: "",
-          options: [
-            { value: "白", label: "白" },
-            { value: "轻", label: "轻" },
-            { value: "中", label: "中" },
-            { value: "重", label: "重" },
-          ],
-        },
-      ],
-    });
-
-    const wrapper = mountMapView();
-
-    await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
-        "国槐尺蠖幼虫历年发生情况",
-        {
-          年份: ["2025"],
-        },
-      );
-    });
-
-    mapActions.setFilterPanelOpen(true);
-    mapActions.toggleFilterMenu("年份");
-    mapActions.toggleFilterMenu("危害程度");
-    mapActions.setFilterValues("危害程度", ["中", "重"]);
-    await nextTick();
-    mapActions.applyFilter();
-
-    await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenLastCalledWith(
-        "国槐尺蠖幼虫历年发生情况",
-        {
-          年份: ["2025"],
-          危害程度: ["中", "重"],
-        },
-      );
-    });
   });
 
   it("新增美国白蛾点位时格式化编号并显示自动识别属地", async () => {

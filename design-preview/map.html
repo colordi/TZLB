@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>调查点位地图 · 林业调查工作台</title>
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body class="app-body">
+  <div class="app-shell map-mode">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3Z"/></svg>
+        </span>
+        <span class="brand-copy"><strong>林业调查工作台</strong><span>FORESTRY SURVEY WORKBENCH</span></span>
+      </a>
+      <div class="side-caption">业务管理</div>
+      <nav class="side-nav" aria-label="主要导航">
+        <a class="nav-item" href="index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 13h6V4H4Zm10 7h6v-9h-6ZM4 20h6v-3H4Zm10-13h6V4h-6Z"/></svg>
+          工作概览
+        </a>
+        <a class="nav-item" href="workorder.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h10v4H7zM5 5H4v16h16V5h-1M8 12h8M8 16h5"/></svg>
+          调查工单
+          <span class="nav-count">18</span>
+        </a>
+        <a class="nav-item active" href="map.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15m6-12v15"/></svg>
+          点位地图
+          <span class="nav-count">127</span>
+        </a>
+      </nav>
+      <div class="side-caption">数据与配置</div>
+      <nav class="side-nav">
+        <a class="nav-item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>
+          统计分析
+        </a>
+        <a class="nav-item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9A1.7 1.7 0 0 0 21 10h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+          基础配置
+        </a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="profile-mini">
+          <span class="avatar">李</span>
+          <span><strong>李明远</strong><span>海淀区调查员</span></span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-shell">
+      <div class="map-workspace" id="mapWorkspace">
+        <span class="map-district district-haidian">海淀区</span>
+        <span class="map-district district-chaoyang">朝阳区</span>
+        <span class="map-district district-fengtai">丰台区</span>
+        <span class="map-district district-changping">昌平区</span>
+
+        <div class="map-control-card map-filter-card" id="filterCard">
+          <div class="map-filter-header">
+            <div class="map-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+              <input id="pointSearch" placeholder="搜索点位、工单编号或区县" />
+            </div>
+            <button class="icon-btn filter-toggle" id="filterToggle" aria-label="收起筛选面板" title="收起筛选面板">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m18 15-6-6-6 6"/></svg>
+            </button>
+          </div>
+          <div class="map-filter-body">
+            <div class="filter-caption"><span>点位状态</span><span class="num">127 个点位</span></div>
+            <div class="status-filter-list">
+              <button class="status-filter active" data-filter="all"><span class="legend-dot"></span><span>全部点位</span><span class="num">127</span></button>
+              <button class="status-filter" data-filter="alert"><span class="legend-dot alert"></span><span>需紧急处置</span><span class="num">12</span></button>
+              <button class="status-filter" data-filter="active"><span class="legend-dot active"></span><span>调查进行中</span><span class="num">38</span></button>
+              <button class="status-filter" data-filter="new"><span class="legend-dot new"></span><span>待复核</span><span class="num">29</span></button>
+              <button class="status-filter" data-filter="done"><span class="legend-dot"></span><span>已完成</span><span class="num">48</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="map-tool-stack">
+          <div class="map-tool-group">
+            <button class="icon-btn" id="layerButton" aria-label="图层控制" title="图层控制">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 9 5-9 5-9-5Zm-9 9 9 5 9-5m-18 4 9 5 9-5"/></svg>
+            </button>
+            <button class="icon-btn" id="locateButton" aria-label="定位当前区域" title="定位当前区域">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
+            </button>
+          </div>
+          <div class="map-tool-group">
+            <button class="icon-btn" id="zoomIn" aria-label="放大地图"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="icon-btn" id="zoomOut" aria-label="缩小地图"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14"/></svg></button>
+          </div>
+        </div>
+
+        <div class="layer-panel" id="layerPanel">
+          <h2>地图图层</h2>
+          <div class="layer-group">
+            <div class="layer-group-title">基础图层</div>
+            <label class="layer-option"><input id="gridLayer" type="checkbox" checked /> 区域网格</label>
+            <label class="layer-option"><input id="roadLayer" type="checkbox" checked /> 道路与边界</label>
+            <label class="layer-option"><input id="waterLayer" type="checkbox" checked /> 水系</label>
+            <label class="layer-option"><input id="pointsLayer" type="checkbox" checked /> 调查点位</label>
+            <label class="layer-option"><input id="riskLayer" type="checkbox" /> 风险热力</label>
+          </div>
+          <div class="layer-group">
+            <div class="layer-group-title">点位图层</div>
+            <div class="point-layer-list" id="pointLayerList">
+              <button class="point-layer active" data-layer="american-moth">
+                <span class="point-layer-dot" style="background:#16a34a"></span>
+                <span class="point-layer-name">美国白蛾监测</span>
+                <span class="point-layer-count">82</span>
+              </button>
+              <button class="point-layer" data-layer="pest-monitor">
+                <span class="point-layer-dot" style="background:#2563eb"></span>
+                <span class="point-layer-name">林业有害生物普查</span>
+                <span class="point-layer-count">45</span>
+              </button>
+              <button class="point-layer" data-layer="ancient-tree">
+                <span class="point-layer-dot" style="background:#9333ea"></span>
+                <span class="point-layer-name">古树名木资源</span>
+                <span class="point-layer-count">36</span>
+              </button>
+              <button class="point-layer" data-layer="wetland">
+                <span class="point-layer-dot" style="background:#0891b2"></span>
+                <span class="point-layer-name">湿地生态监测</span>
+                <span class="point-layer-count">28</span>
+              </button>
+              <button class="point-layer" data-layer="fire-risk">
+                <span class="point-layer-dot" style="background:#dc2626"></span>
+                <span class="point-layer-name">森林火险预警</span>
+                <span class="point-layer-count">15</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button class="marker m1 status-alert" data-point="p1" data-status="alert" aria-label="香山公园东门林带"></button>
+        <button class="marker m2 status-active" data-point="p2" data-status="active" aria-label="圆明园西路防护林"></button>
+        <button class="marker m3 status-new" data-point="p3" data-status="new" aria-label="丰台南苑湿地公园"></button>
+        <button class="marker m4 status-active" data-point="p4" data-status="active" aria-label="朝阳东坝郊野公园"></button>
+        <button class="marker m5 status-done" data-point="p5" data-status="done" aria-label="石景山永定河林带"></button>
+        <button class="marker m6 status-alert" data-point="p6" data-status="alert" aria-label="昌平东小口森林公园"></button>
+        <button class="cluster c1" data-point="cluster1" data-status="active" aria-label="聚合点位 18 个">18</button>
+        <button class="cluster c2" data-point="cluster2" data-status="done" aria-label="聚合点位 9 个">9</button>
+
+        <aside class="map-drawer open" id="pointDrawer" aria-label="点位详情">
+          <div class="drawer-head">
+            <span class="status-badge status-alert" id="drawerStatus">需紧急处置</span>
+            <div>
+              <h2 id="drawerTitle">香山公园东门林带</h2>
+              <p id="drawerCode">BJ-HD-041 · 116.1907, 39.9953</p>
+            </div>
+            <button class="icon-btn" id="closeDrawer" aria-label="关闭详情">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+          <div class="drawer-scroll">
+            <section class="drawer-section" data-od-id="point-overview">
+              <h3>调查概况</h3>
+              <div class="detail-grid">
+                <div class="detail-item"><span>所属区县</span><strong id="detailDistrict">海淀区</strong></div>
+                <div class="detail-item"><span>危害等级</span><strong id="detailLevel">中度</strong></div>
+                <div class="detail-item"><span>主要虫害</span><strong id="detailPest">美国白蛾</strong></div>
+                <div class="detail-item"><span>寄主树种</span><strong id="detailHost">国槐</strong></div>
+                <div class="detail-item"><span>发现数量</span><strong class="num" id="detailCount">24</strong></div>
+                <div class="detail-item"><span>现场附件</span><strong class="num" id="detailFiles">5</strong></div>
+              </div>
+            </section>
+            <section class="drawer-section" data-od-id="point-conclusion">
+              <h3>最近调查结论</h3>
+              <p id="detailConclusion" style="margin:0;color:var(--muted);font-size:12px;">发现幼虫网幕 3 处，建议 48 小时内完成剪除与药剂防治，并于一周后复查。</p>
+            </section>
+            <section class="drawer-section" data-od-id="point-timeline">
+              <h3>事件记录</h3>
+              <div class="timeline">
+                <div class="timeline-item"><strong>现场调查完成</strong><span class="num">2026-06-04 14:26 · 李明远</span></div>
+                <div class="timeline-item"><strong>点位状态调整为需紧急处置</strong><span class="num">2026-06-04 14:38 · 系统规则</span></div>
+                <div class="timeline-item"><strong>处置工单待创建</strong><span>等待区级负责人确认</span></div>
+              </div>
+            </section>
+          </div>
+
+        </aside>
+
+        <div class="mobile-map-bar" aria-label="移动端地图操作">
+          <button class="mobile-menu" id="mobileMenu" aria-label="打开菜单"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>菜单</button>
+          <button id="mobileFilter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M7 12h10m-7 6h4"/></svg>筛选</button>
+          <button id="mobileLayers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 9 5-9 5-9-5Zm-9 9 9 5 9-5"/></svg>图层</button>
+          <button class="active" id="mobilePoints"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>点位</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"><span class="toast-dot"></span><span id="toastText">已显示全部点位</span></div>
+  <script>
+    const pointData = {
+      p1: { title: '香山公园东门林带', code: 'BJ-HD-041 · 116.1907, 39.9953', status: '需紧急处置', statusClass: 'status-alert', district: '海淀区', level: '中度', pest: '美国白蛾', host: '国槐', count: '24', files: '5', conclusion: '发现幼虫网幕 3 处，建议 48 小时内完成剪除与药剂防治，并于一周后复查。' },
+      p2: { title: '圆明园西路防护林', code: 'BJ-HD-026 · 116.2921, 40.0118', status: '调查进行中', statusClass: 'status-active', district: '海淀区', level: '轻度', pest: '国槐尺蠖', host: '国槐', count: '11', files: '3', conclusion: '局部叶片受食，暂未形成扩散，已安排连续三日监测。' },
+      p3: { title: '丰台南苑湿地公园', code: 'BJ-FT-013 · 116.3974, 39.7948', status: '待复核', statusClass: 'status-new', district: '丰台区', level: '待判定', pest: '疑似天牛', host: '杨树', count: '—', files: '2', conclusion: '发现新鲜排粪孔，需由区级技术人员复核虫种与危害范围。' },
+      p4: { title: '朝阳东坝郊野公园', code: 'BJ-CY-033 · 116.5793, 39.9662', status: '调查进行中', statusClass: 'status-active', district: '朝阳区', level: '轻度', pest: '美国白蛾', host: '白蜡', count: '7', files: '4', conclusion: '已完成第一轮样线调查，待补充北侧林带数据。' },
+      p5: { title: '石景山永定河林带', code: 'BJ-SJS-008 · 116.1578, 39.8842', status: '已完成', statusClass: 'status-done', district: '石景山区', level: '无明显危害', pest: '—', host: '杨树', count: '0', files: '3', conclusion: '本轮调查未发现明显虫害，纳入常规巡查周期。' },
+      p6: { title: '昌平东小口森林公园', code: 'BJ-CP-052 · 116.4102, 40.0641', status: '需紧急处置', statusClass: 'status-alert', district: '昌平区', level: '重度', pest: '美国白蛾', host: '杨树', count: '68', files: '8', conclusion: '连续林带发现多处网幕，存在扩散风险，建议立即组织集中处置。' },
+      cluster1: { title: '朝阳区中部聚合点位', code: '18 个点位 · 当前缩放级别', status: '调查进行中', statusClass: 'status-active', district: '朝阳区', level: '轻度至中度', pest: '多种虫害', host: '国槐、白蜡', count: '18 点', files: '42', conclusion: '放大地图可查看聚合范围内的独立调查点位。' },
+      cluster2: { title: '门头沟东部聚合点位', code: '9 个点位 · 当前缩放级别', status: '已完成', statusClass: 'status-done', district: '门头沟区', level: '无明显危害', pest: '—', host: '混交林', count: '9 点', files: '21', conclusion: '聚合范围内点位已完成本轮调查，可按区县查看汇总结果。' }
+    };
+
+    const drawer = document.querySelector('#pointDrawer');
+    const layerPanel = document.querySelector('#layerPanel');
+    const mapWorkspace = document.querySelector('#mapWorkspace');
+    const toast = document.querySelector('#toast');
+    const toastText = document.querySelector('#toastText');
+    const mobileMenu = document.querySelector('#mobileMenu');
+    const sidebar = document.querySelector('.sidebar');
+
+    function showToast(message) {
+      toastText.textContent = message;
+      toast.classList.add('show');
+      window.setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function openPoint(id) {
+      const point = pointData[id];
+      if (!point) return;
+      document.querySelector('#drawerTitle').textContent = point.title;
+      document.querySelector('#drawerCode').textContent = point.code;
+      document.querySelector('#drawerStatus').textContent = point.status;
+      document.querySelector('#drawerStatus').className = 'status-badge ' + point.statusClass;
+      document.querySelector('#detailDistrict').textContent = point.district;
+      document.querySelector('#detailLevel').textContent = point.level;
+      document.querySelector('#detailPest').textContent = point.pest;
+      document.querySelector('#detailHost').textContent = point.host;
+      document.querySelector('#detailCount').textContent = point.count;
+      document.querySelector('#detailFiles').textContent = point.files;
+      document.querySelector('#detailConclusion').textContent = point.conclusion;
+      drawer.classList.add('open');
+    }
+
+    document.querySelectorAll('[data-point]').forEach((marker) => marker.addEventListener('click', () => openPoint(marker.dataset.point)));
+    document.querySelector('#closeDrawer').addEventListener('click', () => drawer.classList.remove('open'));
+    document.querySelector('#layerButton').addEventListener('click', () => layerPanel.classList.toggle('open'));
+    document.querySelector('#mobileLayers').addEventListener('click', () => layerPanel.classList.toggle('open'));
+    document.querySelector('#mobilePoints').addEventListener('click', () => openPoint('p1'));
+    document.querySelector('#mobileFilter').addEventListener('click', () => {
+      document.querySelector('#pointSearch').focus();
+      showToast('输入区县、点位或工单编号进行筛选');
+    });
+
+    const filterCard = document.querySelector('#filterCard');
+    const filterToggle = document.querySelector('#filterToggle');
+    filterToggle.addEventListener('click', () => {
+      filterCard.classList.toggle('collapsed');
+      const isCollapsed = filterCard.classList.contains('collapsed');
+      filterToggle.querySelector('svg').style.transform = isCollapsed ? 'rotate(180deg)' : '';
+      filterToggle.setAttribute('aria-label', isCollapsed ? '展开筛选面板' : '收起筛选面板');
+      filterToggle.setAttribute('title', isCollapsed ? '展开筛选面板' : '收起筛选面板');
+    });
+
+    document.querySelector('#gridLayer').addEventListener('change', (event) => mapWorkspace.classList.toggle('hide-grid', !event.target.checked));
+    document.querySelector('#roadLayer').addEventListener('change', (event) => mapWorkspace.classList.toggle('hide-roads', !event.target.checked));
+    document.querySelector('#waterLayer').addEventListener('change', (event) => mapWorkspace.classList.toggle('hide-water', !event.target.checked));
+    document.querySelector('#pointsLayer').addEventListener('change', (event) => mapWorkspace.classList.toggle('hide-points', !event.target.checked));
+    document.querySelector('#riskLayer').addEventListener('change', (event) => mapWorkspace.classList.toggle('show-heat', event.target.checked));
+
+    document.querySelectorAll('.point-layer').forEach((layer) => {
+      layer.addEventListener('click', () => {
+        layer.classList.toggle('active');
+        const layerName = layer.querySelector('.point-layer-name').textContent;
+        const isActive = layer.classList.contains('active');
+        showToast(isActive ? '已启用图层：' + layerName : '已关闭图层：' + layerName);
+      });
+    });
+
+    document.querySelectorAll('.status-filter').forEach((filterButton) => {
+      filterButton.addEventListener('click', () => {
+        document.querySelectorAll('.status-filter').forEach((button) => button.classList.toggle('active', button === filterButton));
+        const filter = filterButton.dataset.filter;
+        let visible = 0;
+        document.querySelectorAll('[data-status]').forEach((marker) => {
+          const show = filter === 'all' || marker.dataset.status === filter;
+          marker.classList.toggle('hidden', !show);
+          if (show) visible += 1;
+        });
+        showToast(filter === 'all' ? '已显示全部点位' : '当前视图显示 ' + visible + ' 个代表点位');
+      });
+    });
+
+    document.querySelector('#locateButton').addEventListener('click', () => {
+      const marker = document.querySelector('.m1');
+      marker.classList.remove('locating');
+      window.requestAnimationFrame(() => marker.classList.add('locating'));
+      openPoint('p1');
+      showToast('已定位到当前负责区域：海淀区');
+    });
+
+    document.querySelector('#zoomIn').addEventListener('click', () => showToast('地图已放大一级，聚合点位将逐步展开'));
+    document.querySelector('#zoomOut').addEventListener('click', () => showToast('地图已缩小一级，邻近点位已聚合'));
+    document.querySelector('#pointSearch').addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      openPoint(event.currentTarget.value.includes('昌平') ? 'p6' : 'p1');
+      showToast('已定位匹配点位');
+    });
+    document.querySelectorAll('a[href="#"]').forEach((link) => link.addEventListener('click', (event) => {
+      event.preventDefault();
+      showToast('该模块将在后续业务阶段开放');
+    }));
+
+    mobileMenu.addEventListener('click', (event) => {
+      event.stopPropagation();
+      sidebar.classList.toggle('mobile-open');
+    });
+    document.addEventListener('click', (event) => {
+      if (sidebar.classList.contains('mobile-open') && !sidebar.contains(event.target)) sidebar.classList.remove('mobile-open');
+    });
+
+    if (window.matchMedia('(max-width: 920px)').matches) drawer.classList.remove('open');
+  </script>
+</body>
+</html>

@@ -80,8 +80,8 @@ const FIELD_DEFINITIONS = {
     type: "select",
     options: ["乡镇", "城区"],
   },
-  locality: {
-    key: "locality",
+  town_or_street: {
+    key: "town_or_street",
     label: "属地",
     type: "text",
     required: true,

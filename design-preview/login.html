@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#eef5f0" />
+  <title>登录 · 林业调查工作台</title>
+  <link rel="stylesheet" href="assets/app.css" />
+  <style>
+    .login-body {
+      min-height: 100svh;
+      overflow-x: hidden;
+      background: oklch(97% 0.014 155);
+    }
+
+    .login-shell {
+      isolation: isolate;
+      z-index: 1;
+      min-height: 100svh;
+      padding: clamp(24px, 6vw, 72px) 20px;
+      background:
+        linear-gradient(color-mix(in oklch, var(--accent) 4%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in oklch, var(--accent) 4%, transparent) 1px, transparent 1px),
+        radial-gradient(circle at 50% 36%, var(--surface) 0, transparent 48%);
+      background-size: 48px 48px, 48px 48px, auto;
+    }
+
+    .login-decoration {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .contour {
+      position: absolute;
+      width: clamp(320px, 44vw, 760px);
+      aspect-ratio: 1;
+      border: 1px solid color-mix(in oklch, var(--accent) 16%, transparent);
+      border-radius: 43% 57% 38% 62% / 52% 38% 62% 48%;
+    }
+
+    .contour::before,
+    .contour::after {
+      content: "";
+      position: absolute;
+      border: inherit;
+      border-radius: inherit;
+    }
+
+    .contour::before {
+      inset: 8%;
+      transform: rotate(12deg);
+    }
+
+    .contour::after {
+      inset: 18%;
+      transform: rotate(-8deg);
+    }
+
+    .contour-one {
+      top: -20%;
+      right: -13%;
+      transform: rotate(18deg);
+    }
+
+    .contour-two {
+      bottom: -27%;
+      left: -15%;
+      transform: rotate(-24deg);
+    }
+
+    .tree-marker {
+      position: absolute;
+      width: 18px;
+      height: 24px;
+      color: color-mix(in oklch, var(--accent) 24%, transparent);
+    }
+
+    .tree-marker::before,
+    .tree-marker::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .tree-marker::before {
+      top: 0;
+      width: 0;
+      height: 0;
+      border-right: 9px solid transparent;
+      border-bottom: 17px solid currentColor;
+      border-left: 9px solid transparent;
+    }
+
+    .tree-marker::after {
+      bottom: 0;
+      width: 1px;
+      height: 9px;
+      background: currentColor;
+    }
+
+    .tree-one {
+      top: 18%;
+      left: 13%;
+      transform: scale(.82);
+    }
+
+    .tree-two {
+      right: 16%;
+      bottom: 17%;
+      transform: scale(1.1);
+    }
+
+    .login-card {
+      position: relative;
+      width: min(420px, 100%);
+      padding: clamp(26px, 5vw, 38px);
+      border-color: color-mix(in oklch, var(--accent) 18%, var(--border));
+      border-radius: 12px;
+      box-shadow: 0 24px 70px color-mix(in oklch, var(--nav) 13%, transparent);
+      animation: login-enter 520ms cubic-bezier(.22, 1, .36, 1) both;
+    }
+
+    .login-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 68px;
+      height: 3px;
+      border-radius: 0 0 3px 3px;
+      background: var(--accent);
+      transform: translateX(-50%);
+    }
+
+    .login-brand {
+      display: grid;
+      justify-items: center;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+
+    .login-brand-mark {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 15px;
+      border: 1px solid color-mix(in oklch, var(--accent) 22%, var(--border));
+      border-radius: 50%;
+      background: color-mix(in oklch, var(--accent) 7%, var(--surface));
+      color: var(--accent);
+    }
+
+    .login-brand-mark svg {
+      width: 25px;
+      height: 25px;
+    }
+
+    .login-eyebrow {
+      margin: 0 0 7px;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+    }
+
+    .login-card h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(25px, 5vw, 30px);
+      line-height: 1.25;
+    }
+
+    .login-intro {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .login-form {
+      gap: 16px;
+    }
+
+    .login-card .field label {
+      color: var(--fg);
+      font-size: 12px;
+    }
+
+    .login-card .input {
+      min-height: 46px;
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--bg) 42%, var(--surface));
+    }
+
+    .password-wrap .input {
+      padding-right: 52px;
+    }
+
+    .password-toggle {
+      top: 1px;
+      right: 1px;
+      width: 44px;
+      height: 44px;
+      background: transparent;
+    }
+
+    .form-row {
+      font-size: 12px;
+    }
+
+    .login-card .form-row label {
+      min-height: 44px;
+    }
+
+    .form-row a {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      color: var(--accent);
+      font-weight: 650;
+    }
+
+    .login-form .btn {
+      min-height: 48px;
+      margin-top: 2px;
+    }
+
+    .login-form .btn:disabled {
+      cursor: wait;
+      opacity: .76;
+    }
+
+    .security-note {
+      margin-top: 22px;
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .login-footnote {
+      margin: 20px 0 0;
+      color: color-mix(in oklch, var(--muted) 82%, transparent);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-align: center;
+    }
+
+    @keyframes login-enter {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .login-shell {
+        align-items: flex-start;
+        padding-top: max(40px, 8svh);
+      }
+
+      .contour-one {
+        top: -8%;
+        right: -52%;
+      }
+
+      .contour-two {
+        bottom: -10%;
+        left: -60%;
+      }
+
+      .tree-one {
+        top: 5%;
+        left: 8%;
+      }
+
+      .tree-two {
+        right: 8%;
+        bottom: 5%;
+      }
+
+      .login-card {
+        border-radius: 10px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .login-card {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body class="login-body">
+  <div class="login-decoration" aria-hidden="true">
+    <span class="contour contour-one"></span>
+    <span class="contour contour-two"></span>
+    <span class="tree-marker tree-one"></span>
+    <span class="tree-marker tree-two"></span>
+  </div>
+  <main class="login-shell" data-od-id="login-form">
+    <form class="login-card" id="loginForm" novalidate>
+      <header class="login-brand">
+        <span class="login-brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55">
+            <path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3Z"/>
+          </svg>
+        </span>
+        <p class="login-eyebrow">FORESTRY SURVEY</p>
+        <h1>林业调查工作台</h1>
+        <p class="login-intro">使用林业管理部门统一账号登录</p>
+      </header>
+
+      <div class="login-form">
+        <div class="field">
+          <label for="username">账号</label>
+          <input class="input" id="username" name="username" autocomplete="username" value="haid-ft-07" required />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <div class="password-wrap">
+            <input class="input" id="password" name="password" type="password" autocomplete="current-password" value="forest2026" required />
+            <button class="icon-btn password-toggle" id="passwordToggle" type="button" aria-label="显示密码">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+                <circle cx="12" cy="12" r="2.5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label><input type="checkbox" checked /> 保持本次会话</label>
+          <a href="#" id="helpLink">无法登录？</a>
+        </div>
+        <button class="btn btn-primary" id="loginButton" type="submit">
+          <span>进入工作台</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+        </button>
+      </div>
+
+      <div class="security-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6Z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>系统将记录登录时间、设备与关键操作，用于安全审计和数据追溯。</span>
+      </div>
+      <p class="login-footnote">北京市林业资源调查与监测</p>
+    </form>
+  </main>
+
+  <div class="toast" id="toast" role="status"><span class="toast-dot"></span><span id="toastText">正在验证账号权限…</span></div>
+  <script>
+    const password = document.querySelector('#password');
+    const passwordToggle = document.querySelector('#passwordToggle');
+    const loginForm = document.querySelector('#loginForm');
+    const loginButton = document.querySelector('#loginButton');
+    const toast = document.querySelector('#toast');
+    const toastText = document.querySelector('#toastText');
+
+    function showToast(message) {
+      toastText.textContent = message;
+      toast.classList.add('show');
+      window.setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    passwordToggle.addEventListener('click', () => {
+      const showing = password.type === 'text';
+      password.type = showing ? 'password' : 'text';
+      passwordToggle.setAttribute('aria-label', showing ? '显示密码' : '隐藏密码');
+    });
+
+    loginForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!loginForm.checkValidity()) {
+        loginForm.reportValidity();
+        return;
+      }
+      loginButton.disabled = true;
+      loginButton.querySelector('span').textContent = '正在验证权限';
+      showToast('正在验证账号权限…');
+      window.setTimeout(() => {
+        window.location.href = 'workorder.html';
+      }, 850);
+    });
+
+    document.querySelector('#helpLink').addEventListener('click', (event) => {
+      event.preventDefault();
+      showToast('请联系本单位系统管理员重置账号权限');
+    });
+  </script>
+</body>
+</html>

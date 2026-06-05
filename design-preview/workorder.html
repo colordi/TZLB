@@ -1,0 +1,1233 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>调查工单 · 林业调查工作台</title>
+  <link rel="stylesheet" href="assets/app.css" />
+  <style>
+    .wo-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .wo-controls .field {
+      min-width: 0;
+    }
+    .wo-controls label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .date-range {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .date-range .input {
+      width: 140px;
+    }
+    .date-range span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .wo-controls .btn {
+      align-self: flex-end;
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    .stat-card .stat-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .stat-card .stat-value {
+      margin-top: 4px;
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .stat-card .stat-sub {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .stat-card.accent .stat-value { color: var(--accent); }
+    .stat-card.info .stat-value { color: var(--info); }
+    .stat-card.warning .stat-value { color: var(--warning); }
+    .stat-card.done .stat-value { color: var(--muted); }
+
+    .table-panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .table-toolbar .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
+    }
+    .table-toolbar .search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--muted);
+    }
+    .table-toolbar .search-wrap input {
+      width: 100%;
+      min-height: 34px;
+      padding: 0 10px 0 30px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 12px;
+    }
+    .table-toolbar .search-wrap input:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .toolbar-sep {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+    }
+    .wo-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .wo-table th {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg) 60%, var(--surface));
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .wo-table th.check-col {
+      width: 40px;
+      text-align: center;
+    }
+    .wo-table td {
+      padding: 11px 14px;
+      border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      vertical-align: middle;
+    }
+    .wo-table tr:last-child td {
+      border-bottom: 0;
+    }
+    .wo-table tr:hover td {
+      background: color-mix(in oklch, var(--accent) 3%, var(--surface));
+    }
+    .wo-table .check-col {
+      width: 40px;
+      text-align: center;
+    }
+    .wo-table input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    .wo-table .point-name {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .wo-table .point-coords {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+    .wo-table .num-cell {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .hazard-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .hazard-light {
+      background: color-mix(in oklch, var(--info) 10%, var(--surface));
+      color: var(--info);
+    }
+    .hazard-mid {
+      background: color-mix(in oklch, var(--warning) 12%, var(--surface));
+      color: oklch(55% 0.14 84);
+    }
+    .hazard-heavy {
+      background: color-mix(in oklch, var(--danger) 10%, var(--surface));
+      color: var(--danger);
+    }
+    .wo-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+    }
+    .wo-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .wo-status.pending { color: var(--muted); }
+    .wo-status.generated { color: var(--accent); }
+    .wo-status.reviewed { color: var(--info); }
+    .wo-status.exported { color: var(--muted); }
+
+    .row-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .row-actions .icon-btn {
+      width: 30px;
+      height: 30px;
+    }
+    .row-actions .icon-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    .table-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .table-foot .selected-info {
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .wo-detail-panel {
+      display: none;
+    }
+    .wo-detail-panel.open {
+      display: block;
+    }
+
+    /* Mobile card view */
+    .wo-cards {
+      display: none;
+    }
+    .wo-card {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .wo-card:last-child {
+      border-bottom: 0;
+    }
+    .wo-card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .wo-card-head input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+    .wo-card-title {
+      flex: 1;
+      min-width: 0;
+    }
+    .wo-card-title strong {
+      display: block;
+      font-size: 14px;
+    }
+    .wo-card-title span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .wo-card-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .wo-card-meta .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .wo-card-meta .meta-item span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .wo-card-meta .meta-item strong {
+      font-size: 12px;
+    }
+    .wo-card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .wo-card-actions .btn {
+      flex: 1;
+      min-height: 34px;
+      font-size: 12px;
+    }
+
+    /* Batch action bar */
+    .batch-bar {
+      display: none;
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 16;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--nav);
+      color: var(--surface);
+      box-shadow: 0 -8px 24px color-mix(in oklch, var(--fg) 12%, transparent);
+    }
+    .batch-bar.show {
+      display: flex;
+    }
+    .batch-bar .batch-count {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .batch-bar .batch-actions {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+    .batch-bar .btn {
+      min-height: 36px;
+      font-size: 12px;
+    }
+    .batch-bar .btn-primary {
+      background: var(--surface);
+      color: var(--nav);
+      border-color: var(--surface);
+    }
+    .batch-bar .btn-primary:hover {
+      background: color-mix(in oklch, var(--surface) 88%, transparent);
+    }
+
+    /* Import dialog */
+    .import-dialog-body {
+      display: grid;
+      gap: 14px;
+    }
+    .import-preview {
+      max-height: 240px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .import-preview table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .import-preview th {
+      position: sticky;
+      top: 0;
+      padding: 8px 10px;
+      background: color-mix(in oklch, var(--bg) 60%, var(--surface));
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 700;
+      text-align: left;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .import-preview td {
+      padding: 7px 10px;
+      border-bottom: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
+    }
+    .import-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* Edit drawer / slide-in */
+    .edit-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: color-mix(in oklch, var(--fg) 30%, transparent);
+      backdrop-filter: blur(2px);
+    }
+    .edit-overlay.open {
+      display: block;
+    }
+    .edit-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 51;
+      width: min(520px, calc(100vw - 40px));
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: -14px 0 40px color-mix(in oklch, var(--fg) 12%, transparent);
+      transform: translateX(100%);
+      transition: transform 220ms ease;
+    }
+    .edit-overlay.open .edit-drawer {
+      transform: translateX(0);
+    }
+    .edit-drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .edit-drawer-head h2 {
+      font-size: 18px;
+    }
+    .edit-drawer-scroll {
+      flex: 1;
+      overflow: auto;
+      padding: 20px;
+    }
+    .edit-drawer-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .edit-section + .edit-section {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .edit-section h3 {
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .edit-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .edit-grid .field.full {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 920px) {
+      .wo-table-wrap { display: none; }
+      .wo-cards { display: block; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .batch-bar { flex-wrap: wrap; }
+      .batch-bar .batch-actions { width: 100%; justify-content: flex-end; }
+    }
+
+    @media (max-width: 680px) {
+      .wo-controls { flex-direction: column; align-items: stretch; }
+      .date-range { flex-direction: column; }
+      .date-range .input { width: 100%; }
+      .wo-controls .btn { align-self: stretch; }
+      .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; }
+      .stat-card .stat-value { font-size: 22px; }
+      .edit-drawer { width: 100%; }
+      .edit-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="app-body">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3Z"/></svg>
+        </span>
+        <span class="brand-copy"><strong>林业调查工作台</strong><span>FORESTRY SURVEY WORKBENCH</span></span>
+      </a>
+      <div class="side-caption">业务管理</div>
+      <nav class="side-nav" aria-label="主要导航">
+        <a class="nav-item" href="index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 13h6V4H4Zm10 7h6v-9h-6ZM4 20h6v-3H4Zm10-13h6V4h-6Z"/></svg>
+          工作概览
+        </a>
+        <a class="nav-item active" href="workorder.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h10v4H7zM5 5H4v16h16V5h-1M8 12h8M8 16h5"/></svg>
+          调查工单
+          <span class="nav-count">18</span>
+        </a>
+        <a class="nav-item" href="map.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15m6-12v15"/></svg>
+          点位地图
+          <span class="nav-count">127</span>
+        </a>
+      </nav>
+      <div class="side-caption">数据与配置</div>
+      <nav class="side-nav">
+        <a class="nav-item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>
+          统计分析
+        </a>
+        <a class="nav-item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9A1.7 1.7 0 0 0 21 10h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+          基础配置
+        </a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="profile-mini">
+          <span class="avatar">李</span>
+          <span><strong>李明远</strong><span>海淀区调查员</span></span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-shell">
+      <header class="app-topbar">
+        <button class="icon-btn mobile-menu" aria-label="打开菜单">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="breadcrumb"><span>调查工单</span><span>/</span><strong>工单管理</strong></div>
+        <div class="topbar-actions">
+          <button class="icon-btn hide-mobile" aria-label="消息通知">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="content-scroll">
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">调查工单</h1>
+            <p class="page-subtitle">从数据库导入调查记录，批量生成工单并导出标准化 Word 文档。</p>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-secondary" id="exportAllBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6"/></svg>
+              <span>批量导出</span>
+            </button>
+            <button class="btn btn-primary" id="importBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 16V4m-4 4 4-4 4 4M5 14v5h14v-5"/></svg>
+              <span>导入调查记录</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="wo-controls">
+          <div class="field">
+            <label>日期范围</label>
+            <div class="date-range">
+              <input class="input num" type="date" id="dateFrom" value="2026-06-01" />
+              <span>至</span>
+              <input class="input num" type="date" id="dateTo" value="2026-06-04" />
+            </div>
+          </div>
+          <div class="field">
+            <label>害虫类型</label>
+            <select class="select" id="typeFilter" style="width:180px;">
+              <option value="">全部类型</option>
+              <option>美国白蛾</option>
+              <option>松毛虫</option>
+              <option>天牛</option>
+              <option>杨扇舟蛾</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>统防统治任务</label>
+            <select class="select" id="districtFilter" style="width:160px;">
+              <option value="">全部任务</option>
+              <option selected>海淀区第一代美国白蛾防控</option>
+              <option>昌平区夏季林业有害生物防治</option>
+              <option>朝阳区重点林区统防统治</option>
+              <option>丰台区杨树食叶害虫防治</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card info">
+            <div class="stat-label">待导入</div>
+            <div class="stat-value" id="statPending">12</div>
+            <div class="stat-sub">数据库中未导入的调查记录</div>
+          </div>
+          <div class="stat-card accent">
+            <div class="stat-label">待生成工单</div>
+            <div class="stat-value" id="statToGenerate">8</div>
+            <div class="stat-sub">已导入但未生成工单</div>
+          </div>
+          <div class="stat-card warning">
+            <div class="stat-label">已生成</div>
+            <div class="stat-value" id="statGenerated">6</div>
+            <div class="stat-sub">工单已生成，待审核</div>
+          </div>
+          <div class="stat-card done">
+            <div class="stat-label">已导出</div>
+            <div class="stat-value" id="statExported">4</div>
+            <div class="stat-sub">Word 工单已下载</div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-panel">
+          <div class="table-toolbar">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="searchInput" placeholder="搜索点位名称、工单编号…" />
+            </div>
+            <div class="toolbar-group">
+              <div class="segmented" id="statusSegment">
+                <button class="active" data-filter="all">全部</button>
+                <button data-filter="pending">待生成</button>
+                <button data-filter="generated">已生成</button>
+                <button data-filter="exported">已导出</button>
+              </div>
+            </div>
+            <div class="toolbar-sep"></div>
+            <div class="toolbar-group">
+              <button class="btn btn-ghost" id="selectAllBtn" style="font-size:12px;">全选</button>
+            </div>
+          </div>
+
+          <div class="wo-table-wrap">
+            <table class="wo-table">
+              <thead>
+                <tr>
+                  <th class="check-col"><input type="checkbox" id="checkAll" /></th>
+                  <th>导入日期</th>
+                  <th>调查点位</th>
+                  <th>害虫类型</th>
+                  <th>统防统治任务</th>
+                  <th>虫口数</th>
+                  <th>危害等级</th>
+                  <th>工单状态</th>
+                  <th style="width:110px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="woTableBody">
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile cards -->
+          <div class="wo-cards" id="woCards">
+          </div>
+
+          <div class="table-foot">
+            <span>共 <strong id="totalCount">18</strong> 条记录</span>
+            <span class="selected-info">已选 <strong id="selectedCount">0</strong> 条</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch action bar -->
+      <div class="batch-bar" id="batchBar">
+        <span>已选 <span class="batch-count" id="batchCount">0</span> 条记录</span>
+        <div class="batch-actions">
+          <button class="btn btn-ghost" id="batchCancel" style="color:var(--surface);">取消选择</button>
+          <button class="btn btn-secondary" id="batchExport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:14px;height:14px;"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6"/></svg>
+            批量导出 Word
+          </button>
+          <button class="btn btn-primary" id="batchGenerate">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="width:14px;height:14px;"><path d="M12 5v14m-7-7h14"/></svg>
+            批量生成工单
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Import dialog -->
+  <dialog id="importDialog">
+    <div class="dialog-head">
+      <h2>导入调查记录</h2>
+      <button class="icon-btn" id="closeImport" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div class="import-dialog-body">
+        <p class="import-note">以下为 <strong id="importDateRange">2026-06-01 至 2026-06-04</strong> 期间数据库中的调查记录，共 <strong id="importCount">12</strong> 条。确认后将导入并可生成工单。</p>
+        <div class="import-preview">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>点位</th>
+                <th>害虫类型</th>
+                <th>统防统治任务</th>
+                <th>虫口</th>
+                <th>等级</th>
+              </tr>
+            </thead>
+            <tbody id="importPreviewBody">
+            </tbody>
+          </table>
+        </div>
+        <div class="option-list">
+          <label class="check-option">
+            <input type="checkbox" checked />
+            <span>
+              <strong>自动匹配已有工单</strong>
+              <span>跳过已导入的重复调查记录</span>
+            </span>
+          </label>
+          <label class="check-option">
+            <input type="checkbox" checked />
+            <span>
+              <strong>同步点位地图坐标</strong>
+              <span>从点位地图数据库校正经纬度</span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-secondary" id="cancelImport">取消</button>
+      <button class="btn btn-primary" id="confirmImport">确认导入</button>
+    </div>
+  </dialog>
+
+  <!-- Edit drawer overlay -->
+  <div class="edit-overlay" id="editOverlay">
+    <div class="edit-drawer" id="editDrawer">
+      <div class="edit-drawer-head">
+        <div>
+          <h2 id="editTitle">编辑工单</h2>
+          <p style="margin:3px 0 0;color:var(--muted);font-size:11px;" id="editSubtitle">HD-2026-0604-001</p>
+        </div>
+        <button class="icon-btn" id="closeEdit" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="edit-drawer-scroll">
+        <div class="edit-section">
+          <h3>基本信息</h3>
+          <div class="edit-grid">
+            <div class="field full">
+              <label>工单名称</label>
+              <input class="input" id="editWoName" value="海淀区美国白蛾第一代幼虫调查" />
+            </div>
+            <div class="field">
+              <label>工单编号</label>
+              <input class="input num" id="editWoCode" value="HD-2026-0604-001" readonly />
+            </div>
+            <div class="field">
+              <label>害虫类型</label>
+              <select class="select" id="editWoType">
+                <option selected>美国白蛾</option>
+                <option>松毛虫</option>
+                <option>天牛</option>
+                <option>杨扇舟蛾</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>负责人</label>
+              <input class="input" id="editWoAssignee" value="李明远" />
+            </div>
+            <div class="field">
+              <label>计划完成</label>
+              <input class="input num" id="editWoDeadline" type="date" value="2026-06-10" />
+            </div>
+          </div>
+        </div>
+        <div class="edit-section">
+          <h3>调查数据</h3>
+          <div class="edit-grid">
+            <div class="field">
+              <label>点位名称</label>
+              <input class="input" id="editPointName" value="香山公园东门林带" />
+            </div>
+            <div class="field">
+              <label>经纬度</label>
+              <input class="input num" id="editCoords" value="116.1907, 39.9953" />
+            </div>
+            <div class="field">
+              <label>寄主树种</label>
+              <select class="select" id="editHost">
+                <option selected>国槐</option>
+                <option>白蜡</option>
+                <option>杨树</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>危害等级</label>
+              <select class="select" id="editHazard">
+                <option>轻度</option>
+                <option selected>中度</option>
+                <option>重度</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>发现数量</label>
+              <input class="input num" id="editCount" type="number" value="24" />
+            </div>
+            <div class="field">
+              <label>虫态</label>
+              <select class="select" id="editStage">
+                <option>卵块</option>
+                <option selected>幼虫</option>
+                <option>成虫</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label>调查结论</label>
+              <textarea class="textarea" id="editNotes">东门北侧国槐林带发现幼虫网幕 3 处，虫口密度中等，建议 48 小时内完成剪除网幕与药剂防治，并于一周后复查。</textarea>
+            </div>
+          </div>
+        </div>
+        <div class="edit-section">
+          <h3>现场附件</h3>
+          <input class="sr-only" id="editFileInput" type="file" multiple accept=".jpg,.jpeg,.png,.pdf" />
+          <button class="upload-zone" id="editUploadZone" type="button" style="min-height:80px;">
+            <span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m-4 4 4-4 4 4M5 14v5h14v-5"/></svg>
+              <strong style="font-size:12px;">点击或拖拽上传附件</strong>
+              <span>JPG、PNG、PDF · 不超过 20 MB</span>
+            </span>
+          </button>
+          <div class="file-list" id="editFileList">
+            <div class="file-row">
+              <span class="file-type">JPG</span>
+              <span><strong>香山东门_网幕近景_01.jpg</strong><span>3.8 MB · 已上传</span></span>
+              <button class="icon-btn remove-file" type="button" aria-label="删除附件">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 7h14m-9-3h4m-7 3 1 14h8l1-14M10 11v6m4-6v6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="edit-drawer-foot">
+        <button class="btn btn-secondary" id="cancelEdit">取消</button>
+        <button class="btn btn-primary" id="saveEdit">保存工单</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export dialog -->
+  <dialog id="exportDialog">
+    <div class="dialog-head">
+      <h2>导出 Word 工单</h2>
+      <button class="icon-btn" id="closeExport" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div class="option-list">
+        <label class="check-option"><input type="checkbox" checked /><span><strong>调查基本信息与结论</strong><span>包含任务、负责人、点位和虫情数据</span></span></label>
+        <label class="check-option"><input type="checkbox" checked /><span><strong>现场附件图片</strong><span>按文件顺序附入照片并显示文件名</span></span></label>
+        <label class="check-option"><input type="checkbox" checked /><span><strong>审批签字页</strong><span>附加调查员、复核人和负责人签字栏</span></span></label>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn btn-secondary" id="cancelExport">取消</button>
+      <button class="btn btn-primary" id="confirmExport">生成并下载</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"><span class="toast-dot"></span><span id="toastText"></span></div>
+
+  <script>
+    const mobileMenu = document.querySelector('.mobile-menu');
+    const sidebar = document.querySelector('.sidebar');
+    const toast = document.querySelector('#toast');
+    const toastText = document.querySelector('#toastText');
+
+    function showToast(msg) {
+      toastText.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    // Mobile menu
+    mobileMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sidebar.classList.toggle('mobile-open');
+    });
+    document.addEventListener('click', (e) => {
+      if (sidebar.classList.contains('mobile-open') && !sidebar.contains(e.target))
+        sidebar.classList.remove('mobile-open');
+    });
+
+    // Sample data
+    const records = [
+      { id: 1, date: '2026-06-01', point: '香山公园东门林带', coords: '116.1907, 39.9953', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 24, hazard: 'mid', host: '国槐', stage: '幼虫', status: 'exported', code: 'HD-2026-0601-003', notes: '东门北侧国槐林带发现幼虫网幕 3 处，虫口密度中等。' },
+      { id: 2, date: '2026-06-01', point: '颐和园西堤柳岸', coords: '116.2745, 39.9991', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 8, hazard: 'light', host: '柳树', stage: '幼虫', status: 'exported', code: 'HD-2026-0601-004', notes: '西堤沿线零星发现，虫口密度低。' },
+      { id: 3, date: '2026-06-02', point: '圆明园遗址公园', coords: '116.3052, 40.0082', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 42, hazard: 'heavy', host: '白蜡', stage: '幼虫', status: 'exported', code: 'HD-2026-0602-001', notes: '西洋楼遗址区白蜡林带大面积网幕，虫口密度高。' },
+      { id: 4, date: '2026-06-02', point: '百望山森林公园', coords: '116.1634, 40.0356', type: '松毛虫', task: '海淀区夏季林业有害生物防治', count: 15, hazard: 'mid', host: '杨树', stage: '幼虫', status: 'exported', code: 'HD-2026-0602-002', notes: '南坡杨树林发现中等密度幼虫。' },
+      { id: 5, date: '2026-06-02', point: '北京植物园', coords: '116.2120, 39.9978', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 31, hazard: 'mid', host: '国槐', stage: '幼虫', status: 'generated', code: 'HD-2026-0602-003', notes: '卧佛寺路沿线国槐有网幕分布。' },
+      { id: 6, date: '2026-06-03', point: '鹫峰国家森林公园', coords: '116.1320, 40.0512', type: '天牛', task: '海淀区夏季林业有害生物防治', count: 5, hazard: 'light', host: '油松', stage: '成虫', status: 'generated', code: 'HD-2026-0603-001', notes: '松林区少量成虫，暂不构成危害。' },
+      { id: 7, date: '2026-06-03', point: '翠湖湿地公园', coords: '116.1789, 40.0723', type: '杨扇舟蛾', task: '海淀区重点林区统防统治', count: 18, hazard: 'mid', host: '柳树', stage: '幼虫', status: 'generated', code: 'HD-2026-0603-002', notes: '湖岸柳树带网幕明显，需药剂防治。' },
+      { id: 8, date: '2026-06-03', point: '凤凰岭自然公园', coords: '116.0987, 40.0634', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 0, hazard: 'light', host: '国槐', stage: '幼虫', status: 'generated', code: 'HD-2026-0603-003', notes: '未发现明显虫害迹象。' },
+      { id: 9, date: '2026-06-03', point: '上庄水库沿岸', coords: '116.1456, 40.0891', type: '松毛虫', task: '海淀区夏季林业有害生物防治', count: 27, hazard: 'mid', host: '白蜡', stage: '幼虫', status: 'generated', code: 'HD-2026-0603-004', notes: '水库东岸白蜡林带虫口密度中等。' },
+      { id: 10, date: '2026-06-04', point: '紫竹院公园', coords: '116.3267, 39.9432', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 12, hazard: 'light', host: '国槐', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 11, date: '2026-06-04', point: '玉渊潭公园', coords: '116.3178, 39.9215', type: '美国白蛾', task: '海淀区第一代美国白蛾防控', count: 35, hazard: 'heavy', host: '白蜡', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 12, date: '2026-06-04', point: '八大处公园', coords: '116.1834, 39.9678', type: '杨扇舟蛾', task: '海淀区重点林区统防统治', count: 9, hazard: 'light', host: '杨树', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 13, date: '2026-06-04', point: '南沙窝桥绿地', coords: '116.2890, 39.8945', type: '松毛虫', task: '丰台区杨树食叶害虫防治', count: 19, hazard: 'mid', host: '国槐', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 14, date: '2026-06-04', point: '奥林匹克森林公园', coords: '116.3912, 40.0234', type: '美国白蛾', task: '朝阳区重点林区统防统治', count: 7, hazard: 'light', host: '白蜡', stage: '成虫', status: 'pending', code: '', notes: '' },
+      { id: 15, date: '2026-06-04', point: '东小口森林公园', coords: '116.4234, 40.0456', type: '天牛', task: '朝阳区重点林区统防统治', count: 14, hazard: 'mid', host: '柳树', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 16, date: '2026-06-04', point: '北宫国家森林公园', coords: '116.1567, 39.8523', type: '美国白蛾', task: '丰台区杨树食叶害虫防治', count: 22, hazard: 'mid', host: '杨树', stage: '幼虫', status: 'pending', code: '', notes: '' },
+      { id: 17, date: '2026-06-04', point: '半塔郊野公园', coords: '116.2145, 40.1023', type: '松毛虫', task: '昌平区夏季林业有害生物防治', count: 3, hazard: 'light', host: '国槐', stage: '卵块', status: 'pending', code: '', notes: '' },
+      { id: 18, date: '2026-06-04', point: '沙河水库湿地', coords: '116.2678, 40.1234', type: '杨扇舟蛾', task: '昌平区夏季林业有害生物防治', count: 11, hazard: 'light', host: '柳树', stage: '幼虫', status: 'pending', code: '', notes: '' },
+    ];
+
+    let selectedIds = new Set();
+    let currentFilter = 'all';
+    let searchQuery = '';
+
+    function getFilteredRecords() {
+      return records.filter(r => {
+        if (currentFilter !== 'all' && r.status !== currentFilter) return false;
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          if (!r.point.toLowerCase().includes(q) && !r.code.toLowerCase().includes(q) && !r.task.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function hazardLabel(h) {
+      if (h === 'light') return '<span class="hazard-badge hazard-light">轻度</span>';
+      if (h === 'mid') return '<span class="hazard-badge hazard-mid">中度</span>';
+      return '<span class="hazard-badge hazard-heavy">重度</span>';
+    }
+
+    function statusLabel(s) {
+      const map = { pending: '待生成', generated: '已生成', reviewed: '已审核', exported: '已导出' };
+      return '<span class="wo-status ' + s + '">' + (map[s] || s) + '</span>';
+    }
+
+    function renderTable() {
+      const filtered = getFilteredRecords();
+      const tbody = document.querySelector('#woTableBody');
+      const cards = document.querySelector('#woCards');
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr data-id="${r.id}">
+          <td class="check-col"><input type="checkbox" class="row-check" data-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''} /></td>
+          <td class="num-cell">${r.date}</td>
+          <td>
+            <span class="point-name">${r.point}</span>
+            <span class="point-coords">${r.coords}</span>
+          </td>
+          <td>${r.type}</td>
+          <td>${r.task}</td>
+          <td class="num-cell">${r.count}</td>
+          <td>${hazardLabel(r.hazard)}</td>
+          <td>${statusLabel(r.status)}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn edit-btn" data-id="${r.id}" aria-label="编辑" title="编辑工单">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 3h6v6M10 14 21 3M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>
+              </button>
+              ${r.status === 'pending' ? `
+                <button class="icon-btn gen-btn" data-id="${r.id}" aria-label="生成工单" title="生成工单">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14m-7-7h14"/></svg>
+                </button>
+              ` : r.status === 'generated' || r.status === 'reviewed' ? `
+                <button class="icon-btn export-btn" data-id="${r.id}" aria-label="导出 Word" title="导出 Word">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6"/></svg>
+                </button>
+              ` : ''}
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      cards.innerHTML = filtered.map(r => `
+        <div class="wo-card" data-id="${r.id}">
+          <div class="wo-card-head">
+            <input type="checkbox" class="row-check" data-id="${r.id}" ${selectedIds.has(r.id) ? 'checked' : ''} />
+            <div class="wo-card-title">
+              <strong>${r.point}</strong>
+              <span>${r.code || '未生成'} · ${r.task}</span>
+            </div>
+            ${statusLabel(r.status)}
+          </div>
+          <div class="wo-card-meta">
+            <div class="meta-item"><span>害虫类型</span><strong>${r.type}</strong></div>
+            <div class="meta-item"><span>统防统治任务</span><strong>${r.task || '—'}</strong></div>
+            <div class="meta-item"><span>危害等级</span><strong>${hazardLabel(r.hazard)}</strong></div>
+            <div class="meta-item"><span>导入日期</span><strong>${r.date}</strong></div>
+          </div>
+          <div class="wo-card-actions">
+            <button class="btn btn-secondary edit-btn" data-id="${r.id}">编辑</button>
+            ${r.status === 'pending' ? `<button class="btn btn-primary gen-btn" data-id="${r.id}">生成工单</button>` : ''}
+            ${(r.status === 'generated' || r.status === 'reviewed') ? `<button class="btn btn-primary export-btn" data-id="${r.id}">导出 Word</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+
+      document.querySelector('#totalCount').textContent = filtered.length;
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      document.querySelector('#selectedCount').textContent = selectedIds.size;
+      document.querySelector('#batchCount').textContent = selectedIds.size;
+      const bar = document.querySelector('#batchBar');
+      bar.classList.toggle('show', selectedIds.size > 0);
+    }
+
+    function updateStats() {
+      const counts = { pending: 0, generated: 0, exported: 0 };
+      records.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+      document.querySelector('#statPending').textContent = counts.pending;
+      document.querySelector('#statToGenerate').textContent = counts.pending;
+      document.querySelector('#statGenerated').textContent = counts.generated;
+      document.querySelector('#statExported').textContent = counts.exported;
+    }
+
+    // Event delegation
+    document.addEventListener('change', (e) => {
+      if (e.target.classList.contains('row-check')) {
+        const id = parseInt(e.target.dataset.id);
+        if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+        updateSelectedCount();
+      }
+      if (e.target.id === 'checkAll') {
+        const filtered = getFilteredRecords();
+        if (e.target.checked) { filtered.forEach(r => selectedIds.add(r.id)); }
+        else { filtered.forEach(r => selectedIds.delete(r.id)); }
+        renderTable();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.edit-btn');
+      const genBtn = e.target.closest('.gen-btn');
+      const exportBtn = e.target.closest('.export-btn');
+
+      if (editBtn) {
+        const id = parseInt(editBtn.dataset.id);
+        const r = records.find(x => x.id === id);
+        if (r) openEditDrawer(r);
+      }
+      if (genBtn) {
+        const id = parseInt(genBtn.dataset.id);
+        const r = records.find(x => x.id === id);
+        if (r) {
+          r.status = 'generated';
+          r.code = 'HD-' + r.date.replace(/-/g, '') + '-' + String(r.id).padStart(3, '0');
+          renderTable();
+          updateStats();
+          showToast('工单已生成：' + r.code);
+        }
+      }
+      if (exportBtn) {
+        const id = parseInt(exportBtn.dataset.id);
+        const r = records.find(x => x.id === id);
+        if (r) {
+          document.querySelector('#exportDialog').showModal();
+        }
+      }
+    });
+
+    // Select all
+    document.querySelector('#selectAllBtn').addEventListener('click', () => {
+      const filtered = getFilteredRecords();
+      const allSelected = filtered.every(r => selectedIds.has(r.id));
+      if (allSelected) { filtered.forEach(r => selectedIds.delete(r.id)); }
+      else { filtered.forEach(r => selectedIds.add(r.id)); }
+      document.querySelector('#checkAll').checked = !allSelected && filtered.length > 0;
+      renderTable();
+    });
+
+    // Status segment
+    document.querySelector('#statusSegment').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      document.querySelectorAll('#statusSegment button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      renderTable();
+    });
+
+    // Search
+    document.querySelector('#searchInput').addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      renderTable();
+    });
+
+    // Batch actions
+    document.querySelector('#batchCancel').addEventListener('click', () => {
+      selectedIds.clear();
+      document.querySelector('#checkAll').checked = false;
+      renderTable();
+    });
+
+    document.querySelector('#batchGenerate').addEventListener('click', () => {
+      let count = 0;
+      selectedIds.forEach(id => {
+        const r = records.find(x => x.id === id);
+        if (r && r.status === 'pending') {
+          r.status = 'generated';
+          r.code = 'HD-' + r.date.replace(/-/g, '') + '-' + String(r.id).padStart(3, '0');
+          count++;
+        }
+      });
+      selectedIds.clear();
+      renderTable();
+      updateStats();
+      showToast(count + ' 条工单已批量生成');
+    });
+
+    document.querySelector('#batchExport').addEventListener('click', () => {
+      document.querySelector('#exportDialog').showModal();
+    });
+
+    document.querySelector('#exportAllBtn').addEventListener('click', () => {
+      document.querySelector('#exportDialog').showModal();
+    });
+
+    // Import dialog
+    document.querySelector('#importBtn').addEventListener('click', () => {
+      const pending = records.filter(r => r.status === 'pending');
+      document.querySelector('#importCount').textContent = pending.length;
+      document.querySelector('#importDateRange').textContent =
+        document.querySelector('#dateFrom').value + ' 至 ' + document.querySelector('#dateTo').value;
+      const previewBody = document.querySelector('#importPreviewBody');
+      previewBody.innerHTML = pending.map(r => `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.point}</td>
+          <td>${r.type}</td>
+          <td>${r.task}</td>
+          <td>${r.count}</td>
+          <td>${hazardLabel(r.hazard)}</td>
+        </tr>
+      `).join('');
+      document.querySelector('#importDialog').showModal();
+    });
+
+    document.querySelector('#closeImport').addEventListener('click', () => document.querySelector('#importDialog').close());
+    document.querySelector('#cancelImport').addEventListener('click', () => document.querySelector('#importDialog').close());
+    document.querySelector('#confirmImport').addEventListener('click', () => {
+      document.querySelector('#importDialog').close();
+      showToast('已导入 ' + records.filter(r => r.status === 'pending').length + ' 条调查记录');
+    });
+
+    // Export dialog
+    document.querySelector('#closeExport').addEventListener('click', () => document.querySelector('#exportDialog').close());
+    document.querySelector('#cancelExport').addEventListener('click', () => document.querySelector('#exportDialog').close());
+    document.querySelector('#confirmExport').addEventListener('click', () => {
+      const btn = document.querySelector('#confirmExport');
+      btn.disabled = true;
+      btn.textContent = '正在生成…';
+      setTimeout(() => {
+        document.querySelector('#exportDialog').close();
+        btn.disabled = false;
+        btn.textContent = '生成并下载';
+        showToast('Word 工单已生成下载');
+      }, 1000);
+    });
+
+    // Edit drawer
+    function openEditDrawer(r) {
+      document.querySelector('#editTitle').textContent = r.code ? '编辑工单' : '编辑调查记录';
+      document.querySelector('#editSubtitle').textContent = r.code || '待生成';
+      document.querySelector('#editWoName').value = '海淀区' + r.type.replace('专项调查', '').replace('日常巡查', '') + '调查';
+      document.querySelector('#editWoCode').value = r.code || '待生成';
+      document.querySelector('#editPointName').value = r.point;
+      document.querySelector('#editCoords').value = r.coords;
+      document.querySelector('#editCount').value = r.count;
+      document.querySelector('#editNotes').value = r.notes || '';
+      document.querySelector('#editOverlay').classList.add('open');
+    }
+
+    document.querySelector('#closeEdit').addEventListener('click', () => {
+      document.querySelector('#editOverlay').classList.remove('open');
+    });
+    document.querySelector('#cancelEdit').addEventListener('click', () => {
+      document.querySelector('#editOverlay').classList.remove('open');
+    });
+    document.querySelector('#editOverlay').addEventListener('click', (e) => {
+      if (e.target === document.querySelector('#editOverlay')) {
+        document.querySelector('#editOverlay').classList.remove('open');
+      }
+    });
+    document.querySelector('#saveEdit').addEventListener('click', () => {
+      document.querySelector('#editOverlay').classList.remove('open');
+      showToast('工单已保存');
+    });
+
+    // File upload in edit drawer
+    const editFileInput = document.querySelector('#editFileInput');
+    const editUploadZone = document.querySelector('#editUploadZone');
+    const editFileList = document.querySelector('#editFileList');
+
+    editUploadZone.addEventListener('click', () => editFileInput.click());
+    editFileInput.addEventListener('change', () => {
+      Array.from(editFileInput.files).forEach(file => {
+        const ext = (file.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.innerHTML = `<span class="file-type">${ext}</span><span><strong>${file.name}</strong><span>${Math.max(file.size / 1024 / 1024, 0.1).toFixed(1)} MB · 已上传</span></span><button class="icon-btn remove-file" type="button" aria-label="删除附件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 7h14m-9-3h4m-7 3 1 14h8l1-14M10 11v6m4-6v6"/></svg></button>`;
+        editFileList.appendChild(row);
+      });
+      showToast('附件已添加');
+    });
+    editFileList.addEventListener('click', (e) => {
+      const btn = e.target.closest('.remove-file');
+      if (btn) { btn.closest('.file-row').remove(); showToast('附件已移除'); }
+    });
+
+    // Init
+    renderTable();
+    updateStats();
+  </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+export const DESIGN_PREVIEW_STAGES = Object.freeze([
+  Object.freeze({
+    key: "foundation",
+    index: "00",
+    label: "迁移基础",
+    to: "/design",
+    ready: true,
+    description: "隔离预览路由、设计 token 和基础样式已建立。",
+  }),
+  Object.freeze({
+    key: "login",
+    index: "01",
+    label: "登录页",
+    to: "/design/login",
+    ready: true,
+    description: "登录页静态视觉与本地密码显示交互已完成。",
+  }),
+  Object.freeze({
+    key: "overview",
+    index: "02",
+    label: "工作概览",
+    to: "/design/overview",
+    ready: true,
+    description: "工作概览入口页与隔离预览跳转已完成。",
+  }),
+  Object.freeze({
+    key: "workorder",
+    index: "03",
+    label: "调查工单",
+    to: "/design/workorder",
+    ready: true,
+    description: "工单静态页的列表、弹窗、抽屉和附件展示已完成。",
+  }),
+  Object.freeze({
+    key: "map",
+    index: "04",
+    label: "点位地图",
+    to: "/design/map",
+    ready: true,
+    description: "地图静态页的画布、控件、点位详情和移动底部抽屉已完成。",
+  }),
+]);

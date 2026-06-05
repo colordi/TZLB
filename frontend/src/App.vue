@@ -1,7 +1,15 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
-import { TreePine, Upload, MapPin, Filter, Layers, ChevronDown, LogOut } from "@lucide/vue";
+import {
+  TreePine,
+  Upload,
+  MapPin,
+  ChevronDown,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "@lucide/vue";
 
 import {
   getDefaultRouteForUser,
@@ -11,28 +19,23 @@ import {
 import ToastViewport from "./components/ui/ToastViewport.vue";
 import { useAuthSession } from "./composables/useAuthSession.js";
 import { useToast } from "./composables/useToast.js";
-import { mapStore, mapActions } from "./stores/mapStore.js";
 
 const route = useRoute();
 const router = useRouter();
 const mobileNavOpen = ref(false);
+const sidebarCollapsed = ref(false);
 const hideShell = computed(() => Boolean(route.meta?.hideShell));
 const useFullBleedMain = computed(() => Boolean(route.meta?.fullBleed));
-const isMapRoute = computed(() => route.path === "/map");
 const loggingOut = ref(false);
 const { user, signOut } = useAuthSession();
 const { error, info } = useToast();
 
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
 /* ---- user dropdown ---- */
 const userDropdownOpen = ref(false);
-const layerMenuOpen = ref(false);
-
-/* ---- map context (reactive store, written by MapView) ---- */
-const mapCtx = new Proxy(mapActions, {
-  get(target, key) {
-    return key in target ? target[key] : mapStore[key];
-  },
-});
 
 const currentUserName = computed(() => user.value?.display_name || user.value?.username || "");
 const homePath = computed(() => (user.value ? getDefaultRouteForUser(user.value) : "/workorder"));
@@ -66,10 +69,6 @@ function handleWindowKeydown(event) {
   if (event.key === "Escape") {
     closeMobileNav();
     userDropdownOpen.value = false;
-    layerMenuOpen.value = false;
-    if (mapCtx.ready) {
-      mapCtx.setFilterPanelOpen(false);
-    }
   }
 }
 
@@ -114,34 +113,12 @@ watch(mobileNavOpen, (open) => {
   }
 });
 
-/* ---- click outside to close popovers ---- */
-function handleFilterCheckbox(fieldKey, optionValue, checked) {
-  const current = [...(mapCtx.activeFilters[fieldKey] || [])];
-  if (checked) {
-    current.push(optionValue);
-  } else {
-    const idx = current.indexOf(optionValue);
-    if (idx >= 0) current.splice(idx, 1);
-  }
-  mapCtx.setFilterValues(fieldKey, current);
-}
-
 function handleDocumentClick(event) {
   const target = event.target;
 
   /* user dropdown */
   if (userDropdownOpen.value && !target.closest(".user-dropdown-wrap")) {
     userDropdownOpen.value = false;
-  }
-
-  /* layer menu */
-  if (layerMenuOpen.value && !target.closest(".map-layer-wrap")) {
-    layerMenuOpen.value = false;
-  }
-
-  /* map filter popover */
-  if (mapCtx.ready && mapCtx.isFilterPanelOpen && !target.closest(".map-filter-wrap")) {
-    mapCtx.setFilterPanelOpen(false);
   }
 }
 
@@ -167,7 +144,58 @@ onBeforeUnmount(() => {
       <span class="backdrop-grid"></span>
     </div>
 
-    <div class="shell-layout" :class="{ 'is-standalone': hideShell }">
+    <div class="shell-layout" :class="{ 'is-standalone': hideShell, 'has-sidebar': !hideShell }">
+      <aside v-if="!hideShell" class="app-sidebar" :class="{ 'is-collapsed': sidebarCollapsed }" aria-label="主导航">
+        <div class="app-sidebar-brand-row">
+          <RouterLink :to="homePath" class="app-sidebar-brand">
+            <span class="app-sidebar-brand-mark" aria-hidden="true">
+              <TreePine :size="22" :stroke-width="2" />
+            </span>
+            <span class="app-sidebar-brand-copy">
+              <strong>林业调查工作台</strong>
+              <span>FORESTRY SURVEY WORKBENCH</span>
+            </span>
+          </RouterLink>
+          <button
+            type="button"
+            class="sidebar-toggle-btn"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :aria-expanded="!sidebarCollapsed"
+            @click="toggleSidebar"
+          >
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="18" :stroke-width="2" />
+            <PanelLeftClose v-else :size="18" :stroke-width="2" />
+          </button>
+        </div>
+
+        <div class="app-sidebar-caption">业务管理</div>
+        <nav class="app-sidebar-nav" aria-label="业务管理">
+          <RouterLink
+            v-for="item in visibleNavItems"
+            :key="`sidebar-${item.to}`"
+            :to="item.to"
+            class="app-sidebar-link"
+            :data-testid="`sidebar-link-${item.to.slice(1)}`"
+          >
+            <Upload v-if="item.icon === 'upload'" :size="18" :stroke-width="2" />
+            <MapPin v-else :size="18" :stroke-width="2" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </nav>
+
+        <div class="app-sidebar-foot">
+          <div class="app-sidebar-profile">
+            <span class="app-sidebar-avatar" aria-hidden="true">
+              {{ (currentUserName || "账").slice(0, 1) }}
+            </span>
+            <span v-if="!sidebarCollapsed">
+              <strong>{{ currentUserName || "账号" }}</strong>
+              <span>当前登录用户</span>
+            </span>
+          </div>
+        </div>
+      </aside>
+
       <header v-if="!hideShell" class="site-header">
         <div class="site-header-shell">
           <RouterLink :to="homePath" class="site-brand">
@@ -179,6 +207,11 @@ onBeforeUnmount(() => {
               <span>Forest Survey Workbench</span>
             </div>
           </RouterLink>
+
+          <div class="site-section-title">
+            <span>工作台</span>
+            <strong>{{ route.meta?.section || "工作界面" }}</strong>
+          </div>
 
           <nav class="site-nav" aria-label="主导航">
             <RouterLink
@@ -193,204 +226,6 @@ onBeforeUnmount(() => {
               <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
-
-          <div class="context-tools" :class="{ 'is-empty': !isMapRoute || !mapCtx.ready }">
-            <div v-if="isMapRoute && mapCtx.ready" class="map-toolbar-controls">
-              <div class="map-view-select-wrap">
-                <select
-                  class="map-view-select"
-                  :value="mapCtx.selectedView"
-                  :disabled="mapCtx.loadingViews || !mapCtx.views.length"
-                  @change="mapCtx.setSelectedView($event.target.value)"
-                >
-                  <option v-if="!mapCtx.views.length" value="">暂无可用视图</option>
-                  <option
-                    v-for="view in mapCtx.views"
-                    :key="view.name"
-                    :value="view.name"
-                  >
-                    {{ view.name }}
-                  </option>
-                </select>
-              </div>
-
-              <!-- filter button -->
-              <div class="map-filter-wrap">
-                <button
-                  type="button"
-                  class="map-toolbar-btn"
-                  :class="{
-                    'is-active': mapCtx.isFilterPanelOpen,
-                    'has-badge': mapCtx.activeFilterCount > 0,
-                  }"
-                  aria-label="筛选配置"
-                  :aria-expanded="mapCtx.isFilterPanelOpen"
-                  @click.stop="mapCtx.toggleFilterPanel()"
-                >
-                  <Filter :size="16" :stroke-width="2" />
-                  <span class="map-toolbar-btn-text">筛选</span>
-                  <span
-                    v-if="mapCtx.activeFilterCount > 0"
-                    class="map-filter-badge"
-                  >
-                    {{ mapCtx.activeFilterCount }}
-                  </span>
-                </button>
-
-                <!-- filter panel popover -->
-                <transition name="popover-fade">
-                  <div
-                    v-if="mapCtx.isFilterPanelOpen"
-                    class="map-filter-popover"
-                    @click.stop
-                  >
-                  <div class="filter-popover-inner">
-                    <div
-                      v-if="mapCtx.filterFields.length"
-                      class="filter-fields"
-                    >
-                      <div
-                        v-for="field in mapCtx.filterFields"
-                        :key="field.key"
-                        class="filter-field-item"
-                        :class="{ 'is-open': mapCtx.openFilterMenus[field.key] }"
-                      >
-                        <button
-                          type="button"
-                          class="filter-field-trigger"
-                          :class="{ 'is-open': mapCtx.openFilterMenus[field.key] }"
-                          :disabled="mapCtx.loading || !field.options.length"
-                          @click="mapCtx.toggleFilterMenu(field.key)"
-                        >
-                          <span class="filter-field-copy">
-                            <span class="filter-field-label">{{ field.label }}</span>
-                            <span
-                              class="filter-field-summary"
-                              :class="{ 'is-muted': !mapCtx.activeFilters[field.key]?.length }"
-                            >
-                              {{
-                                !mapCtx.activeFilters[field.key]?.length
-                                  ? '全部'
-                                  : `已选 ${mapCtx.activeFilters[field.key].length} 项`
-                              }}
-                            </span>
-                          </span>
-                          <span class="filter-field-meta">
-                            <span
-                              v-if="mapCtx.activeFilters[field.key]?.length"
-                              class="filter-field-count"
-                            >
-                              {{ mapCtx.activeFilters[field.key].length }}
-                            </span>
-                            <ChevronDown :size="14" :stroke-width="2" class="filter-field-chevron" />
-                          </span>
-                        </button>
-
-                        <div
-                          v-if="mapCtx.openFilterMenus[field.key]"
-                          class="filter-option-dropdown"
-                        >
-                          <label
-                            v-for="option in field.options"
-                            :key="option.value"
-                            class="filter-option"
-                            :class="{ 'is-disabled': mapCtx.loading.value }"
-                          >
-                            <input
-                              type="checkbox"
-                              :value="option.value"
-                              :checked="mapCtx.activeFilters[field.key]?.includes(option.value)"
-                              :disabled="mapCtx.loading"
-                              @change="handleFilterCheckbox(field.key, option.value, $event.target.checked)"
-                            />
-                            <span>{{ option.label }}</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div v-else class="filter-empty-state">
-                      当前视图暂无筛选字段
-                    </div>
-
-                    <div class="filter-actions">
-                      <button
-                        type="button"
-                        class="filter-apply-btn"
-                        :disabled="mapCtx.loading || !mapCtx.selectedView"
-                        @click="mapCtx.applyFilter(); mapCtx.setFilterPanelOpen(false)"
-                      >
-                        应用筛选
-                      </button>
-                      <button
-                        type="button"
-                        class="filter-reset-btn"
-                        :disabled="mapCtx.loading"
-                        @click="mapCtx.resetFilter(); mapCtx.setFilterPanelOpen(false)"
-                      >
-                        清空
-                      </button>
-                    </div>
-                  </div>
-                  </div>
-                </transition>
-              </div>
-
-              <!-- layer menu -->
-              <div class="map-layer-wrap">
-                <button
-                  type="button"
-                  class="map-toolbar-btn"
-                  :class="{ 'is-active': layerMenuOpen }"
-                  aria-label="切换图层"
-                  aria-controls="map-layer-menu"
-                  :aria-expanded="layerMenuOpen"
-                  @click.stop="layerMenuOpen = !layerMenuOpen"
-                >
-                  <Layers :size="16" :stroke-width="2" />
-                  <span class="map-toolbar-btn-text">图层</span>
-                </button>
-
-                <transition name="popover-fade">
-                  <div
-                    v-if="layerMenuOpen"
-                    id="map-layer-menu"
-                    class="layer-menu-popup"
-                    @click.stop
-                  >
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.basemapMode === 'standard' }"
-                    @click="mapCtx.setBasemapMode('standard'); layerMenuOpen = false"
-                  >
-                    <strong>标准地图</strong>
-                    <span>包含政区街道</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.basemapMode === 'satellite' }"
-                    @click="mapCtx.setBasemapMode('satellite'); layerMenuOpen = false"
-                  >
-                    <strong>卫星地图</strong>
-                    <span>高分辨率影像</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.showPointLabels }"
-                    :aria-pressed="mapCtx.showPointLabels"
-                    @click="mapCtx.togglePointLabels()"
-                  >
-                    <strong>显示编号</strong>
-                    <span>{{ mapCtx.showPointLabels ? '当前已开启' : '当前已关闭' }}</span>
-                  </button>
-                  </div>
-                </transition>
-              </div>
-            </div>
-          </div>
 
           <div class="site-actions">
             <div class="user-dropdown-wrap">
@@ -553,8 +388,262 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
+.shell-layout.has-sidebar {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--color-bg);
+  transition: grid-template-columns 200ms ease;
+}
+
+.shell-layout.has-sidebar:has(.app-sidebar.is-collapsed) {
+  grid-template-columns: 68px minmax(0, 1fr);
+}
+
 .shell-layout.is-standalone {
   display: block;
+}
+
+/* ================================================================
+   DESKTOP SIDEBAR
+   ================================================================ */
+.app-sidebar {
+  position: relative;
+  z-index: 20;
+  grid-row: 1 / -1;
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-nav);
+  color: var(--color-surface);
+  transition: width 200ms ease;
+  width: 228px;
+}
+
+.app-sidebar.is-collapsed {
+  width: 68px;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-brand-copy,
+.app-sidebar.is-collapsed .app-sidebar-caption,
+.app-sidebar.is-collapsed .app-sidebar-link span,
+.app-sidebar.is-collapsed .app-sidebar-nav .nav-count {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-brand-row {
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  min-height: 96px;
+  padding: 12px 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-link {
+  justify-content: center;
+  padding: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-link svg {
+  margin: 0;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-profile {
+  justify-content: center;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-profile span {
+  display: none;
+}
+
+.app-sidebar.is-collapsed .app-sidebar-foot {
+  padding: var(--space-6) var(--space-2);
+}
+
+.app-sidebar-brand-row {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+}
+
+.app-sidebar-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 11px;
+  padding: 0 18px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-sidebar-brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in oklch, var(--color-surface) 22%, transparent);
+  border-radius: 9px;
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+}
+
+.app-sidebar-brand-copy {
+  min-width: 0;
+}
+
+.app-sidebar-brand-copy strong,
+.app-sidebar-brand-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-sidebar-brand-copy strong {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  letter-spacing: 0.03em;
+}
+
+.app-sidebar-brand-copy span {
+  color: color-mix(in oklch, var(--color-surface) 62%, transparent);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+}
+
+.app-sidebar-caption {
+  padding: 20px 18px 8px;
+  color: color-mix(in oklch, var(--color-surface) 48%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.12em;
+}
+
+.app-sidebar-nav {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0 var(--space-4);
+}
+
+.app-sidebar-link {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: color-mix(in oklch, var(--color-surface) 72%, transparent);
+  font-size: var(--text-md);
+  font-weight: 650;
+  text-decoration: none;
+  transition:
+    background var(--motion-base) ease,
+    border-color var(--motion-base) ease,
+    color var(--motion-base) ease;
+}
+
+.app-sidebar-link:hover {
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+  color: var(--color-surface);
+}
+
+.app-sidebar-link.router-link-active {
+  border-color: color-mix(in oklch, var(--color-surface) 13%, transparent);
+  background: color-mix(in oklch, var(--color-surface) 10%, transparent);
+  color: var(--color-surface);
+}
+
+.app-sidebar-foot {
+  margin-top: auto;
+  padding: var(--space-6) var(--space-4);
+  border-top: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sidebar-toggle-btn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid color-mix(in oklch, var(--color-surface) 15%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-nav) 86%, var(--color-surface));
+  color: color-mix(in oklch, var(--color-surface) 80%, transparent);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.sidebar-toggle-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in oklch, var(--color-surface) 15%, transparent);
+  border-color: color-mix(in oklch, var(--color-surface) 25%, transparent);
+  color: var(--color-surface);
+}
+
+.sidebar-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.app-sidebar-avatar {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-round);
+  background: color-mix(in oklch, var(--color-surface) 14%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.app-sidebar-profile strong,
+.app-sidebar-profile span {
+  display: block;
+  line-height: 1.35;
+}
+
+.app-sidebar-profile strong {
+  font-size: var(--text-sm);
+}
+
+.app-sidebar-profile span span {
+  color: color-mix(in oklch, var(--color-surface) 52%, transparent);
+  font-size: var(--text-2xs);
 }
 
 /* ================================================================
@@ -564,26 +653,26 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 1500;
-  padding: 0.9rem clamp(0.85rem, 2vw, 1.35rem) 0;
+  grid-column: 2;
+  min-width: 0;
+  padding: 0;
 }
 
 .site-header-shell {
-  width: min(100%, var(--content-width));
-  margin: 0 auto;
-  min-height: var(--header-h-standard);
+  width: 100%;
+  min-height: 68px;
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  padding: 0.7rem 0.9rem 0.7rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--elev-ring);
-  backdrop-filter: blur(20px);
+  gap: var(--space-6);
+  padding: 0 var(--space-10);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
+  box-shadow: none;
+  backdrop-filter: blur(12px);
 }
 
 .site-brand {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 0.9rem;
   min-width: 0;
@@ -636,13 +725,41 @@ onBeforeUnmount(() => {
 }
 
 .site-nav {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.35rem;
   flex-wrap: wrap;
 }
 
-.context-tools {
+.site-section-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.site-section-title span {
+  color: var(--color-text-muted);
+}
+
+.site-section-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-section-title span::after {
+  margin-left: var(--space-3);
+  color: var(--color-border);
+  content: "/";
+}
+
+.site-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -657,10 +774,6 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.context-tools.is-empty + .site-actions {
-  margin-left: auto;
 }
 
 .user-pill {
@@ -732,100 +845,6 @@ onBeforeUnmount(() => {
   box-shadow: var(--elev-ring);
 }
 
-/* map toolbar controls (view select, filter, layer) */
-.map-toolbar-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-  padding-left: 0.75rem;
-  border-left: 1px solid var(--color-border);
-}
-
-.map-view-select-wrap {
-  position: relative;
-}
-
-.map-view-select {
-  appearance: none;
-  min-width: 8rem;
-  max-width: 14rem;
-  height: 2.45rem;
-  padding: 0 1.6rem 0 0.6rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23796f91' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.45rem center;
-}
-
-.map-view-select:hover {
-  border-color: var(--color-line-strong);
-}
-
-.map-view-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.map-view-select:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* toolbar buttons (filter, layer) */
-.map-toolbar-btn {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  height: 2.45rem;
-  padding: 0 0.7rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-ink-soft);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.map-toolbar-btn:hover {
-  background: var(--color-surface-container);
-  color: var(--color-accent);
-}
-
-.map-toolbar-btn.is-active {
-  background: var(--color-accent);
-  color: var(--color-accent-on);
-  border-color: var(--color-accent);
-}
-
-.map-toolbar-btn svg {
-  flex-shrink: 0;
-}
-
-.map-filter-badge {
-  min-width: 1rem;
-  height: 1rem;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-danger);
-  color: var(--color-surface);
-  font-size: 0.6rem;
-  font-weight: 700;
-  line-height: 1rem;
-  text-align: center;
-}
 
 .user-dropdown-wrap {
   position: relative;
@@ -869,282 +888,19 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-/* filter popover */
-.map-filter-wrap {
-  position: relative;
-}
-
-.map-filter-popover {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  min-width: 16rem;
-  max-width: min(22rem, calc(100vw - 2rem));
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--elev-raised);
-  z-index: 2000;
-  overflow: hidden;
-}
-
-.filter-popover-inner {
-  padding: 0.75rem;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-
-.filter-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.filter-field-item {
-  position: relative;
-}
-
-.filter-field-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.filter-field-trigger:hover {
-  border-color: var(--color-line-strong);
-}
-
-.filter-field-trigger.is-open {
-  border-color: var(--color-accent);
-}
-
-.filter-field-trigger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.filter-field-copy {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.05rem;
-  min-width: 0;
-}
-
-.filter-field-label {
-  color: var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.filter-field-summary {
-  color: var(--color-accent);
-  font-size: 0.7rem;
-  font-weight: 500;
-}
-
-.filter-field-summary.is-muted {
-  color: var(--color-muted);
-}
-
-.filter-field-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-
-.filter-field-count {
-  min-width: 1.15rem;
-  height: 1.15rem;
-  padding: 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-  color: var(--color-accent-on);
-  font-size: 0.65rem;
-  font-weight: 700;
-  line-height: 1.15rem;
-  text-align: center;
-}
-
-.filter-field-chevron {
-  color: var(--color-muted);
-  transition: transform 150ms ease;
-}
-
-.filter-field-item.is-open .filter-field-chevron {
-  transform: rotate(180deg);
-}
-
-.filter-option-dropdown {
-  margin-top: 0.35rem;
-  padding: 0.4rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  max-height: 10rem;
-  overflow-y: auto;
-}
-
-.filter-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-standard);
-  font-size: 0.78rem;
-  color: var(--color-ink);
-}
-
-.filter-option:hover {
-  background: var(--color-surface-container-low);
-}
-
-.filter-option.is-disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.filter-option input[type='checkbox'] {
-  width: 0.95rem;
-  height: 0.95rem;
-  accent-color: var(--color-accent);
-  cursor: inherit;
-}
-
-.filter-empty-state {
-  padding: 1.25rem 0.75rem;
-  text-align: center;
-  color: var(--color-muted);
-  font-size: 0.82rem;
-}
-
-.filter-actions {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: 0.65rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.filter-apply-btn {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent);
-  color: var(--color-accent-on);
-  font-weight: 600;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.filter-apply-btn:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-}
-
-.filter-apply-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.filter-reset-btn {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-ink-soft);
-  font-weight: 500;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.filter-reset-btn:hover:not(:disabled) {
-  background: var(--color-surface-container-low);
-}
-
-.filter-reset-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-/* layer menu */
-.map-layer-wrap {
-  position: relative;
-}
-
-.layer-menu-popup {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  min-width: 12rem;
-  padding: 0.35rem;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--elev-raised);
-  z-index: 2000;
-  transform-origin: top right;
-}
-
-.layer-menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  width: 100%;
-  padding: 0.45rem 0.6rem;
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-ink);
-  text-align: left;
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.layer-menu-item:hover {
-  background: var(--color-surface-container-low);
-}
-
-.layer-menu-item.is-active {
-  border-color: var(--color-accent);
-  background: var(--color-surface-container-low);
-}
-
-.layer-menu-item strong {
-  color: var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.layer-menu-item span {
-  color: var(--color-muted);
-  font-size: 0.68rem;
-}
-
 /* ================================================================
    MAIN / FULL-BLEED
    ================================================================ */
 .site-main {
-  width: min(100%, var(--content-width));
+  grid-column: 2;
+  width: 100%;
   min-width: 0;
-  margin: 0 auto;
+  margin: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 1rem clamp(0.85rem, 2vw, 1.35rem) 2rem;
+  padding: var(--space-10);
+  overflow: auto;
 }
 
 .site-main.is-standalone {
@@ -1270,14 +1026,35 @@ onBeforeUnmount(() => {
    RESPONSIVE
    ================================================================ */
 @media (max-width: 900px) {
+  .shell-layout.has-sidebar {
+    display: flex;
+    overflow: visible;
+  }
+
+  .app-sidebar {
+    display: none;
+  }
+
   .site-header {
-    padding-top: 0.65rem;
+    padding: 0.65rem clamp(0.85rem, 2vw, 1.35rem) 0;
   }
 
   .site-header-shell {
+    width: min(100%, var(--content-width));
+    margin: 0 auto;
     min-height: var(--app-mobile-header-height);
     padding: 0.55rem 0.75rem 0.55rem 0.85rem;
+    border: 1px solid var(--color-border);
     border-radius: 22px;
+    box-shadow: var(--elev-ring);
+  }
+
+  .site-brand {
+    display: inline-flex;
+  }
+
+  .site-section-title {
+    display: none;
   }
 
   .site-nav {
@@ -1318,41 +1095,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 760px) {
-  .context-tools {
-    flex: 1;
-    justify-content: flex-end;
-    min-width: 0;
-  }
-
-  .map-toolbar-controls {
-    flex: 1;
-    justify-content: flex-end;
-    padding-left: 0;
-    border-left: none;
-  }
-
-  .map-toolbar-btn-text {
-    display: none;
-  }
-
-  .map-view-select {
-    min-width: 7rem;
-    max-width: min(11rem, 42vw);
-    flex: 1;
-    font-size: 0.75rem;
-  }
-
-  .map-filter-popover {
-    position: fixed;
-    top: auto;
-    left: 0.5rem;
-    right: 0.5rem;
-    bottom: 0;
-    max-width: 100%;
-    border-radius: 16px 16px 0 0;
-    max-height: 60vh;
-  }
-
   .mobile-nav-toggle {
     display: inline-flex;
   }

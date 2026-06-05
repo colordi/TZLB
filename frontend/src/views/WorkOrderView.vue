@@ -37,6 +37,8 @@ const surveyImportOpen = ref(false);
 const selectedIndexes = ref([]);
 const activeRecordIndex = ref(-1);
 const showDetailModal = ref(false);
+const searchQuery = ref("");
+const recordFilter = ref("all");
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
 const canImportSurvey = computed(() =>
@@ -47,6 +49,46 @@ const validationErrors = computed(() =>
 );
 const totalImages = computed(() =>
   records.value.reduce((count, record) => count + (record.images?.length || 0), 0),
+);
+const validationIssueCount = computed(() =>
+  validationErrors.value.filter((recordErrors) => Object.keys(recordErrors || {}).length > 0)
+    .length,
+);
+const filteredRecordItems = computed(() => {
+  const query = searchQuery.value.trim().toLocaleLowerCase("zh-CN");
+
+  return records.value
+    .map((record, index) => ({
+      record,
+      index,
+      errors: validationErrors.value[index] || {},
+    }))
+    .filter(({ record, index, errors }) => {
+      if (recordFilter.value === "selected" && !selectedIndexes.value.includes(index)) {
+        return false;
+      }
+      if (recordFilter.value === "errors" && Object.keys(errors).length === 0) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [
+        record.location_name,
+        record.location_id,
+        record.town_or_street,
+        record.description,
+        record.note,
+      ].some((value) => `${value || ""}`.toLocaleLowerCase("zh-CN").includes(query));
+    });
+});
+const filteredRecords = computed(() => filteredRecordItems.value.map((item) => item.record));
+const filteredRecordIndexes = computed(() => filteredRecordItems.value.map((item) => item.index));
+const filteredValidationErrors = computed(() => filteredRecordItems.value.map((item) => item.errors));
+const allVisibleSelected = computed(
+  () =>
+    filteredRecordIndexes.value.length > 0 &&
+    filteredRecordIndexes.value.every((index) => selectedIndexes.value.includes(index)),
 );
 const generateButtonLabel = computed(() => {
   if (!generating.value) {
@@ -157,6 +199,22 @@ function handleBatchDelete() {
   handleCloseDetailModal(); // Just in case
 }
 
+function clearSelection() {
+  selectedIndexes.value = [];
+}
+
+function toggleFilteredSelection() {
+  if (allVisibleSelected.value) {
+    selectedIndexes.value = selectedIndexes.value.filter(
+      (index) => !filteredRecordIndexes.value.includes(index),
+    );
+    return;
+  }
+  selectedIndexes.value = Array.from(
+    new Set([...selectedIndexes.value, ...filteredRecordIndexes.value]),
+  );
+}
+
 function joinDeliveryLabel(label, message) {
   return /^[A-Za-z0-9_.-]+$/.test(label) ? `${label} ${message}` : `${label}${message}`;
 }
@@ -246,134 +304,194 @@ async function handleGenerate() {
 
 <template>
   <section class="page-shell workorder-page">
-    <div class="page-content-grid">
-      <aside class="page-sidebar">
-        <div class="status-bento">
-          <div class="status-bento-hero">
-            <div class="status-bento-hero-head">
-              <span class="icon-badge-glass" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4 7.75A2.75 2.75 0 0 1 6.75 5h10.5A2.75 2.75 0 0 1 20 7.75v8.5A2.75 2.75 0 0 1 17.25 19H6.75A2.75 2.75 0 0 1 4 16.25v-8.5Zm2.75-1.25c-.69 0-1.25.56-1.25 1.25v8.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-8.5c0-.69-.56-1.25-1.25-1.25H6.75Zm.5 2.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 11.5h8a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Zm0 3.5A.75.75 0 0 1 8 15h5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75Z" />
-                </svg>
-              </span>
-              <span class="pulse-tag">Real-time</span>
-            </div>
-            <div class="status-value-hero">{{ records.length }}</div>
-            <div class="status-label-hero">当前记录</div>
-          </div>
+    <header class="workorder-page-head">
+      <div>
+        <p class="workorder-eyebrow">WORK ORDER CONTROL DESK</p>
+        <h1>调查工单</h1>
+        <p>从数据库导入调查记录，逐条生成工单并导出标准化 Word 文档。</p>
+      </div>
+      <div class="workorder-page-actions" aria-label="工单操作">
+        <button
+          type="button"
+          class="button-secondary"
+          :disabled="generating || records.length === 0"
+          @click="handleGenerate"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6" />
+          </svg>
+          <span>{{ generating ? generateButtonLabel : "逐条导出工作单" }}</span>
+        </button>
+        <button
+          v-if="canImportSurvey"
+          type="button"
+          :disabled="generating"
+          data-testid="survey-import-button"
+          @click="openSurveyImportDialog"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+            <path d="M12 16V4m-4 4 4-4 4 4M5 14v5h14v-5" />
+          </svg>
+          <span>导入调查记录</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="workorder-controls" aria-label="任务配置">
+      <label class="workorder-field" for="pest-type">
+        <span>害虫类型</span>
+        <select id="pest-type" v-model="pestType" :disabled="generating">
+          <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <label class="workorder-field" for="task-type">
+        <span>统防统治类型</span>
+        <select id="task-type" v-model="taskType" :disabled="generating">
+          <option
+            v-for="option in CONTROL_TYPE_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <label class="workorder-field is-task" for="task-name">
+        <span>统防统治任务</span>
+        <select id="task-name" v-model="taskName" :disabled="generating || !taskOptions.length">
+          <option v-if="!taskOptions.length" value="">暂无预设任务</option>
+          <option v-for="option in taskOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </section>
+
+    <section class="workorder-stats" aria-label="工单统计">
+      <article class="workorder-stat is-info">
+        <span>当前记录</span>
+        <strong>{{ records.length }}</strong>
+        <small>已导入调查记录</small>
+      </article>
+      <article class="workorder-stat is-accent">
+        <span>已选记录</span>
+        <strong>{{ selectedIndexes.length }}</strong>
+        <small>用于批量操作</small>
+      </article>
+      <article class="workorder-stat is-warning">
+        <span>现场图片</span>
+        <strong>{{ totalImages }}</strong>
+        <small>随记录导出</small>
+      </article>
+      <article class="workorder-stat is-done">
+        <span>校验问题</span>
+        <strong>{{ validationIssueCount }}</strong>
+        <small>{{ showValidationErrors ? "当前待修正记录" : "生成前自动校验" }}</small>
+      </article>
+    </section>
+
+    <section class="workorder-panel" aria-label="调查工单记录">
+      <div class="workorder-toolbar">
+        <label class="workorder-search">
+          <span class="workorder-sr-only">搜索工单记录</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="search"
+            placeholder="搜索点位名称、编号、乡镇…"
+            data-testid="workorder-search"
+          />
+        </label>
+
+        <div class="workorder-segmented" aria-label="记录筛选">
+          <button
+            type="button"
+            :class="{ 'is-active': recordFilter === 'all' }"
+            data-testid="workorder-filter-all"
+            @click="recordFilter = 'all'"
+          >
+            全部
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': recordFilter === 'errors' }"
+            data-testid="workorder-filter-errors"
+            @click="recordFilter = 'errors'"
+          >
+            有错误
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': recordFilter === 'selected' }"
+            data-testid="workorder-filter-selected"
+            @click="recordFilter = 'selected'"
+          >
+            已选
+          </button>
         </div>
 
-        <section class="panel-card sidebar-panel">
-          <div class="panel-head">
-            <span class="icon-badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M4.8 4.8A2.8 2.8 0 0 1 7.6 2h8.8a2.8 2.8 0 0 1 2.8 2.8v2.06a3.24 3.24 0 0 1 1.66 4.68l-2.7 5.41A3.25 3.25 0 0 1 15.19 19H8.81a3.25 3.25 0 0 1-2.91-1.97L3.2 11.62A3.24 3.24 0 0 1 4.8 6.96V4.8Zm2.8-1.3c-.72 0-1.3.58-1.3 1.3v1.84c.24-.04.48-.06.72-.06h10c.24 0 .48.02.72.06V4.8c0-.72-.58-1.3-1.3-1.3H7.6Zm-.74 4.58a1.73 1.73 0 0 0-1.55 2.49l2.7 5.41c.29.58.88.95 1.53.95h6.38c.65 0 1.24-.37 1.53-.95l2.7-5.41a1.73 1.73 0 0 0-1.55-2.49H6.86Z"
-                />
-              </svg>
-            </span>
-            <div class="panel-head-copy">
-              <h2>任务配置</h2>
-              <p>先设定任务，再开始录入。</p>
-            </div>
-          </div>
+        <span class="workorder-toolbar-separator" aria-hidden="true"></span>
 
-          <div class="sidebar-field-stack">
-            <div class="field-block">
-              <label for="pest-type">害虫类型</label>
-              <select id="pest-type" v-model="pestType" :disabled="generating">
-                <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-            </div>
+        <button class="workorder-select-all" type="button" @click="toggleFilteredSelection">
+          {{ allVisibleSelected ? "取消全选" : "全选" }}
+        </button>
+      </div>
 
-            <div class="field-block">
-              <label for="task-type">统防统治类型</label>
-              <select id="task-type" v-model="taskType" :disabled="generating">
-                <option
-                  v-for="option in CONTROL_TYPE_OPTIONS"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-            </div>
+      <RecordTable
+        class="workorder-record-table"
+        v-model:selectedIndexes="selectedIndexes"
+        :records="filteredRecords"
+        :row-indexes="filteredRecordIndexes"
+        :pest-type="pestType"
+        :busy="generating"
+        :errors="filteredValidationErrors"
+        @row-click="handleRowClick"
+      />
 
-            <div class="field-block">
-              <label for="task-name">统防统治任务</label>
-              <select
-                id="task-name"
-                v-model="taskName"
-                :disabled="generating || !taskOptions.length"
-              >
-                <option v-if="!taskOptions.length" value="">暂无预设任务</option>
-                <option
-                  v-for="option in taskOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-            </div>
-          </div>
-        </section>
+      <div v-if="records.length > 0 && filteredRecords.length === 0" class="workorder-empty">
+        当前筛选条件下没有工单记录。
+      </div>
 
-      </aside>
+      <footer class="workorder-panel-foot">
+        <span>共 <strong>{{ filteredRecords.length }}</strong> 条记录</span>
+        <span>已选 <strong>{{ selectedIndexes.length }}</strong> 条</span>
+      </footer>
+    </section>
 
-      <div class="page-main-column workorder-main-column">
-        <div class="panel-card action-toolbar-glass">
-          <div class="tb-headings">
-            <h1 class="page-title-display">工作单录入工作台</h1>
-            <p class="tb-subtitle">复核现场数据后提交。</p>
-          </div>
-          <div class="action-toolbar-buttons">
-            <button
-              v-if="selectedIndexes.length > 0"
-              type="button"
-              class="button-danger"
-              :disabled="generating"
-              @click="handleBatchDelete"
-            >
-              删除所选 ({{ selectedIndexes.length }})
-            </button>
-            <button
-              v-if="canImportSurvey"
-              type="button"
-              class="button-secondary"
-              :disabled="generating"
-              data-testid="survey-import-button"
-              @click="openSurveyImportDialog"
-            >
-              导入调查数据
-            </button>
-            <button type="button" :disabled="generating" @click="handleGenerate">
-              {{ generateButtonLabel }}
-            </button>
-          </div>
-        </div>
+    <aside v-if="selectedIndexes.length" class="workorder-batch-bar" aria-label="已选工单摘要">
+      <span>已选 <strong>{{ selectedIndexes.length }}</strong> 条记录</span>
+      <div>
+        <button type="button" :disabled="generating" @click="clearSelection">取消选择</button>
+        <button type="button" :disabled="generating" @click="handleBatchDelete">
+          删除选中
+        </button>
+        <button
+          type="button"
+          :disabled="generating || records.length === 0"
+          @click="handleGenerate"
+        >
+          {{ generating ? generateButtonLabel : "逐条导出工作单" }}
+        </button>
+      </div>
+    </aside>
 
-        <RecordTable
-          v-model:selectedIndexes="selectedIndexes"
-          :records="records"
-          :pest-type="pestType"
-          :busy="generating"
-          :errors="validationErrors"
-          @row-click="handleRowClick"
-        />
-
-        <RecordDetailModal
-          :open="showDetailModal"
-          :record="activeRecord"
-          :pest-type="pestType"
-          :busy="generating"
-          :error="activeRecordError"
-          @close="handleCloseDetailModal"
-          @update="handleUpdateRecord"
-          @delete="handleDeleteRecord"
-        />
+    <RecordDetailModal
+      :open="showDetailModal"
+      :record="activeRecord"
+      :pest-type="pestType"
+      :busy="generating"
+      :error="activeRecordError"
+      @close="handleCloseDetailModal"
+      @update="handleUpdateRecord"
+      @delete="handleDeleteRecord"
+    />
 
     <SurveyImportDialog
       :busy="generating"
@@ -382,207 +500,367 @@ async function handleGenerate() {
       @close="closeSurveyImportDialog"
       @import="handleSurveyImport"
     />
-      </div>
-    </div>
   </section>
 </template>
 
 <style scoped>
 .workorder-page {
-  gap: 2rem;
+  position: relative;
+  gap: var(--space-8);
+  padding-bottom: var(--space-8);
 }
 
-.status-bento {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.status-bento-hero {
-  grid-column: 1 / -1;
-  background: var(--color-primary);
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  color: var(--color-ink);
-  box-shadow: var(--elev-ring);
-}
-
-.status-bento-hero-head {
+.workorder-page-head {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.icon-badge-glass {
-  background: var(--color-surface);
-  padding: 0.5rem;
-  border-radius: var(--radius-sm);
-  display: inline-flex;
-  box-shadow: var(--elev-ring);
-}
-
-.icon-badge-glass svg {
-  width: 1.5rem;
-  height: 1.5rem;
-  color: var(--color-accent);
-}
-
-.pulse-tag {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  background: var(--color-surface);
-  color: var(--color-ink-soft);
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-}
-
-.status-value-hero {
-  font-family: var(--font-display);
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--color-ink);
-}
-
-.status-label-hero {
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-top: 0.25rem;
-  color: var(--color-ink-soft);
-}
-
-.status-card {
-  background: var(--color-surface-container-lowest);
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-}
-
-.status-value-sub {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.text-primary { color: var(--color-primary); }
-.text-warning { color: var(--color-warning); }
-.text-danger { color: var(--color-danger); }
-
-.status-label-sub {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-muted);
-  margin-top: 0.25rem;
-}
-
-.status-trend {
-  margin-top: 1rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--color-secondary);
-}
-
-.sidebar-panel {
-  padding: 1.5rem;
-}
-
-.sidebar-panel .panel-head {
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--color-surface-container);
-  margin-bottom: 1.5rem;
-}
-
-.sidebar-panel .panel-head-copy h2 {
-  font-size: 1.2rem;
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
-.sidebar-field-stack {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.sidebar-field-stack label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-muted);
-  font-weight: 800;
-}
-
-.sidebar-field-stack select {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  font-weight: 600;
-  color: var(--color-ink);
-  border-radius: var(--radius-sm);
-  min-height: 2.75rem;
-  padding: var(--space-2) var(--space-3);
-}
-
-.action-toolbar-glass {
-  padding: 1.5rem;
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: var(--space-9);
+}
+
+.workorder-page-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workorder-page-actions button,
+.workorder-batch-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.workorder-page-actions svg,
+.workorder-batch-bar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.workorder-eyebrow {
+  margin-bottom: var(--space-2);
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.workorder-page-head h1 {
+  color: var(--color-text);
+  font-size: var(--text-title);
+  letter-spacing: 0.01em;
+}
+
+.workorder-page-head p:last-child {
+  margin-top: var(--space-2);
+  max-width: 46rem;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.workorder-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
-.page-title-display {
-  font-size: 1.75rem;
-  font-weight: 700;
-  font-family: var(--font-display);
+.workorder-field {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
 }
 
-.tb-subtitle {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-muted);
-  margin-top: 0.25rem;
+.workorder-field > span:first-child {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
 }
 
-.action-toolbar-buttons {
+.workorder-field > select {
+  width: 180px;
+}
+
+.workorder-field.is-task > select {
+  width: 260px;
+}
+
+.workorder-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.workorder-stat {
+  padding: var(--space-6) var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.workorder-stat > span,
+.workorder-stat > strong,
+.workorder-stat > small {
+  display: block;
+}
+
+.workorder-stat > span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+}
+
+.workorder-stat > strong {
+  margin-top: var(--space-1);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.workorder-stat > small {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+}
+
+.workorder-stat.is-info > strong {
+  color: var(--color-info);
+}
+
+.workorder-stat.is-accent > strong {
+  color: var(--color-primary);
+}
+
+.workorder-stat.is-warning > strong {
+  color: var(--color-warning-text);
+}
+
+.workorder-stat.is-done > strong {
+  color: var(--color-text-muted);
+}
+
+.workorder-panel {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.workorder-toolbar {
   display: flex;
-  gap: 0.75rem;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--color-border);
 }
 
-@media (max-width: 980px) {
-  .status-bento {
-    grid-template-columns: 1fr;
-  }
+.workorder-search {
+  position: relative;
+  min-width: 210px;
+  flex: 1;
+}
+
+.workorder-search svg {
+  position: absolute;
+  top: 50%;
+  left: var(--space-4);
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+}
+
+.workorder-search input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--space-4) 0 31px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.workorder-search input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 10%, transparent);
+}
+
+.workorder-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.workorder-segmented {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.workorder-segmented button {
+  min-height: 26px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+}
+
+.workorder-segmented button.is-active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: 0 1px 4px color-mix(in oklch, var(--color-text) 8%, transparent);
+}
+
+.workorder-toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+}
+
+.workorder-select-all {
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.workorder-select-all:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.workorder-record-table {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.workorder-empty {
+  padding: 54px var(--space-7);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.workorder-panel-foot {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: 0 var(--space-7);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.workorder-batch-bar {
+  position: sticky;
+  bottom: calc(var(--space-10) * -1);
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: var(--space-7) calc(var(--space-10) * -1) calc(var(--space-8) * -1);
+  padding: var(--space-5) var(--space-9);
+  border-top: 1px solid color-mix(in oklch, var(--color-surface) 18%, transparent);
+  background: var(--color-nav);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-bottom-bar);
+}
+
+.workorder-batch-bar > div {
+  display: flex;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.workorder-batch-bar button {
+  min-height: 34px;
+  padding: 0 var(--space-5);
+  border: 1px solid color-mix(in oklch, var(--color-surface) 22%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+  color: var(--color-surface);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.workorder-batch-bar button:first-child {
+  border-color: transparent;
+  background: transparent;
+}
+
+.workorder-batch-bar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 @media (max-width: 760px) {
-  .status-bento {
-    grid-template-columns: 1fr 1fr;
-  }
-  .action-toolbar-glass {
+  .workorder-page-head,
+  .workorder-batch-bar {
     flex-direction: column;
     align-items: stretch;
   }
-  .action-toolbar-buttons {
-    flex-wrap: wrap;
+
+  .workorder-page-actions,
+  .workorder-batch-bar > div {
+    margin-left: 0;
   }
-  .action-toolbar-buttons button {
-    flex: 1;
+
+  .workorder-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workorder-toolbar {
+    padding: var(--space-5);
+  }
+
+  .workorder-toolbar-separator {
+    display: none;
+  }
+
+  .workorder-batch-bar {
+    bottom: 0;
+    margin: var(--space-7) calc(var(--space-10) * -1) calc(var(--space-8) * -1);
+    padding: var(--space-5);
   }
 }
 
 @media (max-width: 520px) {
-  .status-bento {
+  .workorder-field,
+  .workorder-field > select,
+  .workorder-field.is-task > select,
+  .workorder-search {
+    width: 100%;
+  }
+
+  .workorder-stats {
     grid-template-columns: 1fr;
   }
 }
-
 </style>

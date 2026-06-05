@@ -1,52 +1,90 @@
 :root {
   color-scheme: light;
-  /* Friendly UI tokens */
-  --color-primary: #F2D9DC;
-  --color-primary-strong: #e8a5ab;
-  --color-primary-container: #f9ebed;
-  --color-primary-soft: #fdf0f1;
-  --color-primary-mist: rgba(242, 217, 220, 0.3);
-  --color-secondary: #D9F2D8;
-  --color-secondary-container: #e8f7e7;
-  --color-on-secondary-container: #1a7a3d;
-  --color-accent: #ff6b00;
-  --color-bg: #fff8d7;
-  --color-bg-strong: #fff9e0;
+  /* 林业调查工作台 tokens */
+  --color-forest: #14532D;
+  --color-leaf: #2F7D46;
+  --color-moss: #6B8F3E;
+  --color-earth: #8A5A2B;
+  --color-map-boundary: #D97706;
+  --color-map-boundary-soft: rgba(217, 119, 6, 0.46);
+  --risk-none: #E7F3E8;
+  --risk-light: #8BC34A;
+  --risk-medium: #F2B705;
+  --risk-high: #D9480F;
+  --risk-critical: #B42318;
+  --color-primary: #14532D;
+  --color-primary-strong: #0F3D22;
+  --color-primary-container: #E7F3E8;
+  --color-primary-soft: #EEF4EA;
+  --color-primary-mist: rgba(47, 125, 70, 0.16);
+  --color-secondary: #6B8F3E;
+  --color-secondary-container: #EEF4EA;
+  --color-on-secondary-container: #14532D;
+  --color-accent: #2F7D46;
+  --color-accent-on: #ffffff;
+  --color-accent-hover: #25683A;
+  --color-accent-active: #0F3D22;
+  --color-bg: #F4F7F2;
+  --color-bg-strong: #EAF2E6;
   --color-surface: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #fef9e8;
-  --color-surface-container: #fdf5d8;
-  --color-surface-container-high: #f5eccd;
-  --color-line: #eadfba;
-  --color-line-strong: #ddd2a3;
-  --color-ink: #1d1836;
-  --color-ink-soft: #4c426c;
-  --color-muted: #796f91;
-  --color-muted-soft: #a89dba;
-  --color-danger: #e5484d;
-  --color-warning: #ffb020;
-  --color-success: #2e9d57;
+  --color-surface-container-low: #EEF4EA;
+  --color-surface-container: #E7EEE2;
+  --color-surface-container-high: #D8E2D2;
+  --color-line: #D8E2D2;
+  --color-line-strong: #B7C9B2;
+  --color-border: #D8E2D2;
+  --border-soft: #E7EEE2;
+  --color-ink: #17231A;
+  --color-ink-soft: #2F3D32;
+  --color-muted: #637064;
+  --color-muted-soft: #8A9889;
+  /* 视觉接入阶段 A：补充 OpenDesign 语义别名，不改变现有正式 token 取值。 */
+  --color-text: var(--color-ink);
+  --color-text-muted: var(--color-muted);
+  --color-nav: var(--color-primary);
+  --color-nav-soft: var(--color-primary-strong);
+  --color-map-land: var(--color-bg-strong);
+  --color-map-water: #D6E8F4;
+  --color-map-road: var(--color-surface);
+  --color-danger: #B42318;
+  --color-warning: #B7791F;
+  --color-success: #2F7D46;
+  --color-info: #2563EB;
   
-  --font-display: 'Noto Serif Display', Georgia, serif;
-  --font-body: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: 'Space Mono', ui-monospace, Menlo, monospace;
+  --font-display: Inter, "Noto Sans SC", system-ui, sans-serif;
+  --font-body: Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
   /* 圆角系统 */
-  --radius-xs: 8px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
-  --radius-2xl: 28px;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
   --radius-full: 999px;
+  --radius-sheet: var(--radius-lg);
+  --radius-pill: var(--radius-full);
+  --radius-round: 50%;
 
   /* 字号系统 */
+  --text-2xs: 0.625rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
+  --text-md: 0.9375rem;
   --text-base: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
   --text-2xl: 1.5rem;
+  --text-title: clamp(1.5rem, 2.2vw, 2rem);
+  --text-hero: clamp(2.375rem, 5vw, 3.875rem);
+  --leading-body: 1.52;
+  --leading-tight: 1.2;
+  --line-body: var(--leading-body);
+  --line-title: 1.25;
+  --line-hero: 1.08;
+  --tracking-display: 0;
 
   /* 间距系统 */
   --space-1: 0.25rem;
@@ -55,6 +93,12 @@
   --space-4: 1rem;
   --space-5: 1.25rem;
   --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-9: 2.25rem;
+  --space-10: 2.5rem;
+  --space-11: 2.75rem;
+  --space-12: 3rem;
 
   /* 透明度系统 */
   --opacity-10: 0.1;
@@ -63,10 +107,23 @@
   --opacity-40: 0.4;
   --opacity-50: 0.5;
 
-  --shadow-soft: 0 4px 12px rgba(25, 28, 29, 0.03);
-  --shadow-card: 0 12px 32px rgba(25, 28, 29, 0.05);
-  --shadow-elevated: 0 24px 48px rgba(25, 28, 29, 0.08);
-  --focus-ring: 0 0 0 4px rgba(15, 82, 56, 0.12);
+  --shadow-soft: 0 4px 12px rgba(23, 35, 26, 0.04);
+  --shadow-card: 0 12px 30px rgba(23, 35, 26, 0.07);
+  --shadow-elevated: 0 18px 42px rgba(23, 35, 26, 0.12);
+  --shadow-sm: var(--shadow-soft);
+  --shadow-hover: var(--shadow-elevated);
+  --shadow-popover: var(--shadow-elevated);
+  --shadow-drawer: -14px 0 40px rgba(23, 35, 26, 0.12);
+  --shadow-bottom-bar: 0 -8px 24px rgba(23, 35, 26, 0.12);
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--color-border);
+  --elev-raised: 0 14px 34px rgba(23, 35, 26, 0.10);
+  --elev-map-control: 0 10px 28px rgba(23, 35, 26, 0.16);
+  --focus-ring: 0 0 0 3px rgba(47, 125, 70, 0.22);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --control-height: 3rem;
   --content-width: 116rem;
   --app-sidebar-width: 20rem; /* Increased slightly for new layout */
@@ -193,7 +250,7 @@ button,
   padding: var(--space-3) 1.2rem;
   border-radius: var(--radius-sm);
   background: var(--color-primary);
-  color: var(--color-ink);
+  color: var(--color-accent-on);
   font-family: var(--font-body);
   font-weight: 700;
   cursor: pointer;
@@ -207,7 +264,7 @@ button:hover,
 .button-like:hover {
   transform: translateY(-1px);
   box-shadow: var(--elev-raised);
-  background: var(--color-primary-strong);
+  background: var(--color-accent-hover);
 }
 
 button:disabled,
@@ -305,7 +362,7 @@ button:disabled,
 .summary-card,
 .panel-card {
   border: none;
-  border-radius: var(--radius-sm); /* Using 12px for cards initially, but DESIGN.md says fallback to DEFAULT 8px or lg 16px, lets use 16px */
+  border-radius: var(--radius-sm);
   background: var(--color-surface-container-lowest);
   box-shadow: var(--shadow-card);
 }
@@ -325,14 +382,14 @@ button:disabled,
 }
 
 .summary-card.is-highlight {
-  color: var(--color-ink);
+  color: var(--color-accent-on);
   background: var(--color-primary);
   border-color: var(--color-line);
 }
 
 .summary-card.is-highlight .summary-label,
 .summary-card.is-highlight .summary-footnote {
-  color: var(--color-ink-soft);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .summary-value {
@@ -390,8 +447,8 @@ button:disabled,
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-ink-soft);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
 }
 
 .icon-badge svg {
@@ -449,8 +506,8 @@ button:disabled,
 
 .segment-button.is-active {
   background: var(--color-primary);
-  border-color: var(--color-line);
-  color: var(--color-ink);
+  border-color: var(--color-primary);
+  color: var(--color-accent-on);
 }
 
 .chip-row {
@@ -465,8 +522,8 @@ button:disabled,
   gap: 0.4rem;
   padding: 0.42rem 0.72rem;
   border-radius: var(--radius-pill);
-  background: var(--color-primary);
-  color: var(--color-ink-soft);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
   font-size: 0.82rem;
   font-weight: 700;
 }

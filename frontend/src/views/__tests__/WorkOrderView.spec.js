@@ -37,9 +37,34 @@ const RecordTableStub = defineComponent({
       type: Array,
       default: () => [],
     },
+    rowIndexes: {
+      type: Array,
+      default: () => [],
+    },
+    selectedIndexes: {
+      type: Array,
+      default: () => [],
+    },
+    errors: {
+      type: Array,
+      default: () => [],
+    },
   },
-  emits: ["update:records"],
-  template: '<div data-testid="record-table">记录表格 {{ records.length }}</div>',
+  emits: ["row-click", "update:selectedIndexes"],
+  template: `
+    <div data-testid="record-table">
+      记录表格 {{ records.length }}
+      <button
+        v-for="(record, index) in records"
+        :key="rowIndexes[index] ?? index"
+        type="button"
+        :data-testid="'record-row-' + (rowIndexes[index] ?? index)"
+        @click="$emit('row-click', rowIndexes[index] ?? index)"
+      >
+        {{ record.location_name }}
+      </button>
+    </div>
+  `,
 });
 
 const SurveyImportDialogStub = defineComponent({
@@ -119,15 +144,18 @@ describe("WorkOrderView", () => {
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("移除页面介绍模块后仍保留侧栏和主表格", () => {
+  it("按设计结构渲染页头、横向任务配置、统计卡和记录面板", () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
     expect(wrapper.text()).toContain("当前记录");
-    expect(wrapper.text()).toContain("任务配置");
-    expect(wrapper.text()).toContain("生成工作单");
-    expect(wrapper.text()).toContain("导入调查数据");
+    expect(wrapper.text()).toContain("害虫类型");
+    expect(wrapper.text()).toContain("逐条导出工作单");
+    expect(wrapper.text()).toContain("导入调查记录");
+    expect(wrapper.find(".workorder-controls").exists()).toBe(true);
+    expect(wrapper.find(".workorder-stats").exists()).toBe(true);
+    expect(wrapper.find(".workorder-panel").exists()).toBe(true);
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
@@ -208,6 +236,66 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")[1].location_id).toBe("HX0002");
   });
 
+  it("搜索只过滤当前已导入记录，并保留原始行下标用于编辑", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
+      createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
+    ]);
+
+    await wrapper.get('[data-testid="workorder-search"]').setValue("林场");
+
+    const recordTable = wrapper.getComponent(RecordTableStub);
+    expect(recordTable.props("records")).toHaveLength(1);
+    expect(recordTable.props("records")[0].location_id).toBe("HX0002");
+    expect(recordTable.props("rowIndexes")).toEqual([1]);
+
+    await wrapper.get('[data-testid="record-row-1"]').trigger("click");
+    expect(wrapper.getComponent({ name: "RecordDetailModal" }).props("record").location_id).toBe(
+      "HX0002",
+    );
+  });
+
+  it("分段筛选已选记录时只展示被选中的原始记录", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
+      createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
+    ]);
+
+    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedIndexes", [1]);
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="workorder-filter-selected"]').trigger("click");
+
+    const recordTable = wrapper.getComponent(RecordTableStub);
+    expect(recordTable.props("records")).toHaveLength(1);
+    expect(recordTable.props("records")[0].location_id).toBe("HX0002");
+    expect(recordTable.props("rowIndexes")).toEqual([1]);
+  });
+
+  it("底部批量条支持删除选中记录并清空选择", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
+      createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
+    ]);
+
+    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedIndexes", [1]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(true);
+    await findButtonByText(wrapper, "删除选中").trigger("click");
+
+    const recordTable = wrapper.getComponent(RecordTableStub);
+    expect(recordTable.props("records")).toHaveLength(1);
+    expect(recordTable.props("records")[0].location_id).toBe("YF0069");
+    expect(recordTable.props("selectedIndexes")).toEqual([]);
+    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(false);
+  });
+
   it("其他害虫导入后保留模板字段并支持导出", async () => {
     const wrapper = mountWorkOrderView();
 
@@ -230,7 +318,7 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
@@ -274,7 +362,7 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
@@ -324,7 +412,7 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
@@ -357,7 +445,7 @@ describe("WorkOrderView", () => {
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [createValidRecord()]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
@@ -392,7 +480,7 @@ describe("WorkOrderView", () => {
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
@@ -440,7 +528,7 @@ describe("WorkOrderView", () => {
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.error).toHaveBeenCalledWith(
@@ -464,7 +552,7 @@ describe("WorkOrderView", () => {
     apiMocks.error.mockClear();
     apiMocks.downloadBlob.mockClear();
 
-    await findButtonByText(wrapper, "生成工作单").trigger("click");
+    await findButtonByText(wrapper, "导出工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);

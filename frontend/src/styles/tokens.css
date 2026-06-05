@@ -1,0 +1,75 @@
+.design-preview-root {
+  color-scheme: light;
+
+  --color-bg: oklch(97.8% 0.006 155);
+  --color-surface: oklch(100% 0 0);
+  --color-text: oklch(20% 0.036 158);
+  --color-text-muted: oklch(50% 0.022 158);
+  --color-border: oklch(89% 0.014 155);
+  --color-primary: oklch(43% 0.105 155);
+  --color-nav: oklch(25% 0.072 157);
+  --color-nav-soft: oklch(31% 0.072 157);
+  --color-info: oklch(57% 0.115 235);
+  --color-warning: oklch(74% 0.14 84);
+  --color-warning-text: oklch(55% 0.14 84);
+  --color-danger: oklch(58% 0.16 28);
+  --color-map-land: oklch(93% 0.025 145);
+  --color-map-water: oklch(88% 0.055 225);
+  --color-map-road: oklch(98% 0.005 145);
+  --color-primary-soft: color-mix(in oklch, var(--color-primary) 8%, var(--color-surface));
+  --color-info-soft: color-mix(in oklch, var(--color-info) 8%, var(--color-surface));
+  --color-warning-soft: color-mix(in oklch, var(--color-warning) 12%, var(--color-surface));
+  --color-danger-soft: color-mix(in oklch, var(--color-danger) 8%, var(--color-surface));
+
+  --font-display: "Songti SC", "STSong", "Noto Serif CJK SC", "Iowan Old Style", Georgia, serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "SFMono-Regular", "JetBrains Mono", "Cascadia Code", ui-monospace, monospace;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-title: clamp(24px, 2.2vw, 32px);
+  --text-hero: clamp(38px, 5vw, 62px);
+  --line-body: 1.55;
+  --line-title: 1.25;
+  --line-hero: 1.08;
+
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 18px;
+  --space-9: 20px;
+  --space-10: 22px;
+  --space-11: 24px;
+  --space-12: 30px;
+
+  --radius-xs: 6px;
+  --radius-sm: 7px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-sheet: 16px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+
+  --shadow-sm: 0 4px 16px color-mix(in oklch, var(--color-text) 8%, transparent);
+  --shadow-card: 0 1px 0 color-mix(in oklch, var(--color-text) 3%, transparent);
+  --shadow-hover: 0 16px 40px color-mix(in oklch, var(--color-text) 9%, transparent);
+  --shadow-popover: 0 12px 36px color-mix(in oklch, var(--color-text) 10%, transparent);
+  --shadow-drawer: -14px 0 40px color-mix(in oklch, var(--color-text) 12%, transparent);
+  --shadow-bottom-bar: 0 -8px 24px color-mix(in oklch, var(--color-text) 12%, transparent);
+
+  --motion-fast: 80ms;
+  --motion-base: 160ms;
+  --motion-slow: 220ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}

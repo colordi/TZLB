@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetAuthSessionState } from "../../composables/useAuthSession.js";
+import { DESIGN_PREVIEW_STAGES } from "../../fixtures/design/previewStages.js";
 import router from "../index.js";
 
 function mockCurrentUser(user) {
@@ -41,6 +42,40 @@ describe("router", () => {
     await router.isReady();
 
     expect(router.currentRoute.value.fullPath).toBe("/login");
+  });
+
+  it("设计预览路由绕过会话加载并使用独立布局", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await router.push("/design/login");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/design/login");
+    expect(router.currentRoute.value.meta.hideShell).toBe(true);
+    expect(router.currentRoute.value.meta.skipSessionLoad).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("地图设计预览使用静态全宽工作区且不加载会话", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await router.push("/design/map");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/design/map");
+    expect(router.currentRoute.value.meta.previewFullBleed).toBe(true);
+    expect(router.currentRoute.value.meta.skipSessionLoad).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("第一阶段设计预览入口全部可检查且只指向隔离路由", () => {
+    for (const stage of DESIGN_PREVIEW_STAGES) {
+      expect(stage.ready).toBe(true);
+      expect(stage.to.startsWith("/design")).toBe(true);
+      expect(router.resolve(stage.to).matched.length).toBeGreaterThan(0);
+    }
   });
 
   it("未登录访问受保护页面时会跳转到登录页", async () => {

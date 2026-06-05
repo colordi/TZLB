@@ -14,6 +14,7 @@ const { error, info, success } = useToast();
 const username = ref("");
 const password = ref("");
 const rememberMe = ref(false);
+const showPassword = ref(false);
 const submitting = ref(false);
 
 const targetPath = computed(() => {
@@ -92,58 +93,46 @@ onMounted(() => {
 
 <template>
   <section class="login-page" data-testid="login-page">
-    <!-- Warm background with subtle pattern -->
-    <div class="login-bg" aria-hidden="true">
-      <div class="login-bg__gradient"></div>
-      <div class="login-bg__pattern"></div>
+    <div class="login-decoration" aria-hidden="true">
+      <span class="login-contour login-contour-one"></span>
+      <span class="login-contour login-contour-two"></span>
+      <span class="login-tree login-tree-one"></span>
+      <span class="login-tree login-tree-two"></span>
     </div>
 
-    <main class="login-content">
-      <div class="login-card">
-        <!-- Brand header -->
-        <div class="login-brand">
-          <div class="login-brand__mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3v18M12 3l-4 4M12 3l4 4M8 7l-4 4M16 7l4 4M8 7v4M16 7v4M8 11l-4 4M16 11l4 4M8 11v4M16 11v4M8 15l-4 4M16 15l4 4"/>
+    <main class="login-shell">
+      <form class="login-card" novalidate @submit.prevent="handleSubmit">
+        <header class="login-brand">
+          <span class="login-brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55">
+              <path d="M12 3 7 10h3l-4 6h5v5h2v-5h5l-4-6h3Z" />
             </svg>
-          </div>
+          </span>
+          <p class="login-eyebrow">FORESTRY SURVEY</p>
           <h1 class="login-brand__title">林业调查工作台</h1>
-          <p class="login-brand__subtitle">Forest Survey Workbench</p>
-        </div>
+          <p class="login-brand__subtitle">使用林业管理部门统一账号登录</p>
+        </header>
 
-        <!-- Login form -->
-        <form class="login-form" @submit.prevent="handleSubmit">
-          <div class="login-field">
-            <label for="login-username">用户名</label>
-            <div class="login-input-wrapper">
-              <span class="login-input-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M5 20c0-4 3.5-7 7-7s7 3 7 7"/>
-                </svg>
-              </span>
+        <div class="login-form">
+          <label class="login-field" for="login-username">
+            <span>账号</span>
+            <span class="login-input-frame">
               <input
                 id="login-username"
                 v-model.trim="username"
                 :disabled="submitting"
                 autocomplete="username"
                 name="username"
-                placeholder="请输入用户名"
+                placeholder="请输入账号"
+                required
                 type="text"
               />
-            </div>
-          </div>
+            </span>
+          </label>
 
-          <div class="login-field">
-            <label for="login-password">密码</label>
-            <div class="login-input-wrapper">
-              <span class="login-input-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="5" y="11" width="14" height="10" rx="2"/>
-                  <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                  <circle cx="12" cy="16" r="1"/>
-                </svg>
-              </span>
+          <label class="login-field" for="login-password">
+            <span>密码</span>
+            <span class="login-input-frame login-password-frame">
               <input
                 id="login-password"
                 v-model.trim="password"
@@ -151,10 +140,25 @@ onMounted(() => {
                 autocomplete="current-password"
                 name="password"
                 placeholder="请输入密码"
-                type="password"
+                required
+                :type="showPassword ? 'text' : 'password'"
               />
-            </div>
-          </div>
+              <button
+                class="login-password-toggle"
+                type="button"
+                :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+                :aria-pressed="showPassword"
+                :disabled="submitting"
+                @click="showPassword = !showPassword"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                  <circle cx="12" cy="12" r="2.5" />
+                  <path v-if="showPassword" d="m4 4 16 16" />
+                </svg>
+              </button>
+            </span>
+          </label>
 
           <div class="login-options">
             <label class="login-checkbox" for="remember-me">
@@ -178,14 +182,21 @@ onMounted(() => {
           </div>
 
           <button type="submit" class="login-submit" :disabled="submitting">
-            <span>{{ submitting ? "正在登录" : "立即登录" }}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
+            <span>{{ submitting ? "正在进入" : "进入工作台" }}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+              <path d="M5 12h14m-5-5 5 5-5 5" />
             </svg>
           </button>
-        </form>
+        </div>
 
-        <!-- Footer -->
+        <div class="login-security-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6Z" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+          <span>系统将记录登录时间、设备与关键操作，用于安全审计和数据追溯。</span>
+        </div>
+
         <div class="login-card__foot">
           <p>
             还没有账号？
@@ -199,7 +210,9 @@ onMounted(() => {
             </button>
           </p>
         </div>
-      </div>
+
+        <p class="login-footnote">北京市林业资源调查与监测</p>
+      </form>
     </main>
   </section>
 </template>
@@ -208,176 +221,284 @@ onMounted(() => {
 .login-page {
   position: relative;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
   font-family: var(--font-body);
-  background: var(--color-bg);
+  background: color-mix(in oklch, var(--color-bg) 68%, var(--color-primary-container));
 }
 
-/* ── Background ── */
-.login-bg {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.login-bg__gradient {
-  position: absolute;
-  inset: 0;
-  background: 
-    radial-gradient(ellipse at 20% 20%, rgba(242, 217, 220, 0.4), transparent 50%),
-    radial-gradient(ellipse at 80% 80%, rgba(217, 242, 216, 0.3), transparent 50%),
-    var(--color-bg);
-}
-
-.login-bg__pattern {
-  position: absolute;
-  inset: 0;
-  opacity: 0.03;
-  background-image: 
-    radial-gradient(circle at 1px 1px, var(--color-ink) 1px, transparent 0);
-  background-size: 32px 32px;
-}
-
-/* ── Content ── */
-.login-content {
+.login-shell {
+  isolation: isolate;
   position: relative;
   z-index: 1;
-  flex: 1;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-6) var(--space-4);
+  padding: clamp(24px, 6vw, 72px) var(--space-5);
+  background:
+    linear-gradient(color-mix(in oklch, var(--color-primary) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--color-primary) 4%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 50% 36%, var(--color-surface) 0, transparent 48%);
+  background-size: 48px 48px, 48px 48px, auto;
 }
 
-/* ── Card ── */
+.login-decoration {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-contour {
+  position: absolute;
+  width: clamp(320px, 44vw, 760px);
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 16%, transparent);
+  border-radius: 43% 57% 38% 62% / 52% 38% 62% 48%;
+}
+
+.login-contour::before,
+.login-contour::after {
+  position: absolute;
+  border: inherit;
+  border-radius: inherit;
+  content: "";
+}
+
+.login-contour::before {
+  inset: 8%;
+  transform: rotate(12deg);
+}
+
+.login-contour::after {
+  inset: 18%;
+  transform: rotate(-8deg);
+}
+
+.login-contour-one {
+  top: -20%;
+  right: -13%;
+  transform: rotate(18deg);
+}
+
+.login-contour-two {
+  bottom: -27%;
+  left: -15%;
+  transform: rotate(-24deg);
+}
+
+.login-tree {
+  position: absolute;
+  width: 18px;
+  height: 24px;
+  color: color-mix(in oklch, var(--color-primary) 24%, transparent);
+}
+
+.login-tree::before,
+.login-tree::after {
+  position: absolute;
+  left: 50%;
+  content: "";
+  transform: translateX(-50%);
+}
+
+.login-tree::before {
+  top: 0;
+  width: 0;
+  height: 0;
+  border-right: 9px solid transparent;
+  border-bottom: 17px solid currentColor;
+  border-left: 9px solid transparent;
+}
+
+.login-tree::after {
+  bottom: 0;
+  width: 1px;
+  height: 9px;
+  background: currentColor;
+}
+
+.login-tree-one {
+  top: 18%;
+  left: 13%;
+  transform: scale(0.82);
+}
+
+.login-tree-two {
+  right: 16%;
+  bottom: 17%;
+  transform: scale(1.1);
+}
+
 .login-card {
-  width: min(100%, 24rem);
-  padding: var(--space-8);
+  position: relative;
+  width: min(420px, 100%);
+  padding: clamp(26px, 5vw, 38px);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 18%, var(--color-border));
+  border-radius: var(--radius-xl);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-raised);
+  box-shadow: 0 24px 70px color-mix(in oklch, var(--color-nav) 13%, transparent);
+  animation: login-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* ── Brand ── */
+.login-card::before {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 68px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--color-primary);
+  content: "";
+  transform: translateX(-50%);
+}
+
 .login-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  justify-items: center;
+  margin-bottom: 28px;
   text-align: center;
-  margin-bottom: var(--space-8);
 }
 
 .login-brand__mark {
-  width: 4rem;
-  height: 4rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background: var(--color-primary);
-  color: var(--color-ink-soft);
-  margin-bottom: var(--space-5);
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 15px;
+  border: 1px solid color-mix(in oklch, var(--color-primary) 22%, var(--color-border));
+  border-radius: var(--radius-round);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .login-brand__mark svg {
-  width: 2rem;
-  height: 2rem;
+  width: 25px;
+  height: 25px;
+}
+
+.login-eyebrow {
+  margin-bottom: 7px;
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.16em;
 }
 
 .login-brand__title {
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
+  font-size: clamp(25px, 5vw, 30px);
   font-weight: 700;
   color: var(--color-ink);
   line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-display);
 }
 
 .login-brand__subtitle {
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
   color: var(--color-muted);
   font-size: var(--text-sm);
-  font-weight: 500;
 }
 
-/* ── Form ── */
 .login-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
+  display: grid;
+  gap: var(--space-7);
 }
 
 .login-field {
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+  display: grid;
   gap: var(--space-2);
 }
 
-.login-field label {
+.login-field > span:first-child {
   color: var(--color-ink-soft);
   font-size: var(--text-sm);
   font-weight: 600;
 }
 
-.login-input-wrapper {
+.login-input-frame {
   position: relative;
+  display: block;
 }
 
-.login-input-icon {
-  position: absolute;
-  left: var(--space-4);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1.125rem;
-  height: 1.125rem;
-  color: var(--color-muted);
-  pointer-events: none;
-}
-
-.login-input-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.login-input-wrapper :deep(input) {
-  padding-left: 2.75rem;
-  min-height: 3rem;
-  border-radius: var(--radius-sm);
+.login-input-frame :deep(input) {
+  min-height: 46px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  font-size: var(--text-base);
-  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+  background: color-mix(in oklch, var(--color-bg) 42%, var(--color-surface));
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
 }
 
-.login-input-wrapper :deep(input:focus) {
+.login-input-frame :deep(input:focus) {
   border-color: var(--color-primary);
   box-shadow: var(--focus-ring);
 }
 
-/* ── Options row ── */
+.login-password-frame :deep(input) {
+  padding-right: 52px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-muted);
+  box-shadow: none;
+}
+
+.login-password-toggle:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  transform: none;
+}
+
+.login-password-toggle svg,
+.login-submit svg,
+.login-security-note svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 .login-options {
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-7);
+  color: var(--color-muted);
   font-size: var(--text-sm);
 }
 
 .login-checkbox {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-ink-soft);
   cursor: pointer;
 }
 
 .login-checkbox :deep(input[type="checkbox"]) {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
   min-height: 0;
+  margin: 0;
+  padding: 0;
   accent-color: var(--color-accent);
 }
 
@@ -389,20 +510,20 @@ onMounted(() => {
   color: var(--color-accent);
   box-shadow: none;
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: 650;
 }
 
-.login-link:hover {
+.login-link:hover:not(:disabled) {
   transform: none;
   box-shadow: none;
   color: var(--color-ink);
 }
 
-/* ── Submit ── */
 .login-submit {
-  min-height: 3rem;
-  margin-top: var(--space-2);
-  border-radius: var(--radius-sm);
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+  border-radius: var(--radius-md);
   background: var(--color-accent);
   color: var(--color-accent-on);
   font-weight: 700;
@@ -410,7 +531,7 @@ onMounted(() => {
   transition: all var(--motion-fast) var(--ease-standard);
 }
 
-.login-submit:hover {
+.login-submit:hover:not(:disabled) {
   background: var(--color-accent-hover);
   transform: translateY(-1px);
   box-shadow: var(--elev-raised);
@@ -422,16 +543,27 @@ onMounted(() => {
   transform: none;
 }
 
-.login-submit svg {
-  width: 1rem;
-  height: 1rem;
+.login-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: 22px;
+  padding-top: var(--space-7);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.65;
 }
 
-/* ── Footer ── */
+.login-security-note svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--color-primary);
+}
+
 .login-card__foot {
-  margin-top: var(--space-8);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-5);
   text-align: center;
   color: var(--color-ink-soft);
   font-size: var(--text-sm);
@@ -442,26 +574,73 @@ onMounted(() => {
   font-weight: 700;
 }
 
-/* ── Responsive ── */
-@media (max-width: 640px) {
-  .login-content {
-    padding: var(--space-4);
+.login-footnote {
+  margin-top: 20px;
+  color: color-mix(in oklch, var(--color-muted) 82%, transparent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+@keyframes login-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .login-shell {
+    align-items: flex-start;
+    padding-top: max(40px, 8vh);
+  }
+
+  .login-contour-one {
+    top: -8%;
+    right: -52%;
+  }
+
+  .login-contour-two {
+    bottom: -10%;
+    left: -60%;
+  }
+
+  .login-tree-one {
+    top: 5%;
+    left: 8%;
+  }
+
+  .login-tree-two {
+    right: 8%;
+    bottom: 5%;
   }
 
   .login-card {
-    padding: var(--space-6);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
   }
+}
 
-  .login-brand__mark {
-    width: 3.25rem;
-    height: 3.25rem;
+@media (max-width: 430px) {
+  .login-shell {
+    padding-inline: var(--space-5);
   }
 
   .login-options {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card {
+    animation: none;
   }
 }
 </style>
