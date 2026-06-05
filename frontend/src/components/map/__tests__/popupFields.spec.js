@@ -10,16 +10,16 @@ import {
 
 describe("buildPopupRows", () => {
   it("按照当前 view 的 columns 顺序输出字段", () => {
-    const columns = ["村", "乡镇", "编号"];
+    const columns = ["村", "属地", "编号"];
     const properties = {
       村: "南村",
-      乡镇: "东镇",
+      属地: "东镇",
       编号: "001",
     };
 
     expect(buildPopupRows(columns, properties)).toEqual([
       ["村", "南村"],
-      ["乡镇", "东镇"],
+      ["属地", "东镇"],
       ["编号", "001"],
     ]);
   });

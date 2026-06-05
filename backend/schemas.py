@@ -16,7 +16,7 @@ class WorkOrderRecord(BaseModel):
 
     survey_date: str
     region: str = ""
-    town_or_street: str
+    locality: str
     location_id: str
     location_name: str
     occurrence_position: str = ""
@@ -89,7 +89,7 @@ class WhiteMothSiteResponse(BaseModel):
 
     gid: int | None = None
     code: str
-    township: str
+    locality: str
     site_name: str = ""
     longitude: float
     latitude: float

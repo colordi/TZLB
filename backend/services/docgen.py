@@ -237,7 +237,7 @@ def build_context(
 
 
 def build_output_filename(record: WorkOrderRecord, index: int) -> str:
-    town = record.town_or_street or "未知乡镇"
+    town = record.locality or "未知属地"
     location = record.location_name or "未命名点位"
     survey_date = record.survey_date or datetime.now().strftime("%Y-%m-%d")
     serial = record.location_id or str(index + 1).zfill(3)

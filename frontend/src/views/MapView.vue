@@ -27,6 +27,7 @@ function createEmptyFeatureCollection() {
 
 const { error, info, success } = useToast();
 const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
+const LOCALITY_FIELD = "属地";
 const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
 
 const views = ref([]);
@@ -108,8 +109,8 @@ const hasFilterFields = computed(() => filterFields.value.length > 0);
 const whiteMothSiteCodeExample = computed(
   () => whiteMothSiteCodeRules.value?.code_example || "MQ001",
 );
-const whiteMothSitePrefixTownships = computed(
-  () => whiteMothSiteCodeRules.value?.prefix_townships || {},
+const whiteMothSitePrefixLocalities = computed(
+  () => whiteMothSiteCodeRules.value?.prefix_localities || {},
 );
 const normalizedWhiteMothSiteCode = computed(() =>
   whiteMothSiteForm.value.code.trim().toUpperCase(),
@@ -122,12 +123,12 @@ const whiteMothSiteCodeRegex = computed(() => {
     return null;
   }
 });
-const resolvedWhiteMothSiteTownship = computed(() => {
+const resolvedWhiteMothSiteLocality = computed(() => {
   const code = normalizedWhiteMothSiteCode.value;
   if (!code || !whiteMothSiteCodeRegex.value?.test(code)) {
     return "";
   }
-  return whiteMothSitePrefixTownships.value[code.slice(0, 2)] || "";
+  return whiteMothSitePrefixLocalities.value[code.slice(0, 2)] || "";
 });
 const whiteMothSiteCodeError = computed(() => {
   if (!whiteMothSiteCodeRules.value) {
@@ -138,7 +139,7 @@ const whiteMothSiteCodeError = computed(() => {
   if (!code) {
     return "请输入编号";
   }
-  if (!whiteMothSiteCodeRegex.value?.test(code) || !resolvedWhiteMothSiteTownship.value) {
+  if (!whiteMothSiteCodeRegex.value?.test(code) || !resolvedWhiteMothSiteLocality.value) {
     return `编号格式不正确，请输入类似 ${whiteMothSiteCodeExample.value} 的编号`;
   }
   return "";
@@ -194,14 +195,14 @@ function normalizeSelectedFilterValues(value) {
 function buildLegacyFilterFields(payload) {
   const fields = [];
   const columns = currentView.value.columns || [];
-  const townships = payload?.townships || [];
+  const localities = payload?.localities || [];
 
-  if (payload?.supports_township_filter || columns.includes("乡镇")) {
+  if (payload?.supports_locality_filter || columns.includes(LOCALITY_FIELD)) {
     fields.push({
-      key: "乡镇",
-      label: "乡镇 / 街道",
+      key: LOCALITY_FIELD,
+      label: LOCALITY_FIELD,
       type: "select",
-      options: normalizeFilterOptions(townships),
+      options: normalizeFilterOptions(localities),
       defaultValues: [],
     });
   }
@@ -539,7 +540,7 @@ async function submitWhiteMothSite() {
       latitude: whiteMothSiteDraftLocation.value.latitude,
     });
     success(
-      `点位 ${createdSite.code} 已保存到 ${createdSite.township}。`,
+      `点位 ${createdSite.code} 已保存到 ${createdSite.locality}。`,
       "新增成功",
     );
     isAddingWhiteMothSite.value = false;
@@ -774,9 +775,9 @@ onMounted(async () => {
             </label>
 
             <div class="site-add-location">
-              <span class="detail-label">自动识别乡镇</span>
-              <strong data-testid="white-moth-site-township">
-                {{ resolvedWhiteMothSiteTownship || '待识别' }}
+              <span class="detail-label">自动识别属地</span>
+              <strong data-testid="white-moth-site-locality">
+                {{ resolvedWhiteMothSiteLocality || '待识别' }}
               </strong>
             </div>
 

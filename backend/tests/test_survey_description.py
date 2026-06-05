@@ -17,7 +17,7 @@ from backend.db.postgres import (
 class BuildSpringInchwormDescriptionTest(unittest.TestCase):
     def test_heavy_damage_includes_insect_count_and_urgent_advice(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="于家务乡",
+            locality="于家务乡",
             location_name="枣林村",
             location_id="YF0005",
             damage_level="重",
@@ -32,7 +32,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
     def test_medium_damage_includes_insect_count_and_tracking_advice(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="永乐店镇",
+            locality="永乐店镇",
             location_name="陈辛庄村",
             location_id="YL0033",
             damage_level="中",
@@ -47,7 +47,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
     def test_light_damage_includes_insect_count_and_monitoring_advice(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="于家务乡",
+            locality="于家务乡",
             location_name="枣林村",
             location_id="YF0005",
             damage_level="轻",
@@ -62,7 +62,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
     def test_missing_insect_count_is_rendered_as_unrecorded(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="于家务乡",
+            locality="于家务乡",
             location_name="神仙村",
             location_id="YF0069",
             damage_level="重",
@@ -77,7 +77,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
     def test_empty_damage_level_uses_pending_judgement_and_fallback_advice(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="西集镇",
+            locality="西集镇",
             location_name="林场一区",
             location_id="XJ0001",
             damage_level="",
@@ -92,7 +92,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 
     def test_unknown_damage_level_preserves_original_level_and_uses_generic_advice(self) -> None:
         description = build_spring_inchworm_description(
-            town_or_street="",
+            locality="",
             location_name="示范点",
             location_id="SF0008",
             damage_level="偏重",
@@ -109,7 +109,7 @@ class BuildSpringInchwormDescriptionTest(unittest.TestCase):
 class BuildGuoHuaiInchwormDescriptionTest(unittest.TestCase):
     def test_heavy_damage_uses_guo_huai_pest_name(self) -> None:
         description = build_guo_huai_inchworm_description(
-            town_or_street="宋庄镇",
+            locality="宋庄镇",
             location_name="管头村",
             location_id="1001-1",
             damage_level="重",
@@ -124,7 +124,7 @@ class BuildGuoHuaiInchwormDescriptionTest(unittest.TestCase):
 
     def test_missing_insect_count_is_rendered_as_unrecorded(self) -> None:
         description = build_guo_huai_inchworm_description(
-            town_or_street="潞城镇",
+            locality="潞城镇",
             location_name="卜落垡村",
             location_id="101-1",
             damage_level="轻",
@@ -139,7 +139,7 @@ class BuildGuoHuaiInchwormDescriptionTest(unittest.TestCase):
 
     def test_unknown_damage_level_preserves_original_level(self) -> None:
         description = build_guo_huai_inchworm_description(
-            town_or_street="",
+            locality="",
             location_name="示范点",
             location_id="GH0008",
             damage_level="偏重",
@@ -172,7 +172,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                                 "total_insect_count": 50,
                                 "damage_level": "重",
                                 "note": "树冠北侧虫口集中",
-                                "town_or_street": "于家务乡",
+                                "locality": "于家务乡",
                                 "location_name": "神仙村",
                             }
                         ]
@@ -210,7 +210,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                                 "total_insect_count": 45,
                                 "damage_level": "重",
                                 "note": "树冠中上部虫口集中",
-                                "town_or_street": "宋庄镇",
+                                "locality": "宋庄镇",
                                 "location_name": "管头村",
                             }
                         ]
@@ -244,7 +244,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                         "total_insect_count": 50,
                         "damage_level": "重",
                         "note": "树冠北侧虫口集中",
-                        "town_or_street": "于家务乡",
+                        "locality": "于家务乡",
                         "location_name": "神仙村",
                     }
                 ]
@@ -275,7 +275,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                         "pest_name": "蚜虫",
                         "survey_result": "发现问题",
                         "description": "潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。",
-                        "town_or_street": "潞城镇",
+                        "locality": "潞城镇",
                         "location_name": "畅和东路北京学校西侧",
                         "host_plant": "栾树",
                         "plot_type": "道路绿化",
@@ -290,7 +290,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             [
                 {
                     "survey_date": "2026-04-17",
-                    "town_or_street": "潞城镇",
+                    "locality": "潞城镇",
                     "location_id": "QT0001",
                     "location_name": "畅和东路北京学校西侧",
                     "pest_name": "蚜虫",
@@ -313,7 +313,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                     "total_insect_count": 45,
                     "damage_level": "重",
                     "note": "树冠中上部虫口集中",
-                    "town_or_street": "宋庄镇",
+                    "locality": "宋庄镇",
                     "location_name": "管头村",
                 }
             ]
@@ -336,7 +336,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             [
                 {
                     "survey_date": "2026-05-02",
-                    "town_or_street": "宋庄镇",
+                    "locality": "宋庄镇",
                     "location_id": "1001-1",
                     "location_name": "管头村",
                     "total_insect_count": 45,
@@ -362,7 +362,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                     "location_id": "MQ001",
                     "survey_date": "2026-05-26",
                     "region": "城区",
-                    "town_or_street": "梨园镇",
+                    "locality": "梨园镇",
                     "location_name": "玉桥东路",
                     "occurrence_position": "道路东侧",
                     "green_space_type": "道路绿化",
@@ -400,7 +400,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "survey_date": "2026-05-26",
                     "region": "城区",
-                    "town_or_street": "梨园镇",
+                    "locality": "梨园镇",
                     "location_id": "MQ001",
                     "location_name": "玉桥东路",
                     "occurrence_position": "道路东侧",

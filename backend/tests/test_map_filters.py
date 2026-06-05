@@ -13,7 +13,7 @@ from backend.db.postgres import (
 class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
     async def test_filter_options_include_dynamic_fields_and_year_default(self) -> None:
         async def fake_fetch(query: str, *args):
-            if '"乡镇"' in query:
+            if '"属地"' in query:
                 return [{"value": "宋庄镇"}, {"value": "潞城镇"}]
             if '"年份"' in query:
                 return [{"value": "2024"}, {"value": "2025"}]
@@ -27,7 +27,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(
                     return_value={
                         "name": "国槐尺蠖幼虫历年发生情况",
-                        "columns": ["编号", "乡镇", "年份", "危害程度"],
+                        "columns": ["编号", "属地", "年份", "危害程度"],
                     }
                 ),
             ),
@@ -35,13 +35,13 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         ):
             payload = await fetch_map_filter_options("国槐尺蠖幼虫历年发生情况")
 
-        self.assertEqual(payload["townships"], ["宋庄镇", "潞城镇"])
+        self.assertEqual(payload["localities"], ["宋庄镇", "潞城镇"])
         self.assertEqual(
             payload["filter_fields"],
             [
                 {
-                    "key": "乡镇",
-                    "label": "乡镇 / 街道",
+                    "key": "属地",
+                    "label": "属地",
                     "type": "select",
                     "options": [
                         {"value": "宋庄镇", "label": "宋庄镇"},

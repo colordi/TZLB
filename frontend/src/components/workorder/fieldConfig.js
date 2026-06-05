@@ -39,28 +39,28 @@ const CONTROL_TASK_OPTIONS_BY_PEST = {
 export const REQUIRED_FIELD_KEYS_BY_PEST = {
   春尺蠖: [
     "survey_date",
-    "town_or_street",
+    "locality",
     "location_id",
     "location_name",
     "description",
   ],
   国槐尺蠖: [
     "survey_date",
-    "town_or_street",
+    "locality",
     "location_id",
     "location_name",
     "description",
   ],
   美国白蛾: [
     "survey_date",
-    "town_or_street",
+    "locality",
     "location_id",
     "location_name",
     "description",
   ],
   其他害虫: [
     "survey_date",
-    "town_or_street",
+    "locality",
     "location_id",
     "location_name",
     "description",
@@ -80,9 +80,9 @@ const FIELD_DEFINITIONS = {
     type: "select",
     options: ["乡镇", "城区"],
   },
-  town_or_street: {
-    key: "town_or_street",
-    label: "乡镇｜街道",
+  locality: {
+    key: "locality",
+    label: "属地",
     type: "text",
     required: true,
   },
@@ -169,7 +169,7 @@ const FIELD_DEFINITIONS = {
 
 const SPRING_CHI_HUO_FIELD_KEYS = [
   "survey_date",
-  "town_or_street",
+  "locality",
   "location_id",
   "location_name",
   "note",
@@ -178,7 +178,7 @@ const SPRING_CHI_HUO_FIELD_KEYS = [
 
 const GUO_HUAI_FIELD_KEYS = [
   "survey_date",
-  "town_or_street",
+  "locality",
   "location_id",
   "location_name",
   "note",
@@ -187,7 +187,7 @@ const GUO_HUAI_FIELD_KEYS = [
 
 const OTHER_PEST_FIELD_KEYS = [
   "survey_date",
-  "town_or_street",
+  "locality",
   "location_id",
   "location_name",
   "plot_type",
@@ -199,7 +199,7 @@ const OTHER_PEST_FIELD_KEYS = [
 
 const MEI_GUO_BAI_E_FIELD_KEYS = [
   "survey_date",
-  "town_or_street",
+  "locality",
   "location_id",
   "location_name",
   "green_space_type",
@@ -315,7 +315,7 @@ export function createEmptyRecord(pestType) {
     {
       survey_date: getTodayDate(),
       region: "",
-      town_or_street: "",
+      locality: "",
       location_id: "",
       location_name: "",
       occurrence_position: "",
@@ -342,7 +342,7 @@ export function normalizeRecordForPest(record, pestType) {
   const next = {
     survey_date: record.survey_date || getTodayDate(),
     region: record.region || defaultRegion,
-    town_or_street: record.town_or_street || "",
+    locality: record.locality || "",
     location_id: record.location_id || "",
     location_name: record.location_name || "",
     occurrence_position: record.occurrence_position || "",
@@ -384,7 +384,7 @@ export function toPayloadRecord(record, pestType) {
   const normalized = normalizeRecordForPest(record, pestType);
   const sharedPayload = {
     survey_date: normalizeDate(normalized.survey_date),
-    town_or_street: normalized.town_or_street.trim(),
+    locality: normalized.locality.trim(),
     location_id: normalized.location_id.trim(),
     location_name: normalized.location_name.trim(),
     description: normalized.description.trim(),

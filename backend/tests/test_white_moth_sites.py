@@ -9,42 +9,42 @@ from backend.db.postgres import (
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
     create_white_moth_site,
-    resolve_white_moth_site_township,
+    resolve_white_moth_site_locality,
 )
 from backend.routers.map import post_white_moth_site
 from backend.schemas import WhiteMothSiteCreateRequest
 
 
 class WhiteMothSiteCodeTest(unittest.TestCase):
-    def test_code_is_normalized_and_township_is_resolved(self) -> None:
-        code, township = resolve_white_moth_site_township(" mq001 ")
+    def test_code_is_normalized_and_locality_is_resolved(self) -> None:
+        code, locality = resolve_white_moth_site_locality(" mq001 ")
 
         self.assertEqual(code, "MQ001")
-        self.assertEqual(township, "马驹桥镇")
+        self.assertEqual(locality, "马驹桥镇")
 
-    def test_new_township_prefixes_are_resolved(self) -> None:
-        expected_townships = {
+    def test_new_locality_prefixes_are_resolved(self) -> None:
+        expected_localities = {
             "YS001": "永顺镇",
             "LY001": "梨园镇",
             "WJ001": "文景街道",
         }
 
-        for code, expected_township in expected_townships.items():
+        for code, expected_locality in expected_localities.items():
             with self.subTest(code=code):
                 self.assertEqual(
-                    resolve_white_moth_site_township(code),
-                    (code, expected_township),
+                    resolve_white_moth_site_locality(code),
+                    (code, expected_locality),
                 )
 
     def test_unknown_prefix_is_rejected(self) -> None:
         with self.assertRaises(WhiteMothSiteCodeError):
-            resolve_white_moth_site_township("AB001")
+            resolve_white_moth_site_locality("AB001")
 
     def test_digit_count_is_rejected(self) -> None:
         for code in ("MQ01", "MQ0001"):
             with self.subTest(code=code):
                 with self.assertRaises(WhiteMothSiteCodeError):
-                    resolve_white_moth_site_township(code)
+                    resolve_white_moth_site_locality(code)
 
 
 class WhiteMothSiteCreateTest(unittest.IsolatedAsyncioTestCase):
@@ -53,7 +53,7 @@ class WhiteMothSiteCreateTest(unittest.IsolatedAsyncioTestCase):
             return_value={
                 "gid": 14,
                 "code": "MQ001",
-                "township": "马驹桥镇",
+                "locality": "马驹桥镇",
                 "site_name": "示范点",
                 "longitude": 116.5,
                 "latitude": 39.7,

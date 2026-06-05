@@ -26,7 +26,7 @@ def create_payload() -> WorkOrderGenerateRequest:
         records=[
             {
                 "survey_date": "2026-04-01",
-                "town_or_street": "于家务乡",
+                "locality": "于家务乡",
                 "location_id": "YF0069",
                 "location_name": "神仙村",
                 "description": "点位描述",
@@ -158,7 +158,7 @@ class DocgenTest(unittest.TestCase):
             records=[
                 {
                     "survey_date": "2026-04-17",
-                    "town_or_street": "潞城镇",
+                    "locality": "潞城镇",
                     "location_id": "QT0001",
                     "location_name": "畅和东路北京学校西侧",
                     "pest_name": "蚜虫",
@@ -197,7 +197,7 @@ class DocgenTest(unittest.TestCase):
             records=[
                 {
                     "survey_date": "2026-05-26",
-                    "town_or_street": "梨园镇",
+                    "locality": "梨园镇",
                     "location_id": "MQ001",
                     "location_name": "玉桥东路",
                     "green_space_type": "道路绿化",
@@ -238,7 +238,7 @@ class DocgenTest(unittest.TestCase):
             records=[
                 {
                     "survey_date": "2026-05-26",
-                    "town_or_street": "梨园镇",
+                    "locality": "梨园镇",
                     "location_id": "MQ001",
                     "location_name": "玉桥东路",
                     "green_space_type": "道路绿化",

@@ -26,9 +26,10 @@ SITE_TABLE = "poplar_sites"
 SOPHORA_SITE_TABLE = "sophora_sites"
 OTHER_PEST_SITE_TABLE = "other_pest_sites"
 WHITE_MOTH_SITE_TABLE = "white_moth_sites"
+LOCALITY_COLUMN = "属地"
 WHITE_MOTH_SITE_CODE_PATTERN = re.compile(r"^[A-Z]{2}\d{3}$")
 WHITE_MOTH_SITE_CODE_EXAMPLE = "MQ001"
-WHITE_MOTH_SITE_PREFIX_TOWNSHIPS = {
+WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "MQ": "马驹桥镇",
     "TH": "台湖镇",
     "ZW": "张家湾镇",
@@ -86,7 +87,7 @@ def get_white_moth_site_code_rules() -> dict[str, Any]:
     return {
         "code_pattern": r"^[A-Z]{2}\d{3}$",
         "code_example": WHITE_MOTH_SITE_CODE_EXAMPLE,
-        "prefix_townships": WHITE_MOTH_SITE_PREFIX_TOWNSHIPS,
+        "prefix_localities": WHITE_MOTH_SITE_PREFIX_LOCALITIES,
     }
 
 
@@ -96,8 +97,8 @@ def normalize_white_moth_site_code(value: str) -> str:
     return (value or "").strip().upper()
 
 
-def resolve_white_moth_site_township(code: str) -> tuple[str, str]:
-    """根据美国白蛾点位编号解析标准编号和乡镇。"""
+def resolve_white_moth_site_locality(code: str) -> tuple[str, str]:
+    """根据美国白蛾点位编号解析标准编号和属地。"""
 
     normalized_code = normalize_white_moth_site_code(code)
     if not WHITE_MOTH_SITE_CODE_PATTERN.fullmatch(normalized_code):
@@ -106,13 +107,13 @@ def resolve_white_moth_site_township(code: str) -> tuple[str, str]:
         )
 
     prefix = normalized_code[:2]
-    township = WHITE_MOTH_SITE_PREFIX_TOWNSHIPS.get(prefix)
-    if township is None:
+    locality = WHITE_MOTH_SITE_PREFIX_LOCALITIES.get(prefix)
+    if locality is None:
         raise WhiteMothSiteCodeError(
             f"编号格式不正确，请输入类似 {WHITE_MOTH_SITE_CODE_EXAMPLE} 的编号"
         )
 
-    return normalized_code, township
+    return normalized_code, locality
 
 
 async def ensure_pool() -> asyncpg.Pool:
@@ -303,7 +304,7 @@ async def create_white_moth_site(
 ) -> dict[str, Any]:
     """新增美国白蛾点位。"""
 
-    normalized_code, township = resolve_white_moth_site_township(code)
+    normalized_code, locality = resolve_white_moth_site_locality(code)
     qualified_table = (
         f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(WHITE_MOTH_SITE_TABLE)}"
     )
@@ -313,7 +314,7 @@ async def create_white_moth_site(
             f"""
             INSERT INTO {qualified_table} (
                 "编号",
-                "乡镇",
+                {quote_identifier(LOCALITY_COLUMN)},
                 "点位名称",
                 geom
             )
@@ -326,13 +327,13 @@ async def create_white_moth_site(
             RETURNING
                 gid,
                 "编号" AS code,
-                "乡镇" AS township,
+                {quote_identifier(LOCALITY_COLUMN)} AS locality,
                 COALESCE("点位名称", '') AS site_name,
                 ST_X(geom) AS longitude,
                 ST_Y(geom) AS latitude
             """,
             normalized_code,
-            township,
+            locality,
             (site_name or "").strip(),
             longitude,
             latitude,
@@ -353,15 +354,15 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
     columns = set(view["columns"])
     qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
 
-    townships: list[str] = []
+    localities: list[str] = []
     filter_fields: list[dict[str, Any]] = []
-    if "乡镇" in columns:
-        townships = await fetch_distinct_filter_values(qualified_view, "乡镇")
+    if LOCALITY_COLUMN in columns:
+        localities = await fetch_distinct_filter_values(qualified_view, LOCALITY_COLUMN)
         filter_fields.append(
             build_select_filter_field(
-                key="乡镇",
-                label="乡镇 / 街道",
-                options=townships,
+                key=LOCALITY_COLUMN,
+                label=LOCALITY_COLUMN,
+                options=localities,
             )
         )
 
@@ -390,8 +391,8 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
         )
 
     return {
-        "townships": townships,
-        "supports_township_filter": "乡镇" in columns,
+        "localities": localities,
+        "supports_locality_filter": LOCALITY_COLUMN in columns,
         "supports_survey_status_filter": "调查日期" in columns,
         "filter_fields": filter_fields,
     }
@@ -460,7 +461,7 @@ async def fetch_view_feature_collection(
 
 def build_chi_huo_larva_description(
     pest_name: str,
-    town_or_street: str,
+    locality: str,
     location_name: str,
     location_id: str,
     damage_level: str,
@@ -470,7 +471,7 @@ def build_chi_huo_larva_description(
 
     location_prefix = "".join(
         part.strip()
-        for part in [town_or_street, location_name, location_id]
+        for part in [locality, location_name, location_id]
         if (part or "").strip()
     )
     location_text = f"{location_prefix}点位，" if location_prefix else ""
@@ -498,7 +499,7 @@ def build_chi_huo_larva_description(
 
 
 def build_spring_inchworm_description(
-    town_or_street: str,
+    locality: str,
     location_name: str,
     location_id: str,
     damage_level: str,
@@ -508,7 +509,7 @@ def build_spring_inchworm_description(
 
     return build_chi_huo_larva_description(
         pest_name="春尺蠖",
-        town_or_street=town_or_street,
+        locality=locality,
         location_name=location_name,
         location_id=location_id,
         damage_level=damage_level,
@@ -517,7 +518,7 @@ def build_spring_inchworm_description(
 
 
 def build_guo_huai_inchworm_description(
-    town_or_street: str,
+    locality: str,
     location_name: str,
     location_id: str,
     damage_level: str,
@@ -527,7 +528,7 @@ def build_guo_huai_inchworm_description(
 
     return build_chi_huo_larva_description(
         pest_name="国槐尺蠖",
-        town_or_street=town_or_street,
+        locality=locality,
         location_name=location_name,
         location_id=location_id,
         damage_level=damage_level,
@@ -652,7 +653,7 @@ async def fetch_spring_inchworm_survey_candidates(
             l."总虫口数" AS total_insect_count,
             BTRIM(l."危害程度") AS damage_level,
             COALESCE(l."备注", '') AS note,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(s."村", '') AS location_name
         FROM {qualified_larva_table} AS l
         JOIN {qualified_site_table} AS s
@@ -661,7 +662,7 @@ async def fetch_spring_inchworm_survey_candidates(
           AND l."危害程度" IS NOT NULL
           AND BTRIM(l."危害程度") NOT IN ('', '白')
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
             l."编号"
         """,
         survey_date,
@@ -671,7 +672,7 @@ async def fetch_spring_inchworm_survey_candidates(
     candidates: list[dict[str, Any]] = []
     for row in rows:
         location_id = str(row["location_id"] or "").strip()
-        town_or_street = (row["town_or_street"] or "").strip()
+        locality = (row["locality"] or "").strip()
         location_name = (row["location_name"] or "").strip()
         insect_count = row["total_insect_count"]
         if insect_count is not None:
@@ -681,7 +682,7 @@ async def fetch_spring_inchworm_survey_candidates(
         candidates.append(
             {
                 "survey_date": serialize_date_value(row["survey_date"]),
-                "town_or_street": town_or_street,
+                "locality": locality,
                 "location_id": location_id,
                 "location_name": location_name,
                 "total_insect_count": insect_count,
@@ -689,7 +690,7 @@ async def fetch_spring_inchworm_survey_candidates(
                 "note": (row["note"] or "").strip(),
                 "images": load_point_screenshot_images(location_id, screenshot_index),
                 "description": build_spring_inchworm_description(
-                    town_or_street=town_or_street,
+                    locality=locality,
                     location_name=location_name,
                     location_id=location_id,
                     damage_level=damage_level,
@@ -721,7 +722,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
             l."总虫口数" AS total_insect_count,
             BTRIM(l."危害程度") AS damage_level,
             COALESCE(l."备注", '') AS note,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(s."村", '') AS location_name
         FROM {qualified_larva_table} AS l
         JOIN {qualified_site_table} AS s
@@ -730,7 +731,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
           AND l."危害程度" IS NOT NULL
           AND BTRIM(l."危害程度") NOT IN ('', '白', '无需防治')
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
             l."编号"
         """,
         survey_date,
@@ -742,7 +743,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
     candidates: list[dict[str, Any]] = []
     for row in rows:
         location_id = str(row["location_id"] or "").strip()
-        town_or_street = (row["town_or_street"] or "").strip()
+        locality = (row["locality"] or "").strip()
         location_name = (row["location_name"] or "").strip()
         insect_count = row["total_insect_count"]
         if insect_count is not None:
@@ -752,7 +753,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
         candidates.append(
             {
                 "survey_date": serialize_date_value(row["survey_date"]),
-                "town_or_street": town_or_street,
+                "locality": locality,
                 "location_id": location_id,
                 "location_name": location_name,
                 "total_insect_count": insect_count,
@@ -760,7 +761,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
                 "note": (row["note"] or "").strip(),
                 "images": load_point_screenshot_images(location_id, screenshot_index),
                 "description": build_guo_huai_inchworm_description(
-                    town_or_street=town_or_street,
+                    locality=locality,
                     location_name=location_name,
                     location_id=location_id,
                     damage_level=damage_level,
@@ -790,7 +791,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
             BTRIM(i."虫害类型") AS pest_name,
             BTRIM(i."调查结论") AS survey_result,
             COALESCE(i."详细描述", '') AS description,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(s."点位名称", '') AS location_name,
             COALESCE(s."寄主树种", '') AS host_plant,
             COALESCE(s."地块类型", '') AS plot_type
@@ -800,7 +801,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
         WHERE i."调查日期" = $1
           AND BTRIM(COALESCE(i."调查结论", '')) = '发现问题'
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
             i."编号",
             COALESCE(i."虫害类型", '')
         """,
@@ -810,7 +811,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
     return [
         {
             "survey_date": serialize_date_value(row["survey_date"]),
-            "town_or_street": (row["town_or_street"] or "").strip(),
+            "locality": (row["locality"] or "").strip(),
             "location_id": str(row["location_id"] or "").strip(),
             "location_name": (row["location_name"] or "").strip(),
             "pest_name": (row["pest_name"] or "").strip(),
@@ -840,7 +841,7 @@ async def fetch_meiguobaie_survey_candidates(
             BTRIM(i."编号") AS location_id,
             i."调查日期" AS survey_date,
             COALESCE(NULLIF(BTRIM(i."区域"), ''), '乡镇') AS region,
-            COALESCE(i."乡镇", '') AS town_or_street,
+            COALESCE(i.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(i."点位名称", '') AS location_name,
             COALESCE(i."发生位置", '') AS occurrence_position,
             COALESCE(i."绿地性质", '') AS green_space_type,
@@ -857,7 +858,7 @@ async def fetch_meiguobaie_survey_candidates(
               OR COALESCE(i."网幕数量", 0) > 0
           )
         ORDER BY
-            COALESCE(i."乡镇", ''),
+            COALESCE(i.{quote_identifier(LOCALITY_COLUMN)}, ''),
             BTRIM(i."编号")
         """,
         survey_date,
@@ -875,7 +876,7 @@ async def fetch_meiguobaie_survey_candidates(
             {
                 "survey_date": serialize_date_value(row["survey_date"]),
                 "region": (row["region"] or "").strip(),
-                "town_or_street": (row["town_or_street"] or "").strip(),
+                "locality": (row["locality"] or "").strip(),
                 "location_id": location_id,
                 "location_name": (row["location_name"] or "").strip(),
                 "occurrence_position": (row["occurrence_position"] or "").strip(),

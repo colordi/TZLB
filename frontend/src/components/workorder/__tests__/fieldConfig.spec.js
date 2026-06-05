@@ -15,7 +15,7 @@ function buildSpringRecord(overrides = {}) {
   return {
     ...createEmptyRecord("春尺蠖"),
     survey_date: "2026-03-31",
-    town_or_street: "城东镇",
+    locality: "城东镇",
     location_id: "CC-001",
     location_name: "城东林场A区",
     description: "现场描述",
@@ -30,7 +30,7 @@ describe("fieldConfig", () => {
 
     expect(fieldKeys).toEqual([
       "survey_date",
-      "town_or_street",
+      "locality",
       "location_id",
       "location_name",
       "note",
@@ -43,7 +43,7 @@ describe("fieldConfig", () => {
 
     expect(fieldKeys).toEqual([
       "survey_date",
-      "town_or_street",
+      "locality",
       "location_id",
       "location_name",
       "note",
@@ -56,7 +56,7 @@ describe("fieldConfig", () => {
 
     expect(fieldKeys).toEqual([
       "survey_date",
-      "town_or_street",
+      "locality",
       "location_id",
       "location_name",
       "plot_type",
@@ -72,7 +72,7 @@ describe("fieldConfig", () => {
 
     expect(fieldKeys).toEqual([
       "survey_date",
-      "town_or_street",
+      "locality",
       "location_id",
       "location_name",
       "green_space_type",
@@ -127,7 +127,7 @@ describe("fieldConfig", () => {
 
     expect(payload).toEqual({
       survey_date: "2026-03-31",
-      town_or_street: "城东镇",
+      locality: "城东镇",
       location_id: "CC-001",
       location_name: "城东林场A区",
       description: "现场描述",
@@ -157,7 +157,7 @@ describe("fieldConfig", () => {
       {
         ...createEmptyRecord("国槐尺蠖"),
         survey_date: "2026-05-02",
-        town_or_street: "宋庄镇",
+        locality: "宋庄镇",
         location_id: "1001-1",
         location_name: "管头村",
         description: "现场描述",
@@ -173,7 +173,7 @@ describe("fieldConfig", () => {
 
     expect(payload).toEqual({
       survey_date: "2026-05-02",
-      town_or_street: "宋庄镇",
+      locality: "宋庄镇",
       location_id: "1001-1",
       location_name: "管头村",
       description: "现场描述",
@@ -187,7 +187,7 @@ describe("fieldConfig", () => {
       {
         ...createEmptyRecord("其他害虫"),
         survey_date: "2026-04-17",
-        town_or_street: "潞城镇",
+        locality: "潞城镇",
         location_id: "QT0001",
         location_name: "畅和东路北京学校西侧",
         plot_type: "道路绿化",
@@ -204,7 +204,7 @@ describe("fieldConfig", () => {
 
     expect(payload).toEqual({
       survey_date: "2026-04-17",
-      town_or_street: "潞城镇",
+      locality: "潞城镇",
       location_id: "QT0001",
       location_name: "畅和东路北京学校西侧",
       plot_type: "道路绿化",
@@ -222,7 +222,7 @@ describe("fieldConfig", () => {
         ...createEmptyRecord("美国白蛾"),
         survey_date: "2026-05-26",
         region: "城区",
-        town_or_street: "梨园镇",
+        locality: "梨园镇",
         location_id: "MQ001",
         location_name: "玉桥东路",
         occurrence_position: "道路东侧",
@@ -239,7 +239,7 @@ describe("fieldConfig", () => {
 
     expect(payload).toEqual({
       survey_date: "2026-05-26",
-      town_or_street: "梨园镇",
+      locality: "梨园镇",
       location_id: "MQ001",
       location_name: "玉桥东路",
       green_space_type: "道路绿化",

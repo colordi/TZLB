@@ -272,7 +272,7 @@ describe("MapView", () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
         name: "虫情总览",
-        columns: ["乡镇", "村", "调查日期"],
+        columns: ["属地", "村", "调查日期"],
       },
       {
         name: "高风险点位",
@@ -284,8 +284,8 @@ describe("MapView", () => {
       features: [],
     });
     apiMocks.fetchMapFilterOptions.mockResolvedValue({
-      townships: [],
-      supports_township_filter: false,
+      localities: [],
+      supports_locality_filter: false,
       supports_survey_status_filter: false,
     });
     apiMocks.fetchAdminBoundary.mockResolvedValue({
@@ -295,7 +295,7 @@ describe("MapView", () => {
     apiMocks.fetchWhiteMothSiteCodeRules.mockResolvedValue({
       code_pattern: "^[A-Z]{2}\\d{3}$",
       code_example: "MQ001",
-      prefix_townships: {
+      prefix_localities: {
         MQ: "马驹桥镇",
         TH: "台湖镇",
       },
@@ -303,7 +303,7 @@ describe("MapView", () => {
     apiMocks.createWhiteMothSite.mockResolvedValue({
       gid: 14,
       code: "MQ001",
-      township: "马驹桥镇",
+      locality: "马驹桥镇",
       site_name: "示范点",
       longitude: 116.5,
       latitude: 39.7,
@@ -317,7 +317,7 @@ describe("MapView", () => {
       const mapStub = getLeafletMapStub(wrapper);
 
       expect(mapStub.props("viewName")).toBe("虫情总览");
-      expect(mapStub.props("popupFields")).toEqual(["乡镇", "村", "调查日期"]);
+      expect(mapStub.props("popupFields")).toEqual(["属地", "村", "调查日期"]);
       expect(mapStub.props("basemapMode")).toBe("satellite");
       expect(mapStub.props("showPointLabels")).toBe(true);
     });
@@ -513,7 +513,7 @@ describe("MapView", () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
         name: "国槐尺蠖幼虫历年发生情况",
-        columns: ["编号", "乡镇", "危害程度"],
+        columns: ["编号", "属地", "危害程度"],
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(
@@ -587,7 +587,7 @@ describe("MapView", () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
         name: "国槐尺蠖幼虫历年发生情况",
-        columns: ["编号", "乡镇", "年份", "危害程度"],
+        columns: ["编号", "属地", "年份", "危害程度"],
       },
     ]);
     apiMocks.fetchMapFilterOptions.mockResolvedValue({
@@ -646,7 +646,7 @@ describe("MapView", () => {
     });
   });
 
-  it("新增美国白蛾点位时格式化编号并显示自动识别乡镇", async () => {
+  it("新增美国白蛾点位时格式化编号并显示自动识别属地", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
@@ -658,7 +658,7 @@ describe("MapView", () => {
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("mq001");
 
     expect(wrapper.get('[data-testid="white-moth-site-code"]').element.value).toBe("MQ001");
-    expect(wrapper.get('[data-testid="white-moth-site-township"]').text()).toBe("马驹桥镇");
+    expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("马驹桥镇");
 
     await wrapper.get('[data-testid="white-moth-site-name"]').setValue("示范点");
     await wrapper.get(".site-add-form").trigger("submit");
@@ -719,17 +719,17 @@ describe("MapView", () => {
       .mockResolvedValueOnce([
         {
           name: "虫情总览",
-          columns: ["乡镇", "村", "调查日期"],
+          columns: ["属地", "村", "调查日期"],
         },
       ])
       .mockResolvedValueOnce([
         {
           name: "虫情总览",
-          columns: ["乡镇", "村", "调查日期"],
+          columns: ["属地", "村", "调查日期"],
         },
         {
           name: "美国白蛾点位",
-          columns: ["gid", "编号", "乡镇", "点位名称"],
+          columns: ["gid", "编号", "属地", "点位名称"],
         },
       ]);
 
@@ -754,7 +754,7 @@ describe("MapView", () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
         name: "美国白蛾点位",
-        columns: ["gid", "编号", "乡镇", "点位名称"],
+        columns: ["gid", "编号", "属地", "点位名称"],
       },
     ]);
 

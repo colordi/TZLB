@@ -73,7 +73,7 @@ function createValidRecord(overrides = {}) {
   return {
     ...createEmptyRecord("春尺蠖"),
     survey_date: "2026-04-01",
-    town_or_street: "于家务乡",
+    locality: "于家务乡",
     location_id: "YF0069",
     location_name: "神仙村",
     description: "点位描述",
@@ -173,7 +173,7 @@ describe("WorkOrderView", () => {
     await importRecords(wrapper, [
       {
         survey_date: "2026-04-01",
-        town_or_street: "于家务乡",
+        locality: "于家务乡",
         location_id: "YF0069",
         location_name: "神仙村",
         total_insect_count: 50,
@@ -193,7 +193,7 @@ describe("WorkOrderView", () => {
     await importRecords(wrapper, [
       {
         survey_date: "2026-04-02",
-        town_or_street: "漷县镇",
+        locality: "漷县镇",
         location_id: "HX0002",
         location_name: "林场二区",
         total_insect_count: 28,
@@ -217,7 +217,7 @@ describe("WorkOrderView", () => {
     await importRecords(wrapper, [
       {
         survey_date: "2026-04-17",
-        town_or_street: "潞城镇",
+        locality: "潞城镇",
         location_id: "QT0001",
         location_name: "畅和东路北京学校西侧",
         pest_name: "蚜虫",
@@ -263,7 +263,7 @@ describe("WorkOrderView", () => {
     await importRecords(wrapper, [
       {
         survey_date: "2026-05-02",
-        town_or_street: "宋庄镇",
+        locality: "宋庄镇",
         location_id: "1001-1",
         location_name: "管头村",
         total_insect_count: 45,
@@ -310,7 +310,7 @@ describe("WorkOrderView", () => {
       {
         survey_date: "2026-05-26",
         region: "城区",
-        town_or_street: "梨园镇",
+        locality: "梨园镇",
         location_id: "MQ001",
         location_name: "玉桥东路",
         occurrence_position: "道路东侧",

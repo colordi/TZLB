@@ -19,7 +19,7 @@ def create_payload(records: list[dict] | None = None) -> dict:
         or [
             {
                 "survey_date": "2026-04-01",
-                "town_or_street": "于家务乡",
+                "locality": "于家务乡",
                 "location_id": "YF0069",
                 "location_name": "神仙村",
                 "description": "点位描述",
@@ -57,7 +57,7 @@ class WorkorderRouterTest(unittest.IsolatedAsyncioTestCase):
                 records=[
                     {
                         "survey_date": "2026-04-01",
-                        "town_or_street": "于家务乡",
+                        "locality": "于家务乡",
                         "location_id": "YF0069",
                         "location_name": "神仙村",
                         "description": "点位描述",
@@ -66,7 +66,7 @@ class WorkorderRouterTest(unittest.IsolatedAsyncioTestCase):
                     },
                     {
                         "survey_date": "2026-04-01",
-                        "town_or_street": "于家务乡",
+                        "locality": "于家务乡",
                         "location_id": "YF0070",
                         "location_name": "中心林地",
                         "description": "第二条点位描述",

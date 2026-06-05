@@ -29,7 +29,7 @@ const props = defineProps({
 const emit = defineEmits(["row-click", "update:selectedIndexes"]);
 
 // We only show these four specific columns as requested by the user.
-const ALLOWED_KEYS = ["survey_date", "town_or_street", "location_id", "location_name"];
+const ALLOWED_KEYS = ["survey_date", "locality", "location_id", "location_name"];
 
 const fields = computed(() => {
   return getVisibleFields(props.pestType).filter((f) => ALLOWED_KEYS.includes(f.key));
@@ -288,7 +288,7 @@ function handleRowClick(index) {
   min-width: 6rem;
 }
 
-.cell-town_or_street {
+.cell-locality {
   width: 9rem;
   min-width: 9rem;
 }

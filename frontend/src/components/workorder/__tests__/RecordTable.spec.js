@@ -7,7 +7,7 @@ import { createEmptyRecord } from "../fieldConfig.js";
 function buildRecord(overrides = {}) {
   return {
     ...createEmptyRecord("春尺蠖"),
-    town_or_street: "城东镇",
+    locality: "城东镇",
     location_id: "CC-001",
     location_name: "城东林场A区",
     description: "虫情记录",
@@ -30,7 +30,7 @@ describe("RecordTable", () => {
       "",
       "序号",
       "调查日期",
-      "乡镇｜街道",
+      "属地",
       "编号",
       "点位名称",
     ]);
@@ -63,7 +63,7 @@ describe("RecordTable", () => {
           {
             ...createEmptyRecord("其他害虫"),
             survey_date: "2026-04-17",
-            town_or_street: "潞城镇",
+            locality: "潞城镇",
             location_id: "QT0001",
             location_name: "畅和东路北京学校西侧",
             pest_name: "蚜虫",
@@ -77,7 +77,7 @@ describe("RecordTable", () => {
     });
 
     const headers = wrapper.findAll("thead th").map((cell) => cell.text().replace(/\s+/g, ""));
-    expect(headers).toEqual(["", "序号", "调查日期", "乡镇｜街道", "编号", "点位名称"]);
+    expect(headers).toEqual(["", "序号", "调查日期", "属地", "编号", "点位名称"]);
     expect(wrapper.text()).not.toContain("虫害类型");
     expect(wrapper.text()).not.toContain("寄主树种");
   });
