@@ -25,7 +25,7 @@ async function mountShell(initialPath = "/design/overview") {
       {
         path: "/design/map",
         component: MapStub,
-        meta: { previewPage: "调查点位地图页" },
+        meta: { previewPage: "调查点位地图页", previewFullBleed: true },
       },
       {
         path: "/design",
@@ -81,5 +81,11 @@ describe("DesignAppShell", () => {
 
     expect(router.currentRoute.value.fullPath).toBe("/design/map");
     expect(wrapper.get(".design-app-sidebar").classes()).not.toContain("is-mobile-open");
+  });
+
+  it("地图预览路由可使用全宽工作区", async () => {
+    const { wrapper } = await mountShell("/design/map");
+
+    expect(wrapper.get(".design-app-content").classes()).toContain("is-full-bleed");
   });
 });

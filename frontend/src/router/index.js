@@ -12,6 +12,7 @@ import WorkOrderView from "../views/WorkOrderView.vue";
 import DesignPreviewLayout from "../components/design/DesignPreviewLayout.vue";
 import DesignLoginView from "../views/design/DesignLoginView.vue";
 import DesignOverviewView from "../views/design/DesignOverviewView.vue";
+import DesignMapView from "../views/design/DesignMapView.vue";
 import DesignPreviewStatusView from "../views/design/DesignPreviewStatusView.vue";
 import DesignWorkOrderView from "../views/design/DesignWorkOrderView.vue";
 
@@ -105,12 +106,13 @@ const routes = [
       {
         path: "map",
         name: "design-map",
-        component: DesignPreviewStatusView,
+        component: DesignMapView,
         meta: {
           section: "地图页设计预览",
           previewPage: "调查点位地图页",
           previewStage: "map",
           previewShell: true,
+          previewFullBleed: true,
         },
       },
     ],

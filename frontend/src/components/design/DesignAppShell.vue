@@ -67,7 +67,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", handleKeydown));
         </div>
       </header>
 
-      <div class="design-app-content">
+      <div class="design-app-content" :class="{ 'is-full-bleed': route.meta.previewFullBleed }">
         <slot />
       </div>
     </main>

@@ -36,7 +36,7 @@ export const DESIGN_PREVIEW_STAGES = Object.freeze([
     index: "04",
     label: "点位地图",
     to: "/design/map",
-    ready: false,
-    description: "地图页将使用静态画布迁移，不接入真实 Leaflet。",
+    ready: true,
+    description: "地图静态页的画布、控件、点位详情和移动底部抽屉已完成。",
   }),
 ]);
