@@ -261,8 +261,6 @@ function resetMapContext() {
   mapActions.setFilterFields([]);
   mapActions.setActiveFilters({});
   mapActions.setOpenFilterMenus({});
-  mapActions.setBasemapMode("standard");
-  mapActions.setShowPointLabels(true);
   mapActions.setLoading(false);
   mapActions.setFilterPanelOpen(false);
   mapActions.setActiveFilterCount(0);
@@ -342,7 +340,7 @@ describe("MapView", () => {
     expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
   });
 
-  it("点击编号开关后更新传给 LeafletMap 的 showPointLabels", async () => {
+  it("地图图层面板切换编号后更新传给 LeafletMap 的 showPointLabels", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
@@ -351,13 +349,13 @@ describe("MapView", () => {
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
     });
 
-    mapActions.togglePointLabels();
+    getLeafletMapStub(wrapper).vm.$emit("update:showPointLabels", false);
     await nextTick();
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(false);
     });
 
-    mapActions.togglePointLabels();
+    getLeafletMapStub(wrapper).vm.$emit("update:showPointLabels", true);
     await nextTick();
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);

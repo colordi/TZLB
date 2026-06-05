@@ -17,8 +17,6 @@ const MapStub = defineComponent({
       mapActions.setReady(true);
       mapActions.setViews([{ name: "虫情总览" }]);
       mapActions.setSelectedView("虫情总览");
-      mapActions.setBasemapMode("satellite");
-      mapActions.setShowPointLabels(true);
     });
   },
   template: "<div>地图页内容</div>",
@@ -205,7 +203,7 @@ describe("App 壳层导航", () => {
     expect(wrapper.get(".site-main").classes()).toContain("is-full-bleed");
   });
 
-  it("地图页顶部栏展示并展开图层菜单", async () => {
+  it("地图页顶部栏不再展示图层菜单", async () => {
     const { wrapper } = await mountApp("/map");
 
     await flushPromises();
@@ -214,17 +212,8 @@ describe("App 壳层导航", () => {
     expect(wrapper.get(".site-header").classes()).not.toContain("map-header");
     expect(wrapper.find(".site-header-shell--map").exists()).toBe(false);
     expect(wrapper.get(".site-brand").text()).toContain("林业调查工作台");
-
-    const layerButton = wrapper.get('button[aria-label="切换图层"]');
-    expect(layerButton.text()).toContain("图层");
-
-    await layerButton.trigger("click");
-    await flushPromises();
-
-    const layerMenu = wrapper.get("#map-layer-menu");
-    expect(layerMenu.text()).toContain("标准地图");
-    expect(layerMenu.text()).toContain("卫星地图");
-    expect(layerMenu.text()).toContain("显示编号");
+    expect(wrapper.find('button[aria-label="切换图层"]').exists()).toBe(false);
+    expect(wrapper.find("#map-layer-menu").exists()).toBe(false);
   });
 
   it("登录页使用独立布局，不展示顶部导航", async () => {

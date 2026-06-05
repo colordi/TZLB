@@ -15,8 +15,6 @@ const state = reactive({
   filterFields: [],
   activeFilters: {},
   openFilterMenus: {},
-  basemapMode: "standard",
-  showPointLabels: true,
   loading: false,
   isFilterPanelOpen: false,
   activeFilterCount: 0,
@@ -50,14 +48,6 @@ function setActiveFilters(val) {
 
 function setOpenFilterMenus(val) {
   state.openFilterMenus = val;
-}
-
-function setBasemapMode(val) {
-  state.basemapMode = val;
-}
-
-function setShowPointLabels(val) {
-  state.showPointLabels = val;
 }
 
 function setLoading(val) {
@@ -105,10 +95,6 @@ function setFilterValues(fieldKey, values) {
   state.activeFilters = { ...state.activeFilters, [fieldKey]: values };
 }
 
-function togglePointLabels() {
-  state.showPointLabels = !state.showPointLabels;
-}
-
 /* ---- actions to be wired from MapView ---- */
 let _applyFilterFn = null;
 let _resetFilterFn = null;
@@ -140,8 +126,6 @@ export const mapActions = {
   setFilterFields,
   setActiveFilters,
   setOpenFilterMenus,
-  setBasemapMode,
-  setShowPointLabels,
   setLoading,
   setFilterPanelOpen,
   setActiveFilterCount,
@@ -149,7 +133,6 @@ export const mapActions = {
   toggleFilterMenu,
   setFilterMenuOpen,
   setFilterValues,
-  togglePointLabels,
   registerFilterActions,
   applyFilter,
   resetFilter,

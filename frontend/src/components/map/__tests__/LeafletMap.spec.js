@@ -93,6 +93,8 @@ const leafletMocks = vi.hoisted(() => {
         trigger(event, payload) {
           eventHandlers[event]?.(payload);
         },
+        zoomIn: vi.fn(),
+        zoomOut: vi.fn(),
       };
       maps.push(mapInstance);
       return mapInstance;
@@ -295,6 +297,37 @@ describe("LeafletMap 底图图层", () => {
       expect.stringContaining("openstreetmap"),
       expect.objectContaining({ maxZoom: 19 }),
     );
+  });
+
+  it("右上角图层面板可以切换底图和编号显示", async () => {
+    const wrapper = mountLeafletMap({
+      basemapMode: "satellite",
+      showPointLabels: true,
+    });
+
+    expect(wrapper.find("#map-layer-panel").exists()).toBe(false);
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+    expect(wrapper.get("#map-layer-panel").text()).toContain("地图图层");
+
+    await wrapper.get('[data-testid="map-layer-standard"]').trigger("click");
+    expect(wrapper.emitted("update:basemapMode")).toEqual([["standard"]]);
+    expect(wrapper.find("#map-layer-panel").exists()).toBe(false);
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-layer-labels"]').trigger("click");
+    expect(wrapper.emitted("update:showPointLabels")).toEqual([[false]]);
+  });
+
+  it("右上角缩放按钮直接调用地图缩放方法", async () => {
+    const wrapper = mountLeafletMap();
+    const mapInstance = leafletMocks.maps[0];
+
+    await wrapper.get('[data-testid="map-zoom-in-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-zoom-out-button"]').trigger("click");
+
+    expect(mapInstance.zoomIn).toHaveBeenCalledTimes(1);
+    expect(mapInstance.zoomOut).toHaveBeenCalledTimes(1);
   });
 });
 

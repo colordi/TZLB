@@ -805,6 +805,27 @@ function locateToUser() {
   }
 }
 
+function toggleLayerMenu() {
+  showLayerMenu.value = !showLayerMenu.value;
+}
+
+function selectBasemapMode(mode) {
+  emit("update:basemapMode", mode);
+  showLayerMenu.value = false;
+}
+
+function togglePointLabels() {
+  emit("update:showPointLabels", !props.showPointLabels);
+}
+
+function zoomInMap() {
+  mapRef.value?.zoomIn?.();
+}
+
+function zoomOutMap() {
+  mapRef.value?.zoomOut?.();
+}
+
 function handleMapClick(event) {
   if (!props.whiteMothSiteAddMode || !event?.latlng) {
     return;
@@ -955,39 +976,130 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="map-overlay right-fab map-side-action map-fab-stack">
-      <button
-        type="button"
-        class="map-fab"
-        :class="{ 'is-active': whiteMothSiteAddMode, 'is-loading': whiteMothSiteSaving }"
-        data-testid="map-add-white-moth-site-button"
-        :aria-label="whiteMothSiteAddButtonLabel"
-        :aria-pressed="whiteMothSiteAddMode"
-        :disabled="whiteMothSiteSaving"
-        @click="emit('toggle-white-moth-site-add')"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 2.75A7.25 7.25 0 0 0 4.75 10c0 4.97 5.67 10.22 5.91 10.44a2 2 0 0 0 2.68 0c.24-.22 5.91-5.47 5.91-10.44A7.25 7.25 0 0 0 12 2.75Zm0 16.58C10.53 17.88 6.25 13.48 6.25 10a5.75 5.75 0 1 1 11.5 0c0 3.48-4.28 7.88-5.75 9.33ZM12.75 7.25a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z"
-          />
-        </svg>
-      </button>
-      <button
-        type="button"
-        class="map-fab"
-        :class="{ 'is-active': isRealtimeLocating, 'is-loading': isLocatePending }"
-        data-testid="map-locate-button"
-        :aria-label="locateButtonLabel"
-        :aria-pressed="isRealtimeLocating"
-        @click="locateToUser"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M19.7 11.25h-1.02a6.77 6.77 0 0 0-5.93-5.93V4.3a.75.75 0 0 0-1.5 0v1.02a6.77 6.77 0 0 0-5.93 5.93H4.3a.75.75 0 0 0 0 1.5h1.02a6.77 6.77 0 0 0 5.93 5.93v1.02a.75.75 0 0 0 1.5 0v-1.02a6.77 6.77 0 0 0 5.93-5.93h1.02a.75.75 0 0 0 0-1.5ZM12 17.2A5.2 5.2 0 1 1 17.2 12 5.2 5.2 0 0 1 12 17.2Zm0-7.05A1.85 1.85 0 1 0 13.85 12 1.85 1.85 0 0 0 12 10.15Z"
-          />
-        </svg>
-      </button>
+    <div class="map-overlay map-tool-stack" aria-label="地图工具">
+      <div class="map-tool-group">
+        <button
+          type="button"
+          class="map-tool-btn"
+          :class="{ 'is-active': showLayerMenu }"
+          data-testid="map-layer-button"
+          aria-label="图层控制"
+          aria-controls="map-layer-panel"
+          :aria-expanded="showLayerMenu"
+          @click="toggleLayerMenu"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 3 8 4-8 4-8-4 8-4Z" />
+            <path d="m4 12 8 4 8-4" />
+            <path d="m4 17 8 4 8-4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="map-tool-btn"
+          :class="{ 'is-active': isRealtimeLocating, 'is-loading': isLocatePending }"
+          data-testid="map-locate-button"
+          :aria-label="locateButtonLabel"
+          :aria-pressed="isRealtimeLocating"
+          @click="locateToUser"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="6" />
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="map-tool-group">
+        <button
+          type="button"
+          class="map-tool-btn"
+          data-testid="map-zoom-in-button"
+          aria-label="放大地图"
+          @click="zoomInMap"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="map-tool-btn"
+          data-testid="map-zoom-out-button"
+          aria-label="缩小地图"
+          @click="zoomOutMap"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="map-tool-group">
+        <button
+          type="button"
+          class="map-tool-btn"
+          :class="{ 'is-active': whiteMothSiteAddMode, 'is-loading': whiteMothSiteSaving }"
+          data-testid="map-add-white-moth-site-button"
+          :aria-label="whiteMothSiteAddButtonLabel"
+          :aria-pressed="whiteMothSiteAddMode"
+          :disabled="whiteMothSiteSaving"
+          @click="emit('toggle-white-moth-site-add')"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 0 1 14 0Z" />
+            <path d="M12 7v6M9 10h6" />
+          </svg>
+        </button>
+      </div>
     </div>
+
+    <aside
+      v-if="showLayerMenu"
+      id="map-layer-panel"
+      class="map-layer-panel"
+      aria-label="地图图层"
+    >
+      <h2>地图图层</h2>
+      <section class="map-layer-panel-group">
+        <h3>基础图层</h3>
+        <button
+          type="button"
+          class="map-layer-item"
+          :class="{ 'is-active': basemapMode === 'standard' }"
+          data-testid="map-layer-standard"
+          @click="selectBasemapMode('standard')"
+        >
+          <strong>标准地图</strong>
+          <span>政区街道</span>
+        </button>
+        <button
+          type="button"
+          class="map-layer-item"
+          :class="{ 'is-active': basemapMode === 'satellite' }"
+          data-testid="map-layer-satellite"
+          @click="selectBasemapMode('satellite')"
+        >
+          <strong>卫星地图</strong>
+          <span>影像底图</span>
+        </button>
+      </section>
+      <section class="map-layer-panel-group">
+        <h3>显示</h3>
+        <button
+          type="button"
+          class="map-layer-item"
+          :class="{ 'is-active': showPointLabels }"
+          data-testid="map-layer-labels"
+          :aria-pressed="showPointLabels"
+          @click="togglePointLabels"
+        >
+          <strong>显示编号</strong>
+          <span>{{ pointLabelMenuDescription }}</span>
+        </button>
+      </section>
+    </aside>
   </section>
 </template>
 
@@ -1030,12 +1142,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0.85rem;
   align-items: flex-start;
-  pointer-events: auto;
-}
-
-.right-fab {
-  right: 1.25rem;
-  bottom: 1.5rem;
   pointer-events: auto;
 }
 
@@ -1215,49 +1321,138 @@ onBeforeUnmount(() => {
   margin-top: 0.65rem;
 }
 
-.map-side-action {
+.map-tool-stack {
+  top: 1.25rem;
+  right: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
   pointer-events: auto;
 }
 
-.map-fab-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.map-fab {
-  min-height: 0;
-  width: 3rem;
-  height: 3rem;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.75);
-  color: var(--color-primary-strong);
+.map-tool-group {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 12px 26px rgba(18, 52, 29, 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+}
+
+.map-tool-btn {
+  min-height: 0;
+  width: 2.9rem;
+  height: 2.9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
   transition: all 0.2s ease;
 }
 
-.map-fab:hover {
+.map-tool-btn + .map-tool-btn {
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 68%, transparent);
+}
+
+.map-tool-btn:hover {
   background: rgba(255, 255, 255, 0.9);
 }
 
-.map-fab.is-active {
+.map-tool-btn.is-active {
   border-color: rgba(47, 128, 237, 0.34);
   background: rgba(232, 241, 255, 0.92);
   color: #2f80ed;
 }
 
-.map-fab.is-loading svg {
+.map-tool-btn.is-loading svg {
   animation: locate-pulse 1.1s ease-in-out infinite;
 }
 
-.map-fab svg {
+.map-tool-btn svg {
   width: 1.15rem;
   height: 1.15rem;
-  fill: currentColor;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-layer-panel {
+  position: absolute;
+  top: 1.25rem;
+  right: 4.65rem;
+  z-index: 1001;
+  display: grid;
+  gap: 0.85rem;
+  width: min(16rem, calc(100% - 6rem));
+  padding: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 38px rgba(18, 52, 29, 0.14);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.map-layer-panel h2,
+.map-layer-panel h3 {
+  margin: 0;
+  color: var(--color-primary-strong);
+}
+
+.map-layer-panel h2 {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.map-layer-panel h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-muted);
+}
+
+.map-layer-panel-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.map-layer-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-height: 2.75rem;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
+  border-radius: 10px;
+  background: rgba(248, 252, 247, 0.78);
+  color: var(--color-ink);
+  text-align: left;
+  transition: all 0.16s ease;
+}
+
+.map-layer-item:hover {
+  background: #fff;
+}
+
+.map-layer-item.is-active {
+  border-color: color-mix(in oklch, var(--color-primary) 38%, white);
+  background: color-mix(in oklch, var(--color-primary) 10%, white);
+  color: var(--color-primary-strong);
+}
+
+.map-layer-item strong {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.map-layer-item span {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 650;
 }
 
 @keyframes locate-pulse {
@@ -1448,9 +1643,15 @@ onBeforeUnmount(() => {
     bottom: 1rem;
   }
 
-  .right-fab {
+  .map-tool-stack {
     right: 1rem;
-    bottom: 1rem;
+    top: 5rem;
+  }
+
+  .map-layer-panel {
+    top: 5rem;
+    right: 4.25rem;
+    width: min(15rem, calc(100% - 5.5rem));
   }
 
   :deep(.leaflet-right .leaflet-control) {

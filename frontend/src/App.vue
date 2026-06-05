@@ -6,7 +6,6 @@ import {
   Upload,
   MapPin,
   Filter,
-  Layers,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -40,7 +39,6 @@ function toggleSidebar() {
 
 /* ---- user dropdown ---- */
 const userDropdownOpen = ref(false);
-const layerMenuOpen = ref(false);
 
 /* ---- map context (reactive store, written by MapView) ---- */
 const mapCtx = new Proxy(mapActions, {
@@ -81,7 +79,6 @@ function handleWindowKeydown(event) {
   if (event.key === "Escape") {
     closeMobileNav();
     userDropdownOpen.value = false;
-    layerMenuOpen.value = false;
     if (mapCtx.ready) {
       mapCtx.setFilterPanelOpen(false);
     }
@@ -147,11 +144,6 @@ function handleDocumentClick(event) {
   /* user dropdown */
   if (userDropdownOpen.value && !target.closest(".user-dropdown-wrap")) {
     userDropdownOpen.value = false;
-  }
-
-  /* layer menu */
-  if (layerMenuOpen.value && !target.closest(".map-layer-wrap")) {
-    layerMenuOpen.value = false;
   }
 
   /* map filter popover */
@@ -407,59 +399,6 @@ onBeforeUnmount(() => {
                 </transition>
               </div>
 
-              <!-- layer menu -->
-              <div class="map-layer-wrap">
-                <button
-                  type="button"
-                  class="map-toolbar-btn"
-                  :class="{ 'is-active': layerMenuOpen }"
-                  aria-label="切换图层"
-                  aria-controls="map-layer-menu"
-                  :aria-expanded="layerMenuOpen"
-                  @click.stop="layerMenuOpen = !layerMenuOpen"
-                >
-                  <Layers :size="16" :stroke-width="2" />
-                  <span class="map-toolbar-btn-text">图层</span>
-                </button>
-
-                <transition name="popover-fade">
-                  <div
-                    v-if="layerMenuOpen"
-                    id="map-layer-menu"
-                    class="layer-menu-popup"
-                    @click.stop
-                  >
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.basemapMode === 'standard' }"
-                    @click="mapCtx.setBasemapMode('standard'); layerMenuOpen = false"
-                  >
-                    <strong>标准地图</strong>
-                    <span>包含政区街道</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.basemapMode === 'satellite' }"
-                    @click="mapCtx.setBasemapMode('satellite'); layerMenuOpen = false"
-                  >
-                    <strong>卫星地图</strong>
-                    <span>高分辨率影像</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-menu-item"
-                    :class="{ 'is-active': mapCtx.showPointLabels }"
-                    :aria-pressed="mapCtx.showPointLabels"
-                    @click="mapCtx.togglePointLabels()"
-                  >
-                    <strong>显示编号</strong>
-                    <span>{{ mapCtx.showPointLabels ? '当前已开启' : '当前已关闭' }}</span>
-                  </button>
-                  </div>
-                </transition>
-              </div>
             </div>
           </div>
 
@@ -1430,61 +1369,6 @@ onBeforeUnmount(() => {
 .filter-reset-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-/* layer menu */
-.map-layer-wrap {
-  position: relative;
-}
-
-.layer-menu-popup {
-  position: absolute;
-  top: calc(100% + 0.4rem);
-  right: 0;
-  min-width: 12rem;
-  padding: 0.35rem;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--elev-raised);
-  z-index: 2000;
-  transform-origin: top right;
-}
-
-.layer-menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  width: 100%;
-  padding: 0.45rem 0.6rem;
-  border: 2px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-ink);
-  text-align: left;
-  cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.layer-menu-item:hover {
-  background: var(--color-surface-container-low);
-}
-
-.layer-menu-item.is-active {
-  border-color: var(--color-accent);
-  background: var(--color-surface-container-low);
-}
-
-.layer-menu-item strong {
-  color: var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.layer-menu-item span {
-  color: var(--color-muted);
-  font-size: 0.68rem;
 }
 
 /* ================================================================

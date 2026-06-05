@@ -760,8 +760,6 @@ function syncToStore() {
   if (!isSamePlainState(mapStore.openFilterMenus, openFilterMenus.value)) {
     mapActions.setOpenFilterMenus(openFilterMenus.value);
   }
-  mapActions.setBasemapMode(basemapMode.value);
-  mapActions.setShowPointLabels(showPointLabels.value);
   mapActions.setLoading(loading.value);
   mapActions.setActiveFilterCount(activeFilterCount.value);
   mapActions.setFilterPanelOpen(isFilterPanelOpen.value);
@@ -771,7 +769,7 @@ function syncToStore() {
 // Sync immediately and on every relevant change
 syncToStore();
 watch(
-  [views, selectedView, loadingViews, filterFields, activeFilters, openFilterMenus, basemapMode, showPointLabels, loading, activeFilterCount, isFilterPanelOpen],
+  [views, selectedView, loadingViews, filterFields, activeFilters, openFilterMenus, loading, activeFilterCount, isFilterPanelOpen],
   syncToStore,
   { deep: true },
 );
@@ -792,24 +790,6 @@ watch(
     if (selectedView.value === val) return;
     _syncingFromStore = true;
     selectedView.value = val;
-    _syncingFromStore = false;
-  },
-);
-watch(
-  () => mapStore.basemapMode,
-  (val) => {
-    if (basemapMode.value === val) return;
-    _syncingFromStore = true;
-    basemapMode.value = val;
-    _syncingFromStore = false;
-  },
-);
-watch(
-  () => mapStore.showPointLabels,
-  (val) => {
-    if (showPointLabels.value === val) return;
-    _syncingFromStore = true;
-    showPointLabels.value = val;
     _syncingFromStore = false;
   },
 );
@@ -864,7 +844,7 @@ onMounted(async () => {
 <template>
   <section class="page-shell map-page">
     <div class="map-workspace">
-      <!-- MapToolbar removed — controls moved to App.vue header for map mode -->
+      <!-- MapToolbar removed: view/filter live in App.vue header, layer tools live inside LeafletMap. -->
 
       <section class="map-search-panel" aria-label="地图点位搜索">
         <form class="map-search-form" @submit.prevent="submitSearch">
