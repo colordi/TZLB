@@ -194,12 +194,6 @@ function getPointLabelMarkerHtml() {
   return getPointLabelMarkerCalls().map(([, options]) => options?.icon?.html || "");
 }
 
-function getPointClusterMarkerCalls() {
-  return leafletMocks.marker.mock.calls.filter(
-    ([, options]) => options?.icon?.className === "map-point-cluster-marker",
-  );
-}
-
 function getLegendLabels(wrapper) {
   return wrapper.findAll(".map-legend .legend-item").map((item) => item.text());
 }
@@ -265,6 +259,17 @@ describe("LeafletMap 底图图层", () => {
     );
   });
 
+  it("初始化时关闭 Leaflet 默认 attribution 控件", () => {
+    mountLeafletMap();
+
+    expect(leafletMocks.maps[0].options).toEqual(
+      expect.objectContaining({
+        attributionControl: false,
+        zoomControl: false,
+      }),
+    );
+  });
+
   it("默认卫星底图会叠加天地图影像注记", () => {
     mountLeafletMap();
 
@@ -309,6 +314,11 @@ describe("LeafletMap 底图图层", () => {
 
     await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
     expect(wrapper.get("#map-layer-panel").text()).toContain("地图图层");
+    expect(wrapper.get("#map-layer-panel").text()).toContain("基础图层");
+    expect(wrapper.get("#map-layer-panel").text()).toContain("点位图层");
+    expect(wrapper.get('[data-testid="map-layer-labels"]').classes()).toContain(
+      "map-base-layer-option",
+    );
 
     await wrapper.get('[data-testid="map-layer-standard"]').trigger("click");
     expect(wrapper.emitted("update:basemapMode")).toEqual([["standard"]]);
@@ -317,6 +327,33 @@ describe("LeafletMap 底图图层", () => {
     await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
     await wrapper.get('[data-testid="map-layer-labels"]').trigger("click");
     expect(wrapper.emitted("update:showPointLabels")).toEqual([[false]]);
+  });
+
+  it("图层面板的点位图层可以切换当前地图视图", async () => {
+    const wrapper = mountLeafletMap({
+      viewName: "虫情总览",
+      views: [
+        { name: "虫情总览", columns: [] },
+        { name: "美国白蛾点位", columns: [] },
+      ],
+      geojson: {
+        type: "FeatureCollection",
+        features: [createPointFeature("MGB-001", 116.73, 39.92)],
+      },
+    });
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+
+    const panel = wrapper.get("#map-layer-panel");
+    expect(panel.text()).toContain("虫情总览");
+    expect(panel.text()).toContain("1");
+    expect(wrapper.findAll(".map-point-layer").map((item) => item.text())).not.toContain(
+      "编号标签",
+    );
+
+    await wrapper.get('[data-testid="map-point-layer-美国白蛾点位"]').trigger("click");
+
+    expect(wrapper.emitted("update:viewName")).toEqual([["美国白蛾点位"]]);
   });
 
   it("右上角缩放按钮直接调用地图缩放方法", async () => {
@@ -539,6 +576,37 @@ describe("LeafletMap 图例", () => {
     expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
     expect(wrapper.text()).not.toContain("未调查");
   });
+
+  it("图例默认展开，并通过图标按钮收起和展开", async () => {
+    const wrapper = mountLeafletMap({
+      popupFields: ["编号", "调查日期", "调查状态"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [createPointFeature("MGB-001", 116.73, 39.92)],
+      },
+    });
+
+    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="map-legend-panel"]').text()).toContain("图例");
+    expect(wrapper.get('[data-testid="map-legend-panel"]').text()).not.toContain("个调查点位");
+    expect(wrapper.find('[data-testid="map-legend-expand-button"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="map-legend-collapse-button"]').classes()).toContain(
+      "panel-header-title-group",
+    );
+
+    await wrapper.get('[data-testid="map-legend-collapse-button"]').trigger("click");
+
+    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="map-legend-expand-button"]').attributes("aria-label")).toBe(
+      "展开图例",
+    );
+    expect(wrapper.get('[data-testid="map-legend-expand-button"]').text()).toBe("图例");
+
+    await wrapper.get('[data-testid="map-legend-expand-button"]').trigger("click");
+
+    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(true);
+    expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
+  });
 });
 
 describe("LeafletMap 点位样式", () => {
@@ -745,7 +813,7 @@ describe("LeafletMap 点位样式", () => {
     expect(layer.bindTooltip).toHaveBeenCalledWith("MGB-001", expect.any(Object));
   });
 
-  it("相近点位会合并为带数量的聚合标记", () => {
+  it("相近点位仍按原始坐标显示为多个独立点位", () => {
     const features = [
       createPointFeature("A-001", 116.7300, 39.9200),
       createPointFeature("A-002", 116.7301, 39.9201),
@@ -761,19 +829,21 @@ describe("LeafletMap 点位样式", () => {
     });
 
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
-    const clusteredFeature = geoJsonCall[0].features[0];
 
-    expect(geoJsonCall[0].features).toHaveLength(1);
-    expect(clusteredFeature.properties.__isPointCluster).toBe(true);
-    expect(clusteredFeature.properties.__clusterCount).toBe(3);
+    expect(geoJsonCall[0].features).toHaveLength(3);
+    expect(geoJsonCall[0].features.map((feature) => feature.geometry.coordinates)).toEqual(
+      features.map((feature) => feature.geometry.coordinates),
+    );
 
-    geoJsonCall[1].pointToLayer(clusteredFeature, [39.9201, 116.7301]);
+    geoJsonCall[0].features.forEach((feature) => {
+      const [lng, lat] = feature.geometry.coordinates;
+      geoJsonCall[1].pointToLayer(feature, [lat, lng]);
+    });
 
-    expect(getPointClusterMarkerCalls()).toHaveLength(1);
-    expect(getPointClusterMarkerCalls()[0][1].icon.html).toContain(">3<");
+    expect(leafletMocks.circleMarker).toHaveBeenCalledTimes(3);
   });
 
-  it("聚合标记点击后放大到聚合中心，不触发单点选择", () => {
+  it("点击相近点位仍触发对应原始点位详情", () => {
     const features = [
       createPointFeature("A-001", 116.7300, 39.9200),
       createPointFeature("A-002", 116.7301, 39.9201),
@@ -787,7 +857,8 @@ describe("LeafletMap 点位样式", () => {
     });
     const mapInstance = leafletMocks.maps[0];
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
-    const clusteredFeature = geoJsonCall[0].features[0];
+    const targetFeature = geoJsonCall[0].features[1];
+    mapInstance.setView.mockClear();
     const layer = {
       bindTooltip: vi.fn(),
       on: vi.fn((event, handler) => {
@@ -795,19 +866,15 @@ describe("LeafletMap 点位样式", () => {
       }),
     };
 
-    geoJsonCall[1].onEachFeature(clusteredFeature, layer);
+    geoJsonCall[1].onEachFeature(targetFeature, layer);
     layer.click();
 
-    expect(layer.bindTooltip).toHaveBeenCalledWith("2 个点位", expect.any(Object));
-    expect(mapInstance.setView).toHaveBeenCalledWith(
-      [39.92005, 116.73005],
-      13,
-      { animate: true },
-    );
-    expect(wrapper.emitted("feature-click")).toBeUndefined();
+    expect(layer.bindTooltip).toHaveBeenCalledWith("A-002", expect.any(Object));
+    expect(mapInstance.setView).not.toHaveBeenCalled();
+    expect(wrapper.emitted("feature-click")).toEqual([[features[1]]]);
   });
 
-  it("放大到聚合上限后恢复显示单个点位", () => {
+  it("缩放后仍按原始坐标显示独立点位", () => {
     const features = [
       createPointFeature("A-001", 116.7300, 39.9200),
       createPointFeature("A-002", 116.7301, 39.9201),
@@ -829,7 +896,9 @@ describe("LeafletMap 点位样式", () => {
 
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     expect(geoJsonCall[0].features).toHaveLength(2);
-    expect(geoJsonCall[0].features[0].properties.__isPointCluster).toBeUndefined();
+    expect(geoJsonCall[0].features.map((feature) => feature.geometry.coordinates)).toEqual(
+      features.map((feature) => feature.geometry.coordinates),
+    );
   });
 });
 
@@ -854,7 +923,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerCalls()).toHaveLength(0);
   });
 
-  it("低缩放级别隐藏编号标签，放大后再渲染当前视口内编号", () => {
+  it("低缩放级别也会渲染当前视口内编号", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -862,16 +931,6 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
-
-    expect(leafletMocks.layerGroup).not.toHaveBeenCalled();
-    expect(getPointLabelMarkerCalls()).toHaveLength(0);
-
-    const mapInstance = setMapViewport({
-      zoom: 13,
-      contains: () => true,
-    });
-
-    mapInstance.trigger("zoomend");
 
     expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(1);
     expect(getPointLabelMarkerCalls()).toHaveLength(1);
@@ -905,7 +964,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerHtml()[0]).toContain("A-001");
   });
 
-  it("聚合中的点位不会继续渲染编号标签", () => {
+  it("编号标签存在遮挡时只保留视觉顶层标签", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -916,14 +975,12 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
-    const mapInstance = setMapViewport({
-      zoom: 14,
-      contains: () => true,
-    });
 
-    mapInstance.trigger("zoomend");
+    const labelCalls = getPointLabelMarkerCalls();
 
-    expect(getPointLabelMarkerCalls()).toHaveLength(0);
+    expect(labelCalls).toHaveLength(1);
+    expect(labelCalls[0][0]).toEqual([39.9201, 116.7301]);
+    expect(getPointLabelMarkerHtml()[0]).toContain("A-002");
   });
 
   it("多边形点位也会在当前视口内渲染编号", () => {
@@ -950,9 +1007,9 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(leafletMocks.markers[0].bindTooltip).not.toHaveBeenCalled();
   });
 
-  it("当前视口内编号超过上限时最多只渲染100个", () => {
-    const features = Array.from({ length: 260 }, (_, index) =>
-      createPointFeature(`A-${index + 1}`, 116.5 + index * 0.001, 39.8 + index * 0.001),
+  it("编号标签无数量上限，未遮挡时全部渲染", () => {
+    const features = Array.from({ length: 120 }, (_, index) =>
+      createPointFeature(`A-${index + 1}`, 116.5 + index * 0.01, 39.8 + index * 0.01),
     );
 
     mountLeafletMap({
@@ -962,17 +1019,11 @@ describe("LeafletMap 编号标签性能优化", () => {
       },
       showPointLabels: true,
     });
-    const mapInstance = setMapViewport({
-      zoom: 14,
-      contains: () => true,
-    });
 
-    mapInstance.trigger("zoomend");
-
-    expect(getPointLabelMarkerCalls()).toHaveLength(100);
+    expect(getPointLabelMarkerCalls()).toHaveLength(120);
   });
 
-  it("缩放会重算聚合，平移只刷新编号标签", () => {
+  it("缩放会重绘点位，平移只刷新编号标签", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -986,13 +1037,15 @@ describe("LeafletMap 编号标签性能优化", () => {
     });
 
     expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(1);
+    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(1);
+    expect(getPointLabelMarkerCalls()).toHaveLength(1);
 
     mapInstance.trigger("zoomend");
     mapInstance.trigger("moveend");
 
     expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(2);
-    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(2);
-    expect(getPointLabelMarkerCalls()).toHaveLength(2);
+    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(3);
+    expect(getPointLabelMarkerCalls()).toHaveLength(3);
   });
 
   it("切换显示编号开关时只影响编号图层", async () => {

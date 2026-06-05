@@ -5,7 +5,6 @@ import { useToast } from "../composables/useToast.js";
 import {
   createWhiteMothSite,
   fetchAdminBoundary,
-  fetchMapFilterOptions,
   fetchMapView,
   fetchWhiteMothSiteCodeRules,
   listMapViews,
@@ -16,7 +15,6 @@ import {
   resolveFeatureHoverLabel,
 } from "../components/map/popupFields.js";
 import LeafletMap from "../components/map/LeafletMap.vue";
-import { mapStore, mapActions } from "../stores/mapStore.js";
 
 function createEmptyFeatureCollection() {
   return {
@@ -35,12 +33,6 @@ const basemapMode = ref("satellite");
 const showPointLabels = ref(true);
 const geojson = ref(createEmptyFeatureCollection());
 const boundaryGeojson = ref(createEmptyFeatureCollection());
-const activeFilters = ref({});
-const filterOptions = ref({
-  filterFields: [],
-});
-const isFilterPanelOpen = ref(false);
-const openFilterMenus = ref({});
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
@@ -243,8 +235,6 @@ function closeDetail() {
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
 );
-const filterFields = computed(() => filterOptions.value.filterFields || []);
-const hasFilterFields = computed(() => filterFields.value.length > 0);
 const whiteMothSiteCodeExample = computed(
   () => whiteMothSiteCodeRules.value?.code_example || "MQ001",
 );
@@ -298,182 +288,6 @@ const canSubmitWhiteMothSite = computed(
     !isSavingWhiteMothSite.value,
 );
 const pointCount = computed(() => geojson.value?.features?.length || 0);
-const mapStageTone = computed(() => {
-  if (loading.value || loadingViews.value) {
-    return "is-loading";
-  }
-  if (isAddingWhiteMothSite.value) {
-    return "is-action";
-  }
-  if (selectedFeature.value) {
-    return "is-detail";
-  }
-  return "";
-});
-const mapStageNote = computed(() => {
-  if (loadingViews.value) {
-    return "正在读取地图视图。";
-  }
-  if (loading.value) {
-    return "正在加载当前视图点位。";
-  }
-  if (isSavingWhiteMothSite.value) {
-    return "正在保存新增点位。";
-  }
-  if (isAddingWhiteMothSite.value && !whiteMothSiteDraftLocation.value) {
-    return "添加点位模式已开启，请在地图上点击点位位置。";
-  }
-  if (isAddingWhiteMothSite.value && whiteMothSiteDraftLocation.value) {
-    return "已选定点位位置，请填写编号并保存。";
-  }
-  if (selectedFeature.value) {
-    return `已打开点位详情：${featureTitle.value || "点位详情"}。`;
-  }
-  if (activeFilterCount.value > 0) {
-    return `当前视图已应用 ${activeFilterCount.value} 个筛选条件，显示 ${pointCount.value} 个点位。`;
-  }
-  return selectedView.value
-    ? `当前视图：${selectedView.value}，显示 ${pointCount.value} 个点位。`
-    : "暂无可用地图视图。";
-});
-
-function normalizeFilterOptions(options = []) {
-  return (options || [])
-    .map((option) => {
-      if (typeof option === "string") {
-        return {
-          value: option,
-          label: option,
-        };
-      }
-      return {
-        value: `${option?.value ?? ""}`,
-        label: `${option?.label ?? option?.value ?? ""}`,
-      };
-    })
-    .filter((option) => option.value !== "");
-}
-
-function normalizeSelectedFilterValues(value) {
-  const values = Array.isArray(value) ? value : [value];
-  const selectedValues = values
-    .map((item) => `${item ?? ""}`.trim())
-    .filter((item) => item !== "");
-
-  return Array.from(new Set(selectedValues));
-}
-
-function buildLegacyFilterFields(payload) {
-  const fields = [];
-  const columns = currentView.value.columns || [];
-  const townships = payload?.townships || [];
-
-  if (payload?.supports_township_filter || columns.includes("乡镇")) {
-    fields.push({
-      key: "乡镇",
-      label: "乡镇 / 街道",
-      type: "select",
-      options: normalizeFilterOptions(townships),
-      defaultValues: [],
-    });
-  }
-
-  if (payload?.supports_survey_status_filter || columns.includes("调查日期")) {
-    fields.push({
-      key: "调查状态",
-      label: "调查状态",
-      type: "select",
-      options: normalizeFilterOptions(["调查", "未调查"]),
-      defaultValues: [],
-    });
-  }
-
-  return fields;
-}
-
-function normalizeFilterFields(payload) {
-  if (!Array.isArray(payload?.filter_fields)) {
-    return buildLegacyFilterFields(payload);
-  }
-
-  return payload.filter_fields.map((field) => ({
-    key: `${field.key || ""}`,
-    label: `${field.label || field.key || ""}`,
-    type: field.type || "select",
-    options: normalizeFilterOptions(field.options || []),
-    defaultValues: normalizeSelectedFilterValues(field.default_values ?? field.default_value),
-  })).filter((field) => field.key && field.label);
-}
-
-function buildDefaultFilterValues(fields = filterFields.value) {
-  return fields.reduce((values, field) => {
-    values[field.key] = [...(field.defaultValues || [])];
-    return values;
-  }, {});
-}
-
-function buildFilterMenuState(fields = filterFields.value) {
-  return fields.reduce((menus, field) => {
-    menus[field.key] = false;
-    return menus;
-  }, {});
-}
-
-function isFilterMenuOpen(fieldKey) {
-  return Boolean(openFilterMenus.value[fieldKey]);
-}
-
-function setFilterMenuOpen(fieldKey, open) {
-  const nextState = buildFilterMenuState();
-  if (open && Object.hasOwn(nextState, fieldKey)) {
-    nextState[fieldKey] = true;
-  }
-  openFilterMenus.value = nextState;
-}
-
-function toggleFilterMenu(fieldKey) {
-  setFilterMenuOpen(fieldKey, !isFilterMenuOpen(fieldKey));
-}
-
-function getFilterOptionLabel(field, value) {
-  return field.options.find((option) => option.value === value)?.label || value;
-}
-
-function getFilterSummary(field) {
-  if (!field.options.length) {
-    return "暂无可选项";
-  }
-
-  const selectedValues = normalizeSelectedFilterValues(activeFilters.value[field.key]);
-  if (!selectedValues.length) {
-    return `选择${field.label}`;
-  }
-
-  const selectedLabels = selectedValues.map((value) => getFilterOptionLabel(field, value));
-  if (selectedLabels.length <= 2) {
-    return selectedLabels.join("、");
-  }
-
-  return `${selectedLabels.slice(0, 2).join("、")} 等 ${selectedLabels.length} 项`;
-}
-
-function hasSelectedFilterValues(fieldKey) {
-  return normalizeSelectedFilterValues(activeFilters.value[fieldKey]).length > 0;
-}
-
-function isFilterSummaryMuted(field) {
-  return !field.options.length || !hasSelectedFilterValues(field.key);
-}
-
-function buildActiveFilterPayload() {
-  return filterFields.value.reduce((filters, field) => {
-    const values = normalizeSelectedFilterValues(activeFilters.value[field.key]);
-    if (values.length > 0) {
-      filters[field.key] = values;
-    }
-    return filters;
-  }, {});
-}
 
 async function loadViews() {
   loadingViews.value = true;
@@ -532,8 +346,7 @@ async function loadGeoJson({ autoFit = false } = {}) {
   loading.value = true;
 
   try {
-    const filters = buildActiveFilterPayload();
-    const payload = await fetchMapView(viewName, filters);
+    const payload = await fetchMapView(viewName, {});
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
       return false;
     }
@@ -553,36 +366,6 @@ async function loadGeoJson({ autoFit = false } = {}) {
     if (requestToken === geojsonRequestToken) {
       loading.value = false;
     }
-  }
-}
-
-async function loadFilterOptions() {
-  if (!selectedView.value) {
-    filterOptions.value = {
-      filterFields: [],
-    };
-    activeFilters.value = {};
-    openFilterMenus.value = {};
-    return;
-  }
-
-  try {
-    const payload = await fetchMapFilterOptions(selectedView.value);
-    filterOptions.value = {
-      filterFields: normalizeFilterFields(payload),
-    };
-    activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
-    openFilterMenus.value = buildFilterMenuState(filterOptions.value.filterFields);
-  } catch (loadError) {
-    filterOptions.value = {
-      filterFields: buildLegacyFilterFields({}),
-    };
-    activeFilters.value = buildDefaultFilterValues(filterOptions.value.filterFields);
-    openFilterMenus.value = buildFilterMenuState(filterOptions.value.filterFields);
-    if (isUnauthorizedError(loadError)) {
-      return;
-    }
-    error(`${loadError.message || loadError}`, "筛选配置读取失败");
   }
 }
 
@@ -630,18 +413,7 @@ async function refreshWhiteMothSiteView() {
     return true;
   }
 
-  await loadFilterOptions();
   return loadGeoJson({ autoFit: false });
-}
-
-function applyFilter() {
-  loadGeoJson({ autoFit: false });
-}
-
-function resetFilter() {
-  activeFilters.value = buildDefaultFilterValues();
-  loadGeoJson({ autoFit: false });
-  info("筛选条件已恢复默认。", "已刷新点位");
 }
 
 function resetWhiteMothSiteDraft() {
@@ -727,93 +499,6 @@ async function submitWhiteMothSite() {
   }
 }
 
-const activeFilterCount = computed(() => {
-  return filterFields.value.reduce((count, field) => {
-    const values = normalizeSelectedFilterValues(activeFilters.value[field.key]);
-    return count + values.length;
-  }, 0);
-});
-
-function isSamePlainState(left, right) {
-  try {
-    return JSON.stringify(left || {}) === JSON.stringify(right || {});
-  } catch {
-    return false;
-  }
-}
-
-/* ---- register actions so App.vue can call them via the store ---- */
-mapActions.registerFilterActions({ applyFilter, resetFilter });
-
-/* ---- sync local state → store (so App.vue header can read it) ---- */
-let _syncingFromStore = false;
-
-function syncToStore() {
-  if (_syncingFromStore) return; // prevent circular update
-  mapActions.setViews(views.value);
-  mapActions.setSelectedView(selectedView.value);
-  mapActions.setLoadingViews(loadingViews.value);
-  mapActions.setFilterFields(filterFields.value);
-  if (!isSamePlainState(mapStore.activeFilters, activeFilters.value)) {
-    mapActions.setActiveFilters(activeFilters.value);
-  }
-  if (!isSamePlainState(mapStore.openFilterMenus, openFilterMenus.value)) {
-    mapActions.setOpenFilterMenus(openFilterMenus.value);
-  }
-  mapActions.setLoading(loading.value);
-  mapActions.setActiveFilterCount(activeFilterCount.value);
-  mapActions.setFilterPanelOpen(isFilterPanelOpen.value);
-  mapActions.setReady(true);
-}
-
-// Sync immediately and on every relevant change
-syncToStore();
-watch(
-  [views, selectedView, loadingViews, filterFields, activeFilters, openFilterMenus, loading, activeFilterCount, isFilterPanelOpen],
-  syncToStore,
-  { deep: true },
-);
-
-/* ---- watch store for changes triggered by App.vue ---- */
-watch(
-  () => mapStore.isFilterPanelOpen,
-  (val) => {
-    if (isFilterPanelOpen.value === val) return;
-    _syncingFromStore = true;
-    isFilterPanelOpen.value = val;
-    _syncingFromStore = false;
-  },
-);
-watch(
-  () => mapStore.selectedView,
-  (val) => {
-    if (selectedView.value === val) return;
-    _syncingFromStore = true;
-    selectedView.value = val;
-    _syncingFromStore = false;
-  },
-);
-watch(
-  () => mapStore.activeFilters,
-  (val) => {
-    if (isSamePlainState(activeFilters.value, val)) return;
-    _syncingFromStore = true;
-    activeFilters.value = { ...(val || {}) };
-    _syncingFromStore = false;
-  },
-  { deep: true },
-);
-watch(
-  () => mapStore.openFilterMenus,
-  (val) => {
-    if (isSamePlainState(openFilterMenus.value, val)) return;
-    _syncingFromStore = true;
-    openFilterMenus.value = { ...(val || {}) };
-    _syncingFromStore = false;
-  },
-  { deep: true },
-);
-
 watch(selectedView, async () => {
   const shouldAutoFit = shouldAutoFitOnNextViewChange;
   shouldAutoFitOnNextViewChange = true;
@@ -824,16 +509,7 @@ watch(selectedView, async () => {
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
-  activeFilters.value = {};
-  openFilterMenus.value = {};
-  await loadFilterOptions();
   await loadGeoJson({ autoFit: shouldAutoFit });
-});
-
-watch(isFilterPanelOpen, (open) => {
-  if (!open) {
-    openFilterMenus.value = buildFilterMenuState();
-  }
 });
 
 onMounted(async () => {
@@ -844,7 +520,7 @@ onMounted(async () => {
 <template>
   <section class="page-shell map-page">
     <div class="map-workspace">
-      <!-- MapToolbar removed: view/filter live in App.vue header, layer tools live inside LeafletMap. -->
+      <!-- MapToolbar removed: view/layer tools live inside LeafletMap. -->
 
       <section class="map-search-panel" aria-label="地图点位搜索">
         <form class="map-search-form" @submit.prevent="submitSearch">
@@ -1045,61 +721,6 @@ onMounted(async () => {
         />
       </section>
 
-      <div
-        class="map-stage-note"
-        :class="mapStageTone"
-        role="status"
-        data-testid="map-stage-note"
-      >
-        <span class="map-stage-dot" aria-hidden="true"></span>
-        <span>{{ mapStageNote }}</span>
-      </div>
-
-      <nav class="map-mobile-bar" aria-label="移动端地图操作">
-        <button
-          type="button"
-          :class="{ 'is-active': isFilterPanelOpen || activeFilterCount > 0 }"
-          :disabled="!hasFilterFields"
-          @click="mapActions.toggleFilterPanel()"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 6h16M7 12h10M10 18h4" />
-          </svg>
-          <span>筛选</span>
-        </button>
-        <button
-          type="button"
-          :class="{ 'is-active': showPointLabels }"
-          @click="showPointLabels = !showPointLabels"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 8h10M7 12h6M7 16h9" />
-          </svg>
-          <span>编号</span>
-        </button>
-        <button
-          type="button"
-          :class="{ 'is-active': isAddingWhiteMothSite }"
-          :disabled="isSavingWhiteMothSite"
-          @click="toggleWhiteMothSiteAdd"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          <span>{{ isAddingWhiteMothSite ? "取消" : "新增" }}</span>
-        </button>
-        <button
-          type="button"
-          :class="{ 'is-active': Boolean(selectedFeature) }"
-          :disabled="!selectedFeature"
-          @click="closeDetail"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 6h14M5 12h14M5 18h9" />
-          </svg>
-          <span>详情</span>
-        </button>
-      </nav>
     </div>
   </section>
 </template>
@@ -1530,113 +1151,6 @@ onMounted(async () => {
   padding-top: 0.25rem;
 }
 
-.map-stage-note {
-  position: absolute;
-  right: var(--space-6);
-  bottom: var(--space-6);
-  z-index: 1002;
-  max-width: min(360px, calc(100% - 32px));
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
-  pointer-events: none;
-}
-
-.map-stage-note.is-loading .map-stage-dot {
-  background: var(--color-info);
-  animation: map-stage-pulse 1.1s ease-in-out infinite;
-}
-
-.map-stage-note.is-action .map-stage-dot {
-  background: var(--color-info);
-}
-
-.map-stage-note.is-detail .map-stage-dot {
-  background: var(--color-nav);
-}
-
-.map-stage-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-round);
-  background: var(--color-primary);
-}
-
-@keyframes map-stage-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.46;
-    transform: scale(0.72);
-  }
-}
-
-.map-mobile-bar {
-  position: absolute;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  left: var(--space-4);
-  z-index: 1003;
-  display: none;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--color-surface) 95%, transparent);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
-}
-
-.map-mobile-bar button {
-  min-height: 42px;
-  display: grid;
-  place-items: center;
-  gap: 2px;
-  padding: var(--space-2);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 9px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.map-mobile-bar button:hover,
-.map-mobile-bar button.is-active {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.map-mobile-bar button:disabled {
-  cursor: not-allowed;
-  opacity: 0.46;
-}
-
-.map-mobile-bar svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 @media (max-width: 760px) {
   .map-workspace {
     min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
@@ -1685,21 +1199,5 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 
-  .map-stage-note {
-    right: var(--space-4);
-    bottom: 76px;
-    left: var(--space-4);
-    max-width: none;
-  }
-
-  .map-mobile-bar {
-    display: grid;
-  }
-}
-
-@media (max-width: 680px) {
-  .map-stage-note {
-    display: none;
-  }
 }
 </style>

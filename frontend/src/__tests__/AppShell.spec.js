@@ -1,24 +1,16 @@
-import { defineComponent, onMounted } from "vue";
+import { defineComponent } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App.vue";
 import { resetAuthSessionState, signIn } from "../composables/useAuthSession.js";
-import { mapActions } from "../stores/mapStore.js";
 
 const WorkorderStub = defineComponent({
   template: "<div>工单页内容</div>",
 });
 
 const MapStub = defineComponent({
-  setup() {
-    onMounted(() => {
-      mapActions.setReady(true);
-      mapActions.setViews([{ name: "虫情总览" }]);
-      mapActions.setSelectedView("虫情总览");
-    });
-  },
   template: "<div>地图页内容</div>",
 });
 
@@ -99,7 +91,6 @@ describe("App 壳层导航", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     resetAuthSessionState();
-    mapActions.setReady(false);
   });
 
   it("顶部导航会高亮当前路由，且不再展示当前页面卡片", async () => {
@@ -203,7 +194,7 @@ describe("App 壳层导航", () => {
     expect(wrapper.get(".site-main").classes()).toContain("is-full-bleed");
   });
 
-  it("地图页顶部栏不再展示图层菜单", async () => {
+  it("地图页顶部栏不再展示图层选择与筛选入口", async () => {
     const { wrapper } = await mountApp("/map");
 
     await flushPromises();
@@ -214,6 +205,8 @@ describe("App 壳层导航", () => {
     expect(wrapper.get(".site-brand").text()).toContain("林业调查工作台");
     expect(wrapper.find('button[aria-label="切换图层"]').exists()).toBe(false);
     expect(wrapper.find("#map-layer-menu").exists()).toBe(false);
+    expect(wrapper.find(".map-view-select").exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="筛选配置"]').exists()).toBe(false);
   });
 
   it("登录页使用独立布局，不展示顶部导航", async () => {

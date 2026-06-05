@@ -43,12 +43,6 @@ export async function fetchMapView(name, filters = {}) {
   return response.json();
 }
 
-export async function fetchMapFilterOptions(name) {
-  const response = await apiFetch(`/api/map/views/${encodeURIComponent(name)}/filter-options`);
-  await ensureApiSuccess(response);
-  return response.json();
-}
-
 export async function fetchAdminBoundary() {
   const response = await apiFetch("/api/map/layers/admin-boundary");
   await ensureApiSuccess(response);

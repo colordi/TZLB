@@ -100,18 +100,15 @@ const fitPending = ref(false);
 
 const HAZARD_POINT_COLOR = "#D9480F";
 const POINT_OUTLINE_COLOR = "#1F2933";
-const POINT_CLUSTER_COLOR = "#14532D";
 const HAZARD_POINT_STYLE = {
   key: "hazard-point",
   color: HAZARD_POINT_COLOR,
   radius: 8,
   label: "危害点位",
 };
+const POINT_LAYER_COLORS = ["#16A34A", "#2563EB", "#9333EA", "#0891B2", "#DC2626", "#D97706"];
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
-const activeBasemapLabel = computed(() =>
-  props.basemapMode === "satellite" ? "卫星底图" : "标准底图",
-);
 const isRealtimeLocating = computed(() => locateWatchId.value !== null);
 const locateButtonLabel = computed(() =>
   isRealtimeLocating.value ? "重新居中到当前位置" : "开启实时定位",
@@ -119,9 +116,27 @@ const locateButtonLabel = computed(() =>
 const whiteMothSiteAddButtonLabel = computed(() =>
   props.whiteMothSiteAddMode ? "取消添加美国白蛾点位" : "添加美国白蛾点位",
 );
-const pointLabelMenuDescription = computed(() =>
-  props.showPointLabels ? "当前范围编号已开启" : "开启后显示当前范围编号",
-);
+const pointLayerEntries = computed(() => {
+  const fallbackName = props.viewName || "当前点位";
+  const layerViews = props.views?.length ? props.views : [{ name: fallbackName }];
+
+  return layerViews
+    .map((view, index) => {
+      const name = `${view?.name || ""}`.trim();
+      if (!name) {
+        return null;
+      }
+
+      return {
+        key: name,
+        label: name,
+        active: name === props.viewName,
+        color: POINT_LAYER_COLORS[index % POINT_LAYER_COLORS.length],
+        countLabel: name === props.viewName ? featureCount.value : "切换",
+      };
+    })
+    .filter(Boolean);
+});
 const preferIdentifierHover = computed(() => true);
 const usesSeverityLegend = computed(() => hasFeatureSeverityField(props.popupFields));
 
@@ -184,14 +199,11 @@ const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
   </div>
 `;
 
-const POINT_LABEL_RENDER_LIMIT = 100;
-const POINT_LABEL_MIN_ZOOM = 13;
-const POINT_CLUSTER_PIXEL_RADIUS = 34;
-const POINT_CLUSTER_MAX_ZOOM = 18;
-
-const clusteredLabelFeatureSetRef = shallowRef(new WeakSet());
-
-
+const POINT_LABEL_FONT_SIZE = 12;
+const POINT_LABEL_OFFSET_X = 8;
+const POINT_LABEL_OFFSET_Y = -7;
+const POINT_LABEL_PADDING_X = 2;
+const POINT_LABEL_PADDING_Y = 2;
 
 function escapeHtml(value) {
   return `${value ?? ""}`
@@ -428,10 +440,6 @@ function focusFeature(feature) {
   }
 }
 
-function isPointClusterFeature(feature) {
-  return Boolean(feature?.properties?.__isPointCluster);
-}
-
 function getProjectedPoint(latlng) {
   const projected = mapRef.value?.latLngToLayerPoint?.(latlng);
   if (
@@ -448,79 +456,34 @@ function getProjectedPoint(latlng) {
   return null;
 }
 
-function createPointClusterFeature(cluster) {
-  const count = cluster.features.length;
+function estimateLabelTextWidth(label) {
+  return Array.from(`${label}`).reduce((width, char) => {
+    const isWideChar = /[^\x00-\xff]/.test(char);
+    return width + (isWideChar ? POINT_LABEL_FONT_SIZE : POINT_LABEL_FONT_SIZE * 0.68);
+  }, POINT_LABEL_FONT_SIZE * 0.2);
+}
+
+function estimateLabelBounds(label, projected) {
+  const textWidth = estimateLabelTextWidth(label);
+  const textHeight = POINT_LABEL_FONT_SIZE * 1.25;
+  const left = projected.x + POINT_LABEL_OFFSET_X - POINT_LABEL_PADDING_X;
+  const top = projected.y + POINT_LABEL_OFFSET_Y - POINT_LABEL_PADDING_Y;
 
   return {
-    type: "Feature",
-    geometry: {
-      type: "Point",
-      coordinates: [cluster.lngSum / count, cluster.latSum / count],
-    },
-    properties: {
-      __isPointCluster: true,
-      __clusterCount: count,
-      __clusterFeatures: cluster.features,
-    },
+    left,
+    top,
+    right: left + textWidth + POINT_LABEL_PADDING_X * 2,
+    bottom: top + textHeight + POINT_LABEL_PADDING_Y * 2,
   };
 }
 
-function buildDensityAwareFeatures(features = []) {
-  const hiddenLabelFeatures = new WeakSet();
-  clusteredLabelFeatureSetRef.value = hiddenLabelFeatures;
-
-  if (!mapRef.value || mapRef.value.getZoom?.() >= POINT_CLUSTER_MAX_ZOOM) {
-    return features;
-  }
-
-  const clusters = [];
-  const output = [];
-
-  for (const feature of features) {
-    const latlng = getPointFeatureLatLng(feature);
-    const projected = latlng ? getProjectedPoint(latlng) : null;
-
-    if (!latlng || !projected) {
-      output.push(feature);
-      continue;
-    }
-
-    const matchedCluster = clusters.find((cluster) => {
-      const dx = projected.x - cluster.x;
-      const dy = projected.y - cluster.y;
-      return Math.sqrt(dx * dx + dy * dy) <= POINT_CLUSTER_PIXEL_RADIUS;
-    });
-
-    if (matchedCluster) {
-      const previousCount = matchedCluster.features.length;
-      matchedCluster.features.push(feature);
-      matchedCluster.x = (matchedCluster.x * previousCount + projected.x) / matchedCluster.features.length;
-      matchedCluster.y = (matchedCluster.y * previousCount + projected.y) / matchedCluster.features.length;
-      matchedCluster.latSum += latlng[0];
-      matchedCluster.lngSum += latlng[1];
-      continue;
-    }
-
-    clusters.push({
-      features: [feature],
-      x: projected.x,
-      y: projected.y,
-      latSum: latlng[0],
-      lngSum: latlng[1],
-    });
-  }
-
-  for (const cluster of clusters) {
-    if (cluster.features.length === 1) {
-      output.push(cluster.features[0]);
-      continue;
-    }
-
-    cluster.features.forEach((feature) => hiddenLabelFeatures.add(feature));
-    output.push(createPointClusterFeature(cluster));
-  }
-
-  return output;
+function boundsIntersect(left, right) {
+  return !(
+    left.right <= right.left ||
+    left.left >= right.right ||
+    left.bottom <= right.top ||
+    left.top >= right.bottom
+  );
 }
 
 function renderPointLabels(data = props.geojson) {
@@ -530,25 +493,13 @@ function renderPointLabels(data = props.geojson) {
     return;
   }
 
-  if (mapRef.value.getZoom?.() < POINT_LABEL_MIN_ZOOM) {
-    return;
-  }
-
   const bounds = mapRef.value.getBounds?.();
   if (!bounds?.contains) {
     return;
   }
 
-  let renderedCount = 0;
-  for (const feature of data.features) {
-    if (renderedCount >= POINT_LABEL_RENDER_LIMIT) {
-      break;
-    }
-
-    if (clusteredLabelFeatureSetRef.value.has(feature)) {
-      continue;
-    }
-
+  const renderedLabelBounds = [];
+  for (const feature of getTopmostPointFeatures(data.features)) {
     const label = resolveFeaturePointLabel(feature?.properties || {});
     if (!label) {
       continue;
@@ -559,12 +510,22 @@ function renderPointLabels(data = props.geojson) {
       continue;
     }
 
+    const projected = getProjectedPoint(latlng);
+    if (!projected) {
+      continue;
+    }
+
+    const labelBounds = estimateLabelBounds(label, projected);
+    if (renderedLabelBounds.some((item) => boundsIntersect(item, labelBounds))) {
+      continue;
+    }
+
     if (!pointLabelLayerRef.value) {
       pointLabelLayerRef.value = L.layerGroup().addTo(mapRef.value);
     }
 
     buildPointLabelMarker(label, latlng).addTo(pointLabelLayerRef.value);
-    renderedCount += 1;
+    renderedLabelBounds.push(labelBounds);
   }
 
   pointLabelLayerRef.value?.bringToFront?.();
@@ -589,6 +550,20 @@ function resolvePointStyle(properties = {}) {
   return usesSeverityLegend.value ? resolveFeatureSeverity(properties) : HAZARD_POINT_STYLE;
 }
 
+function getPointRenderFeatures(features = []) {
+  return usesSeverityLegend.value
+    ? [...features].sort((a, b) => {
+        const sa = resolveFeatureSeverity(a.properties).key;
+        const sb = resolveFeatureSeverity(b.properties).key;
+        return sa.localeCompare(sb);
+      })
+    : [...features];
+}
+
+function getTopmostPointFeatures(features = []) {
+  return getPointRenderFeatures(features).reverse();
+}
+
 function drawGeoJson(data, shouldFit = true) {
   if (!mapRef.value) {
     return;
@@ -602,36 +577,17 @@ function drawGeoJson(data, shouldFit = true) {
     return;
   }
 
-  const sortedFeatures = usesSeverityLegend.value
-    ? [...data.features].sort((a, b) => {
-        const sa = resolveFeatureSeverity(a.properties).key;
-        const sb = resolveFeatureSeverity(b.properties).key;
-        return sa.localeCompare(sb);
-      })
-    : [...data.features];
-
   const sortedData = {
     ...data,
-    features: buildDensityAwareFeatures(sortedFeatures),
+    features: getPointRenderFeatures(data.features),
   };
 
   pointLayerRef.value = L.geoJSON(sortedData, {
     style: (feature) =>
-      feature?.geometry?.type === "Point" ? {} : resolveFeaturePathStyle(feature?.properties || {}),
+      feature?.geometry?.type === "Point"
+        ? {}
+        : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
-      if (isPointClusterFeature(feature)) {
-        const count = feature.properties.__clusterCount || 0;
-        const size = Math.min(48, 30 + Math.log2(count + 1) * 4);
-        return L.marker(latlng, {
-          icon: L.divIcon({
-            className: "map-point-cluster-marker",
-            html: `<span style="width:${size}px;height:${size}px">${count}</span>`,
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size / 2],
-          }),
-        });
-      }
-
       const severity = resolvePointStyle(feature.properties);
       const isBlank = usesSeverityLegend.value && severity.key === "level0";
       return L.circleMarker(latlng, {
@@ -646,13 +602,7 @@ function drawGeoJson(data, shouldFit = true) {
       const hoverLabel = resolveFeatureHoverLabel(props.popupFields, feature.properties, {
         preferIdentifier: preferIdentifierHover.value,
       });
-      if (isPointClusterFeature(feature)) {
-        layer.bindTooltip(`${feature.properties.__clusterCount} 个点位`, {
-          direction: "top",
-          sticky: true,
-          opacity: 0.96,
-        });
-      } else if (hoverLabel) {
+      if (hoverLabel) {
         layer.bindTooltip(hoverLabel, {
           direction: "top",
           sticky: true,
@@ -661,16 +611,6 @@ function drawGeoJson(data, shouldFit = true) {
       }
 
       layer.on("click", () => {
-        if (isPointClusterFeature(feature)) {
-          const latlng = getPointFeatureLatLng(feature);
-          if (latlng) {
-            mapRef.value?.setView?.(latlng, Math.min((mapRef.value?.getZoom?.() || 11) + 2, 19), {
-              animate: true,
-            });
-          }
-          return;
-        }
-
         emit("feature-click", feature);
       });
     },
@@ -686,7 +626,7 @@ function refreshPointLabels() {
   renderPointLabels(props.geojson);
 }
 
-function refreshPointDensity() {
+function refreshPointRendering() {
   drawGeoJson(props.geojson, false);
   renderPointLabels(props.geojson);
 }
@@ -814,6 +754,12 @@ function selectBasemapMode(mode) {
   showLayerMenu.value = false;
 }
 
+function selectPointLayer(viewName) {
+  if (viewName && viewName !== props.viewName) {
+    emit("update:viewName", viewName);
+  }
+}
+
 function togglePointLabels() {
   emit("update:showPointLabels", !props.showPointLabels);
 }
@@ -844,7 +790,7 @@ defineExpose({
 onMounted(() => {
   mapRef.value = L.map(mapElement.value, {
     zoomControl: false,
-    attributionControl: true,
+    attributionControl: false,
   }).setView([39.91, 116.72], 11);
 
   drawBasemap(props.basemapMode);
@@ -853,7 +799,7 @@ onMounted(() => {
   renderPointLabels(props.geojson);
   updateWhiteMothSiteDraftMarker();
   mapRef.value.on?.("moveend", refreshPointLabels);
-  mapRef.value.on?.("zoomend", refreshPointDensity);
+  mapRef.value.on?.("zoomend", refreshPointRendering);
   mapRef.value.on?.("click", handleMapClick);
 });
 
@@ -924,7 +870,7 @@ onBeforeUnmount(() => {
 
   if (mapRef.value) {
     mapRef.value.off?.("moveend", refreshPointLabels);
-    mapRef.value.off?.("zoomend", refreshPointDensity);
+    mapRef.value.off?.("zoomend", refreshPointRendering);
     mapRef.value.off?.("click", handleMapClick);
     mapRef.value.remove();
     mapRef.value = null;
@@ -937,17 +883,30 @@ onBeforeUnmount(() => {
     <div ref="mapElement" class="map-canvas"></div>
 
     <div class="map-overlay bottom-left">
-      <div
-        class="map-legend-container"
-        @mouseenter="showLegend = true"
-        @mouseleave="showLegend = false"
-      >
-        <div v-show="showLegend" class="map-integrated-panel">
+      <div class="map-legend-container">
+        <div
+          v-if="showLegend"
+          class="map-integrated-panel"
+          data-testid="map-legend-panel"
+        >
           <div class="panel-header">
-            <span class="panel-header-title-group">
-              <strong>{{ featureCount }}</strong>
-              <span class="panel-header-suffix">个调查点位</span>
-            </span>
+            <button
+              type="button"
+              class="panel-header-title-group"
+              data-testid="map-legend-collapse-button"
+              aria-label="收起图例"
+              @click="showLegend = false"
+            >
+              <svg class="legend-title-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7h14" />
+                <path d="M5 12h14" />
+                <path d="M5 17h14" />
+                <circle cx="4" cy="7" r="1" />
+                <circle cx="4" cy="12" r="1" />
+                <circle cx="4" cy="17" r="1" />
+              </svg>
+              <strong>图例</strong>
+            </button>
           </div>
           <div class="panel-divider"></div>
           <div class="map-legend">
@@ -958,18 +917,20 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <button
-          v-show="!showLegend"
+          v-else
           type="button"
           class="legend-restore-btn"
-          aria-label="显示图例"
+          data-testid="map-legend-expand-button"
+          aria-label="展开图例"
+          @click="showLegend = true"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="8" y1="6" x2="21" y2="6" />
-            <line x1="8" y1="12" x2="21" y2="12" />
-            <line x1="8" y1="18" x2="21" y2="18" />
-            <circle cx="4" cy="6" r="1" fill="currentColor" stroke="none" />
-            <circle cx="4" cy="12" r="1" fill="currentColor" stroke="none" />
-            <circle cx="4" cy="18" r="1" fill="currentColor" stroke="none" />
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7h14" />
+            <path d="M5 12h14" />
+            <path d="M5 17h14" />
+            <circle cx="4" cy="7" r="1" />
+            <circle cx="4" cy="12" r="1" />
+            <circle cx="4" cy="17" r="1" />
           </svg>
           <span>图例</span>
         </button>
@@ -1066,37 +1027,50 @@ onBeforeUnmount(() => {
         <h3>基础图层</h3>
         <button
           type="button"
-          class="map-layer-item"
+          class="map-base-layer-option"
           :class="{ 'is-active': basemapMode === 'standard' }"
           data-testid="map-layer-standard"
           @click="selectBasemapMode('standard')"
         >
-          <strong>标准地图</strong>
-          <span>政区街道</span>
+          <span class="map-layer-check" aria-hidden="true"></span>
+          <span>标准地图</span>
         </button>
         <button
           type="button"
-          class="map-layer-item"
+          class="map-base-layer-option"
           :class="{ 'is-active': basemapMode === 'satellite' }"
           data-testid="map-layer-satellite"
           @click="selectBasemapMode('satellite')"
         >
-          <strong>卫星地图</strong>
-          <span>影像底图</span>
+          <span class="map-layer-check" aria-hidden="true"></span>
+          <span>卫星地图</span>
         </button>
-      </section>
-      <section class="map-layer-panel-group">
-        <h3>显示</h3>
         <button
           type="button"
-          class="map-layer-item"
+          class="map-base-layer-option"
           :class="{ 'is-active': showPointLabels }"
           data-testid="map-layer-labels"
           :aria-pressed="showPointLabels"
           @click="togglePointLabels"
         >
-          <strong>显示编号</strong>
-          <span>{{ pointLabelMenuDescription }}</span>
+          <span class="map-layer-check" aria-hidden="true"></span>
+          <span>编号标签</span>
+        </button>
+      </section>
+      <section class="map-layer-panel-group">
+        <h3>点位图层</h3>
+        <button
+          v-for="layer in pointLayerEntries"
+          :key="layer.key"
+          type="button"
+          class="map-point-layer"
+          :class="{ 'is-active': layer.active }"
+          :data-testid="`map-point-layer-${layer.key}`"
+          @click="selectPointLayer(layer.key)"
+        >
+          <span class="map-point-layer-dot" :style="{ background: layer.color }"></span>
+          <span>{{ layer.label }}</span>
+          <span class="map-layer-count">{{ layer.countLabel }}</span>
         </button>
       </section>
     </aside>
@@ -1221,40 +1195,42 @@ onBeforeUnmount(() => {
 
 .panel-header-title-group {
   display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.48rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-primary-strong);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.panel-header-title-group:hover {
+  color: var(--color-primary);
 }
 
 .map-integrated-panel .panel-header strong {
-  font-size: 1.25rem;
+  font-size: 0.98rem;
   font-weight: 800;
   line-height: 1;
 }
 
-.map-integrated-panel .panel-header-suffix {
-  font-size: 0.82rem;
-  font-weight: 600;
+.legend-title-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.legend-close-btn {
-  width: 1.5rem;
-  height: 1.5rem;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s;
-  margin-left: 0.5rem;
-}
-
-.legend-close-btn:hover {
-  background: rgba(0, 0, 0, 0.06);
+.legend-title-icon circle {
+  fill: currentColor;
+  stroke: none;
 }
 
 .map-legend-container {
@@ -1264,14 +1240,17 @@ onBeforeUnmount(() => {
 .legend-restore-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.85rem;
+  justify-content: center;
+  gap: 0.48rem;
+  width: auto;
+  height: 3rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 0.95rem;
   border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 999px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--color-primary-strong);
-  font-size: 0.82rem;
-  font-weight: 700;
   box-shadow: 0 8px 24px rgba(18, 52, 29, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1280,8 +1259,29 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
+.legend-restore-btn span {
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .legend-restore-btn:hover {
   background: rgba(255, 255, 255, 0.92);
+}
+
+.legend-restore-btn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.legend-restore-btn svg circle {
+  fill: currentColor;
+  stroke: none;
 }
 
 .map-integrated-panel .panel-divider {
@@ -1322,28 +1322,26 @@ onBeforeUnmount(() => {
 }
 
 .map-tool-stack {
-  top: 1.25rem;
-  right: 1.25rem;
+  top: 1.5rem;
+  right: 1.5rem;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.75rem;
   pointer-events: auto;
 }
 
 .map-tool-group {
   display: grid;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
 }
 
 .map-tool-btn {
   min-height: 0;
-  width: 2.9rem;
-  height: 2.9rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -1353,17 +1351,16 @@ onBeforeUnmount(() => {
 }
 
 .map-tool-btn + .map-tool-btn {
-  border-top: 1px solid color-mix(in oklch, var(--color-border) 68%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
 }
 
 .map-tool-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in oklch, var(--color-primary) 8%, white);
 }
 
 .map-tool-btn.is-active {
-  border-color: rgba(47, 128, 237, 0.34);
-  background: rgba(232, 241, 255, 0.92);
-  color: #2f80ed;
+  background: color-mix(in oklch, var(--color-primary) 12%, white);
+  color: var(--color-primary);
 }
 
 .map-tool-btn.is-loading svg {
@@ -1371,88 +1368,154 @@ onBeforeUnmount(() => {
 }
 
 .map-tool-btn svg {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 17px;
+  height: 17px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .map-layer-panel {
   position: absolute;
-  top: 1.25rem;
-  right: 4.65rem;
+  top: 1.5rem;
+  right: 4.9rem;
   z-index: 1001;
-  display: grid;
-  gap: 0.85rem;
-  width: min(16rem, calc(100% - 6rem));
-  padding: 0.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
+  width: min(250px, calc(100% - 6rem));
+  max-height: calc(100% - 3rem);
+  overflow: auto;
+  padding: 1.15rem;
+  border: 1px solid color-mix(in oklch, var(--color-border) 86%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   box-shadow: 0 18px 38px rgba(18, 52, 29, 0.14);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
 }
 
 .map-layer-panel h2,
 .map-layer-panel h3 {
   margin: 0;
-  color: var(--color-primary-strong);
 }
 
 .map-layer-panel h2 {
-  font-size: 0.98rem;
+  margin-bottom: 1rem;
+  color: var(--color-primary-strong);
+  font-size: 1.05rem;
   font-weight: 800;
 }
 
 .map-layer-panel h3 {
-  font-size: 0.75rem;
-  font-weight: 700;
+  margin-bottom: 0.75rem;
   color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
-.map-layer-panel-group {
-  display: grid;
-  gap: 0.45rem;
+.map-layer-panel-group + .map-layer-panel-group {
+  margin-top: 1.15rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
 }
 
-.map-layer-item {
+.map-base-layer-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  min-height: 2.75rem;
-  padding: 0.58rem 0.72rem;
-  border: 1px solid color-mix(in oklch, var(--color-border) 74%, transparent);
-  border-radius: 10px;
-  background: rgba(248, 252, 247, 0.78);
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 650;
   text-align: left;
   transition: all 0.16s ease;
 }
 
-.map-layer-item:hover {
-  background: #fff;
-}
-
-.map-layer-item.is-active {
-  border-color: color-mix(in oklch, var(--color-primary) 38%, white);
-  background: color-mix(in oklch, var(--color-primary) 10%, white);
+.map-base-layer-option:hover {
   color: var(--color-primary-strong);
 }
 
-.map-layer-item strong {
-  font-size: 0.86rem;
-  font-weight: 800;
+.map-layer-check {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in oklch, var(--color-border) 90%, var(--color-primary));
+  border-radius: 3px;
+  background: var(--color-surface);
 }
 
-.map-layer-item span {
+.map-base-layer-option.is-active .map-layer-check {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.map-base-layer-option.is-active .map-layer-check::after {
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.map-point-layer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  text-align: left;
+  transition: all 0.16s ease;
+}
+
+.map-point-layer:hover,
+.map-point-layer.is-active {
+  background: color-mix(in oklch, var(--color-primary) 10%, white);
+}
+
+.map-point-layer-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.map-point-layer-dot.is-muted {
+  background: color-mix(in oklch, var(--color-muted) 55%, white);
+}
+
+.map-point-layer span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-layer-count {
+  min-width: 1.6rem;
   color: var(--color-muted);
-  font-size: 0.74rem;
-  font-weight: 650;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  text-align: right;
 }
 
 @keyframes locate-pulse {
@@ -1477,10 +1540,6 @@ onBeforeUnmount(() => {
 
 :deep(.leaflet-bar a:hover) {
   background: rgba(244, 250, 244, 0.96);
-}
-
-:deep(.leaflet-control-attribution) {
-  background: rgba(255, 255, 255, 0.76);
 }
 
 :deep(.locate-user-marker-wrapper) {
@@ -1581,27 +1640,6 @@ onBeforeUnmount(() => {
   background: transparent;
   border: none;
   pointer-events: none;
-}
-
-:deep(.map-point-cluster-marker) {
-  background: transparent;
-  border: none;
-}
-
-:deep(.map-point-cluster-marker span) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #fff;
-  border: 2px solid #fff;
-  box-shadow:
-    0 10px 24px rgba(18, 52, 29, 0.28),
-    0 0 0 4px rgba(20, 83, 45, 0.18);
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1;
 }
 
 :deep(.map-point-label-text) {
