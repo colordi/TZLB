@@ -1,7 +1,17 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
-import { TreePine, Upload, MapPin, Filter, Layers, ChevronDown, LogOut } from "@lucide/vue";
+import {
+  TreePine,
+  Upload,
+  MapPin,
+  Filter,
+  Layers,
+  ChevronDown,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "@lucide/vue";
 
 import {
   getDefaultRouteForUser,
@@ -184,6 +194,16 @@ onBeforeUnmount(() => {
               <span>FORESTRY SURVEY WORKBENCH</span>
             </span>
           </RouterLink>
+          <button
+            type="button"
+            class="sidebar-toggle-btn"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :aria-expanded="!sidebarCollapsed"
+            @click="toggleSidebar"
+          >
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="18" :stroke-width="2" />
+            <PanelLeftClose v-else :size="18" :stroke-width="2" />
+          </button>
         </div>
 
         <div class="app-sidebar-caption">业务管理</div>
@@ -211,18 +231,6 @@ onBeforeUnmount(() => {
               <span>当前登录用户</span>
             </span>
           </div>
-          <button
-            type="button"
-            class="sidebar-toggle-btn"
-            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-            :aria-expanded="!sidebarCollapsed"
-            @click="toggleSidebar"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path v-if="sidebarCollapsed" d="M9 18l6-6-6-6" />
-              <path v-else d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
         </div>
       </aside>
 
@@ -670,6 +678,14 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
+.app-sidebar.is-collapsed .app-sidebar-brand-row {
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  min-height: 96px;
+  padding: 12px 0;
+}
+
 .app-sidebar.is-collapsed .app-sidebar-link {
   justify-content: center;
   padding: 0;
@@ -695,6 +711,8 @@ onBeforeUnmount(() => {
   min-height: 68px;
   display: flex;
   align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 0;
   border-bottom: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
 }
 
@@ -797,29 +815,36 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
-  margin: 0 auto;
+  min-height: 32px;
+  box-sizing: border-box;
   padding: 0;
   border: 1px solid color-mix(in oklch, var(--color-surface) 15%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--color-surface) 8%, transparent);
-  color: var(--color-surface);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-nav) 86%, var(--color-surface));
+  color: color-mix(in oklch, var(--color-surface) 80%, transparent);
   cursor: pointer;
-  transition: all var(--motion-fast) var(--ease-standard);
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
 
 .sidebar-toggle-btn:hover {
+  transform: none;
+  box-shadow: none;
   background: color-mix(in oklch, var(--color-surface) 15%, transparent);
   border-color: color-mix(in oklch, var(--color-surface) 25%, transparent);
+  color: var(--color-surface);
 }
 
 .sidebar-toggle-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .app-sidebar-profile {

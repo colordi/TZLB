@@ -30,7 +30,7 @@ describe("RecordTable", () => {
       "",
       "序号",
       "调查日期",
-      "乡镇｜街道",
+      "属地",
       "编号",
       "点位名称",
     ]);
@@ -77,7 +77,7 @@ describe("RecordTable", () => {
     });
 
     const headers = wrapper.findAll("thead th").map((cell) => cell.text().replace(/\s+/g, ""));
-    expect(headers).toEqual(["", "序号", "调查日期", "乡镇｜街道", "编号", "点位名称"]);
+    expect(headers).toEqual(["", "序号", "调查日期", "属地", "编号", "点位名称"]);
     expect(wrapper.text()).not.toContain("虫害类型");
     expect(wrapper.text()).not.toContain("寄主树种");
   });

@@ -45,6 +45,9 @@ const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
 const selectedFeature = ref(null);
+const searchQuery = ref("");
+const searchFocused = ref(false);
+const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
 const whiteMothSiteForm = ref({
@@ -55,6 +58,28 @@ const isAddingWhiteMothSite = ref(false);
 const isSavingWhiteMothSite = ref(false);
 let geojsonRequestToken = 0;
 let shouldAutoFitOnNextViewChange = true;
+let mapFocusRequestToken = 0;
+
+const SEARCH_RESULT_LIMIT = 8;
+const SEARCH_FIELD_KEYS = [
+  "编号",
+  "点位编号",
+  "location_id",
+  "locationId",
+  "id",
+  "点位名称",
+  "位置名称",
+  "名称",
+  "location_name",
+  "locationName",
+  "name",
+  "属地",
+  "乡镇",
+  "村",
+  "乡镇街道",
+  "town_or_street",
+  "township",
+];
 
 function readStoredSelectedView() {
   try {
@@ -89,11 +114,126 @@ const featureRows = computed(() => {
   return buildPopupRows(currentView.value.columns, selectedFeature.value.properties);
 });
 
+function normalizeSearchValue(value) {
+  return `${value ?? ""}`.trim();
+}
+
+function getFirstFeatureValue(properties = {}, keys = []) {
+  for (const key of keys) {
+    const value = normalizeSearchValue(properties[key]);
+    if (value) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function getSearchResultTitle(feature) {
+  return (
+    resolveFeatureHoverLabel(currentView.value.columns, feature?.properties || {}, {
+      preferIdentifier: false,
+    }) ||
+    getFirstFeatureValue(feature?.properties || {}, SEARCH_FIELD_KEYS) ||
+    "未命名点位"
+  );
+}
+
+function getSearchResultMeta(feature) {
+  const properties = feature?.properties || {};
+  const identifier = getFirstFeatureValue(properties, [
+    "编号",
+    "点位编号",
+    "location_id",
+    "locationId",
+    "id",
+  ]);
+  const district = getFirstFeatureValue(properties, [
+    "属地",
+    "乡镇",
+    "村",
+    "town_or_street",
+    "township",
+  ]);
+
+  return [identifier, district].filter(Boolean).join(" · ");
+}
+
+const searchableFeatures = computed(() => geojson.value?.features || []);
+const searchResults = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase();
+  if (!keyword) {
+    return [];
+  }
+
+  return searchableFeatures.value
+    .map((feature, index) => {
+      const properties = feature?.properties || {};
+      const searchableValues = Array.from(
+        new Set([
+          ...SEARCH_FIELD_KEYS,
+          ...(currentView.value.columns || []),
+        ]),
+      )
+        .map((key) => normalizeSearchValue(properties[key]))
+        .filter(Boolean);
+      const title = getSearchResultTitle(feature);
+      const meta = getSearchResultMeta(feature);
+      const haystack = [title, meta, ...searchableValues].join(" ").toLowerCase();
+      return {
+        key: `${index}-${title}-${meta}`,
+        feature,
+        title,
+        meta,
+        matched: haystack.includes(keyword),
+      };
+    })
+    .filter((result) => result.matched)
+    .slice(0, SEARCH_RESULT_LIMIT);
+});
+const showSearchResults = computed(() => searchQuery.value.trim() !== "");
+
 function onFeatureClick(feature) {
   if (isAddingWhiteMothSite.value) {
     return;
   }
   selectedFeature.value = feature;
+}
+
+function focusFeatureOnMap(feature) {
+  mapFocusRequestToken += 1;
+  mapFocusRequest.value = {
+    token: mapFocusRequestToken,
+    feature,
+  };
+}
+
+function selectSearchResult(result) {
+  if (!result?.feature) {
+    return;
+  }
+
+  selectedFeature.value = result.feature;
+  searchQuery.value = result.title;
+  searchFocused.value = false;
+  focusFeatureOnMap(result.feature);
+}
+
+function submitSearch() {
+  if (!searchQuery.value.trim()) {
+    return;
+  }
+
+  if (searchResults.value.length > 0) {
+    selectSearchResult(searchResults.value[0]);
+    return;
+  }
+
+  info("当前视图没有匹配点位。", "搜索无结果");
+}
+
+function clearSearch() {
+  searchQuery.value = "";
+  searchFocused.value = false;
 }
 
 function closeDetail() {
@@ -699,6 +839,8 @@ watch(selectedView, async () => {
   shouldAutoFitOnNextViewChange = true;
   storeSelectedView(selectedView.value);
   selectedFeature.value = null;
+  clearSearch();
+  mapFocusRequest.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
@@ -723,6 +865,60 @@ onMounted(async () => {
   <section class="page-shell map-page">
     <div class="map-workspace">
       <!-- MapToolbar removed — controls moved to App.vue header for map mode -->
+
+      <section class="map-search-panel" aria-label="地图点位搜索">
+        <form class="map-search-form" @submit.prevent="submitSearch">
+          <label class="map-search-input-wrap">
+            <span class="map-search-sr-only">搜索编号、点位名称、属地</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="6" />
+              <path d="m16 16 4 4" />
+            </svg>
+            <input
+              v-model="searchQuery"
+              data-testid="map-search-input"
+              type="search"
+              autocomplete="off"
+              placeholder="搜索编号、点位名称、属地"
+              :disabled="loading || loadingViews || pointCount === 0"
+              @focus="searchFocused = true"
+            />
+          </label>
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="map-search-clear"
+            aria-label="清空搜索"
+            @click="clearSearch"
+          >
+            ×
+          </button>
+          <button type="submit" class="map-search-submit" :disabled="!searchQuery.trim()">
+            搜索
+          </button>
+        </form>
+
+        <div
+          v-if="showSearchResults"
+          class="map-search-results"
+          data-testid="map-search-results"
+        >
+          <button
+            v-for="result in searchResults"
+            :key="result.key"
+            type="button"
+            class="map-search-result"
+            :data-testid="`map-search-result-${result.key}`"
+            @mousedown.prevent="selectSearchResult(result)"
+          >
+            <strong>{{ result.title }}</strong>
+            <span>{{ result.meta || "当前视图点位" }}</span>
+          </button>
+          <div v-if="searchResults.length === 0" class="map-search-empty">
+            未找到匹配点位
+          </div>
+        </div>
+      </section>
 
       <aside
         v-if="selectedFeature"
@@ -852,6 +1048,7 @@ onMounted(async () => {
           :geojson="geojson"
           :loading="loading"
           :loading-views="loadingViews"
+          :map-focus-request="mapFocusRequest"
           :popup-fields="currentView.columns"
           :show-point-labels="showPointLabels"
           :view-name="selectedView"
@@ -988,6 +1185,166 @@ onMounted(async () => {
   min-height: 0;
   height: 100%;
   background: transparent;
+}
+
+.map-search-panel {
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-5);
+  z-index: 1004;
+  width: min(390px, calc(100% - 2 * var(--space-5)));
+  pointer-events: auto;
+}
+
+.map-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.map-search-input-wrap {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.map-search-input-wrap svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-search-input-wrap input {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.map-search-input-wrap input:focus {
+  box-shadow: none;
+}
+
+.map-search-input-wrap input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.map-search-clear,
+.map-search-submit {
+  min-height: 34px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  transform: none;
+}
+
+.map-search-clear {
+  width: 34px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.map-search-clear:hover {
+  background: var(--color-surface-container);
+  box-shadow: none;
+  transform: none;
+}
+
+.map-search-submit {
+  padding: 0 var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.map-search-submit:disabled {
+  opacity: 0.45;
+}
+
+.map-search-results {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--color-surface) 96%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.map-search-result {
+  width: 100%;
+  min-height: 52px;
+  justify-content: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.map-search-result:hover {
+  background: var(--color-primary-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+.map-search-result strong,
+.map-search-result span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-search-result strong {
+  font-size: var(--text-sm);
+}
+
+.map-search-result span,
+.map-search-empty {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+}
+
+.map-search-empty {
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.map-search-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .detail-drawer,
@@ -1304,6 +1661,21 @@ onMounted(async () => {
   .map-workspace {
     min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
     border-radius: var(--radius-lg);
+  }
+
+  .map-search-panel {
+    top: var(--space-3);
+    right: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+  }
+
+  .map-search-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .map-search-submit {
+    display: none;
   }
 
   .detail-drawer,

@@ -52,6 +52,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  mapFocusRequest: {
+    type: Object,
+    default: null,
+  },
   whiteMothSiteAddMode: {
     type: Boolean,
     default: false,
@@ -390,6 +394,38 @@ function getPointFeatureLatLng(feature) {
 
   const [lng, lat] = feature.geometry.coordinates;
   return [Number(lat), Number(lng)];
+}
+
+function getFeatureLatLngBounds(feature) {
+  const pairs = collectFeatureCoordinatePairs(feature?.geometry?.coordinates);
+  if (!pairs.length) {
+    return null;
+  }
+
+  const bounds = L.latLngBounds(pairs.map(([lng, lat]) => [lat, lng]));
+  return bounds.isValid?.() ? bounds : null;
+}
+
+function focusFeature(feature) {
+  if (!mapRef.value || !feature?.geometry) {
+    return;
+  }
+
+  const latlng = getPointFeatureLatLng(feature);
+  if (latlng) {
+    mapRef.value.setView(latlng, Math.max(mapRef.value.getZoom?.() || 11, 15), {
+      animate: true,
+    });
+    return;
+  }
+
+  const bounds = getFeatureLatLngBounds(feature);
+  if (bounds?.isValid?.()) {
+    mapRef.value.fitBounds(bounds.pad(0.18), {
+      animate: true,
+      maxZoom: 16,
+    });
+  }
 }
 
 function isPointClusterFeature(feature) {
@@ -837,6 +873,14 @@ watch(
   () => {
     renderPointLabels(props.geojson);
   },
+);
+
+watch(
+  () => props.mapFocusRequest,
+  (request) => {
+    focusFeature(request?.feature);
+  },
+  { deep: true },
 );
 
 watch(

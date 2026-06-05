@@ -119,6 +119,20 @@ describe("App 壳层导航", () => {
     expect(wrapper.text()).not.toContain("当前页面");
   });
 
+  it("侧边栏折叠按钮位于品牌行并能切换折叠状态", async () => {
+    const { wrapper } = await mountApp("/workorder");
+
+    const brandRow = wrapper.get(".app-sidebar-brand-row");
+    const toggleButton = brandRow.get(".sidebar-toggle-btn");
+    expect(toggleButton.attributes("aria-label")).toBe("收起侧边栏");
+
+    await toggleButton.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get(".app-sidebar").classes()).toContain("is-collapsed");
+    expect(toggleButton.attributes("aria-label")).toBe("展开侧边栏");
+  });
+
   it("普通页账号入口使用统一下拉菜单", async () => {
     const { wrapper } = await mountApp("/workorder", {
       user: {

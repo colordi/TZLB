@@ -165,6 +165,10 @@ const LeafletMapStub = defineComponent({
       type: Array,
       default: () => [],
     },
+    mapFocusRequest: {
+      type: Object,
+      default: null,
+    },
     whiteMothSiteAddMode: {
       type: Boolean,
       default: false,
@@ -358,6 +362,55 @@ describe("MapView", () => {
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("showPointLabels")).toBe(true);
     });
+  });
+
+  it("搜索当前视图点位后打开详情并通知地图聚焦", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "MQ001",
+        点位名称: "马大路与230国道交叉口",
+        属地: "马驹桥镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        targetFeature,
+        {
+          type: "Feature",
+          properties: {
+            编号: "TY002",
+            点位名称: "京贸家园",
+            属地: "通运街道",
+          },
+          geometry: { type: "Point", coordinates: [116.6, 39.8] },
+        },
+      ]),
+    );
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(2);
+    });
+
+    await wrapper.get('[data-testid="map-search-input"]').setValue("马驹桥");
+
+    const results = wrapper.get('[data-testid="map-search-results"]');
+    expect(results.text()).toContain("马大路与230国道交叉口");
+    expect(results.text()).toContain("MQ001 · 马驹桥镇");
+
+    await wrapper.get(".map-search-result").trigger("mousedown");
+
+    expect(wrapper.get(".detail-drawer").text()).toContain("马大路与230国道交叉口");
+    expect(getLeafletMapStub(wrapper).props("mapFocusRequest").feature).toStrictEqual(targetFeature);
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {

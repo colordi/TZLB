@@ -82,7 +82,7 @@ const FIELD_DEFINITIONS = {
   },
   town_or_street: {
     key: "town_or_street",
-    label: "乡镇｜街道",
+    label: "属地",
     type: "text",
     required: true,
   },

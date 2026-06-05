@@ -649,7 +649,7 @@ async def fetch_spring_inchworm_survey_candidates(
             l."总虫口数" AS total_insect_count,
             BTRIM(l."危害程度") AS damage_level,
             COALESCE(l."备注", '') AS note,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."属地", '') AS town_or_street,
             COALESCE(s."村", '') AS location_name
         FROM {qualified_larva_table} AS l
         JOIN {qualified_site_table} AS s
@@ -658,7 +658,7 @@ async def fetch_spring_inchworm_survey_candidates(
           AND l."危害程度" IS NOT NULL
           AND BTRIM(l."危害程度") NOT IN ('', '白')
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s."属地", ''),
             l."编号"
         """,
         survey_date,
@@ -718,7 +718,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
             l."总虫口数" AS total_insect_count,
             BTRIM(l."危害程度") AS damage_level,
             COALESCE(l."备注", '') AS note,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."属地", '') AS town_or_street,
             COALESCE(s."村", '') AS location_name
         FROM {qualified_larva_table} AS l
         JOIN {qualified_site_table} AS s
@@ -727,7 +727,7 @@ async def fetch_guo_huai_inchworm_survey_candidates(
           AND l."危害程度" IS NOT NULL
           AND BTRIM(l."危害程度") NOT IN ('', '白', '无需防治')
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s."属地", ''),
             l."编号"
         """,
         survey_date,
@@ -787,7 +787,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
             BTRIM(i."虫害类型") AS pest_name,
             BTRIM(i."调查结论") AS survey_result,
             COALESCE(i."详细描述", '') AS description,
-            COALESCE(s."乡镇", '') AS town_or_street,
+            COALESCE(s."属地", '') AS town_or_street,
             COALESCE(s."点位名称", '') AS location_name,
             COALESCE(s."寄主树种", '') AS host_plant,
             COALESCE(s."地块类型", '') AS plot_type
@@ -797,7 +797,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
         WHERE i."调查日期" = $1
           AND BTRIM(COALESCE(i."调查结论", '')) = '发现问题'
         ORDER BY
-            COALESCE(s."乡镇", ''),
+            COALESCE(s."属地", ''),
             i."编号",
             COALESCE(i."虫害类型", '')
         """,
@@ -837,7 +837,7 @@ async def fetch_meiguobaie_survey_candidates(
             BTRIM(i."编号") AS location_id,
             i."调查日期" AS survey_date,
             COALESCE(NULLIF(BTRIM(i."区域"), ''), '乡镇') AS region,
-            COALESCE(i."乡镇", '') AS town_or_street,
+            COALESCE(i."属地", '') AS town_or_street,
             COALESCE(i."点位名称", '') AS location_name,
             COALESCE(i."发生位置", '') AS occurrence_position,
             COALESCE(i."绿地性质", '') AS green_space_type,
@@ -854,7 +854,7 @@ async def fetch_meiguobaie_survey_candidates(
               OR COALESCE(i."网幕数量", 0) > 0
           )
         ORDER BY
-            COALESCE(i."乡镇", ''),
+            COALESCE(i."属地", ''),
             BTRIM(i."编号")
         """,
         survey_date,
