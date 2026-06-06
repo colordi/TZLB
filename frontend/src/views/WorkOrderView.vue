@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref, watch } from "vue";
+import { Archive, FileSpreadsheet, FolderUp, ShieldCheck } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../api/http.js";
-import { generateWorkorder } from "../api/workorder.js";
+import { generateWorkorder, uploadDateImageFolder } from "../api/workorder.js";
+import ExcelImportDialog from "../components/workorder/ExcelImportDialog.vue";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
@@ -33,12 +35,16 @@ const exportProgress = ref({
 });
 const showValidationErrors = ref(false);
 const surveyImportOpen = ref(false);
+const excelImportOpen = ref(false);
+const dateFolderInput = ref(null);
+const dateFolderUploading = ref(false);
 
 const selectedIndexes = ref([]);
 const activeRecordIndex = ref(-1);
 const showDetailModal = ref(false);
 const searchQuery = ref("");
 const recordFilter = ref("all");
+const DATE_FOLDER_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
 const canImportSurvey = computed(() =>
@@ -46,13 +52,6 @@ const canImportSurvey = computed(() =>
 );
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
-);
-const totalImages = computed(() =>
-  records.value.reduce((count, record) => count + (record.images?.length || 0), 0),
-);
-const validationIssueCount = computed(() =>
-  validationErrors.value.filter((recordErrors) => Object.keys(recordErrors || {}).length > 0)
-    .length,
 );
 const filteredRecordItems = computed(() => {
   const query = searchQuery.value.trim().toLocaleLowerCase("zh-CN");
@@ -105,6 +104,7 @@ watch(pestType, (nextType) => {
   taskName.value = getDefaultTask(nextType);
   showValidationErrors.value = false;
   surveyImportOpen.value = false;
+  excelImportOpen.value = false;
   selectedIndexes.value = []; // Reset selections
   records.value = records.value.length
     ? records.value.map((record) => normalizeRecordForPest(record, nextType))
@@ -124,8 +124,110 @@ function openSurveyImportDialog() {
   surveyImportOpen.value = true;
 }
 
+function openExcelImportDialog() {
+  if (generating.value) {
+    return;
+  }
+  excelImportOpen.value = true;
+}
+
+function closeExcelImportDialog() {
+  excelImportOpen.value = false;
+}
+
 function closeSurveyImportDialog() {
   surveyImportOpen.value = false;
+}
+
+function isValidDateFolderName(folderName) {
+  if (!DATE_FOLDER_PATTERN.test(folderName)) {
+    return false;
+  }
+
+  const [year, month, day] = folderName.split("-").map(Number);
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsedDate.getUTCFullYear() === year &&
+    parsedDate.getUTCMonth() === month - 1 &&
+    parsedDate.getUTCDate() === day
+  );
+}
+
+function resolveSelectedFolderName(files) {
+  const folderNames = new Set();
+  for (const file of files) {
+    const relativePath = file.webkitRelativePath || "";
+    const [folderName] = relativePath.split("/");
+    if (folderName) {
+      folderNames.add(folderName);
+    }
+  }
+
+  if (folderNames.size !== 1) {
+    throw new Error("请选择一个日期文件夹。");
+  }
+
+  const [folderName] = Array.from(folderNames);
+  if (!isValidDateFolderName(folderName)) {
+    throw new Error("文件夹名称必须是 YYYY-MM-DD 格式的有效日期。");
+  }
+  return folderName;
+}
+
+function openDateFolderPicker() {
+  if (generating.value || dateFolderUploading.value) {
+    return;
+  }
+  dateFolderInput.value?.click();
+}
+
+function summarizeDateFolderUpload(result) {
+  const skippedParts = [];
+  if (result.skipped_existing_count) {
+    skippedParts.push(`同名跳过 ${result.skipped_existing_count}`);
+  }
+  if (result.skipped_non_image_count) {
+    skippedParts.push(`非图片跳过 ${result.skipped_non_image_count}`);
+  }
+  if (result.skipped_nested_count) {
+    skippedParts.push(`子目录跳过 ${result.skipped_nested_count}`);
+  }
+  return skippedParts.length ? `，${skippedParts.join("，")}` : "";
+}
+
+async function handleDateFolderChange(event) {
+  const input = event.target;
+  const files = Array.from(input.files || []);
+
+  try {
+    if (!files.length) {
+      return;
+    }
+
+    const folderName = resolveSelectedFolderName(files);
+    dateFolderUploading.value = true;
+    const result = await uploadDateImageFolder({
+      folderName,
+      files,
+    });
+    const skippedSummary = summarizeDateFolderUpload(result);
+    if (Number(result.saved_count || 0) > 0) {
+      success(
+        `已上传 ${result.saved_count} 张图片到 ${result.folder_name}${skippedSummary}。`,
+        "日期文件夹已上传",
+      );
+    } else {
+      info(`没有新增图片${skippedSummary}。`, "日期文件夹已处理");
+    }
+  } catch (uploadError) {
+    if (isUnauthorizedError(uploadError)) {
+      return;
+    }
+    error(`${uploadError.message || uploadError}`, "日期文件夹上传失败");
+  } finally {
+    dateFolderUploading.value = false;
+    input.value = "";
+  }
 }
 
 function handleSurveyImport(importedRecords) {
@@ -332,7 +434,7 @@ async function handleGenerate() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
             <path d="M12 16V4m-4 4 4-4 4 4M5 14v5h14v-5" />
           </svg>
-          <span>导入调查记录</span>
+          <span>从数据库追加工单记录</span>
         </button>
       </div>
     </header>
@@ -371,27 +473,57 @@ async function handleGenerate() {
       </label>
     </section>
 
-    <section class="workorder-stats" aria-label="工单统计">
-      <article class="workorder-stat is-info">
-        <span>当前记录</span>
-        <strong>{{ records.length }}</strong>
-        <small>已导入调查记录</small>
-      </article>
-      <article class="workorder-stat is-accent">
-        <span>已选记录</span>
-        <strong>{{ selectedIndexes.length }}</strong>
-        <small>用于批量操作</small>
-      </article>
-      <article class="workorder-stat is-warning">
-        <span>现场图片</span>
-        <strong>{{ totalImages }}</strong>
-        <small>随记录导出</small>
-      </article>
-      <article class="workorder-stat is-done">
-        <span>校验问题</span>
-        <strong>{{ validationIssueCount }}</strong>
-        <small>{{ showValidationErrors ? "当前待修正记录" : "生成前自动校验" }}</small>
-      </article>
+    <section class="workorder-action-grid" aria-label="调查数据操作">
+      <button
+        type="button"
+        class="workorder-action-card is-primary"
+        :disabled="generating"
+        data-testid="survey-excel-import-button"
+        @click="openExcelImportDialog"
+      >
+        <span class="workorder-action-icon"><FileSpreadsheet :size="21" /></span>
+        <span class="workorder-action-copy">
+          <strong>上传调查 Excel</strong>
+          <small>预览校验后写入 survey / ledger 表</small>
+        </span>
+      </button>
+      <button
+        type="button"
+        class="workorder-action-card"
+        :disabled="generating || dateFolderUploading"
+        data-testid="date-image-folder-button"
+        @click="openDateFolderPicker"
+      >
+        <span class="workorder-action-icon"><FolderUp :size="21" /></span>
+        <span class="workorder-action-copy">
+          <strong>上传日期图片文件夹</strong>
+          <small>{{ dateFolderUploading ? "正在上传…" : "文件夹名 YYYY-MM-DD" }}</small>
+        </span>
+      </button>
+      <input
+        ref="dateFolderInput"
+        class="workorder-folder-input"
+        type="file"
+        multiple
+        webkitdirectory
+        directory
+        data-testid="date-image-folder-input"
+        @change="handleDateFolderChange"
+      />
+      <button type="button" class="workorder-action-card" disabled>
+        <span class="workorder-action-icon"><Archive :size="21" /></span>
+        <span class="workorder-action-copy">
+          <strong>占位功能二</strong>
+          <small>暂未启用</small>
+        </span>
+      </button>
+      <button type="button" class="workorder-action-card" disabled>
+        <span class="workorder-action-icon"><ShieldCheck :size="21" /></span>
+        <span class="workorder-action-copy">
+          <strong>占位功能三</strong>
+          <small>暂未启用</small>
+        </span>
+      </button>
     </section>
 
     <section class="workorder-panel" aria-label="调查工单记录">
@@ -500,6 +632,12 @@ async function handleGenerate() {
       @close="closeSurveyImportDialog"
       @import="handleSurveyImport"
     />
+
+    <ExcelImportDialog
+      :busy="generating"
+      :open="excelImportOpen"
+      @close="closeExcelImportDialog"
+    />
   </section>
 </template>
 
@@ -587,58 +725,80 @@ async function handleGenerate() {
   width: 260px;
 }
 
-.workorder-stats {
+.workorder-action-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
-.workorder-stat {
-  padding: var(--space-6) var(--space-7);
+.workorder-action-card {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
   box-shadow: var(--shadow-card);
 }
 
-.workorder-stat > span,
-.workorder-stat > strong,
-.workorder-stat > small {
-  display: block;
+.workorder-action-card:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--color-primary) 46%, var(--color-border));
+  background: var(--color-primary-soft);
 }
 
-.workorder-stat > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 650;
+.workorder-action-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
-.workorder-stat > strong {
-  margin-top: var(--space-1);
-  font-size: 26px;
-  line-height: 1.1;
+.workorder-action-card.is-primary {
+  border-color: color-mix(in oklch, var(--color-primary) 44%, var(--color-border));
 }
 
-.workorder-stat > small {
-  margin-top: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-2xs);
+.workorder-folder-input {
+  display: none;
 }
 
-.workorder-stat.is-info > strong {
-  color: var(--color-info);
-}
-
-.workorder-stat.is-accent > strong {
+.workorder-action-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
-.workorder-stat.is-warning > strong {
-  color: var(--color-warning-text);
+.workorder-action-card:disabled .workorder-action-icon {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
 }
 
-.workorder-stat.is-done > strong {
+.workorder-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.workorder-action-copy strong,
+.workorder-action-copy small {
+  display: block;
+}
+
+.workorder-action-copy strong {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.workorder-action-copy small {
   color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 
 .workorder-panel {
@@ -832,7 +992,7 @@ async function handleGenerate() {
     margin-left: 0;
   }
 
-  .workorder-stats {
+  .workorder-action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -859,7 +1019,7 @@ async function handleGenerate() {
     width: 100%;
   }
 
-  .workorder-stats {
+  .workorder-action-grid {
     grid-template-columns: 1fr;
   }
 }

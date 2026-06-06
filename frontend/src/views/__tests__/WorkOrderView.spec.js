@@ -1,5 +1,5 @@
 import { defineComponent } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createEmptyRecord } from "../../components/workorder/fieldConfig.js";
@@ -8,6 +8,7 @@ import WorkOrderView from "../WorkOrderView.vue";
 
 const apiMocks = vi.hoisted(() => ({
   generateWorkorder: vi.fn(),
+  uploadDateImageFolder: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
@@ -16,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../api/workorder.js", () => ({
   generateWorkorder: apiMocks.generateWorkorder,
+  uploadDateImageFolder: apiMocks.uploadDateImageFolder,
 }));
 
 vi.mock("../../utils/download.js", () => ({
@@ -83,10 +85,40 @@ const SurveyImportDialogStub = defineComponent({
   template: '<div data-testid="survey-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
 });
 
+const RecordDetailModalStub = defineComponent({
+  name: "RecordDetailModal",
+  props: {
+    open: {
+      type: Boolean,
+      default: false,
+    },
+    record: {
+      type: Object,
+      default: null,
+    },
+  },
+  emits: ["close", "update", "delete"],
+  template: '<div data-testid="record-detail-modal" :data-open="open ? \'yes\' : \'no\'" />',
+});
+
+const ExcelImportDialogStub = defineComponent({
+  name: "ExcelImportDialog",
+  props: {
+    open: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  emits: ["close"],
+  template: '<div data-testid="excel-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
+});
+
 function mountWorkOrderView() {
   return mount(WorkOrderView, {
     global: {
       stubs: {
+        ExcelImportDialog: ExcelImportDialogStub,
+        RecordDetailModal: RecordDetailModalStub,
         RecordTable: RecordTableStub,
         SurveyImportDialog: SurveyImportDialogStub,
       },
@@ -141,22 +173,107 @@ describe("WorkOrderView", () => {
       blob: new Blob(["doc"]),
       filename: "工作单.doc",
     });
+    apiMocks.uploadDateImageFolder.mockResolvedValue({
+      folder_name: "2026-05-26",
+      saved_count: 1,
+      skipped_existing_count: 0,
+      skipped_non_image_count: 0,
+      skipped_nested_count: 0,
+      files: [],
+    });
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("按设计结构渲染页头、横向任务配置、统计卡和记录面板", () => {
+  it("按设计结构渲染页头、横向任务配置、四个操作按钮和记录面板", () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
-    expect(wrapper.text()).toContain("当前记录");
     expect(wrapper.text()).toContain("害虫类型");
     expect(wrapper.text()).toContain("逐条导出工作单");
-    expect(wrapper.text()).toContain("导入调查记录");
+    expect(wrapper.text()).toContain("从数据库追加工单记录");
+    expect(wrapper.text()).toContain("上传调查 Excel");
+    expect(wrapper.text()).toContain("上传日期图片文件夹");
+    expect(wrapper.text()).toContain("占位功能二");
+    expect(wrapper.text()).toContain("占位功能三");
     expect(wrapper.find(".workorder-controls").exists()).toBe(true);
-    expect(wrapper.find(".workorder-stats").exists()).toBe(true);
+    expect(wrapper.find(".workorder-stats").exists()).toBe(false);
+    expect(wrapper.find(".workorder-action-grid").exists()).toBe(true);
+    expect(wrapper.findAll(".workorder-action-card")).toHaveLength(4);
     expect(wrapper.find(".workorder-panel").exists()).toBe(true);
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
+  });
+
+  it("上传调查 Excel 按钮会打开 Excel 导入弹窗，两个占位按钮保持禁用", async () => {
+    const wrapper = mountWorkOrderView();
+
+    expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(false);
+
+    await wrapper.get('[data-testid="survey-excel-import-button"]').trigger("click");
+
+    expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(true);
+    const actionButtons = wrapper.findAll(".workorder-action-card");
+    expect(actionButtons[1].attributes("disabled")).toBeUndefined();
+    expect(actionButtons.slice(2).every((button) => button.attributes("disabled") !== undefined))
+      .toBe(true);
+  });
+
+  it("日期图片文件夹按钮会触发文件夹选择", async () => {
+    const wrapper = mountWorkOrderView();
+    const input = wrapper.get('[data-testid="date-image-folder-input"]');
+    const clickSpy = vi.spyOn(input.element, "click").mockImplementation(() => {});
+
+    await wrapper.get('[data-testid="date-image-folder-button"]').trigger("click");
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("选择有效日期图片文件夹后会上传到后端", async () => {
+    const wrapper = mountWorkOrderView();
+    const file = new File(["image"], "MQ001.jpg", { type: "image/jpeg" });
+    Object.defineProperty(file, "webkitRelativePath", {
+      value: "2026-05-26/MQ001.jpg",
+      configurable: true,
+    });
+    const input = wrapper.get('[data-testid="date-image-folder-input"]');
+    Object.defineProperty(input.element, "files", {
+      value: [file],
+      configurable: true,
+    });
+
+    await input.trigger("change");
+    await flushPromises();
+
+    expect(apiMocks.uploadDateImageFolder).toHaveBeenCalledWith({
+      folderName: "2026-05-26",
+      files: [file],
+    });
+    expect(apiMocks.success).toHaveBeenCalledWith(
+      "已上传 1 张图片到 2026-05-26。",
+      "日期文件夹已上传",
+    );
+  });
+
+  it("选择非日期文件夹时会拦截并提示错误", async () => {
+    const wrapper = mountWorkOrderView();
+    const file = new File(["image"], "MQ001.jpg", { type: "image/jpeg" });
+    Object.defineProperty(file, "webkitRelativePath", {
+      value: "现场图片/MQ001.jpg",
+      configurable: true,
+    });
+    const input = wrapper.get('[data-testid="date-image-folder-input"]');
+    Object.defineProperty(input.element, "files", {
+      value: [file],
+      configurable: true,
+    });
+
+    await input.trigger("change");
+
+    expect(apiMocks.uploadDateImageFolder).not.toHaveBeenCalled();
+    expect(apiMocks.error).toHaveBeenCalledWith(
+      "文件夹名称必须是 YYYY-MM-DD 格式的有效日期。",
+      "日期文件夹上传失败",
+    );
   });
 
   it("春尺蠖、国槐尺蠖、美国白蛾和其他害虫都显示调查导入入口", async () => {

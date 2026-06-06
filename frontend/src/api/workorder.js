@@ -40,3 +40,20 @@ export async function generateWorkorder(payload) {
     filename: extractFilename(response.headers.get("content-disposition")),
   };
 }
+
+export async function uploadDateImageFolder({ folderName, files }) {
+  const formData = new FormData();
+  formData.append("folder_name", folderName);
+
+  for (const file of files) {
+    formData.append("files", file);
+    formData.append("relative_paths", file.webkitRelativePath || `${folderName}/${file.name}`);
+  }
+
+  const response = await apiFetch("/api/workorder/date-image-folder", {
+    method: "POST",
+    body: formData,
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}

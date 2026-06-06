@@ -98,7 +98,7 @@ const hasReportedLocateError = ref(false);
 const showLegend = ref(true);
 const fitPending = ref(false);
 
-const HAZARD_POINT_COLOR = "#D9480F";
+const HAZARD_POINT_COLOR = "#ff0000";
 const POINT_OUTLINE_COLOR = "#1F2933";
 const HAZARD_POINT_STYLE = {
   key: "hazard-point",
