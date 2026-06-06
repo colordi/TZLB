@@ -4,8 +4,10 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from backend.db.postgres import (
+    fetch_reference_layer_feature_collection,
     fetch_map_filter_options,
     fetch_view_feature_collection,
+    list_reference_layers,
     sort_filter_values,
 )
 
@@ -112,6 +114,68 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
         self.assertIn('"调查日期" IS NOT NULL', query)
         self.assertEqual(args, (["2024", "2025"], ["重"]))
+
+    async def test_reference_layers_list_spatial_reference_tables(self) -> None:
+        with patch(
+            "backend.db.postgres.fetch",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "name": "通州区行政区边界",
+                        "label": "通州区行政区边界",
+                        "columns": ["gid", "区域"],
+                    },
+                    {
+                        "name": "通州区小区边界",
+                        "label": "通州区小区边界",
+                        "columns": ["gid", "名称"],
+                    },
+                ]
+            ),
+        ):
+            payload = await list_reference_layers()
+
+        self.assertEqual(
+            payload,
+            [
+                {
+                    "name": "通州区行政区边界",
+                    "label": "通州区行政区边界",
+                    "columns": ["gid", "区域"],
+                    "default_visible": True,
+                },
+                {
+                    "name": "通州区小区边界",
+                    "label": "通州区小区边界",
+                    "columns": ["gid", "名称"],
+                    "default_visible": False,
+                },
+            ],
+        )
+
+    async def test_reference_layer_feature_collection_reads_reference_table(self) -> None:
+        fetch_mock = AsyncMock(return_value=[])
+
+        with (
+            patch(
+                "backend.db.postgres.get_reference_layer",
+                new=AsyncMock(
+                    return_value={
+                        "name": "通州区小区边界",
+                        "label": "通州区小区边界",
+                        "columns": ["gid", "名称"],
+                        "default_visible": False,
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=fetch_mock),
+        ):
+            payload = await fetch_reference_layer_feature_collection("通州区小区边界")
+
+        self.assertEqual(payload["features"], [])
+        query = fetch_mock.await_args.args[0]
+        self.assertIn('"reference"."通州区小区边界"', query)
+        self.assertIn("ST_AsGeoJSON", query)
 
 
 if __name__ == "__main__":

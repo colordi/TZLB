@@ -36,6 +36,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  referenceLayers: {
+    type: Array,
+    default: () => [],
+  },
   showPointLabels: {
     type: Boolean,
     default: true,
@@ -76,6 +80,7 @@ const emit = defineEmits([
   "update:showPointLabels",
   "feature-click",
   "map-click",
+  "toggle-reference-layer",
   "toggle-white-moth-site-add",
 ]);
 
@@ -86,8 +91,10 @@ const mapRef = shallowRef(null);
 const basemapLayerRef = shallowRef(null);
 const basemapAnnotationLayerRef = shallowRef(null);
 const boundaryLayerRef = shallowRef(null);
+const referenceLayerGroupRef = shallowRef(null);
 const pointLayerRef = shallowRef(null);
 const pointLabelLayerRef = shallowRef(null);
+const surveyCompletionLayerRef = shallowRef(null);
 const locateMarkerRef = shallowRef(null);
 const whiteMothSiteDraftMarkerRef = shallowRef(null);
 const locateWatchId = ref(null);
@@ -107,6 +114,9 @@ const HAZARD_POINT_STYLE = {
   label: "危害点位",
 };
 const POINT_LAYER_COLORS = ["#16A34A", "#2563EB", "#9333EA", "#0891B2", "#DC2626", "#D97706"];
+const REFERENCE_LAYER_COLORS = ["#D97706", "#2563EB", "#16A34A", "#9333EA", "#0891B2", "#64748B"];
+const ADMIN_BOUNDARY_LAYER_NAME = "通州区行政区边界";
+const SURVEY_DATE_FIELD_KEYS = ["调查日期", "survey_date", "report_time"];
 
 const featureCount = computed(() => props.geojson?.features?.length || 0);
 const isRealtimeLocating = computed(() => locateWatchId.value !== null);
@@ -137,8 +147,26 @@ const pointLayerEntries = computed(() => {
     })
     .filter(Boolean);
 });
+const referenceLayerEntries = computed(() =>
+  (props.referenceLayers || [])
+    .map((layer) => {
+      const name = `${layer?.name || ""}`.trim();
+      if (!name) {
+        return null;
+      }
+
+      return {
+        key: name,
+        label: `${layer?.label || name}`.trim(),
+        active: Boolean(layer?.active),
+        loading: Boolean(layer?.loading),
+      };
+    })
+    .filter(Boolean),
+);
 const preferIdentifierHover = computed(() => true);
 const usesSeverityLegend = computed(() => hasFeatureSeverityField(props.popupFields));
+const usesSurveyCompletionMarkers = computed(() => hasSurveyDateField(props.popupFields));
 
 const severityLegendEntries = computed(() =>
   usesSeverityLegend.value
@@ -230,6 +258,41 @@ function clearLayer(layerRef) {
   }
 }
 
+function hasSurveyDateField(fields = []) {
+  const dateFieldKeys = new Set(SURVEY_DATE_FIELD_KEYS.map((field) => field.toLowerCase()));
+  return (fields || []).some((field) => {
+    const normalizedField = `${field ?? ""}`.trim();
+    return dateFieldKeys.has(normalizedField.toLowerCase());
+  });
+}
+
+function hasFeatureCollectionFeatures(data) {
+  return Array.isArray(data?.features) && data.features.length > 0;
+}
+
+function resolveReferenceLayerColor(index = 0) {
+  return REFERENCE_LAYER_COLORS[index % REFERENCE_LAYER_COLORS.length];
+}
+
+function resolveReferenceLayerStyle(layer = {}, index = 0) {
+  if (layer.name === ADMIN_BOUNDARY_LAYER_NAME) {
+    return {
+      ...resolveBoundaryStyle(),
+      weight: 3.5,
+      opacity: 0.88,
+    };
+  }
+
+  const color = resolveReferenceLayerColor(index);
+  return {
+    color,
+    fillColor: color,
+    fillOpacity: 0.12,
+    opacity: 0.82,
+    weight: 1.5,
+  };
+}
+
 function updateWhiteMothSiteDraftMarker(location = props.whiteMothSiteDraftLocation) {
   if (!mapRef.value) {
     return;
@@ -291,6 +354,7 @@ function fitMapToAvailableLayer() {
     const boundaryBounds = boundaryLayerRef.value?.getBounds?.();
     if (boundaryBounds?.isValid?.()) {
       mapRef.value.fitBounds(boundaryBounds.pad(0.03));
+      return;
     }
   });
 }
@@ -317,6 +381,38 @@ function drawBoundaryGeoJson(data) {
   fitMapToAvailableLayer();
 }
 
+function drawReferenceLayers(layers = props.referenceLayers) {
+  if (!mapRef.value) {
+    return;
+  }
+
+  clearLayer(referenceLayerGroupRef);
+  const drawableLayers = (layers || [])
+    .map((layer, index) => ({ layer, index }))
+    .filter(({ layer }) => layer?.active && hasFeatureCollectionFeatures(layer.geojson));
+  if (!drawableLayers.length) {
+    return;
+  }
+
+  referenceLayerGroupRef.value = L.featureGroup().addTo(mapRef.value);
+  drawableLayers.forEach(({ layer, index }) => {
+    const layerStyle = resolveReferenceLayerStyle(layer, index);
+    L.geoJSON(layer.geojson, {
+      interactive: false,
+      style: () => layerStyle,
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, {
+          radius: 6,
+          fillColor: layerStyle.fillColor || layerStyle.color,
+          color: layerStyle.color,
+          interactive: false,
+          weight: 1.4,
+          fillOpacity: 0.74,
+        }),
+    }).addTo(referenceLayerGroupRef.value);
+  });
+}
+
 function buildPointLabelMarker(label, latlng) {
   const safeLabel = escapeHtml(label);
 
@@ -328,6 +424,19 @@ function buildPointLabelMarker(label, latlng) {
       html: `<span class="map-point-label-text">${safeLabel}</span>`,
       iconSize: [1, 1],
       iconAnchor: [0, 0],
+    }),
+  });
+}
+
+function buildSurveyCompletionMarker(latlng) {
+  return L.marker(latlng, {
+    interactive: false,
+    keyboard: false,
+    icon: L.divIcon({
+      className: "map-survey-completion-marker",
+      html: `<span class="map-survey-completion-check" aria-hidden="true">✓</span>`,
+      iconSize: [16, 16],
+      iconAnchor: [8, 8],
     }),
   });
 }
@@ -531,6 +640,43 @@ function renderPointLabels(data = props.geojson) {
   pointLabelLayerRef.value?.bringToFront?.();
 }
 
+function getSurveyDateValue(properties = {}) {
+  for (const key of SURVEY_DATE_FIELD_KEYS) {
+    const value = `${properties?.[key] ?? ""}`.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function renderSurveyCompletionMarkers(data = props.geojson) {
+  clearLayer(surveyCompletionLayerRef);
+
+  if (!mapRef.value || !usesSurveyCompletionMarkers.value || !data?.features?.length) {
+    return;
+  }
+
+  for (const feature of data.features) {
+    if (!getSurveyDateValue(feature?.properties || {})) {
+      continue;
+    }
+
+    const latlng = extractFeatureLabelLatLng(feature);
+    if (!latlng) {
+      continue;
+    }
+
+    if (!surveyCompletionLayerRef.value) {
+      surveyCompletionLayerRef.value = L.layerGroup().addTo(mapRef.value);
+    }
+
+    buildSurveyCompletionMarker(latlng).addTo(surveyCompletionLayerRef.value);
+  }
+
+  surveyCompletionLayerRef.value?.bringToFront?.();
+}
+
 function resolveFeaturePathStyle(properties = {}) {
   const severity = usesSeverityLegend.value
     ? resolveFeatureSeverity(properties)
@@ -628,6 +774,7 @@ function refreshPointLabels() {
 
 function refreshPointRendering() {
   drawGeoJson(props.geojson, false);
+  renderSurveyCompletionMarkers(props.geojson);
   renderPointLabels(props.geojson);
 }
 
@@ -764,6 +911,12 @@ function togglePointLabels() {
   emit("update:showPointLabels", !props.showPointLabels);
 }
 
+function toggleReferenceLayer(layerName) {
+  if (layerName) {
+    emit("toggle-reference-layer", layerName);
+  }
+}
+
 function zoomInMap() {
   mapRef.value?.zoomIn?.();
 }
@@ -795,7 +948,9 @@ onMounted(() => {
 
   drawBasemap(props.basemapMode);
   drawBoundaryGeoJson(props.boundaryGeojson);
+  drawReferenceLayers(props.referenceLayers);
   drawGeoJson(props.geojson, props.autoFitOnDataChange);
+  renderSurveyCompletionMarkers(props.geojson);
   renderPointLabels(props.geojson);
   updateWhiteMothSiteDraftMarker();
   mapRef.value.on?.("moveend", refreshPointLabels);
@@ -819,9 +974,21 @@ watch(
 );
 
 watch(
+  () => props.referenceLayers,
+  (value) => {
+    drawReferenceLayers(value);
+    drawGeoJson(props.geojson, false);
+    renderSurveyCompletionMarkers(props.geojson);
+    renderPointLabels(props.geojson);
+  },
+  { deep: true },
+);
+
+watch(
   () => props.geojson,
   (value) => {
     drawGeoJson(value, props.autoFitOnDataChange);
+    renderSurveyCompletionMarkers(value);
     renderPointLabels(value);
   },
   { deep: true },
@@ -831,6 +998,7 @@ watch(
   () => props.popupFields,
   () => {
     drawGeoJson(props.geojson, false);
+    renderSurveyCompletionMarkers(props.geojson);
   },
   { deep: true },
 );
@@ -863,8 +1031,10 @@ onBeforeUnmount(() => {
   clearLayer(basemapAnnotationLayerRef);
   clearLayer(basemapLayerRef);
   clearLayer(boundaryLayerRef);
+  clearLayer(referenceLayerGroupRef);
   clearLayer(pointLayerRef);
   clearLayer(pointLabelLayerRef);
+  clearLayer(surveyCompletionLayerRef);
   clearLayer(locateMarkerRef);
   clearLayer(whiteMothSiteDraftMarkerRef);
 
@@ -1044,6 +1214,20 @@ onBeforeUnmount(() => {
         >
           <span class="map-layer-check" aria-hidden="true"></span>
           <span>卫星地图</span>
+        </button>
+        <button
+          v-for="layer in referenceLayerEntries"
+          :key="layer.key"
+          type="button"
+          class="map-base-layer-option"
+          :class="{ 'is-active': layer.active, 'is-loading': layer.loading }"
+          :data-testid="`map-reference-layer-${layer.key}`"
+          :aria-pressed="layer.active"
+          @click="toggleReferenceLayer(layer.key)"
+        >
+          <span class="map-layer-check" aria-hidden="true"></span>
+          <span>{{ layer.label }}</span>
+          <span v-if="layer.loading" class="map-layer-count">加载中</span>
         </button>
         <button
           type="button"
@@ -1440,6 +1624,14 @@ onBeforeUnmount(() => {
   color: var(--color-primary-strong);
 }
 
+.map-base-layer-option span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-layer-check {
   position: relative;
   width: 14px;
@@ -1632,6 +1824,33 @@ onBeforeUnmount(() => {
 
 :deep(.leaflet-tooltip-top:before) {
   border-top-color: rgba(21, 47, 31, 0.86);
+}
+
+:deep(.map-survey-completion-marker) {
+  width: 16px;
+  height: 16px;
+  background: transparent;
+  border: none;
+  pointer-events: none;
+}
+
+:deep(.map-survey-completion-check) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid #fff;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.24),
+    0 0 0 1px rgba(22, 101, 52, 0.18);
+  pointer-events: none;
 }
 
 :deep(.map-point-label-marker) {

@@ -10,7 +10,8 @@ const apiMocks = vi.hoisted(() => ({
   fetchWhiteMothSiteCodeRules: vi.fn(),
   createWhiteMothSite: vi.fn(),
   fetchMapView: vi.fn(),
-  fetchAdminBoundary: vi.fn(),
+  fetchReferenceLayer: vi.fn(),
+  listReferenceLayers: vi.fn(),
 }));
 
 vi.mock("../../api/map.js", () => ({
@@ -18,7 +19,8 @@ vi.mock("../../api/map.js", () => ({
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
   fetchMapView: apiMocks.fetchMapView,
-  fetchAdminBoundary: apiMocks.fetchAdminBoundary,
+  fetchReferenceLayer: apiMocks.fetchReferenceLayer,
+  listReferenceLayers: apiMocks.listReferenceLayers,
 }));
 
 const LeafletMapStub = defineComponent({
@@ -40,6 +42,10 @@ const LeafletMapStub = defineComponent({
       }),
     },
     popupFields: {
+      type: Array,
+      default: () => [],
+    },
+    referenceLayers: {
       type: Array,
       default: () => [],
     },
@@ -69,6 +75,7 @@ const LeafletMapStub = defineComponent({
     "update:basemapMode",
     "update:showPointLabels",
     "toggle-white-moth-site-add",
+    "toggle-reference-layer",
     "map-click",
   ],
   computed: {
@@ -176,7 +183,21 @@ describe("MapView", () => {
       type: "FeatureCollection",
       features: [],
     });
-    apiMocks.fetchAdminBoundary.mockResolvedValue({
+    apiMocks.listReferenceLayers.mockResolvedValue([
+      {
+        name: "通州区行政区边界",
+        label: "通州区行政区边界",
+        columns: ["区域"],
+        default_visible: true,
+      },
+      {
+        name: "通州区小区边界",
+        label: "通州区小区边界",
+        columns: ["名称"],
+        default_visible: false,
+      },
+    ]);
+    apiMocks.fetchReferenceLayer.mockResolvedValue({
       type: "FeatureCollection",
       features: [],
     });
@@ -208,6 +229,39 @@ describe("MapView", () => {
       expect(mapStub.props("popupFields")).toEqual(["属地", "村", "调查日期"]);
       expect(mapStub.props("basemapMode")).toBe("satellite");
       expect(mapStub.props("showPointLabels")).toBe(true);
+    });
+  });
+
+  it("初始加载 reference 图层并响应图层开关", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      const referenceLayers = getLeafletMapStub(wrapper).props("referenceLayers");
+
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith("通州区行政区边界");
+      expect(referenceLayers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "通州区行政区边界",
+            active: true,
+          }),
+          expect.objectContaining({
+            name: "通州区小区边界",
+            active: false,
+          }),
+        ]),
+      );
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("toggle-reference-layer", "通州区小区边界");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith("通州区小区边界");
+      expect(
+        getLeafletMapStub(wrapper)
+          .props("referenceLayers")
+          .find((layer) => layer.name === "通州区小区边界").active,
+      ).toBe(true);
     });
   });
 

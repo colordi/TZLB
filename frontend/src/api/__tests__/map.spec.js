@@ -71,4 +71,22 @@ describe("api/map", () => {
       "/api/map/white-moth-sites/code-rules",
     );
   });
+
+  it("读取参考图层列表", async () => {
+    const { listReferenceLayers } = await import("../map.js");
+
+    await listReferenceLayers();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/map/reference-layers");
+  });
+
+  it("读取指定参考图层时编码图层名称", async () => {
+    const { fetchReferenceLayer } = await import("../map.js");
+
+    await fetchReferenceLayer("通州区小区边界");
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/reference-layers/%E9%80%9A%E5%B7%9E%E5%8C%BA%E5%B0%8F%E5%8C%BA%E8%BE%B9%E7%95%8C",
+    );
+  });
 });

@@ -4,10 +4,11 @@ import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useToast } from "../composables/useToast.js";
 import {
   createWhiteMothSite,
-  fetchAdminBoundary,
   fetchMapView,
+  fetchReferenceLayer,
   fetchWhiteMothSiteCodeRules,
   listMapViews,
+  listReferenceLayers,
 } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import {
@@ -33,7 +34,10 @@ const selectedView = ref("");
 const basemapMode = ref("satellite");
 const showPointLabels = ref(true);
 const geojson = ref(createEmptyFeatureCollection());
-const boundaryGeojson = ref(createEmptyFeatureCollection());
+const referenceLayers = ref([]);
+const activeReferenceLayerNames = ref([]);
+const referenceLayerGeojsonByName = shallowRef({});
+const loadingReferenceLayerNames = ref([]);
 const loading = ref(false);
 const loadingViews = ref(false);
 const autoFitOnDataChange = ref(true);
@@ -289,6 +293,14 @@ const canSubmitWhiteMothSite = computed(
     !isSavingWhiteMothSite.value,
 );
 const pointCount = computed(() => geojson.value?.features?.length || 0);
+const referenceLayersForMap = computed(() =>
+  referenceLayers.value.map((layer) => ({
+    ...layer,
+    active: activeReferenceLayerNames.value.includes(layer.name),
+    loading: loadingReferenceLayerNames.value.includes(layer.name),
+    geojson: referenceLayerGeojsonByName.value[layer.name] || createEmptyFeatureCollection(),
+  })),
+);
 
 async function loadViews() {
   loadingViews.value = true;
@@ -370,15 +382,84 @@ async function loadGeoJson({ autoFit = false } = {}) {
   }
 }
 
-async function loadAdminBoundary() {
+function setReferenceLayerLoading(layerName, isLoading) {
+  if (!layerName) {
+    return;
+  }
+
+  if (isLoading) {
+    loadingReferenceLayerNames.value = Array.from(
+      new Set([...loadingReferenceLayerNames.value, layerName]),
+    );
+    return;
+  }
+
+  loadingReferenceLayerNames.value = loadingReferenceLayerNames.value.filter(
+    (name) => name !== layerName,
+  );
+}
+
+async function ensureReferenceLayerGeojson(layerName) {
+  if (referenceLayerGeojsonByName.value[layerName]) {
+    return true;
+  }
+
+  setReferenceLayerLoading(layerName, true);
   try {
-    boundaryGeojson.value = await fetchAdminBoundary();
+    const payload = await fetchReferenceLayer(layerName);
+    referenceLayerGeojsonByName.value = {
+      ...referenceLayerGeojsonByName.value,
+      [layerName]: payload,
+    };
+    return true;
   } catch (loadError) {
-    boundaryGeojson.value = createEmptyFeatureCollection();
+    if (isUnauthorizedError(loadError)) {
+      return false;
+    }
+    info(`${loadError.message || loadError}`, "参考图层未加载");
+    return false;
+  } finally {
+    setReferenceLayerLoading(layerName, false);
+  }
+}
+
+async function loadReferenceLayers() {
+  try {
+    const payload = await listReferenceLayers();
+    referenceLayers.value = payload;
+    activeReferenceLayerNames.value = payload
+      .filter((layer) => layer.default_visible)
+      .map((layer) => layer.name);
+    await Promise.all(
+      activeReferenceLayerNames.value.map((layerName) =>
+        ensureReferenceLayerGeojson(layerName),
+      ),
+    );
+  } catch (loadError) {
+    referenceLayers.value = [];
+    activeReferenceLayerNames.value = [];
+    referenceLayerGeojsonByName.value = {};
     if (isUnauthorizedError(loadError)) {
       return;
     }
-    info(`${loadError.message || loadError}`, "行政区边界未加载");
+    info(`${loadError.message || loadError}`, "参考图层未加载");
+  }
+}
+
+async function toggleReferenceLayer(layerName) {
+  if (activeReferenceLayerNames.value.includes(layerName)) {
+    activeReferenceLayerNames.value = activeReferenceLayerNames.value.filter(
+      (name) => name !== layerName,
+    );
+    return;
+  }
+
+  activeReferenceLayerNames.value = [...activeReferenceLayerNames.value, layerName];
+  const loaded = await ensureReferenceLayerGeojson(layerName);
+  if (!loaded) {
+    activeReferenceLayerNames.value = activeReferenceLayerNames.value.filter(
+      (name) => name !== layerName,
+    );
   }
 }
 
@@ -514,7 +595,7 @@ watch(selectedView, async () => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadViews(), loadAdminBoundary(), loadWhiteMothSiteCodeRules()]);
+  await Promise.all([loadViews(), loadReferenceLayers(), loadWhiteMothSiteCodeRules()]);
 });
 </script>
 
@@ -701,12 +782,12 @@ onMounted(async () => {
         <LeafletMap
           :auto-fit-on-data-change="autoFitOnDataChange"
           :basemap-mode="basemapMode"
-          :boundary-geojson="boundaryGeojson"
           :geojson="geojson"
           :loading="loading"
           :loading-views="loadingViews"
           :map-focus-request="mapFocusRequest"
           :popup-fields="currentView.columns"
+          :reference-layers="referenceLayersForMap"
           :show-point-labels="showPointLabels"
           :view-name="selectedView"
           :views="views"
@@ -715,6 +796,7 @@ onMounted(async () => {
           :white-moth-site-saving="isSavingWhiteMothSite"
           @feature-click="onFeatureClick"
           @map-click="onMapClick"
+          @toggle-reference-layer="toggleReferenceLayer"
           @toggle-white-moth-site-add="toggleWhiteMothSiteAdd"
           @update:basemap-mode="basemapMode = $event"
           @update:show-point-labels="showPointLabels = $event"

@@ -6,6 +6,20 @@ export async function listMapViews() {
   return response.json();
 }
 
+export async function listReferenceLayers() {
+  const response = await apiFetch("/api/map/reference-layers");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function fetchReferenceLayer(name) {
+  const response = await apiFetch(
+    `/api/map/reference-layers/${encodeURIComponent(name)}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function fetchWhiteMothSiteCodeRules() {
   const response = await apiFetch("/api/map/white-moth-sites/code-rules");
   await ensureApiSuccess(response);

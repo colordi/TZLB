@@ -6,6 +6,7 @@ import {
   USER_ROLES,
 } from "../auth/permissions.js";
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
+import DataExportView from "../views/DataExportView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
 import WorkOrderView from "../views/WorkOrderView.vue";
@@ -50,6 +51,16 @@ const routes = [
       section: "调查点位",
       blurb: "",
       fullBleed: true,
+    },
+  },
+  {
+    path: "/data-export",
+    name: "data-export",
+    component: DataExportView,
+    meta: {
+      section: "数据导出",
+      blurb: "导出 survey 和 ledger 下的最新数据表。",
+      requiredRoles: [USER_ROLES.ADMIN],
     },
   },
   {

@@ -8,10 +8,12 @@ from backend.db.postgres import (
     create_white_moth_site,
     fetch_admin_boundary_feature_collection,
     fetch_map_filter_options,
+    fetch_reference_layer_feature_collection,
     fetch_view_feature_collection,
     get_white_moth_site_code_rules,
     get_map_view,
     list_map_views,
+    list_reference_layers,
 )
 from backend.schemas import WhiteMothSiteCreateRequest, WhiteMothSiteResponse
 
@@ -25,6 +27,14 @@ async def get_views() -> list[dict]:
         return await list_map_views()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取地图视图失败：{exc}") from exc
+
+
+@router.get("/reference-layers", summary="列出参考图层")
+async def get_reference_layers() -> list[dict]:
+    try:
+        return await list_reference_layers()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取参考图层失败：{exc}") from exc
 
 
 @router.get("/white-moth-sites/code-rules", summary="读取美国白蛾点位编号规则")
@@ -94,3 +104,13 @@ async def get_admin_boundary_geojson() -> dict:
         return await fetch_admin_boundary_feature_collection()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取行政区边界失败：{exc}") from exc
+
+
+@router.get("/reference-layers/{layer_name}", summary="读取指定参考图层 GeoJSON")
+async def get_reference_layer_geojson(layer_name: str) -> dict:
+    try:
+        return await fetch_reference_layer_feature_collection(layer_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取参考图层失败：{exc}") from exc

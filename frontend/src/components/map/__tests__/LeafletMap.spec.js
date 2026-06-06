@@ -55,6 +55,7 @@ const leafletMocks = vi.hoisted(() => {
       })),
     },
     divIcon: vi.fn((options) => options),
+    featureGroup: vi.fn(() => createLayer()),
     geoJSON: vi.fn(() => createLayer()),
     layerGroup: vi.fn(() => createLayer()),
     map: vi.fn((element, options) => {
@@ -194,6 +195,15 @@ function getPointLabelMarkerHtml() {
   return getPointLabelMarkerCalls().map(([, options]) => options?.icon?.html || "");
 }
 
+function getSurveyCompletionMarkerCalls() {
+  return leafletMocks.marker.mock.calls.filter(
+    ([, options]) =>
+      options?.interactive === false &&
+      options?.keyboard === false &&
+      options?.icon?.className === "map-survey-completion-marker",
+  );
+}
+
 function getPointClusterMarkerCalls() {
   return leafletMocks.marker.mock.calls.filter(
     ([, options]) => options?.icon?.className === "map-point-cluster-marker",
@@ -313,6 +323,17 @@ describe("LeafletMap 底图图层", () => {
   it("右上角图层面板可以切换底图和编号显示", async () => {
     const wrapper = mountLeafletMap({
       basemapMode: "satellite",
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: false,
+          geojson: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        },
+      ],
       showPointLabels: true,
     });
 
@@ -325,6 +346,11 @@ describe("LeafletMap 底图图层", () => {
     expect(wrapper.get('[data-testid="map-layer-labels"]').classes()).toContain(
       "map-base-layer-option",
     );
+    const baseLayerTestIds = wrapper
+      .findAll("#map-layer-panel .map-base-layer-option")
+      .map((item) => item.attributes("data-testid"));
+    expect(baseLayerTestIds.at(-1)).toBe("map-layer-labels");
+    expect(wrapper.find(".map-reference-layer-dot").exists()).toBe(false);
 
     await wrapper.get('[data-testid="map-layer-standard"]').trigger("click");
     expect(wrapper.emitted("update:basemapMode")).toEqual([["standard"]]);
@@ -612,6 +638,190 @@ describe("LeafletMap 图例", () => {
 
     expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(true);
     expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
+  });
+});
+
+describe("LeafletMap 参考图层", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+  });
+
+  it("渲染已启用的 reference 图层且不允许地图内选中", () => {
+    const feature = createPolygonFeature("SQ-001", { 名称: "示范小区" });
+
+    mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: true,
+          columns: ["名称"],
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    expect(leafletMocks.featureGroup).toHaveBeenCalledTimes(1);
+    expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(1);
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[0];
+
+    expect(geoJsonCall[0].features).toEqual([feature]);
+    expect(geoJsonCall[1]).toMatchObject({
+      interactive: false,
+    });
+    expect(geoJsonCall[1].onEachFeature).toBeUndefined();
+  });
+
+  it("点状 reference 图层也不允许地图内选中", () => {
+    const feature = createPointFeature("REF-001", 116.73, 39.92);
+
+    mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "参考点图层",
+          label: "参考点图层",
+          active: true,
+          columns: ["编号"],
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[0];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
+
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        interactive: false,
+      }),
+    );
+  });
+
+  it("点击 reference 图层菜单项时发出切换事件", async () => {
+    const wrapper = mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州国槐图层",
+          label: "通州国槐图层",
+          active: false,
+          loading: false,
+          geojson: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        },
+      ],
+    });
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-reference-layer-通州国槐图层"]').trigger("click");
+
+    expect(wrapper.emitted("toggle-reference-layer")).toEqual([["通州国槐图层"]]);
+  });
+
+  it("切换 reference 图层时不触发地图自动缩放", async () => {
+    const feature = createPolygonFeature("SQ-001", { 名称: "示范小区" });
+    const wrapper = mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: false,
+          geojson: {
+            type: "FeatureCollection",
+            features: [],
+          },
+        },
+      ],
+    });
+    const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame");
+    requestAnimationFrameSpy.mockClear();
+
+    await wrapper.setProps({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: true,
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    requestAnimationFrameSpy.mockRestore();
+  });
+});
+
+describe("LeafletMap 调查完成标记", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    leafletMocks.maps.length = 0;
+    leafletMocks.markers.length = 0;
+    installGeolocationMock();
+  });
+
+  it("当前 view 有调查日期字段时，为已调查点位添加中心小勾", () => {
+    mountLeafletMap({
+      popupFields: ["编号", "调查日期"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          createPointFeature("A-001", 116.73, 39.92, { 调查日期: "2026-05-02" }),
+          createPointFeature("A-002", 116.74, 39.93, { 调查日期: "" }),
+        ],
+      },
+    });
+
+    const markerCalls = getSurveyCompletionMarkerCalls();
+
+    expect(markerCalls).toHaveLength(1);
+    expect(markerCalls[0][0]).toEqual([39.92, 116.73]);
+    expect(markerCalls[0][1].icon.html).toContain("map-survey-completion-check");
+  });
+
+  it("当前 view 没有调查日期字段时不显示完成小勾", () => {
+    mountLeafletMap({
+      popupFields: ["编号", "调查状态"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [createPointFeature("A-001", 116.73, 39.92, { 调查日期: "2026-05-02" })],
+      },
+    });
+
+    expect(getSurveyCompletionMarkerCalls()).toHaveLength(0);
+  });
+
+  it("面图层有调查日期时在几何中心添加完成小勾", () => {
+    mountLeafletMap({
+      popupFields: ["编号", "调查日期"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          createPolygonFeature("MGB-001", {
+            调查日期: "2026-05-02",
+          }),
+        ],
+      },
+    });
+
+    const markerCalls = getSurveyCompletionMarkerCalls();
+
+    expect(markerCalls).toHaveLength(1);
+    expect(markerCalls[0][0]).toEqual([39.925, 116.735]);
   });
 });
 

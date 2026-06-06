@@ -5,6 +5,7 @@ import {
   TreePine,
   Upload,
   MapPin,
+  Database,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -40,21 +41,55 @@ const userDropdownOpen = ref(false);
 const currentUserName = computed(() => user.value?.display_name || user.value?.username || "");
 const homePath = computed(() => (user.value ? getDefaultRouteForUser(user.value) : "/workorder"));
 
-const navItems = [
+const navGroups = [
   {
-    to: "/workorder",
-    label: "工单录入",
-    icon: "upload",
-    requiredRoles: [USER_ROLES.ADMIN],
+    label: "业务管理",
+    items: [
+      {
+        to: "/workorder",
+        label: "工单录入",
+        icon: "upload",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+      {
+        to: "/map",
+        label: "调查点位",
+        icon: "pin",
+      },
+    ],
   },
   {
-    to: "/map",
-    label: "调查点位",
-    icon: "pin",
+    label: "数据管理",
+    items: [
+      {
+        to: "/data-export",
+        label: "数据导出",
+        icon: "database",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+    ],
   },
 ];
+const navIconComponents = {
+  upload: Upload,
+  pin: MapPin,
+  database: Database,
+};
+function resolveNavIcon(icon) {
+  return navIconComponents[icon] || MapPin;
+}
+const visibleNavGroups = computed(() =>
+  navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !user.value || userHasAnyRole(user.value, item.requiredRoles),
+      ),
+    }))
+    .filter((group) => group.items.length > 0),
+);
 const visibleNavItems = computed(() =>
-  navItems.filter((item) => !user.value || userHasAnyRole(user.value, item.requiredRoles)),
+  visibleNavGroups.value.flatMap((group) => group.items),
 );
 
 function closeMobileNav() {
@@ -168,20 +203,21 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="app-sidebar-caption">业务管理</div>
-        <nav class="app-sidebar-nav" aria-label="业务管理">
-          <RouterLink
-            v-for="item in visibleNavItems"
-            :key="`sidebar-${item.to}`"
-            :to="item.to"
-            class="app-sidebar-link"
-            :data-testid="`sidebar-link-${item.to.slice(1)}`"
-          >
-            <Upload v-if="item.icon === 'upload'" :size="18" :stroke-width="2" />
-            <MapPin v-else :size="18" :stroke-width="2" />
-            <span>{{ item.label }}</span>
-          </RouterLink>
-        </nav>
+        <template v-for="group in visibleNavGroups" :key="group.label">
+          <div class="app-sidebar-caption">{{ group.label }}</div>
+          <nav class="app-sidebar-nav" :aria-label="group.label">
+            <RouterLink
+              v-for="item in group.items"
+              :key="`sidebar-${item.to}`"
+              :to="item.to"
+              class="app-sidebar-link"
+              :data-testid="`sidebar-link-${item.to.slice(1)}`"
+            >
+              <component :is="resolveNavIcon(item.icon)" :size="18" :stroke-width="2" />
+              <span>{{ item.label }}</span>
+            </RouterLink>
+          </nav>
+        </template>
 
         <div class="app-sidebar-foot">
           <div class="app-sidebar-profile">
@@ -221,8 +257,7 @@ onBeforeUnmount(() => {
               class="site-nav-link"
               :data-testid="`header-link-${item.to.slice(1)}`"
             >
-              <Upload v-if="item.icon === 'upload'" :size="17.28" :stroke-width="2" />
-              <MapPin v-else :size="17.28" :stroke-width="2" />
+              <component :is="resolveNavIcon(item.icon)" :size="17.28" :stroke-width="2" />
               <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
@@ -296,8 +331,7 @@ onBeforeUnmount(() => {
                 class="drawer-link"
                 :data-testid="`drawer-link-${item.to.slice(1)}`"
               >
-                <Upload v-if="item.icon === 'upload'" :size="17.28" :stroke-width="2" />
-                <MapPin v-else :size="17.28" :stroke-width="2" />
+                <component :is="resolveNavIcon(item.icon)" :size="17.28" :stroke-width="2" />
                 <span>{{ item.label }}</span>
               </RouterLink>
             </nav>

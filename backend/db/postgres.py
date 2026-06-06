@@ -193,6 +193,53 @@ async def get_map_view(view_name: str) -> dict[str, Any] | None:
     return None
 
 
+async def list_reference_layers() -> list[dict[str, Any]]:
+    """列出 reference schema 下可叠加展示的空间表。"""
+
+    rows = await fetch(
+        """
+        SELECT
+            t.table_name AS name,
+            COALESCE(
+                obj_description(
+                    (quote_ident(t.table_schema) || '.' || quote_ident(t.table_name))::regclass,
+                    'pg_class'
+                ),
+                t.table_name
+            ) AS label,
+            ARRAY_AGG(c.column_name ORDER BY c.ordinal_position)
+                FILTER (WHERE c.column_name <> 'geom') AS columns
+        FROM information_schema.tables AS t
+        JOIN information_schema.columns AS c
+          ON c.table_schema = t.table_schema
+         AND c.table_name = t.table_name
+        WHERE t.table_schema = $1
+          AND t.table_type = 'BASE TABLE'
+        GROUP BY t.table_schema, t.table_name
+        HAVING BOOL_OR(c.column_name = 'geom')
+        ORDER BY t.table_name
+        """,
+        REFERENCE_SCHEMA,
+    )
+    return [
+        {
+            "name": row["name"],
+            "label": row["label"] or row["name"],
+            "columns": list(row["columns"] or []),
+            "default_visible": row["name"] == ADMIN_BOUNDARY_TABLE,
+        }
+        for row in rows
+    ]
+
+
+async def get_reference_layer(layer_name: str) -> dict[str, Any] | None:
+    layers = await list_reference_layers()
+    for layer in layers:
+        if layer["name"] == layer_name:
+            return layer
+    return None
+
+
 def sort_filter_values(column: str, values: list[str]) -> list[str]:
     """按业务习惯排序地图筛选项。"""
 
@@ -277,19 +324,30 @@ def records_to_feature_collection(rows: list[asyncpg.Record]) -> dict[str, Any]:
 async def fetch_admin_boundary_feature_collection() -> dict[str, Any]:
     """读取行政区边界并返回标准 GeoJSON。"""
 
-    qualified_table = (
-        f"{quote_identifier(REFERENCE_SCHEMA)}.{quote_identifier(ADMIN_BOUNDARY_TABLE)}"
-    )
+    return await fetch_reference_layer_feature_collection(ADMIN_BOUNDARY_TABLE)
+
+
+async def fetch_reference_layer_feature_collection(layer_name: str) -> dict[str, Any]:
+    """读取 reference schema 指定空间表并返回标准 GeoJSON。"""
+
+    layer = await get_reference_layer(layer_name)
+    if layer is None:
+        raise ValueError(f"参考图层不存在：{layer_name}")
+
+    qualified_table = f"{quote_identifier(REFERENCE_SCHEMA)}.{quote_identifier(layer_name)}"
     rows = await fetch(
         f"""
         SELECT
-            ST_AsGeoJSON(ST_Transform(t.geom, 4326)) AS geom_json,
+            ST_AsGeoJSON(
+                CASE
+                    WHEN ST_SRID(t.geom) = 4326 THEN t.geom
+                    WHEN ST_SRID(t.geom) = 0 THEN ST_SetSRID(t.geom, 4326)
+                    ELSE ST_Transform(t.geom, 4326)
+                END
+            ) AS geom_json,
             to_jsonb(t) - 'geom' AS properties
         FROM {qualified_table} AS t
         WHERE t.geom IS NOT NULL
-        ORDER BY
-            COALESCE(t."分类", ''),
-            COALESCE(t."区域", '')
         """,
     )
     return records_to_feature_collection(rows)

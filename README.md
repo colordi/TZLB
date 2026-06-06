@@ -217,6 +217,9 @@ WGS84 GeoJSON。除 `views."通州区监测点位分布"` 外，地图视图默�
 
 - `GET /api/survey/candidates?date=YYYY-MM-DD&pest_type=春尺蠖`
   （`pest_type` 也可为 `国槐尺蠖`、`美国白蛾`、`其他害虫`）
+- `GET /api/data-export/tables`：列出 `survey` / `ledger` 下可导出的表和视图
+- `GET /api/data-export/download`：导出 `survey` / `ledger` 下全部表和视图
+- `GET /api/data-export/tables/{schema_name}/{table_name}/download`：导出单个表或视图
 - `POST /api/workorder/generate`
 
 `POST /api/workorder/generate` 只接受单条记录。批量压缩导出已取消，前端会按记录逐条

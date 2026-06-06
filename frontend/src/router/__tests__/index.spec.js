@@ -118,4 +118,41 @@ describe("router", () => {
 
     expect(router.currentRoute.value.fullPath).toBe("/map");
   });
+
+  it("管理员可以访问数据导出页面", async () => {
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 1,
+      username: "admin",
+      display_name: "管理员",
+      role: "admin",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/data-export");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/data-export");
+  });
+
+  it("调查员访问数据导出时会跳转到地图页", async () => {
+    await router.push("/map");
+    await router.isReady();
+
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 2,
+      username: "dc01",
+      display_name: "调查员 dc01",
+      role: "investigator",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/data-export");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/map");
+  });
 });
