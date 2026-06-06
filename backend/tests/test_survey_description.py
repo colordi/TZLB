@@ -234,21 +234,23 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(candidates[0]["images"], [expected_image])
 
     async def test_note_is_preserved_but_not_merged_into_description(self) -> None:
+        mocked_fetch = AsyncMock(
+            return_value=[
+                {
+                    "location_id": "YF0069",
+                    "survey_date": "2026-04-01",
+                    "total_insect_count": 50,
+                    "damage_level": "重",
+                    "note": "树冠北侧虫口集中",
+                    "locality": "于家务乡",
+                    "location_name": "神仙村",
+                }
+            ]
+        )
+
         with TemporaryDirectory() as tempdir, patch(
             "backend.db.postgres.fetch",
-            new=AsyncMock(
-                return_value=[
-                    {
-                        "location_id": "YF0069",
-                        "survey_date": "2026-04-01",
-                        "total_insect_count": 50,
-                        "damage_level": "重",
-                        "note": "树冠北侧虫口集中",
-                        "locality": "于家务乡",
-                        "location_name": "神仙村",
-                    }
-                ]
-            ),
+            new=mocked_fetch,
         ), patch(
             "backend.db.postgres.get_settings",
             return_value=SimpleNamespace(point_screenshot_dir=Path(tempdir)),
@@ -265,27 +267,29 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("树冠北侧虫口集中", candidates[0]["description"])
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('COALESCE(s."属地", \'\') AS town_or_street', query)
+        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
         self.assertNotIn('s."乡镇"', query)
 
     async def test_other_pest_candidates_include_template_required_fields(self) -> None:
+        mocked_fetch = AsyncMock(
+            return_value=[
+                {
+                    "location_id": "QT0001",
+                    "survey_date": "2026-04-17",
+                    "pest_name": "蚜虫",
+                    "survey_result": "发现问题",
+                    "description": "潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。",
+                    "locality": "潞城镇",
+                    "location_name": "畅和东路北京学校西侧",
+                    "host_plant": "栾树",
+                    "plot_type": "道路绿化",
+                }
+            ]
+        )
+
         with patch(
             "backend.db.postgres.fetch",
-            new=AsyncMock(
-                return_value=[
-                    {
-                        "location_id": "QT0001",
-                        "survey_date": "2026-04-17",
-                        "pest_name": "蚜虫",
-                        "survey_result": "发现问题",
-                        "description": "潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。",
-                        "locality": "潞城镇",
-                        "location_name": "畅和东路北京学校西侧",
-                        "host_plant": "栾树",
-                        "plot_type": "道路绿化",
-                    }
-                ]
-            ),
+            new=mocked_fetch,
         ):
             candidates = await fetch_survey_candidates("2026-04-17", pest_type="其他害虫")
 
@@ -309,7 +313,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('COALESCE(s."属地", \'\') AS town_or_street', query)
+        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
         self.assertNotIn('s."乡镇"', query)
 
     async def test_guo_huai_candidates_include_template_required_fields(self) -> None:
@@ -358,9 +362,9 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn("survey\".\"guo_huai_chi_huo_larva", query)
-        self.assertIn("sites\".\"sophora_sites", query)
-        self.assertIn('COALESCE(s."属地", \'\') AS town_or_street', query)
+        self.assertIn('survey"."国槐尺蠖幼虫调查表', query)
+        self.assertIn('sites"."国槐点位基础表', query)
+        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
         self.assertNotIn('s."乡镇"', query)
         self.assertIn("NOT IN ('', '白', '无需防治')", query)
 
@@ -426,8 +430,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn("survey\".\"mei_guo_bai_e_first_generation_inspection", query)
-        self.assertIn('COALESCE(i."属地", \'\') AS town_or_street', query)
+        self.assertIn('survey"."美国白蛾第一代调查表', query)
+        self.assertIn('COALESCE(i."属地", \'\') AS locality', query)
         self.assertNotIn('i."乡镇"', query)
         self.assertIn('BTRIM(COALESCE(i."详细描述", \'\')) <> \'\'', query)
         self.assertIn('COALESCE(i."受害株数", 0) > 0', query)
