@@ -9,7 +9,7 @@ from openpyxl import Workbook
 
 from backend.services.survey_excel_import import (
     build_import_plan,
-    choose_conflict_columns,
+    resolve_table_conflict_columns,
     run_survey_excel_import,
 )
 
@@ -101,11 +101,135 @@ def build_metadata_rows() -> tuple[
         ),
         column("美国白蛾第一代调查表", 2, "编号", "character varying", "varchar", "NO"),
         column("美国白蛾第一代调查表", 3, "调查日期", "date", "date", "NO"),
+        column("美国白蛾第一代调查表", 4, "属地", "character varying", "varchar", "NO"),
+        column("美国白蛾第一代调查表", 5, "点位名称", "character varying", "varchar", "NO"),
+        column("美国白蛾第一代调查表", 6, "受害株数", "integer", "int4", "NO", "0"),
+        column("美国白蛾第一代调查表", 7, "网幕数量", "integer", "int4", "NO", "0"),
+        column(
+            "美国白蛾第一代调查表",
+            8,
+            "详细描述",
+            "text",
+            "text",
+            "NO",
+            "''::text",
+        ),
+        column(
+            "美国白蛾第一代调查表",
+            9,
+            "备注",
+            "text",
+            "text",
+            "NO",
+            "''::text",
+        ),
         column("其他害虫调查表", 1, "编号", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 2, "虫害类型", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 3, "调查日期", "date", "date", "NO"),
         column("其他害虫调查表", 4, "调查结论", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 5, "详细描述", "text", "text", "NO"),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            1,
+            "id",
+            "integer",
+            "int4",
+            "NO",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            2,
+            "事件时间",
+            "timestamp without time zone",
+            "timestamp",
+            "NO",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            3,
+            "事件类型",
+            "USER-DEFINED",
+            "meiguobaie_event_type",
+            "NO",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            4,
+            "属地",
+            "character varying",
+            "varchar",
+            "YES",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            5,
+            "编号",
+            "character varying",
+            "varchar",
+            "NO",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            6,
+            "点位名称",
+            "character varying",
+            "varchar",
+            "YES",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            7,
+            "受害株数",
+            "integer",
+            "int4",
+            "NO",
+            "0",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            8,
+            "网幕数量",
+            "integer",
+            "int4",
+            "NO",
+            "0",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            9,
+            "本次详细情况",
+            "text",
+            "text",
+            "NO",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            10,
+            "备注",
+            "text",
+            "text",
+            "YES",
+            table_schema="ledger",
+        ),
+        column(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            11,
+            "区域",
+            "character varying",
+            "varchar",
+            "NO",
+            "'乡镇'::character varying",
+            table_schema="ledger",
+        ),
         column(
             "2026年其他害虫问题点位事件流水表",
             1,
@@ -177,6 +301,13 @@ def build_metadata_rows() -> tuple[
             ["编号", "调查日期"],
         ),
         key(
+            "2026年美国白蛾第一代问题点位事件流水表",
+            "mgb1_ledger_pkey",
+            "PRIMARY KEY",
+            ["id"],
+            table_schema="ledger",
+        ),
+        key(
             "其他害虫调查表",
             "other_pest_inspection_pkey",
             "PRIMARY KEY",
@@ -218,6 +349,8 @@ class FakeConnection:
         self.column_rows, self.constraint_rows, self.unique_index_rows = build_metadata_rows()
         self.existing_keys = existing_keys or set()
         self.insert_calls: list[tuple[str, tuple[object, ...]]] = []
+        self.execute_calls: list[str] = []
+        self.fetchval_calls: list[str] = []
         self.transaction_entered = False
         self.transaction_exited = False
 
@@ -238,6 +371,16 @@ class FakeConnection:
             self.insert_calls.append((query, tuple(args)))
             return {"inserted": 1}
         raise AssertionError(f"unexpected fetchrow query: {query}")
+
+    async def fetchval(self, query: str, *args):
+        self.fetchval_calls.append(query)
+        if "COALESCE(MAX(id), 0) + 1" in query:
+            return 328
+        raise AssertionError(f"unexpected fetchval query: {query}")
+
+    async def execute(self, query: str, *args):
+        self.execute_calls.append(query)
+        return "OK"
 
     def transaction(self) -> FakeTransaction:
         return FakeTransaction(self)
@@ -273,11 +416,18 @@ class SurveyExcelImportTest(unittest.TestCase):
                 for row in [*constraint_rows, *unique_index_rows]
                 if row["table_schema"] == schema_name and row["table_name"] == table_name
             ]
+            conflict_columns, supports_on_conflict = resolve_table_conflict_columns(
+                schema_name,
+                table_name,
+                candidates,
+                columns,
+            )
             self.metadata[table_name] = TableMeta(
                 schema_name=schema_name,
                 name=table_name,
                 columns=columns,
-                conflict_columns=choose_conflict_columns(candidates, columns),
+                conflict_columns=conflict_columns,
+                supports_on_conflict=supports_on_conflict,
             )
 
     def test_unknown_non_empty_sheet_reports_error(self) -> None:
@@ -292,8 +442,8 @@ class SurveyExcelImportTest(unittest.TestCase):
         content = make_workbook(
             {
                 "美国白蛾第一代调查表": [
-                    ["id", "编号", "调查日期"],
-                    [99, "MQ001", 46128],
+                    ["id", "编号", "调查日期", "属地", "点位名称"],
+                    [99, "MQ001", 46128, "马驹桥镇", "九周路"],
                 ]
             }
         )
@@ -439,6 +589,70 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(connection.insert_calls), 1)
         self.assertTrue(connection.transaction_entered)
         self.assertTrue(connection.transaction_exited)
+
+    async def test_formal_import_generates_mgb1_ledger_rows_in_backend(self) -> None:
+        content = make_workbook(
+            {
+                "美国白蛾第一代调查表": [
+                    ["编号", "调查日期", "属地", "点位名称", "受害株数", "网幕数量", "详细描述", "备注"],
+                    ["MQ001", "2026-05-26", "马驹桥镇", "九周路", 3, 2, "发现网幕", "现场备注"],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="美国白蛾调查.xlsx",
+            dry_run=False,
+            connection=connection,
+        )
+
+        self.assertEqual(result["totals"]["sheet_count"], 2)
+        self.assertEqual(result["totals"]["inserted_rows"], 2)
+        self.assertEqual(len(connection.insert_calls), 2)
+        self.assertEqual(len(connection.execute_calls), 1)
+        self.assertIn("LOCK TABLE", connection.execute_calls[0])
+        self.assertEqual(len(connection.fetchval_calls), 1)
+        ledger_query, ledger_args = connection.insert_calls[1]
+        self.assertIn('"ledger"."2026年美国白蛾第一代问题点位事件流水表"', ledger_query)
+        self.assertIn("WHERE NOT EXISTS", ledger_query)
+        self.assertEqual(ledger_args[0], 328)
+        self.assertIn("调查下派", ledger_args)
+        self.assertIn("MQ001", ledger_args)
+        self.assertIn("发现网幕", ledger_args)
+        self.assertTrue(connection.transaction_entered)
+        self.assertTrue(connection.transaction_exited)
+
+    async def test_existing_mgb1_ledger_sheet_is_imported_without_backend_generation(self) -> None:
+        content = make_workbook(
+            {
+                "美国白蛾第一代调查表": [
+                    ["编号", "调查日期", "属地", "点位名称", "详细描述"],
+                    ["MQ001", "2026-05-26", "马驹桥镇", "九周路", "发现网幕"],
+                ],
+                "2026年美国白蛾第一代问题点位事件流水表": [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派", "2026-05-26", "按 ledger sheet 写入"],
+                ],
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="美国白蛾调查及流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        self.assertEqual(result["totals"]["sheet_count"], 2)
+        ledger_sheet = result["sheets"][1]
+        self.assertEqual(ledger_sheet["schema_name"], "ledger")
+        self.assertEqual(ledger_sheet["valid_rows"], 1)
+        self.assertNotIn("根据 survey", " ".join(ledger_sheet["warnings"]))
+        self.assertEqual(connection.insert_calls, [])
+        self.assertFalse(connection.transaction_entered)
 
     async def test_formal_import_with_errors_does_not_write(self) -> None:
         content = make_workbook(

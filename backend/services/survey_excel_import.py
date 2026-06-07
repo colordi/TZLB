@@ -15,6 +15,10 @@ ALLOWED_SCHEMAS = ("survey", "ledger")
 AUTO_DEFAULT_MARKERS = ("nextval(", "generated")
 EXCEL_EPOCH = date(1899, 12, 30)
 EXCEL_DATETIME_EPOCH = datetime.combine(EXCEL_EPOCH, datetime.min.time())
+MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾第一代调查表"
+MEI_GUO_BAI_E_LEDGER_TABLE = "2026年美国白蛾第一代问题点位事件流水表"
+MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS = ("编号", "事件类型", "事件时间")
+BACKEND_GENERATED_ID_TABLES = {("ledger", MEI_GUO_BAI_E_LEDGER_TABLE)}
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,7 @@ class TableMeta:
     name: str
     columns: dict[str, ColumnMeta]
     conflict_columns: tuple[str, ...]
+    supports_on_conflict: bool = True
 
 
 @dataclass
@@ -282,14 +287,18 @@ async def fetch_survey_table_metadata(connection: asyncpg.Connection) -> dict[st
     for (schema_name, table_name), columns in columns_by_table.items():
         if table_name in duplicate_table_names:
             continue
+        conflict_columns, supports_on_conflict = resolve_table_conflict_columns(
+            schema_name,
+            table_name,
+            conflict_candidates.get((schema_name, table_name), []),
+            columns,
+        )
         metadata[table_name] = TableMeta(
             schema_name=schema_name,
             name=table_name,
             columns=columns,
-            conflict_columns=choose_conflict_columns(
-                conflict_candidates.get((schema_name, table_name), []),
-                columns,
-            ),
+            conflict_columns=conflict_columns,
+            supports_on_conflict=supports_on_conflict,
         )
     return metadata
 
@@ -318,6 +327,28 @@ def choose_conflict_columns(
         if not (len(candidate) == 1 and columns[candidate[0]].is_auto_generated)
     ]
     return non_auto_candidates[0] if non_auto_candidates else ()
+
+
+def resolve_table_conflict_columns(
+    schema_name: str,
+    table_name: str,
+    candidates: list[tuple[str, ...]],
+    columns: dict[str, ColumnMeta],
+) -> tuple[tuple[str, ...], bool]:
+    if (
+        schema_name == "ledger"
+        and table_name == MEI_GUO_BAI_E_LEDGER_TABLE
+        and all(column in columns for column in MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS)
+    ):
+        return MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS, False
+    return choose_conflict_columns(candidates, columns), True
+
+
+def is_backend_generated_column(table_meta: TableMeta, column_name: str) -> bool:
+    return (
+        (table_meta.schema_name, table_meta.name) in BACKEND_GENERATED_ID_TABLES
+        and column_name == "id"
+    )
 
 
 def sheet_has_data(sheet: Any) -> bool:
@@ -373,7 +404,10 @@ def build_import_plan(content: bytes, metadata: dict[str, TableMeta]) -> list[Pr
             if header and header in table_meta.columns
         }
         ignored_auto_columns = {
-            header for header in header_indexes if table_meta.columns[header].is_auto_generated
+            header
+            for header in header_indexes
+            if table_meta.columns[header].is_auto_generated
+            or is_backend_generated_column(table_meta, header)
         }
         for column_name in sorted(
             ignored_auto_columns,
@@ -391,6 +425,118 @@ def build_import_plan(content: bytes, metadata: dict[str, TableMeta]) -> list[Pr
         sheets.append(sheet_result)
 
     return sheets
+
+
+def append_backend_generated_ledger_sheets(
+    sheets: list[PreparedSheet],
+    metadata: dict[str, TableMeta],
+) -> None:
+    if any(sheet.table_name == MEI_GUO_BAI_E_LEDGER_TABLE for sheet in sheets):
+        return
+
+    survey_sheet = next(
+        (
+            sheet
+            for sheet in sheets
+            if sheet.schema_name == "survey"
+            and sheet.table_name == MEI_GUO_BAI_E_SURVEY_TABLE
+            and sheet.rows
+        ),
+        None,
+    )
+    if survey_sheet is None:
+        return
+
+    ledger_meta = metadata.get(MEI_GUO_BAI_E_LEDGER_TABLE)
+    generated_sheet = PreparedSheet(
+        sheet_name=MEI_GUO_BAI_E_LEDGER_TABLE,
+        schema_name="ledger",
+        table_name=MEI_GUO_BAI_E_LEDGER_TABLE,
+        warnings=['根据 survey."美国白蛾第一代调查表" 在后端生成事件流水'],
+    )
+    if ledger_meta is None:
+        generated_sheet.errors.append("缺少美国白蛾第一代问题点位事件流水表，不能写入 ledger")
+        sheets.append(generated_sheet)
+        return
+
+    skipped_blank_detail = 0
+    for survey_row in survey_sheet.rows:
+        ledger_values = build_mei_guo_bai_e_ledger_values(survey_row.values)
+        if ledger_values is None:
+            skipped_blank_detail += 1
+            continue
+
+        ledger_values = {
+            column: value
+            for column, value in ledger_values.items()
+            if column in ledger_meta.columns and not is_backend_generated_column(ledger_meta, column)
+        }
+        missing_conflict_columns = [
+            column
+            for column in ledger_meta.conflict_columns
+            if is_blank(ledger_values.get(column))
+        ]
+        if missing_conflict_columns:
+            generated_sheet.errors.append(
+                f"第 {survey_row.row_number} 行：事件流水冲突键字段不能为空："
+                f"{', '.join(missing_conflict_columns)}"
+            )
+            continue
+
+        generated_sheet.rows.append(
+            PreparedRow(
+                row_number=survey_row.row_number,
+                values=ledger_values,
+                conflict_values=tuple(
+                    ledger_values[column] for column in ledger_meta.conflict_columns
+                ),
+            )
+        )
+        generated_sheet.row_count += 1
+        generated_sheet.valid_rows += 1
+
+    if skipped_blank_detail:
+        generated_sheet.warnings.append(
+            f"{skipped_blank_detail} 行详细描述为空，未生成事件流水"
+        )
+    if generated_sheet.rows or generated_sheet.errors:
+        mark_file_duplicates(generated_sheet)
+        sheets.append(generated_sheet)
+
+
+def build_mei_guo_bai_e_ledger_values(row_values: dict[str, Any]) -> dict[str, Any] | None:
+    detail = row_values.get("详细描述")
+    if is_blank(detail):
+        return None
+
+    survey_date = row_values["调查日期"]
+    if isinstance(survey_date, datetime):
+        event_time = survey_date.replace(tzinfo=None)
+    else:
+        event_time = datetime.combine(survey_date, datetime.min.time())
+
+    source_note = f'来源=survey."美国白蛾第一代调查表"；调查日期={survey_date}'
+    note = row_values.get("备注")
+    if not is_blank(note):
+        source_note = f"{source_note}；原备注={note}"
+
+    return {
+        "事件时间": event_time,
+        "事件类型": "调查下派",
+        "区域": row_values.get("区域", "乡镇"),
+        "属地": row_values.get("属地"),
+        "编号": row_values.get("编号"),
+        "点位名称": row_values.get("点位名称"),
+        "发生位置": row_values.get("发生位置"),
+        "绿地性质": row_values.get("绿地性质"),
+        "危害寄主": row_values.get("危害寄主"),
+        "受害株数": row_values.get("受害株数", 0),
+        "网幕数量": row_values.get("网幕数量", 0),
+        "是否剪网": row_values.get("是否剪网", "否"),
+        "剪网彻底": row_values.get("剪网彻底", "不涉及"),
+        "本次详细情况": detail,
+        "备注": source_note,
+    }
 
 
 def validate_headers(
@@ -422,7 +568,12 @@ def validate_required_columns(
 ) -> None:
     missing_columns = []
     for column in table_meta.columns.values():
-        if column.is_auto_generated or column.is_nullable or column.has_default:
+        if (
+            column.is_auto_generated
+            or is_backend_generated_column(table_meta, column.name)
+            or column.is_nullable
+            or column.has_default
+        ):
             continue
         if column.name not in header_indexes:
             missing_columns.append(column.name)
@@ -557,6 +708,7 @@ async def insert_valid_rows(
     sheets: list[PreparedSheet],
     metadata: dict[str, TableMeta],
 ) -> None:
+    await assign_backend_generated_ids(connection, sheets, metadata)
     for sheet in sheets:
         if sheet.table_name is None or sheet.table_name not in metadata or sheet.errors:
             continue
@@ -571,6 +723,39 @@ async def insert_valid_rows(
             else:
                 row.skipped_duplicate = True
                 sheet.skipped_duplicate_rows += 1
+
+
+async def assign_backend_generated_ids(
+    connection: asyncpg.Connection,
+    sheets: list[PreparedSheet],
+    metadata: dict[str, TableMeta],
+) -> None:
+    for sheet in sheets:
+        if sheet.table_name is None or sheet.table_name not in metadata or sheet.errors:
+            continue
+
+        table_meta = metadata[sheet.table_name]
+        if (table_meta.schema_name, table_meta.name) not in BACKEND_GENERATED_ID_TABLES:
+            continue
+        if "id" not in table_meta.columns:
+            continue
+
+        rows_requiring_id = [
+            row for row in sheet.rows if not row.skipped_duplicate and "id" not in row.values
+        ]
+        if not rows_requiring_id:
+            continue
+
+        qualified_table = (
+            f"{quote_identifier(table_meta.schema_name)}.{quote_identifier(table_meta.name)}"
+        )
+        await connection.execute(f"LOCK TABLE {qualified_table} IN SHARE ROW EXCLUSIVE MODE")
+        next_id = (
+            await connection.fetchval(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {qualified_table}")
+        ) or 1
+        for row in rows_requiring_id:
+            row.values["id"] = next_id
+            next_id += 1
 
 
 async def insert_row(
@@ -588,6 +773,29 @@ async def insert_row(
         f"{quote_identifier(table_meta.schema_name)}.{quote_identifier(table_meta.name)}"
     )
     values = [row.values[column] for column in ordered_columns]
+    if not table_meta.supports_on_conflict:
+        conflict_conditions = [
+            f"{quote_identifier(column)} = ${len(values) + index}"
+            for index, column in enumerate(table_meta.conflict_columns, start=1)
+        ]
+        result = await connection.fetchrow(
+            f"""
+            INSERT INTO {qualified_table} (
+                {', '.join(quote_identifier(column) for column in ordered_columns)}
+            )
+            SELECT {', '.join(placeholders)}
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM {qualified_table}
+                WHERE {' AND '.join(conflict_conditions)}
+            )
+            RETURNING 1 AS inserted
+            """,
+            *values,
+            *row.conflict_values,
+        )
+        return result is not None
+
     result = await connection.fetchrow(
         f"""
         INSERT INTO {qualified_table} (
@@ -649,6 +857,7 @@ async def run_survey_excel_import(
 ) -> dict[str, Any]:
     metadata = await fetch_survey_table_metadata(connection)
     sheets = build_import_plan(content, metadata)
+    append_backend_generated_ledger_sheets(sheets, metadata)
     if not sheets:
         return summarize_import(file_name=file_name, dry_run=dry_run, sheets=[])
 
