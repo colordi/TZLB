@@ -40,6 +40,8 @@ WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "LC": "潞城镇",
     "SZ": "宋庄镇",
     "YS": "永顺镇",
+    "YZ": "杨庄街道",
+    "YQ": "玉桥街道",
     "LY": "梨园镇",
     "WJ": "文景街道",
 }

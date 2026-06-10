@@ -25,6 +25,8 @@ class WhiteMothSiteCodeTest(unittest.TestCase):
     def test_new_locality_prefixes_are_resolved(self) -> None:
         expected_localities = {
             "YS001": "永顺镇",
+            "YZ001": "杨庄街道",
+            "YQ001": "玉桥街道",
             "LY001": "梨园镇",
             "WJ001": "文景街道",
         }
