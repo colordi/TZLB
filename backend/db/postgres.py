@@ -5,6 +5,7 @@ import json
 import mimetypes
 import re
 from datetime import date as date_cls
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,8 @@ MAP_DYNAMIC_FILTER_COLUMNS = {
 MAP_FILTER_VALUE_ORDER = {
     "危害程度": ["白", "无需防治", "轻", "中", "重"],
 }
+MAP_POINT_DEDUPE_KEYS = ("编号", "点位编号", "location_id", "locationId")
+MAP_SURVEY_DATE_KEYS = ("调查日期", "survey_date", "report_time")
 SURVEY_STATUS_FILTER_OPTIONS = [
     {"value": "调查", "label": "调查"},
     {"value": "未调查", "label": "未调查"},
@@ -305,21 +308,100 @@ def resolve_filter_default_value(column: str, values: list[str]) -> str:
     return ""
 
 
-def records_to_feature_collection(rows: list[asyncpg.Record]) -> dict[str, Any]:
+def normalize_map_dedupe_value(value: Any) -> str:
+    return str(value if value is not None else "").strip()
+
+
+def resolve_map_feature_dedupe_key(feature: dict[str, Any]) -> str:
+    properties = feature.get("properties") or {}
+    for key in MAP_POINT_DEDUPE_KEYS:
+        value = normalize_map_dedupe_value(properties.get(key))
+        if value:
+            return f"point:{value}"
+
+    geometry = feature.get("geometry")
+    if geometry:
+        return f"geometry:{json.dumps(geometry, ensure_ascii=False, sort_keys=True)}"
+
+    return ""
+
+
+def resolve_map_feature_survey_date(properties: dict[str, Any]) -> str:
+    for key in MAP_SURVEY_DATE_KEYS:
+        value = properties.get(key)
+        if value is None:
+            continue
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, date_cls):
+            return value.isoformat()
+        normalized = str(value).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
+def count_non_empty_map_properties(properties: dict[str, Any]) -> int:
+    return sum(
+        1
+        for value in properties.values()
+        if value is not None and str(value).strip() != ""
+    )
+
+
+def map_feature_rank(feature: dict[str, Any]) -> tuple[int, str, int]:
+    properties = feature.get("properties") or {}
+    survey_date = resolve_map_feature_survey_date(properties)
+    return (
+        1 if survey_date else 0,
+        survey_date,
+        count_non_empty_map_properties(properties),
+    )
+
+
+def dedupe_map_features(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped_features: list[dict[str, Any]] = []
+    feature_indexes_by_key: dict[str, int] = {}
+
+    for feature in features:
+        key = resolve_map_feature_dedupe_key(feature)
+        if not key:
+            deduped_features.append(feature)
+            continue
+
+        existing_index = feature_indexes_by_key.get(key)
+        if existing_index is None:
+            feature_indexes_by_key[key] = len(deduped_features)
+            deduped_features.append(feature)
+            continue
+
+        if map_feature_rank(feature) > map_feature_rank(deduped_features[existing_index]):
+            deduped_features[existing_index] = feature
+
+    return deduped_features
+
+
+def records_to_feature_collection(
+    rows: list[asyncpg.Record],
+    *,
+    dedupe_features: bool = False,
+) -> dict[str, Any]:
+    features = [
+        {
+            "type": "Feature",
+            "geometry": json.loads(row["geom_json"]) if row["geom_json"] else None,
+            "properties": (
+                json.loads(row["properties"])
+                if isinstance(row["properties"], str)
+                else dict(row["properties"] or {})
+            ),
+        }
+        for row in rows
+    ]
+
     return {
         "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": json.loads(row["geom_json"]) if row["geom_json"] else None,
-                "properties": (
-                    json.loads(row["properties"])
-                    if isinstance(row["properties"], str)
-                    else dict(row["properties"] or {})
-                ),
-            }
-            for row in rows
-        ],
+        "features": dedupe_map_features(features) if dedupe_features else features,
     }
 
 
@@ -516,7 +598,7 @@ async def fetch_view_feature_collection(
         *args,
     )
 
-    return records_to_feature_collection(rows)
+    return records_to_feature_collection(rows, dedupe_features=True)
 
 
 def build_chi_huo_larva_description(

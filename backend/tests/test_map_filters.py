@@ -8,6 +8,7 @@ from backend.db.postgres import (
     fetch_map_filter_options,
     fetch_view_feature_collection,
     list_reference_layers,
+    records_to_feature_collection,
     sort_filter_values,
 )
 
@@ -149,6 +150,41 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
         self.assertIn('"调查日期" IS NOT NULL', query)
         self.assertEqual(args, (["2024", "2025"], ["重"]))
+
+    def test_feature_collection_dedupes_points_by_code_for_display(self) -> None:
+        payload = records_to_feature_collection(
+            [
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.5,39.7]}',
+                    "properties": {
+                        "编号": "MQ001",
+                        "点位名称": "旧记录",
+                        "调查日期": "2026-05-01",
+                    },
+                },
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.5,39.7]}',
+                    "properties": {
+                        "编号": "MQ001",
+                        "点位名称": "新记录",
+                        "调查日期": "2026-06-01",
+                    },
+                },
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.6,39.8]}',
+                    "properties": {
+                        "编号": "MQ002",
+                        "点位名称": "未调查记录",
+                        "调查日期": None,
+                    },
+                },
+            ],
+            dedupe_features=True,
+        )
+
+        self.assertEqual(len(payload["features"]), 2)
+        self.assertEqual(payload["features"][0]["properties"]["点位名称"], "新记录")
+        self.assertEqual(payload["features"][1]["properties"]["编号"], "MQ002")
 
     async def test_reference_layers_list_spatial_reference_tables(self) -> None:
         with patch(
