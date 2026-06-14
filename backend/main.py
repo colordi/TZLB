@@ -14,6 +14,7 @@ from backend.db.postgres import close_pool
 from backend.routers import auth as auth_router
 from backend.routers import data_export as data_export_router
 from backend.routers import map as map_router
+from backend.routers import statistics as statistics_router
 from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
 
@@ -63,6 +64,12 @@ app.include_router(
     data_export_router.router,
     prefix="/api/data-export",
     tags=["数据导出"],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+)
+app.include_router(
+    statistics_router.router,
+    prefix="/api/statistics",
+    tags=["数据统计"],
     dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 

@@ -18,6 +18,10 @@ const DataExportStub = defineComponent({
   template: "<div>数据导出页内容</div>",
 });
 
+const DataStatisticsStub = defineComponent({
+  template: "<div>数据统计页内容</div>",
+});
+
 const LoginStub = defineComponent({
   template: "<div data-testid=\"login-shell-stub\">登录页内容</div>",
 });
@@ -73,6 +77,13 @@ async function mountApp(initialPath = "/workorder", options = {}) {
         component: DataExportStub,
         meta: {
           section: "数据导出",
+        },
+      },
+      {
+        path: "/data-statistics",
+        component: DataStatisticsStub,
+        meta: {
+          section: "数据统计",
         },
       },
     ],
@@ -224,6 +235,31 @@ describe("App 壳层导航", () => {
     );
   });
 
+  it("管理员账号展示数据统计入口", async () => {
+    const { wrapper } = await mountApp("/workorder", {
+      user: {
+        id: 1,
+        username: "admin",
+        display_name: "管理员",
+        role: "admin",
+        is_active: true,
+        last_login_at: null,
+      },
+    });
+
+    expect(wrapper.get('[data-testid="sidebar-link-data-statistics"]').text()).toContain(
+      "数据统计",
+    );
+    expect(wrapper.get('[data-testid="header-link-data-statistics"]').text()).toContain(
+      "数据统计",
+    );
+
+    await wrapper.get('[data-testid="mobile-menu-trigger"]').trigger("click");
+    expect(wrapper.get('[data-testid="drawer-link-data-statistics"]').text()).toContain(
+      "数据统计",
+    );
+  });
+
   it("调查员账号不展示数据导出入口", async () => {
     const { wrapper } = await mountApp("/map", {
       user: {
@@ -241,6 +277,31 @@ describe("App 壳层导航", () => {
 
     await wrapper.get('[data-testid="mobile-menu-trigger"]').trigger("click");
     expect(wrapper.find('[data-testid="drawer-link-data-export"]').exists()).toBe(false);
+  });
+
+  it("调查员账号不展示数据统计入口", async () => {
+    const { wrapper } = await mountApp("/map", {
+      user: {
+        id: 2,
+        username: "dc01",
+        display_name: "调查员 dc01",
+        role: "investigator",
+        is_active: true,
+        last_login_at: null,
+      },
+    });
+
+    expect(wrapper.find('[data-testid="sidebar-link-data-statistics"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="header-link-data-statistics"]').exists()).toBe(
+      false,
+    );
+
+    await wrapper.get('[data-testid="mobile-menu-trigger"]').trigger("click");
+    expect(wrapper.find('[data-testid="drawer-link-data-statistics"]').exists()).toBe(
+      false,
+    );
   });
 
   it("地图页使用满宽主内容区", async () => {

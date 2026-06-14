@@ -6,6 +6,7 @@ import {
   Upload,
   MapPin,
   Database,
+  ChartColumn,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -67,6 +68,12 @@ const navGroups = [
         icon: "database",
         requiredRoles: [USER_ROLES.ADMIN],
       },
+      {
+        to: "/data-statistics",
+        label: "数据统计",
+        icon: "chart",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
     ],
   },
 ];
@@ -74,6 +81,7 @@ const navIconComponents = {
   upload: Upload,
   pin: MapPin,
   database: Database,
+  chart: ChartColumn,
 };
 function resolveNavIcon(icon) {
   return navIconComponents[icon] || MapPin;

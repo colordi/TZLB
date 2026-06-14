@@ -7,6 +7,7 @@ import {
 } from "../auth/permissions.js";
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
 import DataExportView from "../views/DataExportView.vue";
+import DataStatisticsView from "../views/DataStatisticsView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
 import WorkOrderView from "../views/WorkOrderView.vue";
@@ -60,6 +61,16 @@ const routes = [
     meta: {
       section: "数据导出",
       blurb: "导出 survey 和 ledger 下的最新数据表。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/data-statistics",
+    name: "data-statistics",
+    component: DataStatisticsView,
+    meta: {
+      section: "数据统计",
+      blurb: "查看各虫种的核心统计指标。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },
