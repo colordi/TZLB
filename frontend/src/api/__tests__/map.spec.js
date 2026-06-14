@@ -38,6 +38,16 @@ describe("api/map", () => {
     expect(search.has("空值")).toBe(false);
   });
 
+  it("读取地图筛选选项时编码视图名称", async () => {
+    const { fetchMapFilterOptions } = await import("../map.js");
+
+    await fetchMapFilterOptions("虫情 总览");
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/views/%E8%99%AB%E6%83%85%20%E6%80%BB%E8%A7%88/filter-options",
+    );
+  });
+
   it("新增美国白蛾点位时提交 JSON 载荷", async () => {
     const { createWhiteMothSite } = await import("../map.js");
 

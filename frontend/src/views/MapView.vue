@@ -4,6 +4,7 @@ import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { useToast } from "../composables/useToast.js";
 import {
   createWhiteMothSite,
+  fetchMapFilterOptions,
   fetchMapView,
   fetchReferenceLayer,
   fetchWhiteMothSiteCodeRules,
@@ -27,23 +28,32 @@ function createEmptyFeatureCollection() {
 const { error, info, success } = useToast();
 const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
 const LOCALITY_FIELD = "属地";
+const SURVEY_STATUS_FILTER_KEY = "调查状态";
 const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
+const SURVEY_STATUS_FILTER_OPTIONS = [
+  { key: "all", label: "全部", value: "" },
+  { key: "completed", label: "已调查", value: "调查" },
+  { key: "pending", label: "未调查", value: "未调查" },
+];
 
 const views = ref([]);
 const selectedView = ref("");
 const basemapMode = ref("satellite");
 const showPointLabels = ref(true);
 const geojson = ref(createEmptyFeatureCollection());
+const mapFilterOptions = ref({ filter_fields: [] });
 const referenceLayers = ref([]);
 const activeReferenceLayerNames = ref([]);
 const referenceLayerGeojsonByName = shallowRef({});
 const loadingReferenceLayerNames = ref([]);
 const loading = ref(false);
 const loadingViews = ref(false);
+const loadingFilterOptions = ref(false);
 const autoFitOnDataChange = ref(true);
 const selectedFeature = ref(null);
 const searchQuery = ref("");
 const searchFocused = ref(false);
+const surveyStatusFilter = ref("all");
 const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
@@ -54,6 +64,7 @@ const whiteMothSiteForm = ref({
 const isAddingWhiteMothSite = ref(false);
 const isSavingWhiteMothSite = ref(false);
 let geojsonRequestToken = 0;
+let filterOptionsRequestToken = 0;
 let shouldAutoFitOnNextViewChange = true;
 let mapFocusRequestToken = 0;
 
@@ -188,6 +199,39 @@ const searchResults = computed(() => {
     .slice(0, SEARCH_RESULT_LIMIT);
 });
 const showSearchResults = computed(() => searchQuery.value.trim() !== "");
+const surveyStatusField = computed(() =>
+  (mapFilterOptions.value?.filter_fields || []).find(
+    (field) => field?.key === SURVEY_STATUS_FILTER_KEY,
+  ),
+);
+const supportsSurveyStatusFilter = computed(() => Boolean(surveyStatusField.value));
+const visibleSurveyStatusOptions = computed(() => {
+  const values = new Set(
+    (surveyStatusField.value?.options || [])
+      .map((option) => `${option?.value ?? ""}`.trim())
+      .filter(Boolean),
+  );
+
+  return SURVEY_STATUS_FILTER_OPTIONS.filter(
+    (option) => option.key === "all" || values.has(option.value),
+  );
+});
+const activeMapFilters = computed(() => {
+  if (!supportsSurveyStatusFilter.value || surveyStatusFilter.value === "all") {
+    return {};
+  }
+
+  const selectedOption = SURVEY_STATUS_FILTER_OPTIONS.find(
+    (option) => option.key === surveyStatusFilter.value,
+  );
+  if (!selectedOption?.value) {
+    return {};
+  }
+
+  return {
+    [SURVEY_STATUS_FILTER_KEY]: [selectedOption.value],
+  };
+});
 
 function onFeatureClick(feature) {
   if (isAddingWhiteMothSite.value) {
@@ -235,6 +279,10 @@ function clearSearch() {
 
 function closeDetail() {
   selectedFeature.value = null;
+}
+
+function resetSurveyStatusFilter() {
+  surveyStatusFilter.value = "all";
 }
 
 const currentView = computed(
@@ -311,7 +359,10 @@ async function loadViews() {
     if (!payload.length) {
       selectedView.value = "";
       geojsonRequestToken += 1;
+      filterOptionsRequestToken += 1;
       geojson.value = createEmptyFeatureCollection();
+      mapFilterOptions.value = { filter_fields: [] };
+      resetSurveyStatusFilter();
       return true;
     }
 
@@ -325,6 +376,8 @@ async function loadViews() {
     views.value = [];
     selectedView.value = "";
     geojson.value = createEmptyFeatureCollection();
+    mapFilterOptions.value = { filter_fields: [] };
+    resetSurveyStatusFilter();
     if (isUnauthorizedError(loadError)) {
       return false;
     }
@@ -347,6 +400,49 @@ async function loadWhiteMothSiteCodeRules() {
   }
 }
 
+async function loadFilterOptions(viewName = selectedView.value) {
+  if (!viewName) {
+    loadingFilterOptions.value = false;
+    mapFilterOptions.value = { filter_fields: [] };
+    resetSurveyStatusFilter();
+    return false;
+  }
+
+  const requestToken = ++filterOptionsRequestToken;
+  loadingFilterOptions.value = true;
+
+  try {
+    const payload = await fetchMapFilterOptions(viewName);
+    if (requestToken !== filterOptionsRequestToken || viewName !== selectedView.value) {
+      return false;
+    }
+    mapFilterOptions.value = payload || { filter_fields: [] };
+    if (
+      !(mapFilterOptions.value?.filter_fields || []).some(
+        (field) => field?.key === SURVEY_STATUS_FILTER_KEY,
+      )
+    ) {
+      resetSurveyStatusFilter();
+    }
+    return true;
+  } catch (loadError) {
+    if (requestToken !== filterOptionsRequestToken || viewName !== selectedView.value) {
+      return false;
+    }
+    mapFilterOptions.value = { filter_fields: [] };
+    resetSurveyStatusFilter();
+    if (isUnauthorizedError(loadError)) {
+      return false;
+    }
+    info(`${loadError.message || loadError}`, "地图筛选不可用");
+    return false;
+  } finally {
+    if (requestToken === filterOptionsRequestToken) {
+      loadingFilterOptions.value = false;
+    }
+  }
+}
+
 async function loadGeoJson({ autoFit = false } = {}) {
   if (!selectedView.value) {
     loading.value = false;
@@ -359,7 +455,7 @@ async function loadGeoJson({ autoFit = false } = {}) {
   loading.value = true;
 
   try {
-    const payload = await fetchMapView(viewName, {});
+    const payload = await fetchMapView(viewName, activeMapFilters.value);
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
       return false;
     }
@@ -380,6 +476,23 @@ async function loadGeoJson({ autoFit = false } = {}) {
       loading.value = false;
     }
   }
+}
+
+async function selectSurveyStatusFilter(filterKey) {
+  if (
+    loading.value ||
+    loadingViews.value ||
+    loadingFilterOptions.value ||
+    filterKey === surveyStatusFilter.value ||
+    !visibleSurveyStatusOptions.value.some((option) => option.key === filterKey)
+  ) {
+    return;
+  }
+
+  surveyStatusFilter.value = filterKey;
+  selectedFeature.value = null;
+  mapFocusRequest.value = null;
+  await loadGeoJson({ autoFit: false });
 }
 
 function setReferenceLayerLoading(layerName, isLoading) {
@@ -587,11 +700,15 @@ watch(selectedView, async () => {
   storeSelectedView(selectedView.value);
   selectedFeature.value = null;
   clearSearch();
+  resetSurveyStatusFilter();
   mapFocusRequest.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
-  await loadGeoJson({ autoFit: shouldAutoFit });
+  await Promise.all([
+    loadFilterOptions(),
+    loadGeoJson({ autoFit: shouldAutoFit }),
+  ]);
 });
 
 onMounted(async () => {
@@ -635,6 +752,32 @@ onMounted(async () => {
             搜索
           </button>
         </form>
+
+        <div
+          v-if="supportsSurveyStatusFilter"
+          class="map-survey-status-filter"
+          data-testid="map-survey-status-filter"
+          aria-label="调查状态筛选"
+        >
+          <div class="map-survey-status-segments" role="group" aria-label="调查状态">
+            <button
+              v-for="option in visibleSurveyStatusOptions"
+              :key="option.key"
+              type="button"
+              class="map-survey-status-option"
+              :class="{ 'is-active': surveyStatusFilter === option.key }"
+              :data-testid="`map-survey-status-${option.key}`"
+              :aria-pressed="surveyStatusFilter === option.key"
+              :disabled="loading || loadingViews || loadingFilterOptions"
+              @click="selectSurveyStatusFilter(option.key)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <span class="map-survey-status-count" data-testid="map-survey-status-count">
+            当前显示 {{ pointCount }} 个点位
+          </span>
+        </div>
 
         <div
           v-if="showSearchResults"
@@ -964,6 +1107,64 @@ onMounted(async () => {
 
 .map-search-submit:disabled {
   opacity: 0.45;
+}
+
+.map-survey-status-filter {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(12px);
+}
+
+.map-survey-status-segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.map-survey-status-option {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: 1;
+  transform: none;
+}
+
+.map-survey-status-option:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+  box-shadow: none;
+  color: var(--color-text);
+  transform: none;
+}
+
+.map-survey-status-option.is-active {
+  border-color: color-mix(in oklch, var(--color-primary) 68%, transparent);
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.map-survey-status-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.map-survey-status-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .map-search-results {

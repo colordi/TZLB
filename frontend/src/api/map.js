@@ -26,6 +26,14 @@ export async function fetchWhiteMothSiteCodeRules() {
   return response.json();
 }
 
+export async function fetchMapFilterOptions(name) {
+  const response = await apiFetch(
+    `/api/map/views/${encodeURIComponent(name)}/filter-options`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function createWhiteMothSite(payload) {
   const response = await apiFetch("/api/map/white-moth-sites", {
     method: "POST",

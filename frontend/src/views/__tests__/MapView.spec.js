@@ -3,10 +3,10 @@ import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MapView from "../MapView.vue";
-import { mapActions, mapStore } from "../../stores/mapStore.js";
 
 const apiMocks = vi.hoisted(() => ({
   listMapViews: vi.fn(),
+  fetchMapFilterOptions: vi.fn(),
   fetchWhiteMothSiteCodeRules: vi.fn(),
   createWhiteMothSite: vi.fn(),
   fetchMapView: vi.fn(),
@@ -16,6 +16,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../api/map.js", () => ({
   listMapViews: apiMocks.listMapViews,
+  fetchMapFilterOptions: apiMocks.fetchMapFilterOptions,
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
   fetchMapView: apiMocks.fetchMapView,
@@ -149,25 +150,9 @@ function getLeafletMapStub(wrapper) {
   return wrapper.getComponent(LeafletMapStub);
 }
 
-function resetMapContext() {
-  mapActions.setReady(false);
-  mapActions.setViews([]);
-  mapActions.setSelectedView("");
-  mapActions.setLoadingViews(false);
-  mapActions.setFilterFields([]);
-  mapActions.setActiveFilters({});
-  mapActions.setOpenFilterMenus({});
-  mapActions.setBasemapMode("standard");
-  mapActions.setShowPointLabels(true);
-  mapActions.setLoading(false);
-  mapActions.setFilterPanelOpen(false);
-  mapActions.setActiveFilterCount(0);
-}
-
 describe("MapView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetMapContext();
     window.localStorage.clear();
     apiMocks.listMapViews.mockResolvedValue([
       {
@@ -179,6 +164,34 @@ describe("MapView", () => {
         columns: ["编号", "总虫口数"],
       },
     ]);
+    apiMocks.fetchMapFilterOptions.mockImplementation(async (viewName) => {
+      if (viewName === "高风险点位") {
+        return {
+          localities: [],
+          supports_locality_filter: false,
+          supports_survey_status_filter: false,
+          filter_fields: [],
+        };
+      }
+
+      return {
+        localities: [],
+        supports_locality_filter: false,
+        supports_survey_status_filter: true,
+        filter_fields: [
+          {
+            key: "调查状态",
+            label: "调查状态",
+            type: "select",
+            options: [
+              { value: "调查", label: "调查" },
+              { value: "未调查", label: "未调查" },
+            ],
+            default_value: "",
+          },
+        ],
+      };
+    });
     apiMocks.fetchMapView.mockResolvedValue({
       type: "FeatureCollection",
       features: [],
@@ -229,6 +242,123 @@ describe("MapView", () => {
       expect(mapStub.props("popupFields")).toEqual(["属地", "村", "调查日期"]);
       expect(mapStub.props("basemapMode")).toBe("satellite");
       expect(mapStub.props("showPointLabels")).toBe(true);
+    });
+  });
+
+  it("支持调查日期字段的 view 展示调查状态筛选和当前结果数量", async () => {
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        {
+          type: "Feature",
+          properties: { 编号: "MQ001", 调查日期: "2026-06-01" },
+          geometry: { type: "Point", coordinates: [116.5, 39.7] },
+        },
+        {
+          type: "Feature",
+          properties: { 编号: "MQ002" },
+          geometry: { type: "Point", coordinates: [116.6, 39.8] },
+        },
+      ]),
+    );
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
+        "全部",
+      );
+      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
+        "已调查",
+      );
+      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
+        "未调查",
+      );
+      expect(wrapper.get('[data-testid="map-survey-status-count"]').text()).toContain(
+        "当前显示 2 个点位",
+      );
+    });
+  });
+
+  it("点击未调查后按调查状态筛选当前 view 且不自动缩放", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="map-survey-status-pending"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    apiMocks.fetchMapView.mockClear();
+    apiMocks.fetchMapView.mockResolvedValueOnce(
+      createFeatureCollection([
+        {
+          type: "Feature",
+          properties: { 编号: "MQ002" },
+          geometry: { type: "Point", coordinates: [116.6, 39.8] },
+        },
+      ]),
+    );
+
+    await wrapper.get('[data-testid="map-survey-status-pending"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
+        调查状态: ["未调查"],
+      });
+      expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
+      expect(wrapper.get('[data-testid="map-survey-status-pending"]').classes()).toContain(
+        "is-active",
+      );
+    });
+  });
+
+  it("点击已调查后按调查状态筛选当前 view", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="map-survey-status-completed"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    apiMocks.fetchMapView.mockClear();
+    apiMocks.fetchMapView.mockResolvedValueOnce(createFeatureCollection([]));
+
+    await wrapper.get('[data-testid="map-survey-status-completed"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
+        调查状态: ["调查"],
+      });
+      expect(wrapper.get('[data-testid="map-survey-status-completed"]').classes()).toContain(
+        "is-active",
+      );
+    });
+  });
+
+  it("切换到不支持调查状态的 view 后隐藏筛选并重置为空筛选", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(true);
+      expect(
+        wrapper.get('[data-testid="map-survey-status-pending"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-pending"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
+        调查状态: ["未调查"],
+      });
+    });
+
+    apiMocks.fetchMapView.mockClear();
+    getLeafletMapStub(wrapper).vm.$emit("update:viewName", "高风险点位");
+    await nextTick();
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
     });
   });
 

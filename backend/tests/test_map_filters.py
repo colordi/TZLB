@@ -75,6 +75,41 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_filter_options_include_survey_status_when_survey_date_exists(self) -> None:
+        async def fake_fetch(query: str, *args):
+            if '"属地"' in query:
+                return [{"value": "宋庄镇"}]
+            return []
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "虫情总览",
+                        "columns": ["编号", "属地", "调查日期"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            payload = await fetch_map_filter_options("虫情总览")
+
+        self.assertTrue(payload["supports_survey_status_filter"])
+        self.assertIn(
+            {
+                "key": "调查状态",
+                "label": "调查状态",
+                "type": "select",
+                "options": [
+                    {"value": "调查", "label": "调查"},
+                    {"value": "未调查", "label": "未调查"},
+                ],
+                "default_value": "",
+            },
+            payload["filter_fields"],
+        )
+
     def test_filter_values_are_sorted_by_business_order(self) -> None:
         self.assertEqual(sort_filter_values("年份", ["2025", "2024"]), ["2024", "2025"])
         self.assertEqual(
