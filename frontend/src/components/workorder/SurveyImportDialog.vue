@@ -63,7 +63,7 @@ const candidateColumns = computed(() => {
   if (isMeiGuoBaiE.value) {
     return [
       { key: "location_id", label: "编号", fallback: "—" },
-      { key: "town_or_street", label: "属地", fallback: "未匹配" },
+      { key: "locality", label: "属地", fallback: "未匹配" },
       { key: "location_name", label: "点位名称", fallback: "未匹配" },
       { key: "green_space_type", label: "绿地性质", fallback: "—" },
       { key: "pest_hosts", label: "危害寄主", fallback: "—" },
@@ -75,7 +75,7 @@ const candidateColumns = computed(() => {
   if (isOtherPest.value) {
     return [
       { key: "location_id", label: "编号", fallback: "—" },
-      { key: "town_or_street", label: "属地", fallback: "未匹配" },
+      { key: "locality", label: "属地", fallback: "未匹配" },
       { key: "location_name", label: "点位名称", fallback: "未匹配" },
       { key: "pest_name", label: "虫害类型", fallback: "—" },
       { key: "host_plant", label: "寄主树种", fallback: "—" },
@@ -85,7 +85,7 @@ const candidateColumns = computed(() => {
 
   return [
     { key: "location_id", label: "编号", fallback: "—" },
-    { key: "town_or_street", label: "属地", fallback: "未匹配" },
+    { key: "locality", label: "属地", fallback: "未匹配" },
     { key: "location_name", label: "点位名称", fallback: "未匹配" },
     { key: "total_insect_count", label: "总虫口数", fallback: "—" },
     { key: "damage_level", label: "受害程度", fallback: "—" },

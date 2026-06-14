@@ -7,6 +7,7 @@ import {
   getDefaultTask,
   getTaskOptions,
   getVisibleFields,
+  normalizeRecordForPest,
   toPayloadRecord,
   validateRecords,
 } from "../fieldConfig.js";
@@ -99,6 +100,21 @@ describe("fieldConfig", () => {
     expect(getTaskOptions("美国白蛾").map((option) => option.value)).toEqual([
       "2026美国白蛾第一代防治",
     ]);
+  });
+
+  it("归一化导入记录时兼容旧属地字段", () => {
+    const normalized = normalizeRecordForPest(
+      {
+        survey_date: "2026-04-01",
+        town_or_street: "于家务乡",
+        location_id: "YF0069",
+        location_name: "神仙村",
+        description: "现场描述",
+      },
+      "春尺蠖",
+    );
+
+    expect(normalized.locality).toBe("于家务乡");
   });
 
   it("国槐尺蠖默认统防统治类型与任务改为国槐尺蠖防治", () => {

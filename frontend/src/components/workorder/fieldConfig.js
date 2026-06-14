@@ -80,6 +80,12 @@ const FIELD_DEFINITIONS = {
     type: "select",
     options: ["乡镇", "城区"],
   },
+  locality: {
+    key: "locality",
+    label: "属地",
+    type: "text",
+    required: true,
+  },
   town_or_street: {
     key: "town_or_street",
     label: "属地",
@@ -342,7 +348,7 @@ export function normalizeRecordForPest(record, pestType) {
   const next = {
     survey_date: record.survey_date || getTodayDate(),
     region: record.region || defaultRegion,
-    locality: record.locality || "",
+    locality: record.locality || record.town_or_street || "",
     location_id: record.location_id || "",
     location_name: record.location_name || "",
     occurrence_position: record.occurrence_position || "",

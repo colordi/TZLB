@@ -353,6 +353,28 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")[1].location_id).toBe("HX0002");
   });
 
+  it("追加数据库记录使用旧属地字段时仍显示到工单列表", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await importRecords(wrapper, [
+      {
+        survey_date: "2026-04-01",
+        town_or_street: "于家务乡",
+        location_id: "YF0069",
+        location_name: "神仙村",
+        total_insect_count: 50,
+        damage_level: "重",
+        note: "",
+        description: "描述1",
+      },
+    ]);
+
+    const recordTable = wrapper.getComponent(RecordTableStub);
+    expect(recordTable.props("records")).toHaveLength(1);
+    expect(recordTable.props("records")[0].locality).toBe("于家务乡");
+    expect(recordTable.props("records")[0].location_name).toBe("神仙村");
+  });
+
   it("搜索只过滤当前已导入记录，并保留原始行下标用于编辑", async () => {
     const wrapper = mountWorkOrderView();
 

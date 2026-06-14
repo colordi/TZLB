@@ -75,7 +75,7 @@ const filteredRecordItems = computed(() => {
       return [
         record.location_name,
         record.location_id,
-        record.town_or_street,
+        record.locality,
         record.description,
         record.note,
       ].some((value) => `${value || ""}`.toLocaleLowerCase("zh-CN").includes(query));
