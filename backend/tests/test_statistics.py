@@ -111,7 +111,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('WHEN l."剪网彻底" = \'是\'', WHITE_MOTH_DAILY_SQL)
         self.assertNotIn('COALESCE(l."防治次数", 0) = 0\n            AND l."剪网彻底" = \'是\'', WHITE_MOTH_DAILY_SQL)
         self.assertIn('lc."完成日期" <= d."日期"', WHITE_MOTH_DAILY_SQL)
-        self.assertIn('ORDER BY\n    d."日期"', WHITE_MOTH_DAILY_SQL)
+        self.assertIn('ORDER BY\n    d."日期" DESC', WHITE_MOTH_DAILY_SQL)
 
     def test_serialize_row_maps_chinese_columns_to_public_keys(self) -> None:
         row = build_row(date(2026, 6, 2), 341, 70)

@@ -28,16 +28,16 @@ function buildPayload() {
     ],
     rows: [
       {
-        date: "2026-05-31",
-        daily_treatment_plants: 122,
-        cumulative_completed_points: 37,
-        daily_dispatch_points: 10,
-      },
-      {
         date: "2026-06-01",
         daily_treatment_plants: 210,
         cumulative_completed_points: 51,
         daily_dispatch_points: 28,
+      },
+      {
+        date: "2026-05-31",
+        daily_treatment_plants: 122,
+        cumulative_completed_points: 37,
+        daily_dispatch_points: 10,
       },
     ],
   };

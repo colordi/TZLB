@@ -19,7 +19,7 @@ const columns = ref([]);
 const rows = ref([]);
 const selectedPest = ref("white-moth");
 
-const latestRow = computed(() => rows.value[rows.value.length - 1] || null);
+const latestRow = computed(() => rows.value[0] || null);
 
 const summaryCards = computed(() => [
   {

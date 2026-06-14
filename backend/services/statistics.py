@@ -163,7 +163,7 @@ FROM
     LEFT JOIN completed_daily cd
         ON cd."日期" = d."日期"
 ORDER BY
-    d."日期";
+    d."日期" DESC;
 """
 
 WHITE_MOTH_ROW_FIELD_MAP: tuple[tuple[str, str], ...] = (
