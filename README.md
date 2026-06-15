@@ -105,11 +105,19 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 生产环境务必覆盖以下配置：
 
+- `APP_ENV=production`：启用生产启动校验
 - `DATABASE_URL`：PostgreSQL/PostGIS 连接串
 - `AUTH_SECRET_KEY`：会话签名密钥
 - `AUTH_DEFAULT_ADMIN_USERNAME` / `AUTH_DEFAULT_ADMIN_PASSWORD`：初始管理员账号
 - `AUTH_COOKIE_SECURE=true`：HTTPS 部署时启用安全 Cookie
+- `AUTH_BYPASS_LOCALHOST=false`：生产环境禁止本机免登
 - `LIBREOFFICE_BIN`：服务器上的 LibreOffice 可执行文件路径
+- `WORKORDER_DEFAULT_OUTPUT_FORMAT=doc`：默认仍输出 `.doc`，也可按请求直出 `.docx`
+- `WORKORDER_IMAGE_MAX_BYTES` / `WORKORDER_IMAGE_MAX_TOTAL_BYTES`：单图和单记录图片总大小限制
+- `WORKORDER_IMAGE_MAX_DIMENSION`：插入 Word 前图片最长边压缩阈值
+
+`APP_ENV=production` 时，如果仍使用默认 `AUTH_SECRET_KEY`、默认管理员密码、
+`AUTH_COOKIE_SECURE=false` 或 `AUTH_BYPASS_LOCALHOST=true`，后端会在启动阶段直接失败。
 
 ## 数据库约定
 
@@ -161,7 +169,7 @@ WGS84 GeoJSON。除 `views."通州区监测点位分布"` 外，地图视图默�
 - 密码：`Forestry@2026`
 
 默认账号已存在时不会覆盖。正式部署前请在 `.env` 中改掉默认账号、密码和
-`AUTH_SECRET_KEY`。
+`AUTH_SECRET_KEY`。如果 `APP_ENV=production` 下仍保留默认值，服务会拒绝启动。
 
 用户角色：
 
@@ -246,6 +254,8 @@ npm test
 cd frontend
 npm run build
 ```
+
+GitHub Actions 会在 `push` 和 `pull_request` 上执行同样的后端测试、前端测试和前端构建。
 
 ## 常见问题
 

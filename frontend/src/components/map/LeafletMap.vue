@@ -80,6 +80,7 @@ const emit = defineEmits([
   "update:showPointLabels",
   "feature-click",
   "map-click",
+  "viewport-change",
   "toggle-reference-layer",
   "toggle-white-moth-site-add",
 ]);
@@ -936,6 +937,41 @@ function handleMapClick(event) {
   });
 }
 
+function getCurrentViewport() {
+  const map = mapRef.value;
+  const bounds = map?.getBounds?.();
+  if (!bounds?.getWest || !bounds?.getSouth || !bounds?.getEast || !bounds?.getNorth) {
+    return null;
+  }
+
+  return {
+    bbox: [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth(),
+    ],
+    zoom: map.getZoom?.() ?? null,
+  };
+}
+
+function emitViewportChange() {
+  const viewport = getCurrentViewport();
+  if (viewport) {
+    emit("viewport-change", viewport);
+  }
+}
+
+function handleMoveEnd() {
+  refreshPointLabels();
+  emitViewportChange();
+}
+
+function handleZoomEnd() {
+  refreshPointRendering();
+  emitViewportChange();
+}
+
 defineExpose({
   locateToUser,
 });
@@ -953,8 +989,9 @@ onMounted(() => {
   renderSurveyCompletionMarkers(props.geojson);
   renderPointLabels(props.geojson);
   updateWhiteMothSiteDraftMarker();
-  mapRef.value.on?.("moveend", refreshPointLabels);
-  mapRef.value.on?.("zoomend", refreshPointRendering);
+  emitViewportChange();
+  mapRef.value.on?.("moveend", handleMoveEnd);
+  mapRef.value.on?.("zoomend", handleZoomEnd);
   mapRef.value.on?.("click", handleMapClick);
 });
 
@@ -1039,8 +1076,8 @@ onBeforeUnmount(() => {
   clearLayer(whiteMothSiteDraftMarkerRef);
 
   if (mapRef.value) {
-    mapRef.value.off?.("moveend", refreshPointLabels);
-    mapRef.value.off?.("zoomend", refreshPointRendering);
+    mapRef.value.off?.("moveend", handleMoveEnd);
+    mapRef.value.off?.("zoomend", handleZoomEnd);
     mapRef.value.off?.("click", handleMapClick);
     mapRef.value.remove();
     mapRef.value = null;
@@ -1906,9 +1943,10 @@ onBeforeUnmount(() => {
   }
 
   .map-layer-panel {
-    top: 5rem;
+    top: 9.5rem;
     right: 4.25rem;
     width: min(15rem, calc(100% - 5.5rem));
+    max-height: calc(100% - 10.5rem);
   }
 
   :deep(.leaflet-right .leaflet-control) {

@@ -38,6 +38,24 @@ describe("api/map", () => {
     expect(search.has("空值")).toBe(false);
   });
 
+  it("读取地图视图时序列化 bbox 和 limit", async () => {
+    const { fetchMapView } = await import("../map.js");
+
+    await fetchMapView(
+      "虫情 总览",
+      { 年份: "2026" },
+      { bbox: [116.1, 39.5, 116.9, 40.1], limit: 1000 },
+    );
+
+    const url = httpMocks.apiFetch.mock.calls[0][0];
+    const [, query] = url.split("?");
+    const search = new URLSearchParams(query);
+
+    expect(search.get("年份")).toBe("2026");
+    expect(search.get("bbox")).toBe("116.1,39.5,116.9,40.1");
+    expect(search.get("limit")).toBe("1000");
+  });
+
   it("读取地图筛选选项时编码视图名称", async () => {
     const { fetchMapFilterOptions } = await import("../map.js");
 
@@ -93,10 +111,19 @@ describe("api/map", () => {
   it("读取指定参考图层时编码图层名称", async () => {
     const { fetchReferenceLayer } = await import("../map.js");
 
-    await fetchReferenceLayer("通州区小区边界");
+    await fetchReferenceLayer("通州区小区边界", {
+      bbox: [116.1, 39.5, 116.9, 40.1],
+      limit: 1000,
+    });
 
-    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+    const url = httpMocks.apiFetch.mock.calls[0][0];
+    const [path, query] = url.split("?");
+    const search = new URLSearchParams(query);
+
+    expect(path).toBe(
       "/api/map/reference-layers/%E9%80%9A%E5%B7%9E%E5%8C%BA%E5%B0%8F%E5%8C%BA%E8%BE%B9%E7%95%8C",
     );
+    expect(search.get("bbox")).toBe("116.1,39.5,116.9,40.1");
+    expect(search.get("limit")).toBe("1000");
   });
 });

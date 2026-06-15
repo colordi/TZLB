@@ -78,6 +78,7 @@ const LeafletMapStub = defineComponent({
     "toggle-white-moth-site-add",
     "toggle-reference-layer",
     "map-click",
+    "viewport-change",
   ],
   computed: {
     legendLabels() {
@@ -149,6 +150,11 @@ function mountMapView() {
 function getLeafletMapStub(wrapper) {
   return wrapper.getComponent(LeafletMapStub);
 }
+
+const DEFAULT_MAP_OPTIONS = {
+  bbox: null,
+  limit: 1000,
+};
 
 describe("MapView", () => {
   beforeEach(() => {
@@ -301,9 +307,13 @@ describe("MapView", () => {
     await wrapper.get('[data-testid="map-survey-status-pending"]').trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
-        调查状态: ["未调查"],
-      });
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "虫情总览",
+        {
+          调查状态: ["未调查"],
+        },
+        DEFAULT_MAP_OPTIONS,
+      );
       expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
       expect(wrapper.get('[data-testid="map-survey-status-pending"]').classes()).toContain(
         "is-active",
@@ -326,9 +336,13 @@ describe("MapView", () => {
     await wrapper.get('[data-testid="map-survey-status-completed"]').trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
-        调查状态: ["调查"],
-      });
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "虫情总览",
+        {
+          调查状态: ["调查"],
+        },
+        DEFAULT_MAP_OPTIONS,
+      );
       expect(wrapper.get('[data-testid="map-survey-status-completed"]').classes()).toContain(
         "is-active",
       );
@@ -347,9 +361,13 @@ describe("MapView", () => {
 
     await wrapper.get('[data-testid="map-survey-status-pending"]').trigger("click");
     await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("虫情总览", {
-        调查状态: ["未调查"],
-      });
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "虫情总览",
+        {
+          调查状态: ["未调查"],
+        },
+        DEFAULT_MAP_OPTIONS,
+      );
     });
 
     apiMocks.fetchMapView.mockClear();
@@ -358,7 +376,11 @@ describe("MapView", () => {
 
     await vi.waitFor(() => {
       expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "高风险点位",
+        {},
+        DEFAULT_MAP_OPTIONS,
+      );
     });
   });
 
@@ -368,7 +390,10 @@ describe("MapView", () => {
     await vi.waitFor(() => {
       const referenceLayers = getLeafletMapStub(wrapper).props("referenceLayers");
 
-      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith("通州区行政区边界");
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith(
+        "通州区行政区边界",
+        DEFAULT_MAP_OPTIONS,
+      );
       expect(referenceLayers).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -386,12 +411,52 @@ describe("MapView", () => {
     getLeafletMapStub(wrapper).vm.$emit("toggle-reference-layer", "通州区小区边界");
 
     await vi.waitFor(() => {
-      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith("通州区小区边界");
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith(
+        "通州区小区边界",
+        DEFAULT_MAP_OPTIONS,
+      );
       expect(
         getLeafletMapStub(wrapper)
           .props("referenceLayers")
           .find((layer) => layer.name === "通州区小区边界").active,
       ).toBe(true);
+    });
+  });
+
+  it("地图视窗变化后带 bbox 重新请求当前视图和已开启参考图层", async () => {
+    const wrapper = mountMapView();
+    const bbox = [116.1, 39.5, 116.9, 40.1];
+    const requestOptions = {
+      bbox,
+      limit: 1000,
+    };
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalled();
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith(
+        "通州区行政区边界",
+        DEFAULT_MAP_OPTIONS,
+      );
+    });
+
+    apiMocks.fetchMapView.mockClear();
+    apiMocks.fetchReferenceLayer.mockClear();
+
+    getLeafletMapStub(wrapper).vm.$emit("viewport-change", {
+      bbox,
+      zoom: 13,
+    });
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "虫情总览",
+        {},
+        requestOptions,
+      );
+      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith(
+        "通州区行政区边界",
+        requestOptions,
+      );
     });
   });
 
@@ -407,7 +472,11 @@ describe("MapView", () => {
       expect(mapStub.props("popupFields")).toEqual(["编号", "总虫口数"]);
     });
 
-    expect(apiMocks.fetchMapView).toHaveBeenCalledWith("高风险点位", {});
+    expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+      "高风险点位",
+      {},
+      DEFAULT_MAP_OPTIONS,
+    );
   });
 
   it("地图图层面板切换编号后更新传给 LeafletMap 的 showPointLabels", async () => {

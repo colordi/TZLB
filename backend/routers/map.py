@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request, status
 
 from backend.db.postgres import (
+    MAP_DEFAULT_LIMIT,
+    MAP_MAX_LIMIT,
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
     create_white_moth_site,
@@ -19,6 +21,44 @@ from backend.schemas import WhiteMothSiteCreateRequest, WhiteMothSiteResponse
 
 
 router = APIRouter()
+RESERVED_VIEW_QUERY_PARAMS = {"bbox", "limit"}
+
+
+def parse_bbox(raw_value: str | None) -> tuple[float, float, float, float] | None:
+    if raw_value is None or raw_value.strip() == "":
+        return None
+
+    parts = [part.strip() for part in raw_value.split(",")]
+    if len(parts) != 4:
+        raise ValueError("bbox 参数格式应为 minLng,minLat,maxLng,maxLat")
+
+    try:
+        min_lng, min_lat, max_lng, max_lat = [float(part) for part in parts]
+    except ValueError as exc:
+        raise ValueError("bbox 参数必须是数字") from exc
+
+    if not (-180 <= min_lng <= 180 and -180 <= max_lng <= 180):
+        raise ValueError("bbox 经度必须在 -180 到 180 之间")
+    if not (-90 <= min_lat <= 90 and -90 <= max_lat <= 90):
+        raise ValueError("bbox 纬度必须在 -90 到 90 之间")
+    if min_lng >= max_lng or min_lat >= max_lat:
+        raise ValueError("bbox 最小坐标必须小于最大坐标")
+
+    return min_lng, min_lat, max_lng, max_lat
+
+
+def parse_limit(raw_value: str | None) -> int:
+    if raw_value is None or raw_value.strip() == "":
+        return MAP_DEFAULT_LIMIT
+
+    try:
+        limit = int(raw_value)
+    except ValueError as exc:
+        raise ValueError("limit 参数必须是整数") from exc
+
+    if limit < 1 or limit > MAP_MAX_LIMIT:
+        raise ValueError(f"limit 参数必须在 1 到 {MAP_MAX_LIMIT} 之间")
+    return limit
 
 
 @router.get("/views", summary="列出地图视图")
@@ -74,13 +114,19 @@ async def get_view_geojson(view_name: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail=f"视图不存在：{view_name}")
 
     try:
+        bbox = parse_bbox(request.query_params.get("bbox"))
+        limit = parse_limit(request.query_params.get("limit"))
         filters: dict[str, list[str]] = {}
         for key, value in request.query_params.multi_items():
+            if key in RESERVED_VIEW_QUERY_PARAMS:
+                continue
             filters.setdefault(key, []).append(value)
 
         return await fetch_view_feature_collection(
             view_name=view_name,
             filters=filters,
+            bbox=bbox,
+            limit=limit,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -107,9 +153,19 @@ async def get_admin_boundary_geojson() -> dict:
 
 
 @router.get("/reference-layers/{layer_name}", summary="读取指定参考图层 GeoJSON")
-async def get_reference_layer_geojson(layer_name: str) -> dict:
+async def get_reference_layer_geojson(layer_name: str, request: Request) -> dict:
     try:
-        return await fetch_reference_layer_feature_collection(layer_name)
+        bbox = parse_bbox(request.query_params.get("bbox"))
+        limit = parse_limit(request.query_params.get("limit"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        return await fetch_reference_layer_feature_collection(
+            layer_name,
+            bbox=bbox,
+            limit=limit,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001

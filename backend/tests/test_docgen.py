@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import unittest
 import zipfile
@@ -8,6 +9,8 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from PIL import Image
+
 from backend.schemas import WorkOrderGenerateRequest
 from backend.services.docgen import (
     convert_docx_bytes_to_doc,
@@ -15,6 +18,8 @@ from backend.services.docgen import (
     generate_workorder_artifact,
     render_single_document,
     resolve_meiguobaie_image_paths,
+    sanitize_existing_image_paths,
+    save_base64_images,
 )
 
 
@@ -35,6 +40,26 @@ def create_payload() -> WorkOrderGenerateRequest:
             }
         ],
     )
+
+
+def create_image_bytes(image_format: str = "PNG", size: tuple[int, int] = (8, 8)) -> bytes:
+    buffer = io.BytesIO()
+    mode = "RGBA" if image_format.upper() in {"PNG", "WEBP"} else "RGB"
+    color = (255, 0, 0, 128) if mode == "RGBA" else (255, 0, 0)
+    Image.new(mode, size, color).save(buffer, format=image_format)
+    return buffer.getvalue()
+
+
+def build_image_settings(temp_dir: Path, **overrides):
+    payload = {
+        "temp_dir": temp_dir,
+        "workorder_image_max_bytes": 8 * 1024 * 1024,
+        "workorder_image_max_total_bytes": 24 * 1024 * 1024,
+        "workorder_image_max_dimension": 1600,
+        "workorder_default_output_format": "doc",
+    }
+    payload.update(overrides)
+    return SimpleNamespace(**payload)
 
 
 class DocgenTest(unittest.TestCase):
@@ -107,6 +132,119 @@ class DocgenTest(unittest.TestCase):
                 generate_workorder_artifact(payload)
 
         self.assertEqual(str(context.exception), "LibreOffice 转换失败：filter not found")
+
+    def test_generate_workorder_artifact_returns_docx_when_requested(self) -> None:
+        payload = create_payload()
+        payload.output_format = "docx"
+
+        with (
+            patch("backend.services.docgen.get_template_path", return_value=Path("/tmp/template.docx")),
+            patch(
+                "backend.services.docgen.render_single_document",
+                return_value=("测试工作单.docx", b"docx-binary"),
+            ),
+            patch("backend.services.docgen.convert_docx_bytes_to_doc") as mocked_convert,
+        ):
+            artifact = generate_workorder_artifact(payload)
+
+        self.assertEqual(artifact.filename, "测试工作单.docx")
+        self.assertEqual(
+            artifact.media_type,
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        self.assertEqual(artifact.content, b"docx-binary")
+        mocked_convert.assert_not_called()
+
+    def test_save_base64_images_rejects_disguised_image_payload(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            with patch(
+                "backend.services.docgen.get_settings",
+                return_value=build_image_settings(Path(tempdir)),
+            ):
+                with self.assertRaises(ValueError) as context:
+                    save_base64_images(
+                        [
+                            "data:image/jpeg;base64,"
+                            + base64.b64encode(b"not-an-image").decode("ascii")
+                        ],
+                        "row_1",
+                    )
+
+        self.assertIn("不是有效图片", str(context.exception))
+
+    def test_save_base64_images_rejects_unsupported_real_format(self) -> None:
+        gif_bytes = create_image_bytes("GIF")
+
+        with TemporaryDirectory() as tempdir:
+            with patch(
+                "backend.services.docgen.get_settings",
+                return_value=build_image_settings(Path(tempdir)),
+            ):
+                with self.assertRaises(ValueError) as context:
+                    save_base64_images(
+                        [
+                            "data:image/gif;base64,"
+                            + base64.b64encode(gif_bytes).decode("ascii")
+                        ],
+                        "row_1",
+                    )
+
+        self.assertIn("格式不支持", str(context.exception))
+
+    def test_save_base64_images_rejects_oversized_image_before_decode(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            with patch(
+                "backend.services.docgen.get_settings",
+                return_value=build_image_settings(Path(tempdir), workorder_image_max_bytes=4),
+            ):
+                with self.assertRaises(ValueError) as context:
+                    save_base64_images(
+                        [
+                            "data:image/png;base64,"
+                            + base64.b64encode(create_image_bytes("PNG")).decode("ascii")
+                        ],
+                        "row_1",
+                    )
+
+        self.assertIn("超过单图大小限制", str(context.exception))
+
+    def test_save_base64_images_normalizes_supported_image_to_jpeg(self) -> None:
+        png_bytes = create_image_bytes("PNG")
+
+        with TemporaryDirectory() as tempdir:
+            with patch(
+                "backend.services.docgen.get_settings",
+                return_value=build_image_settings(Path(tempdir)),
+            ):
+                paths = save_base64_images(
+                    [
+                        "data:image/png;base64,"
+                        + base64.b64encode(png_bytes).decode("ascii")
+                    ],
+                    "row_1",
+                )
+                with Image.open(paths[0]) as image:
+                    image_format = image.format
+                    mode = image.mode
+
+        self.assertEqual(image_format, "JPEG")
+        self.assertEqual(mode, "RGB")
+
+    def test_sanitize_existing_image_paths_normalizes_disk_images(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            source_path = root / "MQ001.png"
+            source_path.write_bytes(create_image_bytes("PNG"))
+
+            with patch(
+                "backend.services.docgen.get_settings",
+                return_value=build_image_settings(root / "tmp"),
+            ):
+                paths = sanitize_existing_image_paths([source_path], "row_1")
+                with Image.open(paths[0]) as image:
+                    image_format = image.format
+
+        self.assertEqual(image_format, "JPEG")
 
     def test_render_single_document_renders_serial_number_from_template(self) -> None:
         payload = create_payload()

@@ -51,6 +51,7 @@ class WorkOrderGenerateRequest(BaseModel):
     pest_type: PestType
     task_type: TaskType
     task: str = ""
+    output_format: Literal["doc", "docx"] | None = None
     records: list[WorkOrderRecord]
 
     @field_validator("records")

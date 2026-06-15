@@ -17,6 +17,8 @@ env/
 
 # 点开头的本地配置文件夹（IDE、工具链等）
 .*/
+!.github/
+!.github/**
 .idea/
 .vscode/
 .cursor/

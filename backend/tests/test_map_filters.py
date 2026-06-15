@@ -11,6 +11,7 @@ from backend.db.postgres import (
     records_to_feature_collection,
     sort_filter_values,
 )
+from backend.routers.map import parse_bbox, parse_limit
 
 
 class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
@@ -149,7 +150,55 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', query)
         self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
         self.assertIn('"调查日期" IS NOT NULL', query)
-        self.assertEqual(args, (["2024", "2025"], ["重"]))
+        self.assertEqual(args, (["2024", "2025"], ["重"], 1001))
+
+    async def test_feature_collection_applies_bbox_limit_and_has_more_metadata(self) -> None:
+        fetch_mock = AsyncMock(
+            return_value=[
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.5,39.7]}',
+                    "properties": {"编号": "MQ001"},
+                },
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.6,39.8]}',
+                    "properties": {"编号": "MQ002"},
+                },
+                {
+                    "geom_json": '{"type":"Point","coordinates":[116.7,39.9]}',
+                    "properties": {"编号": "MQ003"},
+                },
+            ]
+        )
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "美国白蛾调查",
+                        "columns": ["编号", "属地"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=fetch_mock),
+        ):
+            payload = await fetch_view_feature_collection(
+                "美国白蛾调查",
+                bbox=(116.1, 39.5, 116.9, 40.1),
+                limit=2,
+            )
+
+        query = fetch_mock.await_args.args[0]
+        args = fetch_mock.await_args.args[1:]
+
+        self.assertIn("ST_MakeEnvelope", query)
+        self.assertIn("ST_Intersects", query)
+        self.assertIn("LIMIT $5", query)
+        self.assertEqual(args, (116.1, 39.5, 116.9, 40.1, 3))
+        self.assertTrue(payload["has_more"])
+        self.assertEqual(payload["limit"], 2)
+        self.assertEqual(payload["returned_count"], 2)
+        self.assertEqual(len(payload["features"]), 2)
 
     def test_feature_collection_dedupes_points_by_code_for_display(self) -> None:
         payload = records_to_feature_collection(
@@ -245,8 +294,27 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(payload["features"], [])
         query = fetch_mock.await_args.args[0]
+        args = fetch_mock.await_args.args[1:]
         self.assertIn('"reference"."通州区小区边界"', query)
         self.assertIn("ST_AsGeoJSON", query)
+        self.assertEqual(args, (1001,))
+
+
+class MapRouterQueryParamTest(unittest.TestCase):
+    def test_parse_bbox_accepts_valid_bounds(self) -> None:
+        self.assertEqual(
+            parse_bbox("116.1,39.5,116.9,40.1"),
+            (116.1, 39.5, 116.9, 40.1),
+        )
+
+    def test_parse_bbox_rejects_invalid_bounds(self) -> None:
+        with self.assertRaises(ValueError):
+            parse_bbox("116.9,39.5,116.1,40.1")
+
+    def test_parse_limit_uses_default_and_rejects_out_of_range(self) -> None:
+        self.assertEqual(parse_limit(None), 1000)
+        with self.assertRaises(ValueError):
+            parse_limit("5001")
 
 
 if __name__ == "__main__":

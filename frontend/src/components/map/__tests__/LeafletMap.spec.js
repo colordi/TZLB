@@ -63,12 +63,22 @@ const leafletMocks = vi.hoisted(() => {
       const mapInstance = {
         element,
         options,
+        bounds: null,
         boundsContains: () => true,
         currentZoom: 11,
         fitBounds: vi.fn(),
-        getBounds: vi.fn(() => ({
-          contains: vi.fn((latlng) => mapInstance.boundsContains(latlng)),
-        })),
+        getBounds: vi.fn(() => {
+          const bounds = {
+            contains: vi.fn((latlng) => mapInstance.boundsContains(latlng)),
+          };
+          if (mapInstance.bounds) {
+            bounds.getEast = vi.fn(() => mapInstance.bounds.east);
+            bounds.getNorth = vi.fn(() => mapInstance.bounds.north);
+            bounds.getSouth = vi.fn(() => mapInstance.bounds.south);
+            bounds.getWest = vi.fn(() => mapInstance.bounds.west);
+          }
+          return bounds;
+        }),
         getZoom: vi.fn(() => mapInstance.currentZoom),
         latLngToLayerPoint: vi.fn(([lat, lng]) => {
           const scale = mapInstance.currentZoom / 14;
@@ -263,6 +273,33 @@ describe("LeafletMap 底图图层", () => {
     leafletMocks.maps.length = 0;
     leafletMocks.markers.length = 0;
     installGeolocationMock();
+  });
+
+  it("地图移动和缩放后上报当前视窗", () => {
+    const wrapper = mountLeafletMap();
+    const mapInstance = leafletMocks.maps[0];
+
+    mapInstance.bounds = {
+      west: 116.2,
+      south: 39.6,
+      east: 116.8,
+      north: 40,
+    };
+    mapInstance.currentZoom = 13;
+    mapInstance.trigger("moveend");
+
+    expect(wrapper.emitted("viewport-change")?.at(-1)?.[0]).toEqual({
+      bbox: [116.2, 39.6, 116.8, 40],
+      zoom: 13,
+    });
+
+    mapInstance.currentZoom = 14;
+    mapInstance.trigger("zoomend");
+
+    expect(wrapper.emitted("viewport-change")?.at(-1)?.[0]).toEqual({
+      bbox: [116.2, 39.6, 116.8, 40],
+      zoom: 14,
+    });
   });
 
   it("标准底图只加载基础瓦片层", () => {
@@ -854,12 +891,12 @@ describe("LeafletMap 点位样式", () => {
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
 
-    expect(leafletMocks.marker).not.toHaveBeenCalled();
+    expect(getSurveyCompletionMarkerCalls()).toHaveLength(1);
     expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
       [39.92, 116.73],
       expect.objectContaining({
         radius: 11,
-        fillColor: "#D9480F",
+        fillColor: "#ff0000",
         color: "#1F2933",
         weight: 1.45,
         fillOpacity: 0.88,
@@ -893,7 +930,7 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 7,
-        fillColor: "#8BC34A",
+        fillColor: "#0033ff",
         color: "#1F2933",
         weight: 1.45,
       }),
@@ -927,7 +964,7 @@ describe("LeafletMap 点位样式", () => {
     leafletMocks.circleMarker.mock.calls.forEach(([, options]) => {
       expect(options).toMatchObject({
         radius: 7,
-        fillColor: "#E7F3E8",
+        fillColor: "#ffffff",
         color: "#1F2933",
         weight: 1.45,
       });
@@ -960,7 +997,7 @@ describe("LeafletMap 点位样式", () => {
       [39.92, 116.73],
       expect.objectContaining({
         radius: 8,
-        fillColor: "#D9480F",
+        fillColor: "#ff0000",
         color: "#1F2933",
         weight: 1.45,
       }),
@@ -982,7 +1019,7 @@ describe("LeafletMap 点位样式", () => {
     let geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     expect(geoJsonCall[1].style(severityFeature)).toMatchObject({
       color: "#1F2933",
-      fillColor: "#F2B705",
+      fillColor: "#fbff05",
     });
 
     vi.clearAllMocks();
@@ -1001,7 +1038,7 @@ describe("LeafletMap 点位样式", () => {
     geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     expect(geoJsonCall[1].style(regularFeature)).toMatchObject({
       color: "#1F2933",
-      fillColor: "#D9480F",
+      fillColor: "#ff0000",
     });
   });
 
@@ -1135,11 +1172,10 @@ describe("LeafletMap 编号标签性能优化", () => {
       showPointLabels: false,
     });
 
-    expect(leafletMocks.layerGroup).not.toHaveBeenCalled();
     expect(getPointLabelMarkerCalls()).toHaveLength(0);
   });
 
-  it("低缩放级别隐藏编号标签，放大后再渲染当前视口内编号", () => {
+  it("缩放刷新后渲染当前视口内编号", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -1148,8 +1184,8 @@ describe("LeafletMap 编号标签性能优化", () => {
       showPointLabels: true,
     });
 
-    expect(leafletMocks.layerGroup).not.toHaveBeenCalled();
-    expect(getPointLabelMarkerCalls()).toHaveLength(0);
+    expect(getPointLabelMarkerCalls()).toHaveLength(1);
+    leafletMocks.marker.mockClear();
 
     const mapInstance = setMapViewport({
       zoom: 13,
@@ -1158,7 +1194,6 @@ describe("LeafletMap 编号标签性能优化", () => {
 
     mapInstance.trigger("zoomend");
 
-    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(1);
     expect(getPointLabelMarkerCalls()).toHaveLength(1);
     expect(getPointLabelMarkerCalls()[0][0]).toEqual([39.92, 116.73]);
   });

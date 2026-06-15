@@ -12,19 +12,23 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image, UnidentifiedImageError
 from docx.shared import Mm
 from docxtpl import DocxTemplate, InlineImage
 
-from backend.config import get_settings
+from backend.config import get_settings, normalize_output_format
 from backend.schemas import WorkOrderGenerateRequest, WorkOrderRecord
 
 
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
 DOC_MEDIA_TYPE = "application/msword"
+DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 DOC_CONVERT_FILTER = "MS Word 97"
 CHI_HUO_TYPES = {"春尺蠖", "国槐尺蠖"}
 MEI_GUO_BAI_E_TYPE = "美国白蛾"
+SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+SUPPORTED_IMAGE_FORMAT_LABEL = "JPEG、PNG、WebP"
 DOC_FIELD_MAPPING = {
     "description": "detailed_description",
     "host_plant": "host",
@@ -53,21 +57,111 @@ def get_template_path(pest_type: str) -> Path:
     return path
 
 
+def format_size_limit(size: int) -> str:
+    if size % (1024 * 1024) == 0:
+        return f"{size // (1024 * 1024)} MB"
+    if size % 1024 == 0:
+        return f"{size // 1024} KB"
+    return f"{size} 字节"
+
+
+def decode_base64_image(raw_value: str, index: int) -> bytes:
+    encoded = raw_value.split(",", 1)[1] if "," in raw_value else raw_value
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"第 {index + 1} 张图片无法解析：不是有效的 Base64 图片数据") from exc
+
+
+def ensure_image_size_limits(content: bytes, label: str, total_size: int | None = None) -> None:
+    settings = get_settings()
+    if len(content) > settings.workorder_image_max_bytes:
+        raise ValueError(
+            f"{label}超过单图大小限制（{format_size_limit(settings.workorder_image_max_bytes)}）"
+        )
+    if total_size is not None and total_size > settings.workorder_image_max_total_bytes:
+        raise ValueError(
+            f"图片总大小超过限制（{format_size_limit(settings.workorder_image_max_total_bytes)}）"
+        )
+
+
+def image_to_rgb(image: Image.Image) -> Image.Image:
+    if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
+        rgba_image = image.convert("RGBA")
+        background = Image.new("RGB", image.size, (255, 255, 255))
+        background.paste(rgba_image, mask=rgba_image.getchannel("A"))
+        return background
+    return image.convert("RGB")
+
+
+def resize_image_if_needed(image: Image.Image) -> Image.Image:
+    settings = get_settings()
+    max_dimension = settings.workorder_image_max_dimension
+    longest_edge = max(image.size)
+    if longest_edge <= max_dimension:
+        return image
+
+    scale = max_dimension / longest_edge
+    target_size = (
+        max(1, int(image.width * scale)),
+        max(1, int(image.height * scale)),
+    )
+    resized = image.copy()
+    resized.thumbnail(target_size, Image.Resampling.LANCZOS)
+    return resized
+
+
+def write_sanitized_image(content: bytes, output_path: Path, label: str) -> Path:
+    try:
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+            image_format = (image.format or "").upper()
+            if image_format not in SUPPORTED_IMAGE_FORMATS:
+                raise ValueError(
+                    f"{label}格式不支持：{image_format or '未知'}，仅支持 {SUPPORTED_IMAGE_FORMAT_LABEL}"
+                )
+            normalized_image = resize_image_if_needed(image_to_rgb(image))
+    except UnidentifiedImageError as exc:
+        raise ValueError(f"{label}不是有效图片") from exc
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_image.save(output_path, format="JPEG", quality=85, optimize=True)
+    return output_path
+
+
+def build_temp_image_path(row_id: str, index: int) -> Path:
+    settings = get_settings()
+    return settings.temp_dir / f"{row_id}_{index}_{uuid.uuid4().hex[:8]}.jpg"
+
+
 def save_base64_images(base64_list: list[str], row_id: str) -> list[Path]:
     """将前端上传的 Base64 图片写入临时目录。"""
 
-    settings = get_settings()
     paths: list[Path] = []
+    total_size = 0
     for index, raw_value in enumerate(base64_list[:MAX_IMAGES]):
-        try:
-            encoded = raw_value.split(",", 1)[1] if "," in raw_value else raw_value
-            content = base64.b64decode(encoded)
-            image_path = settings.temp_dir / f"{row_id}_{index}_{uuid.uuid4().hex[:8]}.jpg"
-            image_path.write_bytes(content)
-            paths.append(image_path)
-        except Exception as exc:  # noqa: BLE001
-            raise ValueError(f"第 {index + 1} 张图片无法解析：{exc}") from exc
+        label = f"第 {index + 1} 张图片"
+        content = decode_base64_image(raw_value, index)
+        total_size += len(content)
+        ensure_image_size_limits(content, label, total_size)
+        paths.append(write_sanitized_image(content, build_temp_image_path(row_id, index), label))
     return paths
+
+
+def sanitize_existing_image_paths(paths: list[Path], row_id: str) -> list[Path]:
+    """将磁盘图片校验并规范化为临时 JPEG 文件。"""
+
+    sanitized_paths: list[Path] = []
+    total_size = 0
+    for index, path in enumerate(paths[:MAX_IMAGES]):
+        label = f"图片文件 {path.name}"
+        content = path.read_bytes()
+        total_size += len(content)
+        ensure_image_size_limits(content, label, total_size)
+        sanitized_paths.append(
+            write_sanitized_image(content, build_temp_image_path(row_id, index), label)
+        )
+    return sanitized_paths
 
 
 def cleanup_temp_images(paths: list[Path]) -> None:
@@ -184,7 +278,9 @@ def resolve_record_image_paths(
     temp_images: list[Path],
 ) -> list[Path]:
     if pest_type == MEI_GUO_BAI_E_TYPE:
-        return resolve_meiguobaie_image_paths(record)
+        image_paths = sanitize_existing_image_paths(resolve_meiguobaie_image_paths(record), row_id)
+        temp_images.extend(image_paths)
+        return image_paths
 
     image_paths = save_base64_images(record.images, row_id) if record.images else []
     temp_images.extend(image_paths)
@@ -356,14 +452,19 @@ def convert_docx_bytes_to_doc(filename: str, content: bytes) -> tuple[str, bytes
         return target_filename, target_path.read_bytes()
 
 
-def build_download_artifact(filename: str, content: bytes) -> GeneratedArtifact:
-    """返回单个 doc 下载产物。"""
+def build_download_artifact(filename: str, content: bytes, media_type: str) -> GeneratedArtifact:
+    """返回单个下载产物。"""
 
     return GeneratedArtifact(
         filename=filename,
-        media_type=DOC_MEDIA_TYPE,
+        media_type=media_type,
         content=content,
     )
+
+
+def resolve_output_format(payload: WorkOrderGenerateRequest) -> str:
+    settings = get_settings()
+    return normalize_output_format(payload.output_format or settings.workorder_default_output_format)
 
 
 def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedArtifact:
@@ -373,6 +474,7 @@ def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedA
         raise ValueError("批量压缩导出已取消，请改为逐条导出工作单。")
 
     template_path = get_template_path(payload.pest_type)
+    output_format = resolve_output_format(payload)
     temp_images: list[Path] = []
 
     try:
@@ -385,7 +487,11 @@ def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedA
             index=0,
             temp_images=temp_images,
         )
-        filename, content = convert_docx_bytes_to_doc(filename, content)
-        return build_download_artifact(filename, content)
+        if output_format == "doc":
+            filename, content = convert_docx_bytes_to_doc(filename, content)
+            return build_download_artifact(filename, content, DOC_MEDIA_TYPE)
+        if output_format == "docx":
+            return build_download_artifact(filename, content, DOCX_MEDIA_TYPE)
+        raise ValueError("输出格式只能是 doc 或 docx")
     finally:
         cleanup_temp_images(temp_images)

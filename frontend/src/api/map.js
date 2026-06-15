@@ -12,9 +12,11 @@ export async function listReferenceLayers() {
   return response.json();
 }
 
-export async function fetchReferenceLayer(name) {
+export async function fetchReferenceLayer(name, options = {}) {
+  const search = buildMapQueryParams({}, options);
+  const query = search.toString();
   const response = await apiFetch(
-    `/api/map/reference-layers/${encodeURIComponent(name)}`,
+    `/api/map/reference-layers/${encodeURIComponent(name)}${query ? `?${query}` : ""}`,
   );
   await ensureApiSuccess(response);
   return response.json();
@@ -46,7 +48,23 @@ export async function createWhiteMothSite(payload) {
   return response.json();
 }
 
-export async function fetchMapView(name, filters = {}) {
+function appendBbox(search, bbox) {
+  if (!bbox) {
+    return;
+  }
+
+  const values = Array.isArray(bbox)
+    ? bbox
+    : [bbox.minLng, bbox.minLat, bbox.maxLng, bbox.maxLat];
+  if (
+    values.length === 4 &&
+    values.every((item) => Number.isFinite(Number(item)))
+  ) {
+    search.set("bbox", values.map((item) => `${Number(item)}`).join(","));
+  }
+}
+
+function buildMapQueryParams(filters = {}, options = {}) {
   const search = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     const values = Array.isArray(value) ? value : [value];
@@ -56,7 +74,15 @@ export async function fetchMapView(name, filters = {}) {
       }
     });
   });
+  appendBbox(search, options.bbox);
+  if (options.limit !== undefined && options.limit !== null) {
+    search.set("limit", `${options.limit}`);
+  }
+  return search;
+}
 
+export async function fetchMapView(name, filters = {}, options = {}) {
+  const search = buildMapQueryParams(filters, options);
   const query = search.toString();
   const response = await apiFetch(
     `/api/map/views/${encodeURIComponent(name)}${query ? `?${query}` : ""}`,

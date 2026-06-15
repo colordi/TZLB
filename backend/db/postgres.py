@@ -62,6 +62,9 @@ SURVEY_STATUS_FILTER_OPTIONS = [
     {"value": "未调查", "label": "未调查"},
 ]
 SURVEY_STATUS_FILTER_VALUES = {option["value"] for option in SURVEY_STATUS_FILTER_OPTIONS}
+MAP_DEFAULT_LIMIT = 1000
+MAP_MAX_LIMIT = 5000
+BBox = tuple[float, float, float, float]
 
 _pool: asyncpg.Pool | None = None
 
@@ -405,13 +408,55 @@ def records_to_feature_collection(
     }
 
 
+def normalized_geom_expression(alias: str = "t") -> str:
+    return f"""
+        CASE
+            WHEN ST_SRID({alias}.geom) = 4326 THEN {alias}.geom
+            WHEN ST_SRID({alias}.geom) = 0 THEN ST_SetSRID({alias}.geom, 4326)
+            ELSE ST_Transform({alias}.geom, 4326)
+        END
+    """
+
+
+def build_bbox_clause(arg_start_index: int) -> str:
+    return f"""
+        ST_Intersects(
+            {normalized_geom_expression("t")},
+            ST_MakeEnvelope(
+                ${arg_start_index},
+                ${arg_start_index + 1},
+                ${arg_start_index + 2},
+                ${arg_start_index + 3},
+                4326
+            )
+        )
+    """
+
+
+def add_feature_collection_metadata(
+    payload: dict[str, Any],
+    *,
+    has_more: bool,
+    limit: int,
+) -> dict[str, Any]:
+    payload["has_more"] = has_more
+    payload["limit"] = limit
+    payload["returned_count"] = len(payload.get("features") or [])
+    return payload
+
+
 async def fetch_admin_boundary_feature_collection() -> dict[str, Any]:
     """读取行政区边界并返回标准 GeoJSON。"""
 
     return await fetch_reference_layer_feature_collection(ADMIN_BOUNDARY_TABLE)
 
 
-async def fetch_reference_layer_feature_collection(layer_name: str) -> dict[str, Any]:
+async def fetch_reference_layer_feature_collection(
+    layer_name: str,
+    *,
+    bbox: BBox | None = None,
+    limit: int = MAP_DEFAULT_LIMIT,
+) -> dict[str, Any]:
     """读取 reference schema 指定空间表并返回标准 GeoJSON。"""
 
     layer = await get_reference_layer(layer_name)
@@ -419,22 +464,30 @@ async def fetch_reference_layer_feature_collection(layer_name: str) -> dict[str,
         raise ValueError(f"参考图层不存在：{layer_name}")
 
     qualified_table = f"{quote_identifier(REFERENCE_SCHEMA)}.{quote_identifier(layer_name)}"
+    where_clauses = ["t.geom IS NOT NULL"]
+    args: list[Any] = []
+    if bbox is not None:
+        args.extend(bbox)
+        where_clauses.append(build_bbox_clause(len(args) - 3))
+    args.append(limit + 1)
+    where_sql = " AND ".join(where_clauses)
     rows = await fetch(
         f"""
         SELECT
-            ST_AsGeoJSON(
-                CASE
-                    WHEN ST_SRID(t.geom) = 4326 THEN t.geom
-                    WHEN ST_SRID(t.geom) = 0 THEN ST_SetSRID(t.geom, 4326)
-                    ELSE ST_Transform(t.geom, 4326)
-                END
-            ) AS geom_json,
+            ST_AsGeoJSON({normalized_geom_expression("t")}) AS geom_json,
             to_jsonb(t) - 'geom' AS properties
         FROM {qualified_table} AS t
-        WHERE t.geom IS NOT NULL
+        WHERE {where_sql}
+        LIMIT ${len(args)}
         """,
+        *args,
     )
-    return records_to_feature_collection(rows)
+    has_more = len(rows) > limit
+    return add_feature_collection_metadata(
+        records_to_feature_collection(rows[:limit]),
+        has_more=has_more,
+        limit=limit,
+    )
 
 
 async def create_white_moth_site(
@@ -543,6 +596,9 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
 async def fetch_view_feature_collection(
     view_name: str,
     filters: dict[str, str | list[str]] | None = None,
+    *,
+    bbox: BBox | None = None,
+    limit: int = MAP_DEFAULT_LIMIT,
 ) -> dict[str, Any]:
     """读取指定视图并返回标准 GeoJSON。"""
 
@@ -582,6 +638,11 @@ async def fetch_view_feature_collection(
             f"BTRIM({quote_identifier(column)}::text) = ANY(${len(args)}::text[])"
         )
 
+    if bbox is not None:
+        args.extend(bbox)
+        where_clauses.append(build_bbox_clause(len(args) - 3))
+
+    args.append(limit + 1)
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
     rows = await fetch(
@@ -591,14 +652,20 @@ async def fetch_view_feature_collection(
             to_jsonb(t) - 'geom' AS properties
         FROM (
             SELECT *
-            FROM {qualified_view}
+            FROM {qualified_view} AS t
             {where_sql}
         ) AS t
+        LIMIT ${len(args)}
         """,
         *args,
     )
 
-    return records_to_feature_collection(rows, dedupe_features=True)
+    has_more = len(rows) > limit
+    return add_feature_collection_metadata(
+        records_to_feature_collection(rows[:limit], dedupe_features=True),
+        has_more=has_more,
+        limit=limit,
+    )
 
 
 def build_chi_huo_larva_description(

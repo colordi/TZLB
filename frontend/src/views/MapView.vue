@@ -30,6 +30,7 @@ const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
 const LOCALITY_FIELD = "属地";
 const SURVEY_STATUS_FILTER_KEY = "调查状态";
 const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
+const MAP_VIEW_LIMIT = 1000;
 const SURVEY_STATUS_FILTER_OPTIONS = [
   { key: "all", label: "全部", value: "" },
   { key: "completed", label: "已调查", value: "调查" },
@@ -57,6 +58,8 @@ const surveyStatusFilter = ref("all");
 const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
+const currentMapViewport = ref(null);
+const mapLimitNoticeKey = ref("");
 const whiteMothSiteForm = ref({
   code: "",
   siteName: "",
@@ -285,6 +288,55 @@ function resetSurveyStatusFilter() {
   surveyStatusFilter.value = "all";
 }
 
+function normalizeBbox(bbox) {
+  const values = Array.isArray(bbox)
+    ? bbox
+    : [bbox?.minLng, bbox?.minLat, bbox?.maxLng, bbox?.maxLat];
+  if (
+    values.length !== 4 ||
+    !values.every((item) => Number.isFinite(Number(item)))
+  ) {
+    return null;
+  }
+  return values.map((item) => Number(item));
+}
+
+function isSameBbox(left, right) {
+  if (!left || !right || left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => Math.abs(value - right[index]) < 0.000001);
+}
+
+function buildMapRequestOptions() {
+  return {
+    bbox: currentMapViewport.value?.bbox || null,
+    limit: MAP_VIEW_LIMIT,
+  };
+}
+
+function buildMapLimitNoticeKey(viewName, payload) {
+  const bbox = currentMapViewport.value?.bbox || [];
+  return [viewName, payload?.limit, ...bbox.map((item) => item.toFixed(6))].join("|");
+}
+
+function maybeNotifyMapLimit(viewName, payload) {
+  if (!payload?.has_more) {
+    return;
+  }
+
+  const noticeKey = buildMapLimitNoticeKey(viewName, payload);
+  if (noticeKey === mapLimitNoticeKey.value) {
+    return;
+  }
+
+  mapLimitNoticeKey.value = noticeKey;
+  info(
+    `当前视窗仅显示前 ${payload.limit || MAP_VIEW_LIMIT} 条数据，请缩小地图范围后查看完整点位。`,
+    "地图数据超限",
+  );
+}
+
 const currentView = computed(
   () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
 );
@@ -455,11 +507,16 @@ async function loadGeoJson({ autoFit = false } = {}) {
   loading.value = true;
 
   try {
-    const payload = await fetchMapView(viewName, activeMapFilters.value);
+    const payload = await fetchMapView(
+      viewName,
+      activeMapFilters.value,
+      buildMapRequestOptions(),
+    );
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
       return false;
     }
     geojson.value = payload;
+    maybeNotifyMapLimit(viewName, payload);
     return true;
   } catch (loadError) {
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
@@ -495,6 +552,40 @@ async function selectSurveyStatusFilter(filterKey) {
   await loadGeoJson({ autoFit: false });
 }
 
+async function reloadActiveReferenceLayers() {
+  const activeLayerNames = activeReferenceLayerNames.value.slice();
+  if (!activeLayerNames.length) {
+    return;
+  }
+
+  await Promise.all(
+    activeLayerNames.map((layerName) =>
+      ensureReferenceLayerGeojson(layerName, { force: true }),
+    ),
+  );
+}
+
+async function onMapViewportChange(viewport) {
+  const bbox = normalizeBbox(viewport?.bbox);
+  if (!bbox) {
+    return;
+  }
+  if (isSameBbox(currentMapViewport.value?.bbox, bbox)) {
+    return;
+  }
+
+  currentMapViewport.value = {
+    bbox,
+    zoom: viewport?.zoom ?? null,
+  };
+  mapLimitNoticeKey.value = "";
+
+  if (selectedView.value && !loadingViews.value) {
+    await loadGeoJson({ autoFit: false });
+    await reloadActiveReferenceLayers();
+  }
+}
+
 function setReferenceLayerLoading(layerName, isLoading) {
   if (!layerName) {
     return;
@@ -512,14 +603,14 @@ function setReferenceLayerLoading(layerName, isLoading) {
   );
 }
 
-async function ensureReferenceLayerGeojson(layerName) {
-  if (referenceLayerGeojsonByName.value[layerName]) {
+async function ensureReferenceLayerGeojson(layerName, { force = false } = {}) {
+  if (!force && referenceLayerGeojsonByName.value[layerName]) {
     return true;
   }
 
   setReferenceLayerLoading(layerName, true);
   try {
-    const payload = await fetchReferenceLayer(layerName);
+    const payload = await fetchReferenceLayer(layerName, buildMapRequestOptions());
     referenceLayerGeojsonByName.value = {
       ...referenceLayerGeojsonByName.value,
       [layerName]: payload,
@@ -939,6 +1030,7 @@ onMounted(async () => {
           :white-moth-site-saving="isSavingWhiteMothSite"
           @feature-click="onFeatureClick"
           @map-click="onMapClick"
+          @viewport-change="onMapViewportChange"
           @toggle-reference-layer="toggleReferenceLayer"
           @toggle-white-moth-site-add="toggleWhiteMothSiteAdd"
           @update:basemap-mode="basemapMode = $event"
@@ -1443,7 +1535,7 @@ onMounted(async () => {
 
   .map-search-panel {
     top: var(--space-3);
-    right: var(--space-3);
+    right: calc(1rem + 3.25rem);
     left: var(--space-3);
     width: auto;
   }
