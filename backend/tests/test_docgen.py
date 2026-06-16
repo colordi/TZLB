@@ -16,6 +16,7 @@ from backend.services.docgen import (
     convert_docx_bytes_to_doc,
     find_dated_location_images,
     generate_workorder_artifact,
+    get_template_path,
     render_single_document,
     resolve_meiguobaie_image_paths,
     sanitize_existing_image_paths,
@@ -92,6 +93,13 @@ class DocgenTest(unittest.TestCase):
         self.assertEqual(content, b"doc-binary")
         mocked_run.assert_called_once()
         mocked_read.assert_called_once()
+
+    def test_all_pest_types_use_single_workorder_template(self) -> None:
+        expected_name = "林业有害生物防治工作单模板.docx"
+
+        for pest_type in ("春尺蠖", "国槐尺蠖", "美国白蛾", "其他害虫"):
+            with self.subTest(pest_type=pest_type):
+                self.assertEqual(get_template_path(pest_type).name, expected_name)
 
     def test_generate_workorder_artifact_returns_doc_by_default(self) -> None:
         payload = create_payload()
@@ -249,7 +257,7 @@ class DocgenTest(unittest.TestCase):
     def test_render_single_document_renders_serial_number_from_template(self) -> None:
         payload = create_payload()
         filename, content = render_single_document(
-            template_path=Path("templates/春尺蠖工作单模板.docx"),
+            template_path=Path("templates/林业有害生物防治工作单模板.docx"),
             record=payload.records[0],
             pest_type=payload.pest_type,
             task_type=payload.task_type,
@@ -266,6 +274,9 @@ class DocgenTest(unittest.TestCase):
             "2026林业有害生物防治工作单（于家务乡）-神仙村-2026-04-01-YF0069.docx",
         )
         self.assertIn("编号：2026-04-01-001", document_xml)
+        self.assertIn("春尺蠖", document_xml)
+        self.assertIn("杨树", document_xml)
+        self.assertIn("8米上", document_xml)
         self.assertNotIn("{{serial_number}}", document_xml)
 
     def test_render_single_document_uses_record_serial_number_when_present(self) -> None:
@@ -273,7 +284,7 @@ class DocgenTest(unittest.TestCase):
         payload.records[0].serial_number = 2
 
         _, content = render_single_document(
-            template_path=Path("templates/春尺蠖工作单模板.docx"),
+            template_path=Path("templates/林业有害生物防治工作单模板.docx"),
             record=payload.records[0],
             pest_type=payload.pest_type,
             task_type=payload.task_type,
@@ -310,7 +321,7 @@ class DocgenTest(unittest.TestCase):
         )
 
         _, content = render_single_document(
-            template_path=Path("templates/其他害虫工作单模板.docx"),
+            template_path=Path("templates/林业有害生物防治工作单模板.docx"),
             record=payload.records[0],
             pest_type=payload.pest_type,
             task_type=payload.task_type,
@@ -350,7 +361,7 @@ class DocgenTest(unittest.TestCase):
         )
 
         _, content = render_single_document(
-            template_path=Path("templates/美国白蛾工作单模板.docx"),
+            template_path=Path("templates/林业有害生物防治工作单模板.docx"),
             record=payload.records[0],
             pest_type=payload.pest_type,
             task_type=payload.task_type,

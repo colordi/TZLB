@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from backend.services.pest_registry import (
+    normalize_task_type,
+    validate_pest_type as validate_registered_pest_type,
+    validate_task_type as validate_registered_task_type,
+)
 
 
-PestType = Literal["春尺蠖", "国槐尺蠖", "美国白蛾", "其他害虫"]
-TaskType = Literal["春尺蠖防治", "国槐尺蠖防治", "美国白蛾防治", "其他害虫防治"]
+PestType = str
+TaskType = str
 
 
 class WorkOrderRecord(BaseModel):
@@ -54,12 +60,27 @@ class WorkOrderGenerateRequest(BaseModel):
     output_format: Literal["doc", "docx"] | None = None
     records: list[WorkOrderRecord]
 
+    @field_validator("pest_type")
+    @classmethod
+    def validate_pest_type(cls, value: str) -> str:
+        return validate_registered_pest_type(value)
+
+    @field_validator("task_type")
+    @classmethod
+    def normalize_task_type(cls, value: str) -> str:
+        return normalize_task_type(value)
+
     @field_validator("records")
     @classmethod
     def validate_records(cls, value: list[WorkOrderRecord]) -> list[WorkOrderRecord]:
         if not value:
             raise ValueError("至少需要 1 条记录")
         return value
+
+    @model_validator(mode="after")
+    def validate_task_type(self) -> WorkOrderGenerateRequest:
+        self.task_type = validate_registered_task_type(self.pest_type, self.task_type)
+        return self
 
 
 class MapViewSummary(BaseModel):

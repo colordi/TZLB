@@ -4,7 +4,7 @@ import { computed, ref, watch } from "vue";
 import { isUnauthorizedError } from "../../api/http.js";
 import { fetchSurveyCandidates } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
-import { getTodayDate } from "./fieldConfig.js";
+import { getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
 
 const props = defineProps({
   busy: {
@@ -35,69 +35,15 @@ const selectedCount = computed(() => selectedCandidateKeys.value.length);
 const hasCandidates = computed(() => totalCount.value > 0);
 const allSelected = computed(() => hasCandidates.value && selectedCount.value === totalCount.value);
 const canImport = computed(() => !props.busy && !loading.value && selectedCount.value > 0);
-const isOtherPest = computed(() => props.pestType === "其他害虫");
-const isMeiGuoBaiE = computed(() => props.pestType === "美国白蛾");
-const dialogDescription = computed(() => {
-  if (isMeiGuoBaiE.value) {
-    return "按调查日期查询美国白蛾第一代问题点位，并批量追加到当前工作单。";
-  }
-
-  if (isOtherPest.value) {
-    return "按调查日期查询其他害虫问题点位，并批量追加到当前工作单。";
-  }
-
-  return `按调查日期查询${props.pestType}受害点位，并批量追加到当前工作单。`;
-});
-const idleHint = computed(() => {
-  if (isMeiGuoBaiE.value) {
-    return "当前支持按调查日期导入美国白蛾第一代调查数据。";
-  }
-
-  if (isOtherPest.value) {
-    return "当前支持按调查日期导入其他害虫调查数据。";
-  }
-
-  return `当前支持导入${props.pestType}幼虫调查数据。`;
-});
-const candidateColumns = computed(() => {
-  if (isMeiGuoBaiE.value) {
-    return [
-      { key: "location_id", label: "编号", fallback: "—" },
-      { key: "locality", label: "属地", fallback: "未匹配" },
-      { key: "location_name", label: "点位名称", fallback: "未匹配" },
-      { key: "green_space_type", label: "绿地性质", fallback: "—" },
-      { key: "pest_hosts", label: "危害寄主", fallback: "—" },
-      { key: "damaged_plant_count", label: "受害株数", fallback: "—" },
-      { key: "web_nest_count", label: "网幕数量", fallback: "—" },
-    ];
-  }
-
-  if (isOtherPest.value) {
-    return [
-      { key: "location_id", label: "编号", fallback: "—" },
-      { key: "locality", label: "属地", fallback: "未匹配" },
-      { key: "location_name", label: "点位名称", fallback: "未匹配" },
-      { key: "pest_name", label: "虫害类型", fallback: "—" },
-      { key: "host_plant", label: "寄主树种", fallback: "—" },
-      { key: "survey_result", label: "调查结论", fallback: "—" },
-    ];
-  }
-
-  return [
-    { key: "location_id", label: "编号", fallback: "—" },
-    { key: "locality", label: "属地", fallback: "未匹配" },
-    { key: "location_name", label: "点位名称", fallback: "未匹配" },
-    { key: "total_insect_count", label: "总虫口数", fallback: "—" },
-    { key: "damage_level", label: "受害程度", fallback: "—" },
-  ];
-});
+const surveyImportConfig = computed(() => getSurveyImportConfig(props.pestType));
+const dialogDescription = computed(() => surveyImportConfig.value.description);
+const idleHint = computed(() => surveyImportConfig.value.idleHint);
+const candidateColumns = computed(() => surveyImportConfig.value.columns);
 
 function getCandidateKey(candidate) {
-  return [
-    candidate.survey_date || "",
-    candidate.location_id || "",
-    candidate.pest_name || "",
-  ].join("-");
+  return surveyImportConfig.value.candidateKeyFields
+    .map((key) => candidate[key] || "")
+    .join("-");
 }
 
 function formatCandidateValue(candidate, column) {

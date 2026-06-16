@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from backend.routers.workorder import generate_workorder
 from backend.schemas import WorkOrderGenerateRequest
@@ -31,6 +32,24 @@ def create_payload(records: list[dict] | None = None) -> dict:
 
 
 class WorkorderRouterTest(unittest.IsolatedAsyncioTestCase):
+    def test_payload_rejects_unknown_pest_type(self) -> None:
+        payload = create_payload()
+        payload["pest_type"] = "未知害虫"
+
+        with self.assertRaises(ValidationError) as context:
+            WorkOrderGenerateRequest(**payload)
+
+        self.assertIn("不支持的害虫类型：未知害虫", str(context.exception))
+
+    def test_payload_rejects_task_type_not_registered_for_pest(self) -> None:
+        payload = create_payload()
+        payload["task_type"] = "其他害虫防治"
+
+        with self.assertRaises(ValidationError) as context:
+            WorkOrderGenerateRequest(**payload)
+
+        self.assertIn("春尺蠖 不支持统防统治类型：其他害虫防治", str(context.exception))
+
     async def test_generate_single_record_returns_doc_response(self) -> None:
         with patch(
             "backend.routers.workorder.generate_workorder_artifact",

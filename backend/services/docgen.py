@@ -18,6 +18,10 @@ from docxtpl import DocxTemplate, InlineImage
 
 from backend.config import get_settings, normalize_output_format
 from backend.schemas import WorkOrderGenerateRequest, WorkOrderRecord
+from backend.services.pest_registry import (
+    IMAGE_STRATEGY_WHITE_MOTH_AUTO,
+    get_pest_config,
+)
 
 
 MAX_IMAGES = 4
@@ -25,8 +29,6 @@ IMAGE_WIDTH_MM = 70
 DOC_MEDIA_TYPE = "application/msword"
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 DOC_CONVERT_FILTER = "MS Word 97"
-CHI_HUO_TYPES = {"春尺蠖", "国槐尺蠖"}
-MEI_GUO_BAI_E_TYPE = "美国白蛾"
 SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
 SUPPORTED_IMAGE_FORMAT_LABEL = "JPEG、PNG、WebP"
 DOC_FIELD_MAPPING = {
@@ -45,14 +47,9 @@ class GeneratedArtifact:
 
 def get_template_path(pest_type: str) -> Path:
     settings = get_settings()
-    mapping = {
-        "春尺蠖": settings.templates_dir / "春尺蠖工作单模板.docx",
-        "国槐尺蠖": settings.templates_dir / "国槐尺蠖工作单模板.docx",
-        "美国白蛾": settings.templates_dir / "美国白蛾工作单模板.docx",
-        "其他害虫": settings.templates_dir / "其他害虫工作单模板.docx",
-    }
-    path = mapping.get(pest_type)
-    if path is None or not path.exists():
+    config = get_pest_config(pest_type)
+    path = settings.templates_dir / config.template_filename
+    if not path.exists():
         raise FileNotFoundError(f"未找到 {pest_type} 对应的模板文件")
     return path
 
@@ -277,7 +274,8 @@ def resolve_record_image_paths(
     row_id: str,
     temp_images: list[Path],
 ) -> list[Path]:
-    if pest_type == MEI_GUO_BAI_E_TYPE:
+    config = get_pest_config(pest_type)
+    if config.image_strategy == IMAGE_STRATEGY_WHITE_MOTH_AUTO:
         image_paths = sanitize_existing_image_paths(resolve_meiguobaie_image_paths(record), row_id)
         temp_images.extend(image_paths)
         return image_paths
@@ -312,15 +310,20 @@ def build_context(
     if context["web_nest_count"] is None:
         context["web_nest_count"] = ""
 
-    if pest_type in CHI_HUO_TYPES:
-        context["plot_type"] = context.get("plot_type") or "平原造林"
-        context["pest_name"] = ""
-        context["host_plant"] = ""
-    else:
-        context["plot_type"] = context.get("plot_type") or ""
-
     for source_key, target_key in DOC_FIELD_MAPPING.items():
-        context[target_key] = context.get(source_key) or ""
+        context[target_key] = context.get(source_key) or context.get(target_key) or ""
+    context["pest_species"] = context.get("pest_species") or pest_type
+    context["host"] = context.get("host") or context.get("pest_hosts") or ""
+    context["green_space_type"] = context.get("green_space_type") or context.get("plot_type") or ""
+    context["tree_height"] = context.get("tree_height") or ""
+
+    config = get_pest_config(pest_type)
+    context["plot_type"] = context.get("plot_type") or ""
+    for key, value in config.context_defaults.items():
+        if context.get(key) in (None, ""):
+            context[key] = value
+    for key, value in config.context_overrides.items():
+        context[key] = value
 
     placeholders = ["img1", "img2", "img3", "img4"]
     for placeholder in placeholders:

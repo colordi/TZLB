@@ -12,6 +12,13 @@ from typing import Any
 import asyncpg
 
 from backend.config import get_settings
+from backend.services.pest_registry import (
+    SURVEY_IMPORT_GUO_HUAI_INCHWORM,
+    SURVEY_IMPORT_MEI_GUO_BAI_E,
+    SURVEY_IMPORT_OTHER_PEST,
+    SURVEY_IMPORT_SPRING_INCHWORM,
+    get_pest_config,
+)
 
 
 VIEW_SCHEMA = "views"
@@ -894,15 +901,17 @@ async def fetch_survey_candidates_by_type(
 ) -> list[dict[str, Any]]:
     """按害虫类型读取指定日期的工作单导入候选记录。"""
 
-    if pest_type == "其他害虫":
-        return await fetch_other_pest_survey_candidates(survey_date)
-    if pest_type == "春尺蠖":
-        return await fetch_spring_inchworm_survey_candidates(survey_date)
-    if pest_type == "国槐尺蠖":
-        return await fetch_guo_huai_inchworm_survey_candidates(survey_date)
-    if pest_type == "美国白蛾":
-        return await fetch_meiguobaie_survey_candidates(survey_date)
-    raise ValueError(f"暂不支持 {pest_type} 的调查导入")
+    config = get_pest_config(pest_type)
+    strategy_handlers = {
+        SURVEY_IMPORT_OTHER_PEST: fetch_other_pest_survey_candidates,
+        SURVEY_IMPORT_SPRING_INCHWORM: fetch_spring_inchworm_survey_candidates,
+        SURVEY_IMPORT_GUO_HUAI_INCHWORM: fetch_guo_huai_inchworm_survey_candidates,
+        SURVEY_IMPORT_MEI_GUO_BAI_E: fetch_meiguobaie_survey_candidates,
+    }
+    handler = strategy_handlers.get(config.survey_import_strategy or "")
+    if handler is None:
+        raise ValueError(f"暂不支持 {config.key} 的调查导入")
+    return await handler(survey_date)
 
 
 async def fetch_spring_inchworm_survey_candidates(

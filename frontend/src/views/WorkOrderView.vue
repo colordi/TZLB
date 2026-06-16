@@ -9,13 +9,13 @@ import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import {
-  CONTROL_TYPE_OPTIONS,
   PEST_OPTIONS,
   getDefaultControlType,
   getDefaultTask,
   getTaskOptions,
   hasValidationErrors,
   normalizeRecordForPest,
+  supportsSurveyImport,
   toPayloadRecord,
   validateRecords,
 } from "../components/workorder/fieldConfig.js";
@@ -25,7 +25,7 @@ import { downloadBlob } from "../utils/download.js";
 const { error, info, success } = useToast();
 
 const pestType = ref("春尺蠖");
-const taskType = ref(getDefaultControlType(pestType.value));
+const taskType = computed(() => getDefaultControlType(pestType.value));
 const taskName = ref(getDefaultTask(pestType.value));
 const records = ref([]);
 const generating = ref(false);
@@ -47,9 +47,7 @@ const recordFilter = ref("all");
 const DATE_FOLDER_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const taskOptions = computed(() => getTaskOptions(pestType.value));
-const canImportSurvey = computed(() =>
-  ["春尺蠖", "国槐尺蠖", "美国白蛾", "其他害虫"].includes(pestType.value),
-);
+const canImportSurvey = computed(() => supportsSurveyImport(pestType.value));
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
 );
@@ -100,7 +98,6 @@ const generateButtonLabel = computed(() => {
 });
 
 watch(pestType, (nextType) => {
-  taskType.value = getDefaultControlType(nextType);
   taskName.value = getDefaultTask(nextType);
   showValidationErrors.value = false;
   surveyImportOpen.value = false;
@@ -444,19 +441,6 @@ async function handleGenerate() {
         <span>害虫类型</span>
         <select id="pest-type" v-model="pestType" :disabled="generating">
           <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
-      </label>
-
-      <label class="workorder-field" for="task-type">
-        <span>统防统治类型</span>
-        <select id="task-type" v-model="taskType" :disabled="generating">
-          <option
-            v-for="option in CONTROL_TYPE_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-          >
             {{ option.label }}
           </option>
         </select>

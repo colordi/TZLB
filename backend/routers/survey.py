@@ -25,6 +25,8 @@ async def get_survey_candidates(
             survey_date=target_date,
             pest_type=pest_type,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取调查导入候选数据失败：{exc}") from exc
 

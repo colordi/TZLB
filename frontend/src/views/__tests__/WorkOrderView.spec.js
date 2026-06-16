@@ -280,23 +280,21 @@ describe("WorkOrderView", () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.find("#task-type").exists()).toBe(false);
 
     await wrapper.get("#pest-type").setValue("其他害虫");
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-type").element.value).toBe("其他害虫防治");
     expect(wrapper.get("#task-name").element.value).toBe("2026其他害虫防治");
 
     await wrapper.get("#pest-type").setValue("美国白蛾");
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-type").element.value).toBe("美国白蛾防治");
     expect(wrapper.get("#task-name").element.value).toBe("2026美国白蛾第一代防治");
 
     await wrapper.get("#pest-type").setValue("国槐尺蠖");
 
     expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-type").element.value).toBe("国槐尺蠖防治");
     expect(wrapper.get("#task-name").element.value).toBe("2026国槐尺蠖第一代防治");
     expect(
       Array.from(wrapper.get("#task-name").element.options).map((option) => option.value),
