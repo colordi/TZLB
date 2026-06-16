@@ -77,6 +77,7 @@ const LeafletMapStub = defineComponent({
     "update:showPointLabels",
     "toggle-white-moth-site-add",
     "toggle-reference-layer",
+    "feature-click",
     "map-click",
     "viewport-change",
   ],
@@ -196,6 +197,11 @@ describe("MapView", () => {
             default_value: "",
           },
         ],
+        survey_status_counts: {
+          all: 327,
+          completed: 256,
+          pending: 71,
+        },
       };
     });
     apiMocks.fetchMapView.mockResolvedValue({
@@ -251,7 +257,7 @@ describe("MapView", () => {
     });
   });
 
-  it("支持调查日期字段的 view 展示调查状态筛选和当前结果数量", async () => {
+  it("支持调查日期字段的 view 默认只展示筛选图标，展开后显示状态全量数量", async () => {
     apiMocks.fetchMapView.mockResolvedValue(
       createFeatureCollection([
         {
@@ -269,24 +275,42 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
-        "全部",
-      );
-      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
-        "已调查",
-      );
-      expect(wrapper.get('[data-testid="map-survey-status-filter"]').text()).toContain(
-        "未调查",
-      );
-      expect(wrapper.get('[data-testid="map-survey-status-count"]').text()).toContain(
-        "当前显示 2 个点位",
-      );
+      expect(wrapper.get('[data-testid="map-search-toggle"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="map-search-popover"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="map-search-input"]').exists()).toBe(false);
+      expect(wrapper.get('[data-testid="map-survey-status-toggle"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="map-survey-status-count"]').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain("当前显示");
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
+
+    await vi.waitFor(() => {
+      const filterText = wrapper.get('[data-testid="map-survey-status-filter"]').text();
+
+      expect(filterText).toContain("全部");
+      expect(filterText).toContain("327");
+      expect(filterText).toContain("已调查");
+      expect(filterText).toContain("256");
+      expect(filterText).toContain("未调查");
+      expect(filterText).toContain("71");
+      expect(wrapper.find('[data-testid="map-survey-status-count"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="map-search-popover"]').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain("当前显示");
     });
   });
 
   it("点击未调查后按调查状态筛选当前 view 且不自动缩放", async () => {
     const wrapper = mountMapView();
 
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="map-survey-status-toggle"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
     await vi.waitFor(() => {
       expect(
         wrapper.get('[data-testid="map-survey-status-pending"]').attributes("disabled"),
@@ -315,15 +339,66 @@ describe("MapView", () => {
         DEFAULT_MAP_OPTIONS,
       );
       expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
+      expect(wrapper.get('[data-testid="map-survey-status-toggle"]').classes()).toContain(
+        "is-active",
+      );
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
+    await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="map-survey-status-pending"]').classes()).toContain(
         "is-active",
       );
     });
   });
 
+  it("搜索面板展开后地图刷新不会禁用输入框", async () => {
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        {
+          type: "Feature",
+          properties: { 编号: "MQ001", 点位名称: "马驹桥点位" },
+          geometry: { type: "Point", coordinates: [116.5, 39.7] },
+        },
+      ]),
+    );
+    const nextRequest = createDeferred();
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features.length).toBeGreaterThan(0);
+    });
+
+    await wrapper.get('[data-testid="map-search-toggle"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="map-search-input"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    apiMocks.fetchMapView.mockImplementationOnce(() => nextRequest.promise);
+    getLeafletMapStub(wrapper).vm.$emit("viewport-change", {
+      bbox: [116.1, 39.5, 116.9, 40.1],
+      zoom: 13,
+    });
+    await nextTick();
+
+    expect(wrapper.get('[data-testid="map-search-input"]').attributes("disabled")).toBeUndefined();
+
+    nextRequest.resolve(createFeatureCollection([]));
+  });
+
   it("点击已调查后按调查状态筛选当前 view", async () => {
     const wrapper = mountMapView();
 
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="map-survey-status-toggle"]').attributes("disabled"),
+      ).toBeUndefined();
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
     await vi.waitFor(() => {
       expect(
         wrapper.get('[data-testid="map-survey-status-completed"]').attributes("disabled"),
@@ -343,22 +418,63 @@ describe("MapView", () => {
         },
         DEFAULT_MAP_OPTIONS,
       );
-      expect(wrapper.get('[data-testid="map-survey-status-completed"]').classes()).toContain(
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
+      expect(wrapper.get('[data-testid="map-survey-status-toggle"]').classes()).toContain(
         "is-active",
       );
     });
+  });
+
+  it("点击地图空白处会关闭搜索和调查状态筛选面板", async () => {
+    apiMocks.fetchMapView.mockResolvedValue(
+      createFeatureCollection([
+        {
+          type: "Feature",
+          properties: { 编号: "TY001", 属地: "通运街道" },
+          geometry: { type: "Point", coordinates: [116.6, 39.8] },
+        },
+      ]),
+    );
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features.length).toBeGreaterThan(0);
+    });
+
+    await wrapper.get('[data-testid="map-search-toggle"]').trigger("click");
+    expect(wrapper.find('[data-testid="map-search-popover"]').exists()).toBe(true);
+
+    getLeafletMapStub(wrapper).vm.$emit("map-click", {
+      latitude: 39.8,
+      longitude: 116.6,
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="map-search-popover"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
+    expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(true);
+
+    getLeafletMapStub(wrapper).vm.$emit("map-click", {
+      latitude: 39.8,
+      longitude: 116.6,
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
   });
 
   it("切换到不支持调查状态的 view 后隐藏筛选并重置为空筛选", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(true);
-      expect(
-        wrapper.get('[data-testid="map-survey-status-pending"]').attributes("disabled"),
-      ).toBeUndefined();
+      expect(wrapper.find('[data-testid="map-survey-status-toggle"]').exists()).toBe(true);
     });
 
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(true);
+    });
     await wrapper.get('[data-testid="map-survey-status-pending"]').trigger("click");
     await vi.waitFor(() => {
       expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
@@ -376,6 +492,7 @@ describe("MapView", () => {
 
     await vi.waitFor(() => {
       expect(wrapper.find('[data-testid="map-survey-status-filter"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="map-survey-status-toggle"]').exists()).toBe(false);
       expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
         "高风险点位",
         {},
@@ -537,6 +654,7 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(2);
     });
 
+    await wrapper.get('[data-testid="map-search-toggle"]').trigger("click");
     await wrapper.get('[data-testid="map-search-input"]').setValue("马驹桥");
 
     const results = wrapper.get('[data-testid="map-search-results"]');
@@ -547,6 +665,37 @@ describe("MapView", () => {
 
     expect(wrapper.get(".detail-drawer").text()).toContain("马大路与230国道交叉口");
     expect(getLeafletMapStub(wrapper).props("mapFocusRequest").feature).toStrictEqual(targetFeature);
+  });
+
+  it("点位详情打开后点击地图空白处会关闭详情", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "TY001",
+        点位名称: "通运家园",
+        属地: "通运街道",
+      },
+      geometry: { type: "Point", coordinates: [116.6, 39.8] },
+    };
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get(".detail-drawer").text()).toContain("通运家园");
+
+    getLeafletMapStub(wrapper).vm.$emit("map-click", {
+      latitude: 39.8,
+      longitude: 116.6,
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find(".detail-drawer").exists()).toBe(false);
   });
 
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {

@@ -61,6 +61,7 @@ SURVEY_STATUS_FILTER_OPTIONS = [
     {"value": "调查", "label": "调查"},
     {"value": "未调查", "label": "未调查"},
 ]
+SURVEY_STATUS_FILTER_KEY = "调查状态"
 SURVEY_STATUS_FILTER_VALUES = {option["value"] for option in SURVEY_STATUS_FILTER_OPTIONS}
 MAP_DEFAULT_LIMIT = 1000
 MAP_MAX_LIMIT = 5000
@@ -551,6 +552,7 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
 
     localities: list[str] = []
     filter_fields: list[dict[str, Any]] = []
+    survey_status_counts = {"all": 0, "completed": 0, "pending": 0}
     if LOCALITY_COLUMN in columns:
         localities = await fetch_distinct_filter_values(qualified_view, LOCALITY_COLUMN)
         filter_fields.append(
@@ -569,6 +571,7 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
                 options=SURVEY_STATUS_FILTER_OPTIONS,
             )
         )
+        survey_status_counts = await fetch_survey_status_counts(view_name, view)
 
     for column, label in MAP_DYNAMIC_FILTER_COLUMNS.items():
         if column not in columns:
@@ -589,28 +592,19 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
         "localities": localities,
         "supports_locality_filter": LOCALITY_COLUMN in columns,
         "supports_survey_status_filter": "调查日期" in columns,
+        "survey_status_counts": survey_status_counts,
         "filter_fields": filter_fields,
     }
 
 
-async def fetch_view_feature_collection(
-    view_name: str,
-    filters: dict[str, str | list[str]] | None = None,
-    *,
-    bbox: BBox | None = None,
-    limit: int = MAP_DEFAULT_LIMIT,
-) -> dict[str, Any]:
-    """读取指定视图并返回标准 GeoJSON。"""
-
-    view = await get_map_view(view_name)
-    if view is None:
-        raise ValueError(f"视图不存在：{view_name}")
-
-    allowed_columns = set(view["columns"])
+def build_map_view_filter_clauses(
+    allowed_columns: set[str],
+    filters: dict[str, str | list[str]] | None,
+    args: list[Any],
+) -> list[str]:
     filters = filters or {}
-
     where_clauses: list[str] = []
-    args: list[Any] = []
+
     for column, raw_value in filters.items():
         values = normalize_filter_values(raw_value)
         if column == "调查状态":
@@ -637,6 +631,73 @@ async def fetch_view_feature_collection(
         where_clauses.append(
             f"BTRIM({quote_identifier(column)}::text) = ANY(${len(args)}::text[])"
         )
+
+    return where_clauses
+
+
+async def fetch_deduped_view_feature_count(
+    view_name: str,
+    view: dict[str, Any],
+    filters: dict[str, str | list[str]] | None = None,
+) -> int:
+    allowed_columns = set(view["columns"])
+    args: list[Any] = []
+    where_clauses = build_map_view_filter_clauses(allowed_columns, filters, args)
+    where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
+    rows = await fetch(
+        f"""
+        SELECT
+            ST_AsGeoJSON(ST_Transform(t.geom, 4326)) AS geom_json,
+            to_jsonb(t) - 'geom' AS properties
+        FROM (
+            SELECT *
+            FROM {qualified_view} AS t
+            {where_sql}
+        ) AS t
+        """,
+        *args,
+    )
+    return len(
+        records_to_feature_collection(rows, dedupe_features=True).get("features") or []
+    )
+
+
+async def fetch_survey_status_counts(
+    view_name: str,
+    view: dict[str, Any],
+) -> dict[str, int]:
+    return {
+        "all": await fetch_deduped_view_feature_count(view_name, view),
+        "completed": await fetch_deduped_view_feature_count(
+            view_name,
+            view,
+            {SURVEY_STATUS_FILTER_KEY: ["调查"]},
+        ),
+        "pending": await fetch_deduped_view_feature_count(
+            view_name,
+            view,
+            {SURVEY_STATUS_FILTER_KEY: ["未调查"]},
+        ),
+    }
+
+
+async def fetch_view_feature_collection(
+    view_name: str,
+    filters: dict[str, str | list[str]] | None = None,
+    *,
+    bbox: BBox | None = None,
+    limit: int = MAP_DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """读取指定视图并返回标准 GeoJSON。"""
+
+    view = await get_map_view(view_name)
+    if view is None:
+        raise ValueError(f"视图不存在：{view_name}")
+
+    allowed_columns = set(view["columns"])
+    args: list[Any] = []
+    where_clauses = build_map_view_filter_clauses(allowed_columns, filters, args)
 
     if bbox is not None:
         args.extend(bbox)

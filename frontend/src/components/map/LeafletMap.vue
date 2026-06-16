@@ -103,8 +103,10 @@ const latestLocateLatLng = shallowRef(null);
 const hasCenteredInitialLocate = ref(false);
 const isLocatePending = ref(false);
 const hasReportedLocateError = ref(false);
-const showLegend = ref(true);
+const showLegend = ref(false);
 const fitPending = ref(false);
+let suppressNextMapClick = false;
+let suppressMapClickResetTimer = null;
 
 const HAZARD_POINT_COLOR = "#ff0000";
 const POINT_OUTLINE_COLOR = "#1F2933";
@@ -757,7 +759,12 @@ function drawGeoJson(data, shouldFit = true) {
         });
       }
 
-      layer.on("click", () => {
+      layer.on("click", (event) => {
+        if (event?.originalEvent) {
+          L.DomEvent?.stopPropagation?.(event.originalEvent);
+        }
+        showLayerMenu.value = false;
+        suppressMapClickOnce();
         emit("feature-click", feature);
       });
     },
@@ -897,6 +904,17 @@ function toggleLayerMenu() {
   showLayerMenu.value = !showLayerMenu.value;
 }
 
+function suppressMapClickOnce() {
+  suppressNextMapClick = true;
+  if (suppressMapClickResetTimer) {
+    window.clearTimeout(suppressMapClickResetTimer);
+  }
+  suppressMapClickResetTimer = window.setTimeout(() => {
+    suppressNextMapClick = false;
+    suppressMapClickResetTimer = null;
+  }, 0);
+}
+
 function selectBasemapMode(mode) {
   emit("update:basemapMode", mode);
   showLayerMenu.value = false;
@@ -927,7 +945,18 @@ function zoomOutMap() {
 }
 
 function handleMapClick(event) {
-  if (!props.whiteMothSiteAddMode || !event?.latlng) {
+  if (suppressNextMapClick) {
+    suppressNextMapClick = false;
+    if (suppressMapClickResetTimer) {
+      window.clearTimeout(suppressMapClickResetTimer);
+      suppressMapClickResetTimer = null;
+    }
+    return;
+  }
+
+  showLayerMenu.value = false;
+
+  if (!event?.latlng) {
     return;
   }
 
@@ -1074,6 +1103,11 @@ onBeforeUnmount(() => {
   clearLayer(surveyCompletionLayerRef);
   clearLayer(locateMarkerRef);
   clearLayer(whiteMothSiteDraftMarkerRef);
+  if (suppressMapClickResetTimer) {
+    window.clearTimeout(suppressMapClickResetTimer);
+    suppressMapClickResetTimer = null;
+  }
+  suppressNextMapClick = false;
 
   if (mapRef.value) {
     mapRef.value.off?.("moveend", handleMoveEnd);
@@ -1123,24 +1157,24 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <button
-          v-else
-          type="button"
-          class="legend-restore-btn"
-          data-testid="map-legend-expand-button"
-          aria-label="展开图例"
-          @click="showLegend = true"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 7h14" />
-            <path d="M5 12h14" />
-            <path d="M5 17h14" />
-            <circle cx="4" cy="7" r="1" />
-            <circle cx="4" cy="12" r="1" />
-            <circle cx="4" cy="17" r="1" />
-          </svg>
-          <span>图例</span>
-        </button>
+        <div v-else class="legend-restore-group">
+          <button
+            type="button"
+            class="legend-restore-btn"
+            data-testid="map-legend-expand-button"
+            aria-label="展开图例"
+            @click="showLegend = true"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 7h14" />
+              <path d="M5 12h14" />
+              <path d="M5 17h14" />
+              <circle cx="4" cy="7" r="1" />
+              <circle cx="4" cy="12" r="1" />
+              <circle cx="4" cy="17" r="1" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1458,44 +1492,42 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+.legend-restore-group {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
+  pointer-events: auto;
+}
+
 .legend-restore-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.48rem;
-  width: auto;
-  height: 3rem;
-  min-width: 0;
   min-height: 0;
-  padding: 0 0.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--color-primary-strong);
-  box-shadow: 0 8px 24px rgba(18, 52, 29, 0.1);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   cursor: pointer;
-  transition: all 0.15s;
-  pointer-events: auto;
-}
-
-.legend-restore-btn span {
-  font-size: 0.88rem;
-  font-weight: 800;
-  line-height: 1;
+  transition: all 0.2s ease;
 }
 
 .legend-restore-btn:hover {
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in oklch, var(--color-primary) 8%, white);
 }
 
 .legend-restore-btn svg {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 17px;
+  height: 17px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -1939,14 +1971,14 @@ onBeforeUnmount(() => {
 
   .map-tool-stack {
     right: 1rem;
-    top: 5rem;
+    top: 4rem;
   }
 
   .map-layer-panel {
-    top: 9.5rem;
+    top: 4rem;
     right: 4.25rem;
     width: min(15rem, calc(100% - 5.5rem));
-    max-height: calc(100% - 10.5rem);
+    max-height: calc(100% - 5rem);
   }
 
   :deep(.leaflet-right .leaflet-control) {

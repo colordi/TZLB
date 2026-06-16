@@ -112,6 +112,57 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
             payload["filter_fields"],
         )
 
+    async def test_filter_options_include_deduped_survey_status_counts(self) -> None:
+        def make_row(code: str, survey_date: str | None) -> dict:
+            return {
+                "geom_json": None,
+                "properties": {
+                    "编号": code,
+                    "调查日期": survey_date,
+                },
+            }
+
+        async def fake_fetch(query: str, *args):
+            self.assertNotIn("ST_MakeEnvelope", query)
+            self.assertNotIn("LIMIT", query)
+            if '"调查日期" IS NOT NULL' in query:
+                return [
+                    make_row("MQ001", "2026-06-01"),
+                    make_row("MQ001", "2026-06-02"),
+                    make_row("MQ003", "2026-06-03"),
+                ]
+            if '"调查日期" IS NULL' in query:
+                return [make_row("MQ002", None)]
+            return [
+                make_row("MQ001", "2026-06-01"),
+                make_row("MQ001", "2026-06-02"),
+                make_row("MQ002", None),
+                make_row("MQ003", "2026-06-03"),
+            ]
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "虫情总览",
+                        "columns": ["编号", "调查日期"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            payload = await fetch_map_filter_options("虫情总览")
+
+        self.assertEqual(
+            payload["survey_status_counts"],
+            {
+                "all": 3,
+                "completed": 2,
+                "pending": 1,
+            },
+        )
+
     def test_filter_values_are_sorted_by_business_order(self) -> None:
         self.assertEqual(sort_filter_values("年份", ["2025", "2024"]), ["2024", "2025"])
         self.assertEqual(

@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, shallowRef, watch } from "vue";
+import { Filter, Search, X } from "@lucide/vue";
+import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
 
 import { useToast } from "../composables/useToast.js";
 import {
@@ -36,6 +37,11 @@ const SURVEY_STATUS_FILTER_OPTIONS = [
   { key: "completed", label: "已调查", value: "调查" },
   { key: "pending", label: "未调查", value: "未调查" },
 ];
+const SURVEY_STATUS_COUNT_KEYS = {
+  all: "all",
+  completed: "completed",
+  pending: "pending",
+};
 
 const views = ref([]);
 const selectedView = ref("");
@@ -54,7 +60,10 @@ const autoFitOnDataChange = ref(true);
 const selectedFeature = ref(null);
 const searchQuery = ref("");
 const searchFocused = ref(false);
+const searchInputRef = ref(null);
+const isSearchPanelOpen = ref(false);
 const surveyStatusFilter = ref("all");
+const isSurveyStatusFilterOpen = ref(false);
 const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
@@ -219,6 +228,9 @@ const visibleSurveyStatusOptions = computed(() => {
     (option) => option.key === "all" || values.has(option.value),
   );
 });
+const surveyStatusCounts = computed(
+  () => mapFilterOptions.value?.survey_status_counts || {},
+);
 const activeMapFilters = computed(() => {
   if (!supportsSurveyStatusFilter.value || surveyStatusFilter.value === "all") {
     return {};
@@ -235,6 +247,12 @@ const activeMapFilters = computed(() => {
     [SURVEY_STATUS_FILTER_KEY]: [selectedOption.value],
   };
 });
+
+function getSurveyStatusCount(optionKey) {
+  const countKey = SURVEY_STATUS_COUNT_KEYS[optionKey];
+  const count = surveyStatusCounts.value?.[countKey];
+  return Number.isFinite(Number(count)) ? Number(count) : 0;
+}
 
 function onFeatureClick(feature) {
   if (isAddingWhiteMothSite.value) {
@@ -259,7 +277,28 @@ function selectSearchResult(result) {
   selectedFeature.value = result.feature;
   searchQuery.value = result.title;
   searchFocused.value = false;
+  isSearchPanelOpen.value = false;
   focusFeatureOnMap(result.feature);
+}
+
+async function toggleSearchPanel() {
+  isSearchPanelOpen.value = !isSearchPanelOpen.value;
+  if (!isSearchPanelOpen.value) {
+    searchFocused.value = false;
+    return;
+  }
+
+  isSurveyStatusFilterOpen.value = false;
+  await nextTick();
+  searchInputRef.value?.focus?.({ preventScroll: true });
+}
+
+function toggleSurveyStatusFilterPanel() {
+  isSurveyStatusFilterOpen.value = !isSurveyStatusFilterOpen.value;
+  if (isSurveyStatusFilterOpen.value) {
+    isSearchPanelOpen.value = false;
+    searchFocused.value = false;
+  }
 }
 
 function submitSearch() {
@@ -284,8 +323,15 @@ function closeDetail() {
   selectedFeature.value = null;
 }
 
+function closeMapFloatingPanels() {
+  isSearchPanelOpen.value = false;
+  searchFocused.value = false;
+  isSurveyStatusFilterOpen.value = false;
+}
+
 function resetSurveyStatusFilter() {
   surveyStatusFilter.value = "all";
+  isSurveyStatusFilterOpen.value = false;
 }
 
 function normalizeBbox(bbox) {
@@ -540,13 +586,18 @@ async function selectSurveyStatusFilter(filterKey) {
     loading.value ||
     loadingViews.value ||
     loadingFilterOptions.value ||
-    filterKey === surveyStatusFilter.value ||
     !visibleSurveyStatusOptions.value.some((option) => option.key === filterKey)
   ) {
     return;
   }
 
+  if (filterKey === surveyStatusFilter.value) {
+    isSurveyStatusFilterOpen.value = false;
+    return;
+  }
+
   surveyStatusFilter.value = filterKey;
+  isSurveyStatusFilterOpen.value = false;
   selectedFeature.value = null;
   mapFocusRequest.value = null;
   await loadGeoJson({ autoFit: false });
@@ -730,7 +781,9 @@ function toggleWhiteMothSiteAdd() {
 }
 
 function onMapClick(location) {
+  closeMapFloatingPanels();
   if (!isAddingWhiteMothSite.value) {
+    closeDetail();
     return;
   }
 
@@ -791,6 +844,7 @@ watch(selectedView, async () => {
   storeSelectedView(selectedView.value);
   selectedFeature.value = null;
   clearSearch();
+  isSearchPanelOpen.value = false;
   resetSurveyStatusFilter();
   mapFocusRequest.value = null;
   geojsonRequestToken += 1;
@@ -813,81 +867,131 @@ onMounted(async () => {
       <!-- MapToolbar removed: view/layer tools live inside LeafletMap. -->
 
       <section class="map-search-panel" aria-label="地图点位搜索">
-        <form class="map-search-form" @submit.prevent="submitSearch">
-          <label class="map-search-input-wrap">
-            <span class="map-search-sr-only">搜索编号、点位名称、属地</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="6" />
-              <path d="m16 16 4 4" />
-            </svg>
-            <input
-              v-model="searchQuery"
-              data-testid="map-search-input"
-              type="search"
-              autocomplete="off"
-              placeholder="搜索编号、点位名称、属地"
-              :disabled="loading || loadingViews || pointCount === 0"
-              @focus="searchFocused = true"
-            />
-          </label>
+        <div class="map-control-stack" aria-label="地图快捷工具">
           <button
-            v-if="searchQuery"
             type="button"
-            class="map-search-clear"
-            aria-label="清空搜索"
-            @click="clearSearch"
+            class="map-control-icon-button"
+            :class="{ 'is-active': isSearchPanelOpen || searchQuery }"
+            data-testid="map-search-toggle"
+            aria-label="搜索点位"
+            aria-controls="map-search-popover"
+            :aria-expanded="isSearchPanelOpen"
+            :disabled="loadingViews || pointCount === 0"
+            @click="toggleSearchPanel"
           >
-            ×
+            <Search :size="17" :stroke-width="1.7" aria-hidden="true" />
+            <span
+              v-if="searchQuery"
+              class="map-control-icon-dot"
+              aria-hidden="true"
+            ></span>
           </button>
-          <button type="submit" class="map-search-submit" :disabled="!searchQuery.trim()">
-            搜索
+          <button
+            v-if="supportsSurveyStatusFilter"
+            type="button"
+            class="map-control-icon-button"
+            :class="{
+              'is-active': isSurveyStatusFilterOpen || surveyStatusFilter !== 'all',
+            }"
+            data-testid="map-survey-status-toggle"
+            aria-label="调查状态筛选"
+            aria-controls="map-survey-status-filter"
+            :aria-expanded="isSurveyStatusFilterOpen"
+            :disabled="loadingViews || loadingFilterOptions"
+            @click="toggleSurveyStatusFilterPanel"
+          >
+            <Filter :size="17" :stroke-width="1.7" aria-hidden="true" />
+            <span
+              v-if="surveyStatusFilter !== 'all'"
+              class="map-control-icon-dot"
+              aria-hidden="true"
+            ></span>
           </button>
-        </form>
-
-        <div
-          v-if="supportsSurveyStatusFilter"
-          class="map-survey-status-filter"
-          data-testid="map-survey-status-filter"
-          aria-label="调查状态筛选"
-        >
-          <div class="map-survey-status-segments" role="group" aria-label="调查状态">
-            <button
-              v-for="option in visibleSurveyStatusOptions"
-              :key="option.key"
-              type="button"
-              class="map-survey-status-option"
-              :class="{ 'is-active': surveyStatusFilter === option.key }"
-              :data-testid="`map-survey-status-${option.key}`"
-              :aria-pressed="surveyStatusFilter === option.key"
-              :disabled="loading || loadingViews || loadingFilterOptions"
-              @click="selectSurveyStatusFilter(option.key)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-          <span class="map-survey-status-count" data-testid="map-survey-status-count">
-            当前显示 {{ pointCount }} 个点位
-          </span>
         </div>
 
-        <div
-          v-if="showSearchResults"
-          class="map-search-results"
-          data-testid="map-search-results"
-        >
-          <button
-            v-for="result in searchResults"
-            :key="result.key"
-            type="button"
-            class="map-search-result"
-            :data-testid="`map-search-result-${result.key}`"
-            @mousedown.prevent="selectSearchResult(result)"
+        <div class="map-panel-popovers">
+          <div
+            v-if="isSearchPanelOpen"
+            id="map-search-popover"
+            class="map-search-popover"
+            data-testid="map-search-popover"
           >
-            <strong>{{ result.title }}</strong>
-            <span>{{ result.meta || "当前视图点位" }}</span>
-          </button>
-          <div v-if="searchResults.length === 0" class="map-search-empty">
-            未找到匹配点位
+            <form class="map-search-form" @submit.prevent="submitSearch">
+              <label class="map-search-input-wrap">
+                <span class="map-search-sr-only">搜索编号、点位名称、属地</span>
+                <Search :size="17" :stroke-width="2" aria-hidden="true" />
+                <input
+                  ref="searchInputRef"
+                  v-model="searchQuery"
+                  data-testid="map-search-input"
+                  type="text"
+                  autocomplete="off"
+                  enterkeyhint="search"
+                  placeholder="搜索编号、点位名称、属地"
+                  :disabled="loadingViews || pointCount === 0"
+                  @focus="searchFocused = true"
+                />
+              </label>
+              <button
+                v-if="searchQuery"
+                type="button"
+                class="map-search-clear"
+                aria-label="清空搜索"
+                @click="clearSearch"
+              >
+                <X :size="17" :stroke-width="2" aria-hidden="true" />
+              </button>
+              <button type="submit" class="map-search-submit" :disabled="!searchQuery.trim()">
+                搜索
+              </button>
+            </form>
+
+            <div
+              v-if="showSearchResults"
+              class="map-search-results"
+              data-testid="map-search-results"
+            >
+              <button
+                v-for="result in searchResults"
+                :key="result.key"
+                type="button"
+                class="map-search-result"
+                :data-testid="`map-search-result-${result.key}`"
+                @mousedown.prevent="selectSearchResult(result)"
+              >
+                <strong>{{ result.title }}</strong>
+                <span>{{ result.meta || "当前视图点位" }}</span>
+              </button>
+              <div v-if="searchResults.length === 0" class="map-search-empty">
+                未找到匹配点位
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="supportsSurveyStatusFilter && isSurveyStatusFilterOpen"
+            class="map-survey-status-filter"
+            data-testid="map-survey-status-filter"
+            aria-label="调查状态筛选"
+          >
+            <div class="map-survey-status-segments" role="group" aria-label="调查状态">
+              <button
+                v-for="option in visibleSurveyStatusOptions"
+                :key="option.key"
+                type="button"
+                class="map-survey-status-option"
+                :class="{ 'is-active': surveyStatusFilter === option.key }"
+                :data-testid="`map-survey-status-${option.key}`"
+                :aria-pressed="surveyStatusFilter === option.key"
+                :disabled="loading || loadingViews || loadingFilterOptions"
+                @click="selectSurveyStatusFilter(option.key)"
+              >
+                <span class="map-survey-status-option-text">{{ option.label }}</span>
+                <span class="map-survey-status-option-count">
+                  {{ getSurveyStatusCount(option.key) }}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -1108,11 +1212,81 @@ onMounted(async () => {
 
 .map-search-panel {
   position: absolute;
-  top: var(--space-5);
-  left: var(--space-5);
+  top: 1.5rem;
+  left: 1.5rem;
   z-index: 1004;
-  width: min(390px, calc(100% - 2 * var(--space-5)));
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  max-width: calc(100% - 3rem);
   pointer-events: auto;
+}
+
+.map-control-stack {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
+}
+
+.map-control-icon-button {
+  position: relative;
+  min-height: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-primary-strong);
+  transition: all 0.2s ease;
+  transform: none;
+}
+
+.map-control-icon-button + .map-control-icon-button {
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+}
+
+.map-control-icon-button:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-primary) 8%, white);
+  color: var(--color-primary-strong);
+  transform: none;
+}
+
+.map-control-icon-button.is-active {
+  background: color-mix(in oklch, var(--color-primary) 12%, white);
+  color: var(--color-primary);
+}
+
+.map-control-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.map-control-icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.map-control-icon-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+}
+
+.map-panel-popovers {
+  min-width: 0;
+  width: min(342px, calc(100vw - 7.5rem));
+}
+
+.map-search-popover {
+  width: 100%;
 }
 
 .map-search-form {
@@ -1136,7 +1310,7 @@ onMounted(async () => {
   color: var(--color-text-muted);
 }
 
-.map-search-input-wrap svg {
+.map-search-input-wrap > svg {
   width: 17px;
   height: 17px;
   flex: 0 0 auto;
@@ -1148,6 +1322,8 @@ onMounted(async () => {
 }
 
 .map-search-input-wrap input {
+  appearance: none;
+  -webkit-appearance: none;
   min-width: 0;
   min-height: 36px;
   padding: 0 var(--space-2);
@@ -1202,10 +1378,10 @@ onMounted(async () => {
 }
 
 .map-survey-status-filter {
+  width: 100%;
   display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding: var(--space-2);
+  gap: var(--space-1);
+  padding: var(--space-1);
   border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
   border-radius: var(--radius-lg);
   background: color-mix(in oklch, var(--color-surface) 94%, transparent);
@@ -1220,9 +1396,13 @@ onMounted(async () => {
 }
 
 .map-survey-status-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   min-width: 0;
-  min-height: 32px;
-  padding: 0 var(--space-3);
+  min-height: 34px;
+  padding: 0 var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -1232,6 +1412,19 @@ onMounted(async () => {
   font-weight: 800;
   line-height: 1;
   transform: none;
+}
+
+.map-survey-status-option-text,
+.map-survey-status-option-count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-survey-status-option-count {
+  color: color-mix(in oklch, currentColor 76%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
 }
 
 .map-survey-status-option:hover:not(:disabled) {
@@ -1250,13 +1443,6 @@ onMounted(async () => {
 .map-survey-status-option:disabled {
   cursor: not-allowed;
   opacity: 0.58;
-}
-
-.map-survey-status-count {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  line-height: 1.35;
 }
 
 .map-search-results {
@@ -1534,14 +1720,18 @@ onMounted(async () => {
   }
 
   .map-search-panel {
-    top: var(--space-3);
-    right: calc(1rem + 3.25rem);
-    left: var(--space-3);
-    width: auto;
+    top: 4rem;
+    left: 1rem;
+    right: auto;
+    max-width: calc(100% - 2rem);
+  }
+
+  .map-panel-popovers {
+    width: min(286px, calc(100vw - 9.5rem));
   }
 
   .map-search-form {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .map-search-submit {

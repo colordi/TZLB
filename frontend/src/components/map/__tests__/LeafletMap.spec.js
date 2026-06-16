@@ -54,6 +54,9 @@ const leafletMocks = vi.hoisted(() => {
         remove: vi.fn(),
       })),
     },
+    DomEvent: {
+      stopPropagation: vi.fn(),
+    },
     divIcon: vi.fn((options) => options),
     featureGroup: vi.fn(() => createLayer()),
     geoJSON: vi.fn(() => createLayer()),
@@ -222,6 +225,10 @@ function getPointClusterMarkerCalls() {
 
 function getLegendLabels(wrapper) {
   return wrapper.findAll(".map-legend .legend-item").map((item) => item.text());
+}
+
+async function openLegend(wrapper) {
+  await wrapper.get('[data-testid="map-legend-expand-button"]').trigger("click");
 }
 
 function setMapViewport({ zoom = 11, contains = () => true } = {}) {
@@ -396,6 +403,32 @@ describe("LeafletMap 底图图层", () => {
     await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
     await wrapper.get('[data-testid="map-layer-labels"]').trigger("click");
     expect(wrapper.emitted("update:showPointLabels")).toEqual([[false]]);
+  });
+
+  it("点击地图空白处会关闭图层面板", async () => {
+    const wrapper = mountLeafletMap();
+    const mapInstance = leafletMocks.maps[0];
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+    expect(wrapper.find("#map-layer-panel").exists()).toBe(true);
+
+    mapInstance.trigger("click", {
+      latlng: {
+        lat: 39.7,
+        lng: 116.5,
+      },
+    });
+    await nextTick();
+
+    expect(wrapper.find("#map-layer-panel").exists()).toBe(false);
+    expect(wrapper.emitted("map-click")).toEqual([
+      [
+        {
+          latitude: 39.7,
+          longitude: 116.5,
+        },
+      ],
+    ]);
   });
 
   it("图层面板的点位图层可以切换当前地图视图", async () => {
@@ -585,7 +618,7 @@ describe("LeafletMap 实时定位", () => {
     ]);
   });
 
-  it("添加点位模式关闭时点击地图不会抛出经纬度", () => {
+  it("添加点位模式关闭时点击地图仍抛出经纬度用于关闭浮层", () => {
     const wrapper = mountLeafletMap();
     const mapInstance = leafletMocks.maps[0];
 
@@ -596,7 +629,14 @@ describe("LeafletMap 实时定位", () => {
       },
     });
 
-    expect(wrapper.emitted("map-click")).toBeUndefined();
+    expect(wrapper.emitted("map-click")).toEqual([
+      [
+        {
+          latitude: 39.7,
+          longitude: 116.5,
+        },
+      ],
+    ]);
   });
 
   it("收到新增点位草稿坐标时渲染临时标记", () => {
@@ -628,25 +668,29 @@ describe("LeafletMap 图例", () => {
     installGeolocationMock();
   });
 
-  it("含危害程度字段时只显示无、轻、中、重图例", () => {
+  it("含危害程度字段时只显示无、轻、中、重图例", async () => {
     const wrapper = mountLeafletMap({
       popupFields: ["编号", "危害程度", "调查状态"],
     });
+
+    await openLegend(wrapper);
 
     expect(getLegendLabels(wrapper)).toEqual(["无", "轻", "中", "重"]);
     expect(wrapper.find(".map-status-legend").exists()).toBe(false);
   });
 
-  it("不含危害程度字段时只显示危害点位图例", () => {
+  it("不含危害程度字段时只显示危害点位图例", async () => {
     const wrapper = mountLeafletMap({
       popupFields: ["编号", "调查日期", "调查状态"],
     });
+
+    await openLegend(wrapper);
 
     expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
     expect(wrapper.text()).not.toContain("未调查");
   });
 
-  it("图例默认展开，并通过图标按钮收起和展开", async () => {
+  it("图例默认隐藏，并通过图标按钮展开和收起", async () => {
     const wrapper = mountLeafletMap({
       popupFields: ["编号", "调查日期", "调查状态"],
       geojson: {
@@ -655,7 +699,14 @@ describe("LeafletMap 图例", () => {
       },
     });
 
-    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="map-legend-expand-button"]').attributes("aria-label")).toBe(
+      "展开图例",
+    );
+    expect(wrapper.get('[data-testid="map-legend-expand-button"]').text()).toBe("");
+
+    await openLegend(wrapper);
+
     expect(wrapper.get('[data-testid="map-legend-panel"]').text()).toContain("图例");
     expect(wrapper.get('[data-testid="map-legend-panel"]').text()).not.toContain("个调查点位");
     expect(wrapper.find('[data-testid="map-legend-expand-button"]').exists()).toBe(false);
@@ -669,12 +720,7 @@ describe("LeafletMap 图例", () => {
     expect(wrapper.get('[data-testid="map-legend-expand-button"]').attributes("aria-label")).toBe(
       "展开图例",
     );
-    expect(wrapper.get('[data-testid="map-legend-expand-button"]').text()).toBe("图例");
-
-    await wrapper.get('[data-testid="map-legend-expand-button"]').trigger("click");
-
-    expect(wrapper.find('[data-testid="map-legend-panel"]').exists()).toBe(true);
-    expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
+    expect(wrapper.get('[data-testid="map-legend-expand-button"]').text()).toBe("");
   });
 });
 
@@ -1120,11 +1166,20 @@ describe("LeafletMap 点位样式", () => {
     };
 
     geoJsonCall[1].onEachFeature(targetFeature, layer);
-    layer.click();
+    const originalEvent = { stopPropagation: vi.fn() };
+    layer.click({ originalEvent });
+    mapInstance.trigger("click", {
+      latlng: {
+        lat: 39.7,
+        lng: 116.5,
+      },
+    });
 
     expect(layer.bindTooltip).toHaveBeenCalledWith("A-002", expect.any(Object));
+    expect(leafletMocks.DomEvent.stopPropagation).toHaveBeenCalledWith(originalEvent);
     expect(mapInstance.setView).not.toHaveBeenCalled();
     expect(wrapper.emitted("feature-click")).toEqual([[features[1]]]);
+    expect(wrapper.emitted("map-click")).toBeUndefined();
   });
 
   it("缩放后仍按原始坐标显示独立点位", () => {
