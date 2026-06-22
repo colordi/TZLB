@@ -5,7 +5,9 @@ import "leaflet/dist/leaflet.css";
 
 import { useToast } from "../../composables/useToast.js";
 import {
+  hasFeatureParcelStatusField,
   hasFeatureSeverityField,
+  resolveFeatureParcelStatus,
   resolveFeatureHoverLabel,
   resolveFeaturePointLabel,
   resolveFeatureSeverity,
@@ -169,18 +171,31 @@ const referenceLayerEntries = computed(() =>
 );
 const preferIdentifierHover = computed(() => true);
 const usesSeverityLegend = computed(() => hasFeatureSeverityField(props.popupFields));
+const usesParcelStatusLegend = computed(
+  () => !usesSeverityLegend.value && hasFeatureParcelStatusField(props.popupFields),
+);
 const usesSurveyCompletionMarkers = computed(() => hasSurveyDateField(props.popupFields));
 
-const severityLegendEntries = computed(() =>
-  usesSeverityLegend.value
-    ? [
-        resolveFeatureSeverity("无"),
-        resolveFeatureSeverity("轻"),
-        resolveFeatureSeverity("中"),
-        resolveFeatureSeverity("重"),
-      ]
-    : [HAZARD_POINT_STYLE],
-);
+const legendEntries = computed(() => {
+  if (usesSeverityLegend.value) {
+    return [
+      resolveFeatureSeverity("无"),
+      resolveFeatureSeverity("轻"),
+      resolveFeatureSeverity("中"),
+      resolveFeatureSeverity("重"),
+    ];
+  }
+
+  if (usesParcelStatusLegend.value) {
+    return [
+      resolveFeatureParcelStatus({ "地块状态": "" }),
+      resolveFeatureParcelStatus({ "地块状态": "调查" }),
+      resolveFeatureParcelStatus({ "地块状态": "伐除" }),
+    ];
+  }
+
+  return [HAZARD_POINT_STYLE];
+});
 
 const TIANDITU_IMAGERY_ANNOTATION_URL =
   "https://t0.tianditu.gov.cn/cia_w/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=cia&STYLE=default&FORMAT=tiles&TILEMATRIXSET=w&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=4267820f43926eaf808d61dc07269beb";
@@ -294,6 +309,10 @@ function resolveReferenceLayerStyle(layer = {}, index = 0) {
     opacity: 0.82,
     weight: 1.5,
   };
+}
+
+function isNeutralPointStyle(pointStyle = {}) {
+  return pointStyle?.key === "level0" || pointStyle?.key === "parcel-default";
 }
 
 function updateWhiteMothSiteDraftMarker(location = props.whiteMothSiteDraftLocation) {
@@ -681,22 +700,46 @@ function renderSurveyCompletionMarkers(data = props.geojson) {
 }
 
 function resolveFeaturePathStyle(properties = {}) {
-  const severity = usesSeverityLegend.value
-    ? resolveFeatureSeverity(properties)
-    : HAZARD_POINT_STYLE;
-  const isBlank = usesSeverityLegend.value && severity.key === "level0";
+  const pointStyle = resolvePointStyle(properties);
+  if (usesParcelStatusLegend.value) {
+    if (pointStyle.key === "parcel-default") {
+      return {
+        color: POINT_OUTLINE_COLOR,
+        fillColor: pointStyle.color,
+        fillOpacity: 0.88,
+        opacity: 0.98,
+        weight: 1.5,
+      };
+    }
+
+    return {
+      color: POINT_OUTLINE_COLOR,
+      fillColor: pointStyle.color,
+      fillOpacity: 0.7,
+      opacity: 0.98,
+      weight: 1.5,
+    };
+  }
+
+  const isNeutral = isNeutralPointStyle(pointStyle);
 
   return {
     color: POINT_OUTLINE_COLOR,
-    fillColor: severity.color,
-    fillOpacity: isBlank ? 0.52 : 0.36,
-    opacity: isBlank ? 0.78 : 0.95,
-    weight: isBlank ? 1.2 : 1.6,
+    fillColor: pointStyle.color,
+    fillOpacity: isNeutral ? 0.52 : 0.36,
+    opacity: isNeutral ? 0.78 : 0.95,
+    weight: isNeutral ? 1.2 : 1.6,
   };
 }
 
 function resolvePointStyle(properties = {}) {
-  return usesSeverityLegend.value ? resolveFeatureSeverity(properties) : HAZARD_POINT_STYLE;
+  if (usesSeverityLegend.value) {
+    return resolveFeatureSeverity(properties);
+  }
+  if (usesParcelStatusLegend.value) {
+    return resolveFeatureParcelStatus(properties);
+  }
+  return HAZARD_POINT_STYLE;
 }
 
 function getPointRenderFeatures(features = []) {
@@ -737,14 +780,14 @@ function drawGeoJson(data, shouldFit = true) {
         ? {}
         : resolveFeaturePathStyle(feature?.properties || {}),
     pointToLayer: (feature, latlng) => {
-      const severity = resolvePointStyle(feature.properties);
-      const isBlank = usesSeverityLegend.value && severity.key === "level0";
+      const pointStyle = resolvePointStyle(feature.properties);
+      const isNeutral = isNeutralPointStyle(pointStyle);
       return L.circleMarker(latlng, {
-        radius: severity.radius,
-        fillColor: severity.color,
+        radius: pointStyle.radius,
+        fillColor: pointStyle.color,
         color: POINT_OUTLINE_COLOR,
         weight: 1.45,
-        fillOpacity: isBlank ? 0.96 : 0.88,
+        fillOpacity: isNeutral ? 0.96 : 0.88,
       });
     },
     onEachFeature: (feature, layer) => {
@@ -1151,7 +1194,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="panel-divider"></div>
           <div class="map-legend">
-            <div v-for="entry in severityLegendEntries" :key="entry.key" class="legend-item">
+            <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
               <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
               <span>{{ entry.label }}</span>
             </div>

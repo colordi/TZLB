@@ -27,6 +27,7 @@ const SEVERITY_FIELD_KEYS = [
   "severity",
   "level",
 ];
+const PARCEL_STATUS_FIELD_KEYS = ["地块状态", "parcel_status", "parcelStatus"];
 
 export function buildPopupRows(columns = [], properties = {}) {
   return (columns || []).map((label) => {
@@ -52,6 +53,17 @@ export function hasFeatureSeverityField(fields = []) {
   return (fields || []).some((field) => {
     const normalizedField = `${field ?? ""}`.trim();
     return severityFieldKeys.has(normalizedField.toLowerCase());
+  });
+}
+
+export function hasFeatureParcelStatusField(fields = []) {
+  const parcelStatusFieldKeys = new Set(
+    PARCEL_STATUS_FIELD_KEYS.map((field) => field.toLowerCase()),
+  );
+
+  return (fields || []).some((field) => {
+    const normalizedField = `${field ?? ""}`.trim();
+    return parcelStatusFieldKeys.has(normalizedField.toLowerCase());
   });
 }
 
@@ -118,6 +130,40 @@ export function resolveFeatureSeverity(properties = {}) {
     color: "#ffffff",
     radius: 7,
     label: "无",
+  };
+}
+
+export function resolveFeatureParcelStatus(properties = {}) {
+  const rawValue =
+    properties["地块状态"] ??
+    properties.parcel_status ??
+    properties.parcelStatus ??
+    "";
+  const normalized = `${rawValue ?? ""}`.trim();
+
+  if (normalized === "调查") {
+    return {
+      key: "parcel-surveyed",
+      color: "#ff0000",
+      radius: 8,
+      label: "调查",
+    };
+  }
+
+  if (normalized === "伐除") {
+    return {
+      key: "parcel-removed",
+      color: "#000000",
+      radius: 8,
+      label: "伐除",
+    };
+  }
+
+  return {
+    key: "parcel-default",
+    color: "#ffffff",
+    radius: 8,
+    label: "其他",
   };
 }
 
