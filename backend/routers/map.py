@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, status
 
+from backend.db.admin import (
+    get_enabled_map_view,
+    get_enabled_reference_layer,
+    list_enabled_map_views,
+    list_enabled_reference_layers,
+)
 from backend.db.postgres import (
     MAP_DEFAULT_LIMIT,
     MAP_MAX_LIMIT,
@@ -13,9 +19,6 @@ from backend.db.postgres import (
     fetch_reference_layer_feature_collection,
     fetch_view_feature_collection,
     get_white_moth_site_code_rules,
-    get_map_view,
-    list_map_views,
-    list_reference_layers,
 )
 from backend.schemas import WhiteMothSiteCreateRequest, WhiteMothSiteResponse
 
@@ -64,7 +67,7 @@ def parse_limit(raw_value: str | None) -> int:
 @router.get("/views", summary="列出地图视图")
 async def get_views() -> list[dict]:
     try:
-        return await list_map_views()
+        return await list_enabled_map_views()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取地图视图失败：{exc}") from exc
 
@@ -72,7 +75,7 @@ async def get_views() -> list[dict]:
 @router.get("/reference-layers", summary="列出参考图层")
 async def get_reference_layers() -> list[dict]:
     try:
-        return await list_reference_layers()
+        return await list_enabled_reference_layers()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取参考图层失败：{exc}") from exc
 
@@ -109,9 +112,9 @@ async def post_white_moth_site(
 
 @router.get("/views/{view_name}", summary="读取指定地图视图的 GeoJSON")
 async def get_view_geojson(view_name: str, request: Request) -> dict:
-    view = await get_map_view(view_name)
+    view = await get_enabled_map_view(view_name)
     if view is None:
-        raise HTTPException(status_code=404, detail=f"视图不存在：{view_name}")
+        raise HTTPException(status_code=404, detail=f"视图不存在或已停用：{view_name}")
 
     try:
         bbox = parse_bbox(request.query_params.get("bbox"))
@@ -137,6 +140,9 @@ async def get_view_geojson(view_name: str, request: Request) -> dict:
 @router.get("/views/{view_name}/filter-options", summary="读取指定地图视图的筛选选项")
 async def get_view_filter_options(view_name: str) -> dict:
     try:
+        view = await get_enabled_map_view(view_name)
+        if view is None:
+            raise ValueError(f"视图不存在或已停用：{view_name}")
         return await fetch_map_filter_options(view_name)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -161,6 +167,9 @@ async def get_reference_layer_geojson(layer_name: str, request: Request) -> dict
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
+        layer = await get_enabled_reference_layer(layer_name)
+        if layer is None:
+            raise ValueError(f"参考图层不存在或已停用：{layer_name}")
         return await fetch_reference_layer_feature_collection(
             layer_name,
             bbox=bbox,

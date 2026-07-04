@@ -20,6 +20,7 @@ from backend.exceptions import (
 )
 from backend.logging_config import configure_logging, get_logger
 from backend.routers import auth as auth_router
+from backend.routers import admin as admin_router
 from backend.routers import data_export as data_export_router
 from backend.routers import map as map_router
 from backend.routers import statistics as statistics_router
@@ -184,6 +185,12 @@ app.include_router(
     data_export_router.router,
     prefix="/api/data-export",
     tags=["数据导出"],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+)
+app.include_router(
+    admin_router.router,
+    prefix="/api/admin",
+    tags=["管理后台"],
     dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(

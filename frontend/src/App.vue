@@ -7,6 +7,9 @@ import {
   MapPin,
   Database,
   ChartColumn,
+  LayoutDashboard,
+  Users,
+  Layers,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -76,12 +79,38 @@ const navGroups = [
       },
     ],
   },
+  {
+    label: "管理后台",
+    items: [
+      {
+        to: "/admin",
+        label: "管理概览",
+        icon: "dashboard",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+      {
+        to: "/admin/users",
+        label: "用户管理",
+        icon: "users",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+      {
+        to: "/admin/layers",
+        label: "图层管理",
+        icon: "layers",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+    ],
+  },
 ];
 const navIconComponents = {
   upload: Upload,
   pin: MapPin,
   database: Database,
   chart: ChartColumn,
+  dashboard: LayoutDashboard,
+  users: Users,
+  layers: Layers,
 };
 function resolveNavIcon(icon) {
   return navIconComponents[icon] || MapPin;

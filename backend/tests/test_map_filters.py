@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from fastapi import HTTPException
+
 from backend.db.postgres import (
     fetch_reference_layer_feature_collection,
     fetch_map_filter_options,
@@ -11,7 +13,14 @@ from backend.db.postgres import (
     records_to_feature_collection,
     sort_filter_values,
 )
-from backend.routers.map import parse_bbox, parse_limit
+from backend.routers.map import (
+    get_reference_layers as get_reference_layers_endpoint,
+    get_reference_layer_geojson,
+    get_view_filter_options,
+    get_views,
+    parse_bbox,
+    parse_limit,
+)
 
 
 class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
@@ -366,6 +375,66 @@ class MapRouterQueryParamTest(unittest.TestCase):
         self.assertEqual(parse_limit(None), 1000)
         with self.assertRaises(ValueError):
             parse_limit("5001")
+
+
+class MapRouterLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
+    async def test_views_endpoint_uses_enabled_layer_metadata(self) -> None:
+        enabled_views = [{"name": "虫情总览", "columns": ["编号"], "label": "虫情总览"}]
+
+        with patch(
+            "backend.routers.map.list_enabled_map_views",
+            new=AsyncMock(return_value=enabled_views),
+        ):
+            payload = await get_views()
+
+        self.assertEqual(payload, enabled_views)
+
+    async def test_reference_layers_endpoint_uses_enabled_layer_metadata(self) -> None:
+        enabled_layers = [
+            {
+                "name": "通州区行政区边界",
+                "label": "通州区行政区边界",
+                "columns": ["gid"],
+                "default_visible": True,
+            }
+        ]
+
+        with patch(
+            "backend.routers.map.list_enabled_reference_layers",
+            new=AsyncMock(return_value=enabled_layers),
+        ):
+            payload = await get_reference_layers_endpoint()
+
+        self.assertEqual(payload, enabled_layers)
+
+    async def test_filter_options_rejects_disabled_view_before_fetching(self) -> None:
+        fetch_mock = AsyncMock()
+
+        with (
+            patch("backend.routers.map.get_enabled_map_view", new=AsyncMock(return_value=None)),
+            patch("backend.routers.map.fetch_map_filter_options", new=fetch_mock),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                await get_view_filter_options("国槐参考点位")
+
+        self.assertEqual(context.exception.status_code, 404)
+        self.assertEqual(context.exception.detail, "视图不存在或已停用：国槐参考点位")
+        fetch_mock.assert_not_awaited()
+
+    async def test_reference_layer_geojson_rejects_disabled_layer_before_fetching(self) -> None:
+        fetch_mock = AsyncMock()
+        request = type("Request", (), {"query_params": {}})()
+
+        with (
+            patch("backend.routers.map.get_enabled_reference_layer", new=AsyncMock(return_value=None)),
+            patch("backend.routers.map.fetch_reference_layer_feature_collection", new=fetch_mock),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                await get_reference_layer_geojson("国槐参考图层", request)
+
+        self.assertEqual(context.exception.status_code, 404)
+        self.assertEqual(context.exception.detail, "参考图层不存在或已停用：国槐参考图层")
+        fetch_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

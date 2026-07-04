@@ -11,6 +11,9 @@ import DataStatisticsView from "../views/DataStatisticsView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
 import WorkOrderView from "../views/WorkOrderView.vue";
+import AdminDashboardView from "../views/AdminDashboardView.vue";
+import AdminUsersView from "../views/AdminUsersView.vue";
+import AdminLayersView from "../views/AdminLayersView.vue";
 import DesignPreviewLayout from "../components/design/DesignPreviewLayout.vue";
 import DesignLoginView from "../views/design/DesignLoginView.vue";
 import DesignOverviewView from "../views/design/DesignOverviewView.vue";
@@ -71,6 +74,36 @@ const routes = [
     meta: {
       section: "数据统计",
       blurb: "查看各虫种的核心统计指标。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/admin",
+    name: "admin-dashboard",
+    component: AdminDashboardView,
+    meta: {
+      section: "管理概览",
+      blurb: "用户、图层及系统聚合信息。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/admin/users",
+    name: "admin-users",
+    component: AdminUsersView,
+    meta: {
+      section: "用户管理",
+      blurb: "管理系统用户。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/admin/layers",
+    name: "admin-layers",
+    component: AdminLayersView,
+    meta: {
+      section: "图层管理",
+      blurb: "管理地图图层元数据。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },
