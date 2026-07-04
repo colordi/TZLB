@@ -1,5 +1,30 @@
 import { apiFetch, ensureApiSuccess } from "./http.js";
 
+function extractFilename(contentDisposition) {
+  if (!contentDisposition) {
+    return "林业调查数据导入模板.xlsx";
+  }
+
+  const starred = /filename\*\s*=\s*([^;]+)/i.exec(contentDisposition);
+  if (starred?.[1]) {
+    const rawValue = starred[1].trim().replace(/^["']|["']$/g, "");
+    const matched = /^([^']*)'[^']*'(.*)$/.exec(rawValue);
+    const encodedPart = matched ? matched[2] : rawValue;
+    try {
+      return decodeURIComponent(encodedPart);
+    } catch {
+      return encodedPart;
+    }
+  }
+
+  const plain = /filename\s*=\s*([^;]+)/i.exec(contentDisposition);
+  if (plain?.[1]) {
+    return plain[1].trim().replace(/^["']|["']$/g, "");
+  }
+
+  return "林业调查数据导入模板.xlsx";
+}
+
 export async function fetchSurveyCandidates({ date, pestType }) {
   const search = new URLSearchParams();
   if (date && `${date}`.trim() !== "") {
@@ -28,4 +53,14 @@ export async function uploadSurveyExcel({ file, dryRun = true }) {
   });
   await ensureApiSuccess(response);
   return response.json();
+}
+
+export async function downloadImportTemplate() {
+  const response = await apiFetch("/api/survey/import-template");
+  await ensureApiSuccess(response);
+
+  return {
+    blob: await response.blob(),
+    filename: extractFilename(response.headers.get("content-disposition")),
+  };
 }

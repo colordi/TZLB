@@ -1,12 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchSurveyCandidates, uploadSurveyExcel } from "../survey.js";
+import { downloadImportTemplate, fetchSurveyCandidates, uploadSurveyExcel } from "../survey.js";
 
 function buildResponse(payload, ok = true) {
   return {
     ok,
     async json() {
       return payload;
+    },
+  };
+}
+
+function buildBlobResponse(blob, ok = true, contentDisposition = "") {
+  return {
+    ok,
+    headers: {
+      get(name) {
+        if (name === "content-disposition") {
+          return contentDisposition;
+        }
+        return null;
+      },
+    },
+    async blob() {
+      return blob;
     },
   };
 }
@@ -58,5 +75,27 @@ describe("survey api", () => {
     );
     expect(init.body).toBeInstanceOf(FormData);
     expect(init.body.get("file")).toBe(file);
+  });
+
+  it("downloadImportTemplate 返回 blob 和解码后的文件名", async () => {
+    const blob = new Blob(["xlsx-template"]);
+    global.fetch.mockResolvedValue(
+      buildBlobResponse(
+        blob,
+        true,
+        "attachment; filename*=UTF-8''%E6%A8%A1%E6%9D%BF.xlsx",
+      ),
+    );
+
+    const result = await downloadImportTemplate();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/import-template",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
+    expect(result.blob).toBe(blob);
+    expect(result.filename).toBe("模板.xlsx");
   });
 });

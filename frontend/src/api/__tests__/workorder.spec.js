@@ -1,12 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { uploadDateImageFolder } from "../workorder.js";
+import { generateWorkorderBatch, uploadDateImageFolder } from "../workorder.js";
 
 function buildResponse(payload, ok = true) {
   return {
     ok,
     async json() {
       return payload;
+    },
+  };
+}
+
+function buildBlobResponse(blob, ok = true, contentDisposition = "") {
+  return {
+    ok,
+    headers: {
+      get(name) {
+        if (name === "content-disposition") {
+          return contentDisposition;
+        }
+        return null;
+      },
+    },
+    async blob() {
+      return blob;
     },
   };
 }
@@ -46,5 +63,36 @@ describe("workorder api", () => {
     expect(init.body.get("folder_name")).toBe("2026-05-26");
     expect(init.body.get("files")).toBe(file);
     expect(init.body.get("relative_paths")).toBe("2026-05-26/MQ001.jpg");
+  });
+
+  it("generateWorkorderBatch 向批量导出接口 POST JSON 并返回 blob", async () => {
+    const blob = new Blob(["zip-content"]);
+    global.fetch.mockResolvedValue(
+      buildBlobResponse(
+        blob,
+        true,
+        "attachment; filename*=UTF-8''%E6%89%B9%E9%87%8F%E5%AF%BC%E5%87%BA.zip",
+      ),
+    );
+
+    const payload = {
+      pest_type: "春尺蠖",
+      task_type: "春尺蠖防治",
+      task: "2026春尺蠖防治",
+      records: [{ survey_date: "2026-04-01", location_name: "神仙村" }],
+    };
+    const result = await generateWorkorderBatch(payload);
+
+    const [, init] = global.fetch.mock.calls[0];
+    expect(global.fetch.mock.calls[0][0]).toBe("/api/workorder/generate-batch");
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(result.blob).toBe(blob);
+    expect(result.filename).toBe("批量导出.zip");
   });
 });

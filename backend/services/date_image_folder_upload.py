@@ -8,6 +8,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from backend.config import get_settings
+from backend.logging_config import get_logger
+
+
+logger = get_logger(__name__)
 
 
 DATE_FOLDER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -129,6 +133,15 @@ async def upload_date_image_folder(
         target_path.write_bytes(content)
         saved_count += 1
         results.append(UploadedDateImage(file_name=file_name, status="saved"))
+
+    logger.info(
+        "日期图片文件夹上传完成: folder=%s saved=%d skipped_existing=%d skipped_non_image=%d skipped_nested=%d",
+        normalized_folder_name,
+        saved_count,
+        skipped_existing_count,
+        skipped_non_image_count,
+        skipped_nested_count,
+    )
 
     return {
         "folder_name": normalized_folder_name,

@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from backend.auth.dependencies import require_authenticated_user, require_user_role
 from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
 from backend.config import get_settings
 from backend.db.postgres import close_pool
+from backend.exceptions import (
+    BusinessError,
+    ConfigurationError,
+    build_error_response,
+)
+from backend.logging_config import configure_logging, get_logger
 from backend.routers import auth as auth_router
 from backend.routers import data_export as data_export_router
 from backend.routers import map as map_router
@@ -19,8 +27,14 @@ from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
 
 
+logger = get_logger(__name__)
+REQUEST_ID_HEADER = "x-request-id"
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    settings = get_settings()
+    configure_logging(settings.log_level)
     await ensure_auth_storage()
     yield
     await close_pool()
@@ -40,6 +54,112 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """为每个请求生成 request_id，记录请求耗时并写入响应头。"""
+
+    request_id = request.headers.get(REQUEST_ID_HEADER) or uuid.uuid4().hex[:16]
+    request.state.request_id = request_id
+
+    path = request.url.path
+    method = request.method
+    start_time = time.perf_counter()
+
+    logger.info("请求开始 %s %s", method, path, extra={"request_id": request_id})
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "请求异常 %s %s: %s",
+            method,
+            path,
+            exc,
+            extra={"request_id": request_id},
+        )
+        response = JSONResponse(
+            status_code=500,
+            content=build_error_response("服务内部错误，请联系管理员", request_id),
+        )
+
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    response.headers[REQUEST_ID_HEADER] = request_id
+    logger.info(
+        "请求完成 %s %s status=%s duration_ms=%.2f",
+        method,
+        path,
+        response.status_code,
+        duration_ms,
+        extra={"request_id": request_id},
+    )
+    return response
+
+
+@app.exception_handler(BusinessError)
+async def business_error_handler(request: Request, exc: BusinessError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning("业务异常: %s", exc, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=400,
+        content=build_error_response(str(exc), request_id),
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.warning("参数校验失败: %s", exc, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=400,
+        content=build_error_response(str(exc), request_id),
+    )
+
+
+@app.exception_handler(ConfigurationError)
+async def configuration_error_handler(request: Request, exc: ConfigurationError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.error("配置或服务资源异常: %s", exc, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=500,
+        content=build_error_response(str(exc), request_id),
+    )
+
+
+@app.exception_handler(FileNotFoundError)
+async def file_not_found_handler(request: Request, exc: FileNotFoundError) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    logger.error("服务内部资源缺失: %s", exc, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=500,
+        content=build_error_response("服务内部资源缺失，请联系管理员", request_id),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", None)
+    if exc.status_code >= 500:
+        logger.error("HTTP 异常 %s: %s", exc.status_code, exc.detail, extra={"request_id": request_id})
+    else:
+        logger.warning("HTTP 异常 %s: %s", exc.status_code, exc.detail, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=build_error_response(exc.detail, request_id),
+        headers=getattr(exc, "headers", None) or {},
+    )
+
+
+@app.exception_handler(Exception)
+async def catchall_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # noqa: BLE001
+    request_id = getattr(request.state, "request_id", None)
+    logger.exception("未捕获异常: %s", exc, extra={"request_id": request_id})
+    return JSONResponse(
+        status_code=500,
+        content=build_error_response("服务内部错误，请联系管理员", request_id),
+    )
+
 
 app.include_router(auth_router.router, prefix="/api/auth", tags=["认证"])
 app.include_router(

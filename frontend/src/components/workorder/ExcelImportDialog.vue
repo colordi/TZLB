@@ -2,8 +2,9 @@
 import { computed, ref, watch } from "vue";
 
 import { isUnauthorizedError } from "../../api/http.js";
-import { uploadSurveyExcel } from "../../api/survey.js";
+import { downloadImportTemplate, uploadSurveyExcel } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
+import { downloadBlob } from "../../utils/download.js";
 
 const props = defineProps({
   busy: {
@@ -23,6 +24,7 @@ const selectedFile = ref(null);
 const previewResult = ref(null);
 const loading = ref(false);
 const committing = ref(false);
+const downloadingTemplate = ref(false);
 
 const totals = computed(() => previewResult.value?.totals || {});
 const hasErrors = computed(() => Number(totals.value.error_count || 0) > 0);
@@ -61,6 +63,26 @@ function handleFileChange(event) {
   const file = event.target.files?.[0] || null;
   selectedFile.value = file;
   previewResult.value = null;
+}
+
+async function handleDownloadTemplate() {
+  if (downloadingTemplate.value) {
+    return;
+  }
+
+  downloadingTemplate.value = true;
+  try {
+    const { blob, filename } = await downloadImportTemplate();
+    await downloadBlob(blob, filename);
+    success("导入模板已下载。", "下载完成");
+  } catch (downloadError) {
+    if (isUnauthorizedError(downloadError)) {
+      return;
+    }
+    error(`${downloadError.message || downloadError}`, "模板下载失败");
+  } finally {
+    downloadingTemplate.value = false;
+  }
 }
 
 function formatSheetTarget(sheet) {
@@ -171,6 +193,19 @@ async function handleConfirm() {
             @click="handlePreview"
           >
             {{ loading ? "校验中…" : "预览校验" }}
+          </button>
+        </div>
+
+        <div class="excel-template-hint">
+          <p>请先下载导入模板，按模板表头填写后再上传。</p>
+          <button
+            type="button"
+            class="button-secondary"
+            :disabled="downloadingTemplate"
+            data-testid="survey-excel-download-template"
+            @click="handleDownloadTemplate"
+          >
+            {{ downloadingTemplate ? "正在下载模板…" : "下载导入模板" }}
           </button>
         </div>
 
@@ -295,6 +330,22 @@ async function handleConfirm() {
 
 .excel-import-picker input {
   min-width: 0;
+}
+
+.excel-template-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-7);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.excel-template-hint p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 
 .excel-result-panel,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -48,6 +49,18 @@ class WorkOrderRecord(BaseModel):
             raise ValueError("单条记录最多上传 4 张图片")
         return value
 
+    @field_validator("survey_date")
+    @classmethod
+    def validate_survey_date(cls, value: str) -> str:
+        normalized = (value or "").strip()
+        if not normalized:
+            raise ValueError("调查日期不能为空")
+        try:
+            datetime.strptime(normalized, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("调查日期必须是 YYYY-MM-DD 格式") from exc
+        return normalized
+
 
 class WorkOrderGenerateRequest(BaseModel):
     """工作单生成请求。"""
@@ -80,6 +93,49 @@ class WorkOrderGenerateRequest(BaseModel):
     @model_validator(mode="after")
     def validate_task_type(self) -> WorkOrderGenerateRequest:
         self.task_type = validate_registered_task_type(self.pest_type, self.task_type)
+        return self
+
+
+class WorkOrderBatchGenerateRequest(BaseModel):
+    """工作单批量生成请求。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    pest_type: PestType
+    task_type: TaskType
+    task: str = ""
+    output_format: Literal["doc", "docx"] | None = None
+    records: list[WorkOrderRecord]
+
+    @field_validator("pest_type")
+    @classmethod
+    def validate_pest_type(cls, value: str) -> str:
+        return validate_registered_pest_type(value)
+
+    @field_validator("task_type")
+    @classmethod
+    def normalize_task_type(cls, value: str) -> str:
+        return normalize_task_type(value)
+
+    @field_validator("records")
+    @classmethod
+    def validate_records(cls, value: list[WorkOrderRecord]) -> list[WorkOrderRecord]:
+        if not value:
+            raise ValueError("至少需要 1 条记录")
+        return value
+
+    @model_validator(mode="after")
+    def validate_task_type(self) -> WorkOrderBatchGenerateRequest:
+        self.task_type = validate_registered_task_type(self.pest_type, self.task_type)
+        return self
+
+    @model_validator(mode="after")
+    def validate_batch_size(self) -> WorkOrderBatchGenerateRequest:
+        from backend.config import get_settings
+
+        max_records = get_settings().workorder_batch_max_records
+        if len(self.records) > max_records:
+            raise ValueError(f"单次批量导出最多 {max_records} 条记录")
         return self
 
 

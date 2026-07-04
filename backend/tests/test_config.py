@@ -17,6 +17,8 @@ def build_settings(**overrides):
         "workorder_image_max_bytes": 8 * 1024 * 1024,
         "workorder_image_max_total_bytes": 24 * 1024 * 1024,
         "workorder_image_max_dimension": 1600,
+        "workorder_batch_max_records": 50,
+        "log_level": "INFO",
     }
     payload.update(overrides)
     return SimpleNamespace(**payload)
@@ -58,6 +60,12 @@ class RuntimeSettingsValidationTest(unittest.TestCase):
             )
 
         self.assertIn("WORKORDER_DEFAULT_OUTPUT_FORMAT", str(context.exception))
+
+    def test_rejects_invalid_log_level(self) -> None:
+        with self.assertRaises(RuntimeError) as context:
+            validate_runtime_settings(build_settings(log_level="VERBOSE"))
+
+        self.assertIn("LOG_LEVEL", str(context.exception))
 
 
 if __name__ == "__main__":

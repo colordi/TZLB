@@ -13,6 +13,7 @@ DEFAULT_AUTH_SECRET_KEY = "tzlb-dev-secret-change-me"
 DEFAULT_AUTH_DEFAULT_ADMIN_PASSWORD = "Forestry@2026"
 ALLOWED_APP_ENVS = {"development", "production"}
 ALLOWED_WORKORDER_OUTPUT_FORMATS = {"doc", "docx"}
+ALLOWED_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
 class Settings(BaseSettings):
@@ -97,6 +98,14 @@ class Settings(BaseSettings):
         default=1600,
         validation_alias="WORKORDER_IMAGE_MAX_DIMENSION",
     )
+    workorder_batch_max_records: int = Field(
+        default=50,
+        validation_alias="WORKORDER_BATCH_MAX_RECORDS",
+    )
+    log_level: str = Field(
+        default="INFO",
+        validation_alias="LOG_LEVEL",
+    )
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
@@ -134,6 +143,12 @@ def validate_runtime_settings(settings: Any) -> None:
         errors.append("WORKORDER_IMAGE_MAX_TOTAL_BYTES 不能小于 WORKORDER_IMAGE_MAX_BYTES")
     if settings.workorder_image_max_dimension <= 0:
         errors.append("WORKORDER_IMAGE_MAX_DIMENSION 必须大于 0")
+
+    if settings.workorder_batch_max_records <= 0:
+        errors.append("WORKORDER_BATCH_MAX_RECORDS 必须大于 0")
+
+    if settings.log_level.upper() not in ALLOWED_LOG_LEVELS:
+        errors.append(f"LOG_LEVEL 只能是 {', '.join(sorted(ALLOWED_LOG_LEVELS))} 之一")
 
     if app_env == "production":
         if settings.auth_secret_key.strip() == DEFAULT_AUTH_SECRET_KEY:

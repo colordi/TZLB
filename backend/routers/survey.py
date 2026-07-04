@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from datetime import date as date_cls
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 
 from backend.db.postgres import fetch_survey_candidates_by_type
+from backend.exceptions import BusinessError
 from backend.schemas import PestType
 from backend.services.survey_excel_import import import_survey_excel
+from backend.services.survey_template import generate_import_template_bytes
 
 
 router = APIRouter()
@@ -51,6 +55,23 @@ async def import_survey_excel_file(
             dry_run=dry_run,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"导入调查 Excel 失败：{exc}") from exc
+        raise BusinessError(str(exc)) from exc
+
+
+@router.get("/import-template", summary="下载调查数据导入模板")
+async def download_survey_import_template() -> Response:
+    try:
+        content = await generate_import_template_bytes()
+    except ValueError as exc:
+        raise BusinessError(str(exc)) from exc
+
+    exported_at = date_cls.today().strftime("%Y%m%d")
+    filename = f"林业调查数据导入模板_{exported_at}.xlsx"
+    encoded_name = quote(filename)
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+        },
+    )

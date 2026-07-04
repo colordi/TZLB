@@ -41,6 +41,22 @@ export async function generateWorkorder(payload) {
   };
 }
 
+export async function generateWorkorderBatch(payload) {
+  const response = await apiFetch("/api/workorder/generate-batch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+
+  return {
+    blob: await response.blob(),
+    filename: extractFilename(response.headers.get("content-disposition")),
+  };
+}
+
 export async function uploadDateImageFolder({ folderName, files }) {
   const formData = new FormData();
   formData.append("folder_name", folderName);

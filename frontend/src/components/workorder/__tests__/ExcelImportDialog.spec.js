@@ -5,6 +5,8 @@ import ExcelImportDialog from "../ExcelImportDialog.vue";
 
 const apiMocks = vi.hoisted(() => ({
   uploadSurveyExcel: vi.fn(),
+  downloadImportTemplate: vi.fn(),
+  downloadBlob: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   info: vi.fn(),
@@ -12,6 +14,11 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../../api/survey.js", () => ({
   uploadSurveyExcel: apiMocks.uploadSurveyExcel,
+  downloadImportTemplate: apiMocks.downloadImportTemplate,
+}));
+
+vi.mock("../../../utils/download.js", () => ({
+  downloadBlob: apiMocks.downloadBlob,
 }));
 
 vi.mock("../../../composables/useToast.js", () => ({
@@ -180,5 +187,33 @@ describe("ExcelImportDialog", () => {
     expect(wrapper.get('[data-testid="survey-excel-confirm"]').attributes("disabled"))
       .toBeDefined();
     expect(apiMocks.error).toHaveBeenCalledWith("Excel 存在校验错误，暂未入库。", "预览失败");
+  });
+
+  it("点击下载模板按钮会请求模板并保存到本地", async () => {
+    apiMocks.downloadImportTemplate.mockResolvedValueOnce({
+      blob: new Blob(["template"]),
+      filename: "林业调查数据导入模板_20260101.xlsx",
+    });
+
+    const wrapper = mountDialog();
+    await wrapper.get('[data-testid="survey-excel-download-template"]').trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.downloadImportTemplate).toHaveBeenCalledTimes(1);
+    expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "林业调查数据导入模板_20260101.xlsx",
+    );
+    expect(apiMocks.success).toHaveBeenCalledWith("导入模板已下载。", "下载完成");
+  });
+
+  it("下载模板失败时会提示错误", async () => {
+    apiMocks.downloadImportTemplate.mockRejectedValueOnce(new Error("网络异常"));
+
+    const wrapper = mountDialog();
+    await wrapper.get('[data-testid="survey-excel-download-template"]').trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.error).toHaveBeenCalledWith("网络异常", "模板下载失败");
   });
 });

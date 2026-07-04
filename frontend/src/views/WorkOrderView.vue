@@ -3,7 +3,11 @@ import { computed, ref, watch } from "vue";
 import { Archive, FileSpreadsheet, FolderUp, ShieldCheck } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../api/http.js";
-import { generateWorkorder, uploadDateImageFolder } from "../api/workorder.js";
+import {
+  generateWorkorder,
+  generateWorkorderBatch,
+  uploadDateImageFolder,
+} from "../api/workorder.js";
 import ExcelImportDialog from "../components/workorder/ExcelImportDialog.vue";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
@@ -88,13 +92,19 @@ const allVisibleSelected = computed(
     filteredRecordIndexes.value.every((index) => selectedIndexes.value.includes(index)),
 );
 const generateButtonLabel = computed(() => {
+  const total = records.value.length;
+
   if (!generating.value) {
-    return "生成工作单";
+    return total > 1 ? `批量导出工作单（${total} 条）` : "导出工作单";
   }
 
-  const total = exportProgress.value.total || records.value.length || 1;
+  if (total > 1) {
+    return "正在生成批量导出包…";
+  }
+
   const current = exportProgress.value.current || 1;
-  return `正在导出 ${current}/${total}…`;
+  const progressTotal = exportProgress.value.total || total || 1;
+  return `正在导出 ${current}/${progressTotal}…`;
 });
 
 watch(pestType, (nextType) => {
@@ -354,46 +364,40 @@ async function handleGenerate() {
       ...toPayloadRecord(record, pestType.value),
       serial_number: index + 1,
     }));
-    let completedCount = 0;
-    let lastDelivery = null;
 
     showValidationErrors.value = false;
 
-    for (const [index, record] of payloadRecords.entries()) {
-      exportProgress.value = {
-        current: index + 1,
-        total: payloadRecords.length,
-      };
-
+    if (payloadRecords.length === 1) {
       const { blob, filename } = await generateWorkorder({
         ...payload,
-        records: [record],
+        records: payloadRecords,
       });
-      lastDelivery = await downloadBlob(blob, filename);
-      completedCount += 1;
-    }
-
-    if (completedCount === 1) {
-      success(buildDeliveryMessage(lastDelivery, "工作单"), "导出成功");
+      const delivery = await downloadBlob(blob, filename);
+      success(buildDeliveryMessage(delivery, "工作单"), "导出成功");
       return;
     }
 
-    success(`已依次导出 ${completedCount} 份工作单。`, "导出成功");
+    const { blob, filename } = await generateWorkorderBatch({
+      ...payload,
+      records: payloadRecords,
+    });
+    await downloadBlob(blob, filename);
+    success(`已批量导出 ${payloadRecords.length} 条记录的工作单包。`, "导出成功");
   } catch (generateError) {
     if (isUnauthorizedError(generateError)) {
       return;
     }
 
-    const completedCount = Math.max(exportProgress.value.current - 1, 0);
-    if (completedCount > 0) {
+    const message = generateError.message || generateError;
+    if (records.value.length > 1) {
       error(
-        `已导出 ${completedCount}/${exportProgress.value.total} 份工作单，剩余导出失败：${generateError.message || generateError}`,
-        "部分导出失败",
+        `批量导出失败：${message}。若提示包含失败记录清单，可查看压缩包内“失败记录.json”。`,
+        "批量导出失败",
       );
       return;
     }
 
-    error(`${generateError.message || generateError}`, "工作单生成失败");
+    error(`${message}`, "工作单生成失败");
   } finally {
     generating.value = false;
     resetExportProgress();
@@ -419,7 +423,7 @@ async function handleGenerate() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
             <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6" />
           </svg>
-          <span>{{ generating ? generateButtonLabel : "逐条导出工作单" }}</span>
+          <span>{{ generateButtonLabel }}</span>
         </button>
         <button
           v-if="canImportSurvey"

@@ -16,6 +16,7 @@ from backend.services.docgen import (
     convert_docx_bytes_to_doc,
     find_dated_location_images,
     generate_workorder_artifact,
+    generate_workorder_batch_artifact,
     get_template_path,
     render_single_document,
     resolve_meiguobaie_image_paths,
@@ -446,6 +447,148 @@ class DocgenTest(unittest.TestCase):
         self.assertIn("MQ001现场.jpg", dated_image_names)
         self.assertIn("MQ001_2.jpg", dated_image_names)
         self.assertNotIn("AMQ001-1.jpg", dated_image_names)
+
+    def test_generate_workorder_batch_artifact_packs_successful_records(self) -> None:
+        payload = WorkOrderGenerateRequest(
+            pest_type="春尺蠖",
+            task_type="春尺蠖防治",
+            task="2026春尺蠖防治",
+            records=[
+                {
+                    "survey_date": "2026-04-01",
+                    "locality": "于家务乡",
+                    "location_id": "YF0069",
+                    "location_name": "神仙村",
+                    "description": "点位描述1",
+                    "note": "",
+                    "images": [],
+                },
+                {
+                    "survey_date": "2026-04-02",
+                    "locality": "于家务乡",
+                    "location_id": "YF0070",
+                    "location_name": "中心林地",
+                    "description": "点位描述2",
+                    "note": "",
+                    "images": [],
+                },
+            ],
+        )
+
+        with (
+            patch("backend.services.docgen.get_template_path", return_value=Path("/tmp/template.docx")),
+            patch(
+                "backend.services.docgen.render_single_document",
+                side_effect=[
+                    ("工作单1.docx", b"docx-1"),
+                    ("工作单2.docx", b"docx-2"),
+                ],
+            ),
+            patch(
+                "backend.services.docgen.convert_docx_bytes_to_doc",
+                side_effect=[
+                    ("工作单1.doc", b"doc-1"),
+                    ("工作单2.doc", b"doc-2"),
+                ],
+            ) as mocked_convert,
+        ):
+            artifact = generate_workorder_batch_artifact(payload)
+
+        self.assertEqual(artifact.media_type, "application/zip")
+        self.assertTrue(artifact.filename.endswith("_2份.zip"))
+        self.assertEqual(mocked_convert.call_count, 2)
+
+        with zipfile.ZipFile(io.BytesIO(artifact.content)) as archive:
+            names = archive.namelist()
+            self.assertIn("工作单/工作单1.doc", names)
+            self.assertIn("工作单/工作单2.doc", names)
+            self.assertNotIn("失败记录.json", names)
+            self.assertEqual(archive.read("工作单/工作单1.doc"), b"doc-1")
+            self.assertEqual(archive.read("工作单/工作单2.doc"), b"doc-2")
+
+    def test_generate_workorder_batch_artifact_includes_failure_report(self) -> None:
+        payload = WorkOrderGenerateRequest(
+            pest_type="春尺蠖",
+            task_type="春尺蠖防治",
+            task="2026春尺蠖防治",
+            records=[
+                {
+                    "survey_date": "2026-04-01",
+                    "locality": "于家务乡",
+                    "location_id": "YF0069",
+                    "location_name": "神仙村",
+                    "description": "点位描述1",
+                    "note": "",
+                    "images": [],
+                },
+                {
+                    "survey_date": "2026-04-02",
+                    "locality": "于家务乡",
+                    "location_id": "YF0070",
+                    "location_name": "中心林地",
+                    "description": "点位描述2",
+                    "note": "",
+                    "images": [],
+                },
+            ],
+        )
+
+        with (
+            patch("backend.services.docgen.get_template_path", return_value=Path("/tmp/template.docx")),
+            patch(
+                "backend.services.docgen.render_single_document",
+                side_effect=[
+                    ("工作单1.docx", b"docx-1"),
+                    ValueError("模板渲染失败"),
+                ],
+            ),
+            patch(
+                "backend.services.docgen.convert_docx_bytes_to_doc",
+                return_value=("工作单1.doc", b"doc-1"),
+            ),
+        ):
+            artifact = generate_workorder_batch_artifact(payload)
+
+        self.assertTrue(artifact.filename.endswith("_1份.zip"))
+
+        with zipfile.ZipFile(io.BytesIO(artifact.content)) as archive:
+            names = archive.namelist()
+            self.assertIn("工作单/工作单1.doc", names)
+            self.assertIn("失败记录.json", names)
+            failure_report = archive.read("失败记录.json").decode("utf-8")
+            self.assertIn("中心林地", failure_report)
+            self.assertIn("模板渲染失败", failure_report)
+
+    def test_generate_workorder_batch_artifact_raises_when_all_fail(self) -> None:
+        payload = WorkOrderGenerateRequest(
+            pest_type="春尺蠖",
+            task_type="春尺蠖防治",
+            task="2026春尺蠖防治",
+            records=[
+                {
+                    "survey_date": "2026-04-01",
+                    "locality": "于家务乡",
+                    "location_id": "YF0069",
+                    "location_name": "神仙村",
+                    "description": "点位描述1",
+                    "note": "",
+                    "images": [],
+                },
+            ],
+        )
+
+        with (
+            patch("backend.services.docgen.get_template_path", return_value=Path("/tmp/template.docx")),
+            patch(
+                "backend.services.docgen.render_single_document",
+                side_effect=ValueError("模板渲染失败"),
+            ),
+        ):
+            with self.assertRaises(ValueError) as context:
+                generate_workorder_batch_artifact(payload)
+
+        self.assertIn("批量导出全部失败", str(context.exception))
+        self.assertIn("神仙村", str(context.exception))
 
 
 if __name__ == "__main__":

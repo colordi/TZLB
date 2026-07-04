@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import mimetypes
 import re
 import subprocess
@@ -17,6 +18,7 @@ from docx.shared import Mm
 from docxtpl import DocxTemplate, InlineImage
 
 from backend.config import get_settings, normalize_output_format
+from backend.logging_config import get_logger
 from backend.schemas import WorkOrderGenerateRequest, WorkOrderRecord
 from backend.services.pest_registry import (
     IMAGE_STRATEGY_WHITE_MOTH_AUTO,
@@ -24,10 +26,14 @@ from backend.services.pest_registry import (
 )
 
 
+logger = get_logger(__name__)
+
+
 MAX_IMAGES = 4
 IMAGE_WIDTH_MM = 70
 DOC_MEDIA_TYPE = "application/msword"
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+ZIP_MEDIA_TYPE = "application/zip"
 DOC_CONVERT_FILTER = "MS Word 97"
 SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
 SUPPORTED_IMAGE_FORMAT_LABEL = "JPEG、PNG、WebP"
@@ -479,11 +485,22 @@ def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedA
     template_path = get_template_path(payload.pest_type)
     output_format = resolve_output_format(payload)
     temp_images: list[Path] = []
+    record = payload.records[0]
+
+    logger.info(
+        "开始生成工作单: pest_type=%s task_type=%s output_format=%s location=%s date=%s images=%d",
+        payload.pest_type,
+        payload.task_type,
+        output_format,
+        record.location_name,
+        record.survey_date,
+        len(record.images),
+    )
 
     try:
         filename, content = render_single_document(
             template_path=template_path,
-            record=payload.records[0],
+            record=record,
             pest_type=payload.pest_type,
             task_type=payload.task_type,
             task_name=payload.task,
@@ -492,9 +509,133 @@ def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedA
         )
         if output_format == "doc":
             filename, content = convert_docx_bytes_to_doc(filename, content)
+            logger.info("工作单生成完成: %s (doc)", filename)
             return build_download_artifact(filename, content, DOC_MEDIA_TYPE)
         if output_format == "docx":
+            logger.info("工作单生成完成: %s (docx)", filename)
             return build_download_artifact(filename, content, DOCX_MEDIA_TYPE)
         raise ValueError("输出格式只能是 doc 或 docx")
     finally:
         cleanup_temp_images(temp_images)
+
+
+@dataclass(slots=True)
+class BatchResult:
+    filename: str
+    content: bytes
+
+
+@dataclass(slots=True)
+class BatchFailure:
+    index: int
+    location_name: str
+    location_id: str
+    reason: str
+
+
+def build_batch_zip_filename(success_count: int) -> str:
+    current_year = datetime.now().year
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{current_year}年工作单批量导出_{timestamp}_{success_count}份.zip"
+
+
+def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> GeneratedArtifact:
+    """批量生成工作单并打包为 zip。
+
+    单条失败不影响整体流程，成功文件放入 zip，失败记录写入 失败记录.json。
+    如果全部失败，则抛出 ValueError 统一返回 400。
+    """
+
+    template_path = get_template_path(payload.pest_type)
+    output_format = resolve_output_format(payload)
+    successes: list[BatchResult] = []
+    failures: list[BatchFailure] = []
+
+    logger.info(
+        "开始批量生成工作单: pest_type=%s task_type=%s output_format=%s count=%d",
+        payload.pest_type,
+        payload.task_type,
+        output_format,
+        len(payload.records),
+    )
+
+    for index, record in enumerate(payload.records):
+        temp_images: list[Path] = []
+        try:
+            filename, content = render_single_document(
+                template_path=template_path,
+                record=record,
+                pest_type=payload.pest_type,
+                task_type=payload.task_type,
+                task_name=payload.task,
+                index=index,
+                temp_images=temp_images,
+            )
+            if output_format == "doc":
+                filename, content = convert_docx_bytes_to_doc(filename, content)
+            successes.append(BatchResult(filename=filename, content=content))
+        except Exception as exc:  # noqa: BLE001
+            reason = str(exc)
+            logger.warning(
+                "第 %d 条工作单生成失败: location=%s reason=%s",
+                index + 1,
+                record.location_name,
+                reason,
+            )
+            failures.append(
+                BatchFailure(
+                    index=index + 1,
+                    location_name=record.location_name or "未命名点位",
+                    location_id=record.location_id or "",
+                    reason=reason,
+                )
+            )
+        finally:
+            cleanup_temp_images(temp_images)
+
+    if not successes:
+        failure_details = "；".join(
+            f"第 {failure.index} 条（{failure.location_name}）: {failure.reason}"
+            for failure in failures
+        )
+        raise ValueError(f"批量导出全部失败：{failure_details}")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for result in successes:
+            archive.writestr(f"工作单/{result.filename}", result.content)
+
+        if failures:
+            failures_json = io.StringIO()
+            json.dump(
+                {
+                    "total": len(payload.records),
+                    "success_count": len(successes),
+                    "failure_count": len(failures),
+                    "failures": [
+                        {
+                            "index": failure.index,
+                            "location_name": failure.location_name,
+                            "location_id": failure.location_id,
+                            "reason": failure.reason,
+                        }
+                        for failure in failures
+                    ],
+                },
+                failures_json,
+                ensure_ascii=False,
+                indent=2,
+            )
+            archive.writestr("失败记录.json", failures_json.getvalue())
+
+    logger.info(
+        "批量生成工作单完成: success=%d failure=%d",
+        len(successes),
+        len(failures),
+    )
+
+    return GeneratedArtifact(
+        filename=build_batch_zip_filename(len(successes)),
+        media_type=ZIP_MEDIA_TYPE,
+        content=buffer.getvalue(),
+    )

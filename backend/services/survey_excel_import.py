@@ -9,6 +9,10 @@ import asyncpg
 from openpyxl import load_workbook
 
 from backend.db.postgres import ensure_pool, quote_identifier
+from backend.logging_config import get_logger
+
+
+logger = get_logger(__name__)
 
 
 ALLOWED_SCHEMAS = ("survey", "ledger")
@@ -855,9 +859,17 @@ async def run_survey_excel_import(
     dry_run: bool,
     connection: asyncpg.Connection,
 ) -> dict[str, Any]:
+    logger.info("开始 Excel 导入: file=%s size=%d bytes dry_run=%s", file_name, len(content), dry_run)
     metadata = await fetch_survey_table_metadata(connection)
     sheets = build_import_plan(content, metadata)
     append_backend_generated_ledger_sheets(sheets, metadata)
+
+    sheet_summaries = [
+        f"{sheet.sheet_name}(rows={sheet.row_count},valid={sheet.valid_rows},errors={len(sheet.errors)})"
+        for sheet in sheets
+    ]
+    logger.info("Excel 解析完成: sheets=[%s]", ", ".join(sheet_summaries))
+
     if not sheets:
         return summarize_import(file_name=file_name, dry_run=dry_run, sheets=[])
 
@@ -865,12 +877,16 @@ async def run_survey_excel_import(
         await mark_database_duplicates(connection, sheets, metadata)
 
     if dry_run or has_errors(sheets):
-        return summarize_import(file_name=file_name, dry_run=dry_run, sheets=sheets)
+        summary = summarize_import(file_name=file_name, dry_run=dry_run, sheets=sheets)
+        logger.info("Excel 预览完成: %s", summary.get("totals"))
+        return summary
 
     async with connection.transaction():
         await insert_valid_rows(connection, sheets, metadata)
 
-    return summarize_import(file_name=file_name, dry_run=dry_run, sheets=sheets)
+    summary = summarize_import(file_name=file_name, dry_run=dry_run, sheets=sheets)
+    logger.info("Excel 入库完成: %s", summary.get("totals"))
+    return summary
 
 
 async def import_survey_excel(

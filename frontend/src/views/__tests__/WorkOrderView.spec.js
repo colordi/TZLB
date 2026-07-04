@@ -8,6 +8,7 @@ import WorkOrderView from "../WorkOrderView.vue";
 
 const apiMocks = vi.hoisted(() => ({
   generateWorkorder: vi.fn(),
+  generateWorkorderBatch: vi.fn(),
   uploadDateImageFolder: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
@@ -17,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../api/workorder.js", () => ({
   generateWorkorder: apiMocks.generateWorkorder,
+  generateWorkorderBatch: apiMocks.generateWorkorderBatch,
   uploadDateImageFolder: apiMocks.uploadDateImageFolder,
 }));
 
@@ -190,7 +192,7 @@ describe("WorkOrderView", () => {
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
     expect(wrapper.text()).toContain("害虫类型");
-    expect(wrapper.text()).toContain("逐条导出工作单");
+    expect(wrapper.text()).toContain("导出工作单");
     expect(wrapper.text()).toContain("从数据库追加工单记录");
     expect(wrapper.text()).toContain("上传调查 Excel");
     expect(wrapper.text()).toContain("上传日期图片文件夹");
@@ -603,13 +605,11 @@ describe("WorkOrderView", () => {
     expect(apiMocks.success).toHaveBeenCalledWith("工作单已开始下载。", "导出成功");
   });
 
-  it("多条记录会按顺序逐条导出，并显示当前进度与汇总成功提示", async () => {
-    const firstRequest = createDeferred();
-    const secondRequest = createDeferred();
-
-    apiMocks.generateWorkorder
-      .mockImplementationOnce(() => firstRequest.promise)
-      .mockImplementationOnce(() => secondRequest.promise);
+  it("多条记录会批量导出为一个 zip，并显示批量导出成功提示", async () => {
+    apiMocks.generateWorkorderBatch.mockResolvedValue({
+      blob: new Blob(["zip-content"]),
+      filename: "批量导出_2份.zip",
+    });
 
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
@@ -617,68 +617,62 @@ describe("WorkOrderView", () => {
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
-      expect(findButtonByText(wrapper, "正在导出").text()).toContain("1/2");
+      expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledTimes(1);
     });
 
-    firstRequest.resolve({
-      blob: new Blob(["doc-1"]),
-      filename: "工作单-1.doc",
+    expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledWith({
+      pest_type: "春尺蠖",
+      task_type: "春尺蠖防治",
+      task: "2026春尺蠖防治",
+      records: [
+        expect.objectContaining({
+          location_id: "YF0069",
+          serial_number: 1,
+        }),
+        expect.objectContaining({
+          location_id: "YF0070",
+          serial_number: 2,
+        }),
+      ],
     });
-
-    await vi.waitFor(() => {
-      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(2);
-      expect(findButtonByText(wrapper, "正在导出").text()).toContain("2/2");
-    });
-
-    secondRequest.resolve({
-      blob: new Blob(["doc-2"]),
-      filename: "工作单-2.doc",
-    });
-
-    await vi.waitFor(() => {
-      expect(apiMocks.success).toHaveBeenCalledWith("已依次导出 2 份工作单。", "导出成功");
-    });
-
-    expect(apiMocks.generateWorkorder.mock.calls[0][0].records).toHaveLength(1);
-    expect(apiMocks.generateWorkorder.mock.calls[1][0].records).toHaveLength(1);
-    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0].location_id).toBe("YF0069");
-    expect(apiMocks.generateWorkorder.mock.calls[0][0].records[0].serial_number).toBe(1);
-    expect(apiMocks.generateWorkorder.mock.calls[1][0].records[0].location_id).toBe("YF0070");
-    expect(apiMocks.generateWorkorder.mock.calls[1][0].records[0].serial_number).toBe(2);
+    expect(apiMocks.generateWorkorder).not.toHaveBeenCalled();
+    expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "批量导出_2份.zip",
+    );
+    expect(apiMocks.success).toHaveBeenCalledWith(
+      "已批量导出 2 条记录的工作单包。",
+      "导出成功",
+    );
   });
 
-  it("多条记录部分失败时展示部分成功提示，不误报全部成功", async () => {
-    apiMocks.generateWorkorder
-      .mockResolvedValueOnce({
-        blob: new Blob(["doc-1"]),
-        filename: "工作单-1.doc",
-      })
-      .mockRejectedValueOnce(new Error("网络异常"));
+  it("多条记录批量导出失败时展示批量导出失败提示", async () => {
+    apiMocks.generateWorkorderBatch.mockRejectedValue(new Error("网络异常"));
 
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
+    apiMocks.success.mockClear();
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.error).toHaveBeenCalledWith(
-        "已导出 1/2 份工作单，剩余导出失败：网络异常",
-        "部分导出失败",
+        "批量导出失败：网络异常。若提示包含失败记录清单，可查看压缩包内“失败记录.json”。",
+        "批量导出失败",
       );
     });
 
-    expect(apiMocks.success).not.toHaveBeenCalledWith("已依次导出 2 份工作单。", "导出成功");
+    expect(apiMocks.success).not.toHaveBeenCalled();
   });
 
-  it("认证失效时中断后续逐条导出", async () => {
-    apiMocks.generateWorkorder.mockRejectedValueOnce(new UnauthorizedError());
+  it("认证失效时批量导出中断", async () => {
+    apiMocks.generateWorkorderBatch.mockRejectedValueOnce(new UnauthorizedError());
 
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
@@ -689,10 +683,10 @@ describe("WorkOrderView", () => {
     apiMocks.error.mockClear();
     apiMocks.downloadBlob.mockClear();
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledTimes(1);
     });
 
     expect(apiMocks.downloadBlob).not.toHaveBeenCalled();
