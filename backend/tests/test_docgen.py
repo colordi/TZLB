@@ -344,6 +344,7 @@ class DocgenTest(unittest.TestCase):
             pest_type="美国白蛾",
             task_type="美国白蛾防治",
             task="2026美国白蛾第一代防治",
+            generation="第一代",
             records=[
                 {
                     "survey_date": "2026-05-26",
@@ -385,6 +386,7 @@ class DocgenTest(unittest.TestCase):
             pest_type="美国白蛾",
             task_type="美国白蛾防治",
             task="2026美国白蛾第一代防治",
+            generation="第一代",
             records=[
                 {
                     "survey_date": "2026-05-26",

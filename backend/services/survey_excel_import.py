@@ -19,8 +19,8 @@ ALLOWED_SCHEMAS = ("survey", "ledger")
 AUTO_DEFAULT_MARKERS = ("nextval(", "generated")
 EXCEL_EPOCH = date(1899, 12, 30)
 EXCEL_DATETIME_EPOCH = datetime.combine(EXCEL_EPOCH, datetime.min.time())
-MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾第一代调查表"
-MEI_GUO_BAI_E_LEDGER_TABLE = "2026年美国白蛾第一代问题点位事件流水表"
+MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾调查表"
+MEI_GUO_BAI_E_LEDGER_TABLE = "美国白蛾问题点位事件流水表"
 MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS = ("编号", "事件类型", "事件时间")
 BACKEND_GENERATED_ID_TABLES = {("ledger", MEI_GUO_BAI_E_LEDGER_TABLE)}
 
@@ -456,10 +456,10 @@ def append_backend_generated_ledger_sheets(
         sheet_name=MEI_GUO_BAI_E_LEDGER_TABLE,
         schema_name="ledger",
         table_name=MEI_GUO_BAI_E_LEDGER_TABLE,
-        warnings=['根据 survey."美国白蛾第一代调查表" 在后端生成事件流水'],
+        warnings=['根据 survey."美国白蛾调查表" 在后端生成事件流水'],
     )
     if ledger_meta is None:
-        generated_sheet.errors.append("缺少美国白蛾第一代问题点位事件流水表，不能写入 ledger")
+        generated_sheet.errors.append("缺少美国白蛾问题点位事件流水表，不能写入 ledger")
         sheets.append(generated_sheet)
         return
 
@@ -519,7 +519,7 @@ def build_mei_guo_bai_e_ledger_values(row_values: dict[str, Any]) -> dict[str, A
     else:
         event_time = datetime.combine(survey_date, datetime.min.time())
 
-    source_note = f'来源=survey."美国白蛾第一代调查表"；调查日期={survey_date}'
+    source_note = f'来源=survey."美国白蛾调查表"；调查日期={survey_date}'
     note = row_values.get("备注")
     if not is_blank(note):
         source_note = f"{source_note}；原备注={note}"

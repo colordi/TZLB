@@ -99,6 +99,8 @@ describe("fieldConfig", () => {
     expect(getDefaultTask("美国白蛾")).toBe("2026美国白蛾第一代防治");
     expect(getTaskOptions("美国白蛾").map((option) => option.value)).toEqual([
       "2026美国白蛾第一代防治",
+      "2026美国白蛾第二代防治",
+      "2026美国白蛾第三代防治",
     ]);
   });
 

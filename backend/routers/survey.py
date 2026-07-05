@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from backend.db.postgres import fetch_survey_candidates_by_type
 from backend.exceptions import BusinessError
 from backend.schemas import PestType
+from backend.services.pest_registry import validate_generation as validate_registered_generation
 from backend.services.survey_excel_import import import_survey_excel
 from backend.services.survey_template import generate_import_template_bytes
 
@@ -21,13 +22,22 @@ router = APIRouter()
 async def get_survey_candidates(
     date: date_cls | None = Query(default=None, description="调查日期，格式为 YYYY-MM-DD"),
     pest_type: PestType = Query(default="春尺蠖", description="害虫类型"),
+    year: int | None = Query(default=None, description="年份，默认取调查日期年份"),
+    generation: str | None = Query(default=None, description="世代，如第一代、第二代"),
 ) -> list[dict[str, Any]]:
     target_date = date or date_cls.today()
+
+    try:
+        resolved_generation = validate_registered_generation(pest_type, generation)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
         return await fetch_survey_candidates_by_type(
             survey_date=target_date,
             pest_type=pest_type,
+            year=year,
+            generation=resolved_generation,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

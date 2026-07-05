@@ -430,7 +430,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('survey"."美国白蛾第一代调查表', query)
+        self.assertIn('survey"."美国白蛾调查表', query)
         self.assertIn('COALESCE(i."属地", \'\') AS locality', query)
         self.assertNotIn('i."乡镇"', query)
         self.assertIn('BTRIM(COALESCE(i."详细描述", \'\')) <> \'\'', query)

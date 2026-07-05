@@ -14,8 +14,11 @@ import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import {
   PEST_OPTIONS,
+  buildTask,
+  getCurrentYear,
   getDefaultControlType,
   getDefaultTask,
+  getGenerationFromTask,
   getTaskOptions,
   hasValidationErrors,
   normalizeRecordForPest,
@@ -29,8 +32,9 @@ import { downloadBlob } from "../utils/download.js";
 const { error, info, success } = useToast();
 
 const pestType = ref("春尺蠖");
+const year = ref(getCurrentYear());
 const taskType = computed(() => getDefaultControlType(pestType.value));
-const taskName = ref(getDefaultTask(pestType.value));
+const taskName = ref(getDefaultTask(pestType.value, year.value));
 const records = ref([]);
 const generating = ref(false);
 const exportProgress = ref({
@@ -50,7 +54,14 @@ const searchQuery = ref("");
 const recordFilter = ref("all");
 const DATE_FOLDER_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-const taskOptions = computed(() => getTaskOptions(pestType.value));
+const taskOptions = computed(() => getTaskOptions(pestType.value, year.value));
+const generation = computed(() =>
+  getGenerationFromTask(pestType.value, taskName.value, year.value),
+);
+const yearOptions = computed(() => {
+  const current = getCurrentYear();
+  return [current - 2, current - 1, current, current + 1];
+});
 const canImportSurvey = computed(() => supportsSurveyImport(pestType.value));
 const validationErrors = computed(() =>
   showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
@@ -108,14 +119,18 @@ const generateButtonLabel = computed(() => {
 });
 
 watch(pestType, (nextType) => {
-  taskName.value = getDefaultTask(nextType);
+  taskName.value = getDefaultTask(nextType, year.value);
   showValidationErrors.value = false;
   surveyImportOpen.value = false;
   excelImportOpen.value = false;
-  selectedIndexes.value = []; // Reset selections
+  selectedIndexes.value = [];
   records.value = records.value.length
     ? records.value.map((record) => normalizeRecordForPest(record, nextType))
     : [];
+});
+
+watch(year, () => {
+  taskName.value = getDefaultTask(pestType.value, year.value);
 });
 
 watch(taskOptions, (options) => {
@@ -359,6 +374,8 @@ async function handleGenerate() {
       pest_type: pestType.value,
       task_type: taskType.value,
       task: taskName.value,
+      year: year.value,
+      generation: generation.value,
     };
     const payloadRecords = records.value.map((record, index) => ({
       ...toPayloadRecord(record, pestType.value),
@@ -447,6 +464,13 @@ async function handleGenerate() {
           <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
             {{ option.label }}
           </option>
+        </select>
+      </label>
+
+      <label class="workorder-field" for="workorder-year">
+        <span>年份</span>
+        <select id="workorder-year" v-model="year" :disabled="generating">
+          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
         </select>
       </label>
 
@@ -617,6 +641,8 @@ async function handleGenerate() {
       :busy="generating"
       :open="surveyImportOpen"
       :pest-type="pestType"
+      :year="year"
+      :generation="generation"
       @close="closeSurveyImportDialog"
       @import="handleSurveyImport"
     />
@@ -711,6 +737,10 @@ async function handleGenerate() {
 
 .workorder-field.is-task > select {
   width: 260px;
+}
+
+#workorder-year {
+  width: 100px;
 }
 
 .workorder-action-grid {

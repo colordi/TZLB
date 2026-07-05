@@ -49,21 +49,21 @@ class FakeConnection:
             },
             {
                 "table_schema": "ledger",
-                "table_name": "2026年美国白蛾第一代问题点位台账",
+                "table_name": "美国白蛾问题点位台账",
                 "object_type": "table",
                 "columns": ["编号", "备注"],
             },
             {
                 "table_schema": "ledger",
-                "table_name": "2026年美国白蛾第一代问题点位视图",
+                "table_name": "美国白蛾问题点位视图",
                 "object_type": "view",
                 "columns": ["编号", "属地"],
             },
         ]
         self.counts = {
             '"survey"."春尺蠖幼虫调查表"': 1,
-            '"ledger"."2026年美国白蛾第一代问题点位台账"': 0,
-            '"ledger"."2026年美国白蛾第一代问题点位视图"': 1,
+            '"ledger"."美国白蛾问题点位台账"': 0,
+            '"ledger"."美国白蛾问题点位视图"': 1,
         }
         self.table_rows = {
             '"survey"."春尺蠖幼虫调查表"': [
@@ -72,8 +72,8 @@ class FakeConnection:
                     "调查日期": date(2026, 4, 1),
                 }
             ],
-            '"ledger"."2026年美国白蛾第一代问题点位台账"': [],
-            '"ledger"."2026年美国白蛾第一代问题点位视图"': [
+            '"ledger"."美国白蛾问题点位台账"': [],
+            '"ledger"."美国白蛾问题点位视图"': [
                 {
                     "编号": "MQ001",
                     "属地": "马驹桥镇",
@@ -137,8 +137,8 @@ class DataExportServiceTest(unittest.IsolatedAsyncioTestCase):
         workbook = load_workbook(BytesIO(artifact.content), read_only=True, data_only=True)
         self.assertIn("导出说明", workbook.sheetnames)
         self.assertIn("survey.春尺蠖幼虫调查表", workbook.sheetnames)
-        self.assertIn("ledger.2026年美国白蛾第一代问题点位台账", workbook.sheetnames)
-        self.assertIn("ledger.2026年美国白蛾第一代问题点位视图", workbook.sheetnames)
+        self.assertIn("ledger.美国白蛾问题点位台账", workbook.sheetnames)
+        self.assertIn("ledger.美国白蛾问题点位视图", workbook.sheetnames)
 
         summary_rows = list(workbook["导出说明"].iter_rows(values_only=True))
         self.assertIn(("导出范围", "survey, ledger 表和视图"), summary_rows)

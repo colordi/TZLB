@@ -225,7 +225,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 ### 工单生成
 
-- 害虫类型注册在 `backend/services/pest_registry.py` 中，每种害虫包含：字段配置、必填字段、任务类型、模板文件名、默认值和图片策略。
+- 害虫类型注册在 `backend/services/pest_registry.py` 中，每种害虫包含：字段配置、必填字段、任务模板（`task_template`）、世代列表（`generations`）、统防统治类型、模板文件名、默认值和图片策略。年份和世代作为运行时参数，由 `build_task(entry, year, generation)` 渲染任务名。
 
 - 当前支持：`春尺蠖`、`国槐尺蠖`、`美国白蛾`、`其他害虫`。
 
@@ -247,7 +247,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - 前端 `frontend/src/components/map/LeafletMap.vue` 使用 Leaflet 渲染点位、边界和筛选器。
 
-- 地图弹窗字段来自视图除 `geom` 外的所有字段；筛选器根据字段名自动推断，如 `属地`、`调查日期`、`年份`、`危害程度` 等。
+- 地图弹窗字段来自视图除 `geom` 外的所有字段；筛选器根据字段名自动推断，如 `属地`、`调查日期`、`年份`、`世代`、`危害程度` 等。
 
 - 行政区边界来自 `reference."通州区行政区边界"`。
 
@@ -257,11 +257,11 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `app_auth.users`：认证用户表
 
-- `survey.*`：调查表（春尺蠖、国槐尺蠖、美国白蛾、其他害虫）
+- `survey.*`：调查表（春尺蠖、国槐尺蠖、美国白蛾、其他害虫），均含 `年份` 列；美国白蛾和国槐尺蠖含 `世代` 列
 
-- `ledger.*`：美国白蛾问题点位事件流水和台账
+- `ledger.*`：问题点位事件流水和台账（美国白蛾、国槐尺蠖、春尺蠖、其他害虫），均含 `年份` 列
 
-- `sites.*`：监测点位基础表
+- `sites.*`：监测点位基础表；`杨树点位基础表` 含 `当前点位状态` 字段（可调查/不可调查/伐除）
 
 - `reference.*`：行政区、小区、村庄边界等
 

@@ -341,13 +341,13 @@ def build_context(
     return context
 
 
-def build_output_filename(record: WorkOrderRecord, index: int) -> str:
+def build_output_filename(record: WorkOrderRecord, index: int, year: int | None = None) -> str:
     town = record.locality or "未知属地"
     location = record.location_name or "未命名点位"
     survey_date = record.survey_date or datetime.now().strftime("%Y-%m-%d")
     serial = record.location_id or str(index + 1).zfill(3)
-    current_year = datetime.now().year
-    return f"{current_year}林业有害生物防治工作单（{town}）-{location}-{survey_date}-{serial}.docx"
+    resolved_year = year if year is not None else datetime.now().year
+    return f"{resolved_year}林业有害生物防治工作单（{town}）-{location}-{survey_date}-{serial}.docx"
 
 
 def replace_suffix(filename: str, suffix: str) -> str:
@@ -392,6 +392,7 @@ def render_single_document(
     task_name: str,
     index: int,
     temp_images: list[Path],
+    year: int | None = None,
 ) -> tuple[str, bytes]:
     """渲染单条 Word 工作单。"""
 
@@ -412,7 +413,7 @@ def render_single_document(
     doc.save(buffer)
     content = buffer.getvalue()
     ensure_template_markers_resolved(content, template_path)
-    return build_output_filename(record, index), content
+    return build_output_filename(record, index, year), content
 
 
 def convert_docx_bytes_to_doc(filename: str, content: bytes) -> tuple[str, bytes]:
@@ -506,6 +507,7 @@ def generate_workorder_artifact(payload: WorkOrderGenerateRequest) -> GeneratedA
             task_name=payload.task,
             index=0,
             temp_images=temp_images,
+            year=payload.year,
         )
         if output_format == "doc":
             filename, content = convert_docx_bytes_to_doc(filename, content)
@@ -533,10 +535,10 @@ class BatchFailure:
     reason: str
 
 
-def build_batch_zip_filename(success_count: int) -> str:
-    current_year = datetime.now().year
+def build_batch_zip_filename(success_count: int, year: int | None = None) -> str:
+    resolved_year = year if year is not None else datetime.now().year
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"{current_year}年工作单批量导出_{timestamp}_{success_count}份.zip"
+    return f"{resolved_year}年工作单批量导出_{timestamp}_{success_count}份.zip"
 
 
 def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> GeneratedArtifact:
@@ -570,6 +572,7 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
                 task_name=payload.task,
                 index=index,
                 temp_images=temp_images,
+                year=payload.year,
             )
             if output_format == "doc":
                 filename, content = convert_docx_bytes_to_doc(filename, content)
@@ -635,7 +638,7 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
     )
 
     return GeneratedArtifact(
-        filename=build_batch_zip_filename(len(successes)),
+        filename=build_batch_zip_filename(len(successes), payload.year),
         media_type=ZIP_MEDIA_TYPE,
         content=buffer.getvalue(),
     )

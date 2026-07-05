@@ -60,13 +60,18 @@ const CHI_HUO_IMPORT_COLUMNS = [
 
 const COMMON_IMPORT_KEY_FIELDS = ["survey_date", "location_id", "pest_name"];
 
+const DEFAULT_TASK_TEMPLATE = "{year}{pest}{generation}防治";
+const GENERATION_NONE = [null];
+const GENERATIONS_THREE = ["第一代", "第二代", "第三代"];
+
 export const PEST_REGISTRY = [
   {
     key: "春尺蠖",
     label: "春尺蠖",
     group: "chi_huo",
     controlType: "春尺蠖防治",
-    tasks: ["2026春尺蠖防治"],
+    taskTemplate: DEFAULT_TASK_TEMPLATE,
+    generations: GENERATION_NONE,
     fieldKeys: CHI_HUO_FIELD_KEYS,
     requiredFieldKeys: COMMON_REQUIRED_FIELD_KEYS,
     numberFieldKeys: [],
@@ -86,11 +91,8 @@ export const PEST_REGISTRY = [
     label: "国槐尺蠖",
     group: "chi_huo",
     controlType: "国槐尺蠖防治",
-    tasks: [
-      "2026国槐尺蠖第一代防治",
-      "2026国槐尺蠖第二代防治",
-      "2026国槐尺蠖第三代防治",
-    ],
+    taskTemplate: DEFAULT_TASK_TEMPLATE,
+    generations: GENERATIONS_THREE,
     fieldKeys: CHI_HUO_FIELD_KEYS,
     requiredFieldKeys: COMMON_REQUIRED_FIELD_KEYS,
     numberFieldKeys: [],
@@ -110,7 +112,8 @@ export const PEST_REGISTRY = [
     label: "美国白蛾",
     group: "mei_guo_bai_e",
     controlType: "美国白蛾防治",
-    tasks: ["2026美国白蛾第一代防治"],
+    taskTemplate: DEFAULT_TASK_TEMPLATE,
+    generations: GENERATIONS_THREE,
     fieldKeys: MEI_GUO_BAI_E_FIELD_KEYS,
     requiredFieldKeys: COMMON_REQUIRED_FIELD_KEYS,
     numberFieldKeys: ["damaged_plant_count", "web_nest_count"],
@@ -144,7 +147,8 @@ export const PEST_REGISTRY = [
     label: "其他害虫",
     group: "other_pest",
     controlType: "其他害虫防治",
-    tasks: ["2026其他害虫防治"],
+    taskTemplate: DEFAULT_TASK_TEMPLATE,
+    generations: GENERATION_NONE,
     fieldKeys: OTHER_PEST_FIELD_KEYS,
     requiredFieldKeys: COMMON_REQUIRED_FIELD_KEYS,
     numberFieldKeys: [],
@@ -333,15 +337,41 @@ export function getDefaultControlType(pestType) {
   return getPestConfig(pestType).controlType;
 }
 
-export function getTaskOptions(pestType) {
-  return getPestConfig(pestType).tasks.map((task) => ({
-    value: task,
-    label: task,
-  }));
+export function buildTask(pestType, year, generation) {
+  const config = getPestConfig(pestType);
+  return config.taskTemplate
+    .replace("{year}", year)
+    .replace("{pest}", pestType)
+    .replace("{generation}", generation || "");
 }
 
-export function getDefaultTask(pestType) {
-  return getTaskOptions(pestType)[0]?.value || "";
+export function getCurrentYear() {
+  return new Date().getFullYear();
+}
+
+export function getGenerations(pestType) {
+  return getPestConfig(pestType).generations;
+}
+
+export function supportsGeneration(pestType) {
+  return getPestConfig(pestType).generations.some((gen) => gen !== null);
+}
+
+export function getTaskOptions(pestType, year = getCurrentYear()) {
+  const config = getPestConfig(pestType);
+  return config.generations.map((gen) => {
+    const task = buildTask(pestType, year, gen);
+    return { value: task, label: task, generation: gen };
+  });
+}
+
+export function getDefaultTask(pestType, year = getCurrentYear()) {
+  return getTaskOptions(pestType, year)[0]?.value || "";
+}
+
+export function getGenerationFromTask(pestType, taskValue, year = getCurrentYear()) {
+  const option = getTaskOptions(pestType, year).find((opt) => opt.value === taskValue);
+  return option?.generation ?? null;
 }
 
 function getFieldKeysByPest(pestType) {

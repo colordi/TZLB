@@ -91,7 +91,7 @@ def build_metadata_rows() -> tuple[
         column("春尺蠖幼虫调查表", 3, "1号树", "integer", "int4", "YES", "0"),
         column("春尺蠖幼虫调查表", 4, "备注", "text", "text", "YES"),
         column(
-            "美国白蛾第一代调查表",
+            "美国白蛾调查表",
             1,
             "id",
             "integer",
@@ -99,14 +99,14 @@ def build_metadata_rows() -> tuple[
             "NO",
             "nextval('survey.example_id_seq'::regclass)",
         ),
-        column("美国白蛾第一代调查表", 2, "编号", "character varying", "varchar", "NO"),
-        column("美国白蛾第一代调查表", 3, "调查日期", "date", "date", "NO"),
-        column("美国白蛾第一代调查表", 4, "属地", "character varying", "varchar", "NO"),
-        column("美国白蛾第一代调查表", 5, "点位名称", "character varying", "varchar", "NO"),
-        column("美国白蛾第一代调查表", 6, "受害株数", "integer", "int4", "NO", "0"),
-        column("美国白蛾第一代调查表", 7, "网幕数量", "integer", "int4", "NO", "0"),
+        column("美国白蛾调查表", 2, "编号", "character varying", "varchar", "NO"),
+        column("美国白蛾调查表", 3, "调查日期", "date", "date", "NO"),
+        column("美国白蛾调查表", 4, "属地", "character varying", "varchar", "NO"),
+        column("美国白蛾调查表", 5, "点位名称", "character varying", "varchar", "NO"),
+        column("美国白蛾调查表", 6, "受害株数", "integer", "int4", "NO", "0"),
+        column("美国白蛾调查表", 7, "网幕数量", "integer", "int4", "NO", "0"),
         column(
-            "美国白蛾第一代调查表",
+            "美国白蛾调查表",
             8,
             "详细描述",
             "text",
@@ -115,7 +115,7 @@ def build_metadata_rows() -> tuple[
             "''::text",
         ),
         column(
-            "美国白蛾第一代调查表",
+            "美国白蛾调查表",
             9,
             "备注",
             "text",
@@ -129,7 +129,7 @@ def build_metadata_rows() -> tuple[
         column("其他害虫调查表", 4, "调查结论", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 5, "详细描述", "text", "text", "NO"),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             1,
             "id",
             "integer",
@@ -138,7 +138,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             2,
             "事件时间",
             "timestamp without time zone",
@@ -147,7 +147,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             3,
             "事件类型",
             "USER-DEFINED",
@@ -156,7 +156,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             4,
             "属地",
             "character varying",
@@ -165,7 +165,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             5,
             "编号",
             "character varying",
@@ -174,7 +174,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             6,
             "点位名称",
             "character varying",
@@ -183,7 +183,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             7,
             "受害株数",
             "integer",
@@ -193,7 +193,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             8,
             "网幕数量",
             "integer",
@@ -203,7 +203,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             9,
             "本次详细情况",
             "text",
@@ -212,7 +212,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             10,
             "备注",
             "text",
@@ -221,7 +221,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             11,
             "区域",
             "character varying",
@@ -231,7 +231,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             1,
             "id",
             "integer",
@@ -241,7 +241,7 @@ def build_metadata_rows() -> tuple[
             is_identity="YES",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             2,
             "编号",
             "character varying",
@@ -250,7 +250,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             3,
             "虫害类型",
             "character varying",
@@ -259,7 +259,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             4,
             "事件类型",
             "USER-DEFINED",
@@ -268,7 +268,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             5,
             "事件时间",
             "timestamp without time zone",
@@ -277,7 +277,7 @@ def build_metadata_rows() -> tuple[
             table_schema="ledger",
         ),
         column(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             6,
             "本次详细情况",
             "text",
@@ -289,19 +289,19 @@ def build_metadata_rows() -> tuple[
     constraint_rows = [
         key("春尺蠖幼虫调查表", "chun_chi_huo_larva_pkey", "PRIMARY KEY", ["编号", "调查日期"]),
         key(
-            "美国白蛾第一代调查表",
+            "美国白蛾调查表",
             "mei_guo_bai_e_first_generation_inspection_pkey",
             "PRIMARY KEY",
             ["id"],
         ),
         key(
-            "美国白蛾第一代调查表",
+            "美国白蛾调查表",
             "mgb1_unique_location_date",
             "UNIQUE",
             ["编号", "调查日期"],
         ),
         key(
-            "2026年美国白蛾第一代问题点位事件流水表",
+            "美国白蛾问题点位事件流水表",
             "mgb1_ledger_pkey",
             "PRIMARY KEY",
             ["id"],
@@ -314,7 +314,7 @@ def build_metadata_rows() -> tuple[
             ["编号", "虫害类型", "调查日期"],
         ),
         key(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             "other_pest_event_pkey",
             "PRIMARY KEY",
             ["id"],
@@ -324,7 +324,7 @@ def build_metadata_rows() -> tuple[
     unique_index_rows = [
         index("春尺蠖幼虫调查表", "chun_chi_huo_larva_pkey", ["编号", "调查日期"]),
         index(
-            "2026年其他害虫问题点位事件流水表",
+            "其他害虫问题点位事件流水表",
             "other_pest_event_dedup_idx",
             ["编号", "虫害类型", "事件类型", "事件时间"],
             table_schema="ledger",
@@ -441,7 +441,7 @@ class SurveyExcelImportTest(unittest.TestCase):
     def test_valid_workbook_converts_date_integer_and_ignores_auto_id(self) -> None:
         content = make_workbook(
             {
-                "美国白蛾第一代调查表": [
+                "美国白蛾调查表": [
                     ["id", "编号", "调查日期", "属地", "点位名称"],
                     [99, "MQ001", 46128, "马驹桥镇", "九周路"],
                 ]
@@ -505,7 +505,7 @@ class SurveyExcelImportTest(unittest.TestCase):
     def test_ledger_sheet_uses_schema_and_unique_index_for_conflict(self) -> None:
         content = make_workbook(
             {
-                "2026年其他害虫问题点位事件流水表": [
+                "其他害虫问题点位事件流水表": [
                     ["id", "编号", "虫害类型", "事件类型", "事件时间", "本次详细情况"],
                     [100, "QT0001", "蚜虫", "新增", 46128.3541666667, "  首次发现  "],
                 ]
@@ -515,12 +515,12 @@ class SurveyExcelImportTest(unittest.TestCase):
         plan = build_import_plan(content, self.metadata)
 
         self.assertEqual(plan[0].schema_name, "ledger")
-        self.assertEqual(plan[0].table_name, "2026年其他害虫问题点位事件流水表")
+        self.assertEqual(plan[0].table_name, "其他害虫问题点位事件流水表")
         self.assertEqual(plan[0].warnings, ["id 是自动生成字段，导入时已忽略"])
         self.assertEqual(plan[0].valid_rows, 1)
         self.assertNotIn("id", plan[0].rows[0].values)
         self.assertEqual(
-            self.metadata["2026年其他害虫问题点位事件流水表"].conflict_columns,
+            self.metadata["其他害虫问题点位事件流水表"].conflict_columns,
             ("编号", "虫害类型", "事件类型", "事件时间"),
         )
         self.assertEqual(
@@ -531,7 +531,7 @@ class SurveyExcelImportTest(unittest.TestCase):
 
     def test_ledger_view_sheet_is_not_importable(self) -> None:
         content = make_workbook(
-            {"2026年其他害虫问题点位台账": [["编号"], ["QT0001"]]}
+            {"其他害虫问题点位台账": [["编号"], ["QT0001"]]}
         )
 
         plan = build_import_plan(content, self.metadata)
@@ -593,7 +593,7 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
     async def test_formal_import_generates_mgb1_ledger_rows_in_backend(self) -> None:
         content = make_workbook(
             {
-                "美国白蛾第一代调查表": [
+                "美国白蛾调查表": [
                     ["编号", "调查日期", "属地", "点位名称", "受害株数", "网幕数量", "详细描述", "备注"],
                     ["MQ001", "2026-05-26", "马驹桥镇", "九周路", 3, 2, "发现网幕", "现场备注"],
                 ]
@@ -615,7 +615,7 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("LOCK TABLE", connection.execute_calls[0])
         self.assertEqual(len(connection.fetchval_calls), 1)
         ledger_query, ledger_args = connection.insert_calls[1]
-        self.assertIn('"ledger"."2026年美国白蛾第一代问题点位事件流水表"', ledger_query)
+        self.assertIn('"ledger"."美国白蛾问题点位事件流水表"', ledger_query)
         self.assertIn("WHERE NOT EXISTS", ledger_query)
         self.assertEqual(ledger_args[0], 328)
         self.assertIn("调查下派", ledger_args)
@@ -627,11 +627,11 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
     async def test_existing_mgb1_ledger_sheet_is_imported_without_backend_generation(self) -> None:
         content = make_workbook(
             {
-                "美国白蛾第一代调查表": [
+                "美国白蛾调查表": [
                     ["编号", "调查日期", "属地", "点位名称", "详细描述"],
                     ["MQ001", "2026-05-26", "马驹桥镇", "九周路", "发现网幕"],
                 ],
-                "2026年美国白蛾第一代问题点位事件流水表": [
+                "美国白蛾问题点位事件流水表": [
                     ["编号", "事件类型", "事件时间", "本次详细情况"],
                     ["MQ001", "调查下派", "2026-05-26", "按 ledger sheet 写入"],
                 ],

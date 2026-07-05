@@ -63,6 +63,7 @@ const searchInputRef = ref(null);
 const isSearchPanelOpen = ref(false);
 const surveyStatusFilter = ref("all");
 const isSurveyStatusFilterOpen = ref(false);
+const dynamicFilterValues = ref({});
 const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
@@ -229,21 +230,30 @@ const visibleSurveyStatusOptions = computed(() => {
 const surveyStatusCounts = computed(
   () => mapFilterOptions.value?.survey_status_counts || {},
 );
+const dynamicFilterFields = computed(() =>
+  (mapFilterOptions.value?.filter_fields || []).filter(
+    (field) => field?.key !== SURVEY_STATUS_FILTER_KEY,
+  ),
+);
 const activeMapFilters = computed(() => {
-  if (!supportsSurveyStatusFilter.value || surveyStatusFilter.value === "all") {
-    return {};
+  const filters = {};
+
+  if (supportsSurveyStatusFilter.value && surveyStatusFilter.value !== "all") {
+    const selectedOption = SURVEY_STATUS_FILTER_OPTIONS.find(
+      (option) => option.key === surveyStatusFilter.value,
+    );
+    if (selectedOption?.value) {
+      filters[SURVEY_STATUS_FILTER_KEY] = [selectedOption.value];
+    }
   }
 
-  const selectedOption = SURVEY_STATUS_FILTER_OPTIONS.find(
-    (option) => option.key === surveyStatusFilter.value,
-  );
-  if (!selectedOption?.value) {
-    return {};
+  for (const [key, value] of Object.entries(dynamicFilterValues.value)) {
+    if (value) {
+      filters[key] = [value];
+    }
   }
 
-  return {
-    [SURVEY_STATUS_FILTER_KEY]: [selectedOption.value],
-  };
+  return filters;
 });
 
 function getSurveyStatusCount(optionKey) {
@@ -330,6 +340,17 @@ function closeMapFloatingPanels() {
 function resetSurveyStatusFilter() {
   surveyStatusFilter.value = "all";
   isSurveyStatusFilterOpen.value = false;
+}
+
+function resetDynamicFilters() {
+  dynamicFilterValues.value = {};
+}
+
+async function selectDynamicFilter(key, value) {
+  dynamicFilterValues.value = { ...dynamicFilterValues.value, [key]: value };
+  selectedFeature.value = null;
+  mapFocusRequest.value = null;
+  await loadGeoJson({ autoFit: false });
 }
 
 function normalizeBbox(bbox) {
@@ -819,6 +840,7 @@ watch(selectedView, async () => {
   clearSearch();
   isSearchPanelOpen.value = false;
   resetSurveyStatusFilter();
+  resetDynamicFilters();
   mapFocusRequest.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
@@ -964,6 +986,35 @@ onMounted(async () => {
                   {{ getSurveyStatusCount(option.key) }}
                 </span>
               </button>
+            </div>
+
+            <div
+              v-if="dynamicFilterFields.length"
+              class="map-dynamic-filters"
+              data-testid="map-dynamic-filters"
+            >
+              <label
+                v-for="field in dynamicFilterFields"
+                :key="field.key"
+                class="map-dynamic-filter"
+              >
+                <span class="map-dynamic-filter-label">{{ field.label }}</span>
+                <select
+                  :value="dynamicFilterValues[field.key] || ''"
+                  :data-testid="`map-filter-${field.key}`"
+                  :disabled="loading || loadingFilterOptions"
+                  @change="selectDynamicFilter(field.key, $event.target.value)"
+                >
+                  <option value="">全部</option>
+                  <option
+                    v-for="option in field.options"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
             </div>
           </div>
         </div>
@@ -1416,6 +1467,45 @@ onMounted(async () => {
 .map-survey-status-option:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.map-dynamic-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+}
+
+.map-dynamic-filter {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-dynamic-filter-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.map-dynamic-filter select {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.map-dynamic-filter select:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .map-search-results {

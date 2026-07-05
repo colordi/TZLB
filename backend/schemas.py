@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from backend.services.pest_registry import (
     normalize_task_type,
     validate_pest_type as validate_registered_pest_type,
+    validate_generation as validate_registered_generation,
     validate_task_type as validate_registered_task_type,
 )
 
@@ -70,6 +71,8 @@ class WorkOrderGenerateRequest(BaseModel):
     pest_type: PestType
     task_type: TaskType
     task: str = ""
+    year: int = Field(default_factory=lambda: datetime.now().year)
+    generation: str | None = None
     output_format: Literal["doc", "docx"] | None = None
     records: list[WorkOrderRecord]
 
@@ -95,6 +98,11 @@ class WorkOrderGenerateRequest(BaseModel):
         self.task_type = validate_registered_task_type(self.pest_type, self.task_type)
         return self
 
+    @model_validator(mode="after")
+    def validate_generation(self) -> WorkOrderGenerateRequest:
+        self.generation = validate_registered_generation(self.pest_type, self.generation)
+        return self
+
 
 class WorkOrderBatchGenerateRequest(BaseModel):
     """工作单批量生成请求。"""
@@ -104,6 +112,8 @@ class WorkOrderBatchGenerateRequest(BaseModel):
     pest_type: PestType
     task_type: TaskType
     task: str = ""
+    year: int = Field(default_factory=lambda: datetime.now().year)
+    generation: str | None = None
     output_format: Literal["doc", "docx"] | None = None
     records: list[WorkOrderRecord]
 
@@ -127,6 +137,11 @@ class WorkOrderBatchGenerateRequest(BaseModel):
     @model_validator(mode="after")
     def validate_task_type(self) -> WorkOrderBatchGenerateRequest:
         self.task_type = validate_registered_task_type(self.pest_type, self.task_type)
+        return self
+
+    @model_validator(mode="after")
+    def validate_generation(self) -> WorkOrderBatchGenerateRequest:
+        self.generation = validate_registered_generation(self.pest_type, self.generation)
         return self
 
     @model_validator(mode="after")

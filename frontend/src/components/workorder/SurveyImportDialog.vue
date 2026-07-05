@@ -19,6 +19,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  year: {
+    type: Number,
+    default: null,
+  },
+  generation: {
+    type: [String, null],
+    default: null,
+  },
 });
 
 const emit = defineEmits(["close", "import"]);
@@ -85,6 +93,8 @@ async function handleQuery() {
     const result = await fetchSurveyCandidates({
       date: selectedDate.value,
       pestType: props.pestType,
+      year: props.year,
+      generation: props.generation,
     });
     candidates.value = Array.isArray(result) ? result : [];
     selectedCandidateKeys.value = candidates.value.map((candidate) => getCandidateKey(candidate));

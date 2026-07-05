@@ -28,7 +28,7 @@ SURVEY_SCHEMA = "survey"
 SURVEY_LARVA_TABLE = "春尺蠖幼虫调查表"
 GUO_HUAI_LARVA_TABLE = "国槐尺蠖幼虫调查表"
 OTHER_PEST_SURVEY_TABLE = "其他害虫调查表"
-MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾第一代调查表"
+MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾调查表"
 SITE_SCHEMA = "sites"
 SITE_TABLE = "杨树点位基础表"
 SOPHORA_SITE_TABLE = "国槐点位基础表"
@@ -55,12 +55,14 @@ WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
 }
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",
+    "世代": "世代",
     "危害程度": "危害程度",
     "害虫类型": "害虫类型",
     "虫态": "虫态",
 }
 MAP_FILTER_VALUE_ORDER = {
     "危害程度": ["白", "无需防治", "轻", "中", "重"],
+    "世代": ["第一代", "第二代", "第三代"],
 }
 MAP_POINT_DEDUPE_KEYS = ("编号", "点位编号", "location_id", "locationId")
 MAP_SURVEY_DATE_KEYS = ("调查日期", "survey_date", "report_time")
@@ -890,18 +892,24 @@ def load_point_screenshot_images(
 async def fetch_survey_candidates(
     survey_date: date_cls,
     pest_type: str = "春尺蠖",
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
     """读取指定日期可导入为工作单的调查记录。"""
 
     return await fetch_survey_candidates_by_type(
         survey_date=survey_date,
         pest_type=pest_type,
+        year=year,
+        generation=generation,
     )
 
 
 async def fetch_survey_candidates_by_type(
     survey_date: date_cls,
     pest_type: str,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
     """按害虫类型读取指定日期的工作单导入候选记录。"""
 
@@ -1112,7 +1120,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
 async def fetch_meiguobaie_survey_candidates(
     survey_date: date_cls,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的美国白蛾第一代调查导入候选记录。"""
+    """读取指定日期的美国白蛾调查导入候选记录。"""
 
     qualified_survey_table = (
         f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(MEI_GUO_BAI_E_SURVEY_TABLE)}"

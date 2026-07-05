@@ -24,7 +24,7 @@ WITH ledger_dates AS (
     SELECT
         to_date(btrim(date_text), 'YYYY/MM/DD') AS "日期"
     FROM
-        ledger."2026年美国白蛾第一代问题点位台账" l
+        ledger."美国白蛾问题点位台账" l
         CROSS JOIN LATERAL regexp_split_to_table(
             concat_ws(
                 '、',
@@ -41,7 +41,7 @@ dates AS (
     SELECT
         "调查日期" AS "日期"
     FROM
-        survey."美国白蛾第一代调查表"
+        survey."美国白蛾调查表"
 
     UNION
 
@@ -89,7 +89,7 @@ survey_daily AS (
             WHERE COALESCE("受害株数", 0) > 0
         ) :: INTEGER AS "当日派单数"
     FROM
-        survey."美国白蛾第一代调查表"
+        survey."美国白蛾调查表"
     GROUP BY
         "调查日期"
 ),
@@ -106,7 +106,7 @@ ledger_completed AS (
                 THEN treatment_dates.first_treatment_date
         END AS "完成日期"
     FROM
-        ledger."2026年美国白蛾第一代问题点位台账" l
+        ledger."美国白蛾问题点位台账" l
         LEFT JOIN LATERAL (
             SELECT
                 MIN(to_date(btrim(date_text), 'YYYY/MM/DD')) AS first_survey_date

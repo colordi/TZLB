@@ -104,8 +104,8 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(len(result["columns"]), 0)
 
     def test_white_moth_sql_uses_business_tables_not_map_view(self) -> None:
-        self.assertIn('survey."美国白蛾第一代调查表"', WHITE_MOTH_DAILY_SQL)
-        self.assertIn('ledger."2026年美国白蛾第一代问题点位台账"', WHITE_MOTH_DAILY_SQL)
+        self.assertIn('survey."美国白蛾调查表"', WHITE_MOTH_DAILY_SQL)
+        self.assertIn('ledger."美国白蛾问题点位台账"', WHITE_MOTH_DAILY_SQL)
         self.assertNotIn('views."2026_美国白蛾第 1 代调查"', WHITE_MOTH_DAILY_SQL)
         self.assertIn("COALESCE(\"区域\", '乡镇')", WHITE_MOTH_DAILY_SQL)
         self.assertIn('WHEN l."剪网彻底" = \'是\'', WHITE_MOTH_DAILY_SQL)

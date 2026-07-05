@@ -82,6 +82,14 @@ const SurveyImportDialogStub = defineComponent({
       type: String,
       default: "春尺蠖",
     },
+    year: {
+      type: Number,
+      default: null,
+    },
+    generation: {
+      type: [String, null],
+      default: null,
+    },
   },
   emits: ["close", "import"],
   template: '<div data-testid="survey-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
@@ -467,6 +475,8 @@ describe("WorkOrderView", () => {
       pest_type: "其他害虫",
       task_type: "其他害虫防治",
       task: "2026其他害虫防治",
+      year: 2026,
+      generation: null,
       records: [
         expect.objectContaining({
           location_id: "QT0001",
@@ -511,6 +521,8 @@ describe("WorkOrderView", () => {
       pest_type: "国槐尺蠖",
       task_type: "国槐尺蠖防治",
       task: "2026国槐尺蠖第三代防治",
+      year: 2026,
+      generation: "第三代",
       records: [
         expect.objectContaining({
           location_id: "1001-1",
@@ -561,6 +573,8 @@ describe("WorkOrderView", () => {
       pest_type: "美国白蛾",
       task_type: "美国白蛾防治",
       task: "2026美国白蛾第一代防治",
+      year: 2026,
+      generation: "第一代",
       records: [
         expect.objectContaining({
           location_id: "MQ001",
@@ -594,6 +608,8 @@ describe("WorkOrderView", () => {
       pest_type: "春尺蠖",
       task_type: "春尺蠖防治",
       task: "2026春尺蠖防治",
+      year: 2026,
+      generation: null,
       records: [
         expect.objectContaining({
           location_id: "YF0069",
@@ -627,6 +643,8 @@ describe("WorkOrderView", () => {
       pest_type: "春尺蠖",
       task_type: "春尺蠖防治",
       task: "2026春尺蠖防治",
+      year: 2026,
+      generation: null,
       records: [
         expect.objectContaining({
           location_id: "YF0069",

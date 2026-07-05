@@ -12,6 +12,9 @@ SURVEY_IMPORT_GUO_HUAI_INCHWORM = "guo_huai_inchworm"
 SURVEY_IMPORT_OTHER_PEST = "other_pest"
 SURVEY_IMPORT_MEI_GUO_BAI_E = "mei_guo_bai_e"
 WORKORDER_TEMPLATE_FILENAME = "林业有害生物防治工作单模板.docx"
+DEFAULT_TASK_TEMPLATE = "{year}{pest}{generation}防治"
+GENERATION_NONE: tuple[str | None, ...] = (None,)
+GENERATIONS_THREE: tuple[str | None, ...] = ("第一代", "第二代", "第三代")
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,7 +22,8 @@ class PestRegistryEntry:
     key: str
     label: str
     control_type: str
-    tasks: tuple[str, ...]
+    task_template: str
+    generations: tuple[str | None, ...]
     field_keys: tuple[str, ...]
     required_field_keys: tuple[str, ...]
     number_field_keys: tuple[str, ...]
@@ -90,7 +94,8 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         key="春尺蠖",
         label="春尺蠖",
         control_type="春尺蠖防治",
-        tasks=("2026春尺蠖防治",),
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATION_NONE,
         field_keys=CHI_HUO_FIELD_KEYS,
         required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
         number_field_keys=(),
@@ -117,11 +122,8 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         key="国槐尺蠖",
         label="国槐尺蠖",
         control_type="国槐尺蠖防治",
-        tasks=(
-            "2026国槐尺蠖第一代防治",
-            "2026国槐尺蠖第二代防治",
-            "2026国槐尺蠖第三代防治",
-        ),
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATIONS_THREE,
         field_keys=CHI_HUO_FIELD_KEYS,
         required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
         number_field_keys=(),
@@ -148,7 +150,8 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         key="美国白蛾",
         label="美国白蛾",
         control_type="美国白蛾防治",
-        tasks=("2026美国白蛾第一代防治",),
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATIONS_THREE,
         field_keys=MEI_GUO_BAI_E_FIELD_KEYS,
         required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
         number_field_keys=("damaged_plant_count", "web_nest_count"),
@@ -170,7 +173,8 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         key="其他害虫",
         label="其他害虫",
         control_type="其他害虫防治",
-        tasks=("2026其他害虫防治",),
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATION_NONE,
         field_keys=OTHER_PEST_FIELD_KEYS,
         required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
         number_field_keys=(),
@@ -228,4 +232,40 @@ def validate_task_type(pest_type: str, task_type: str) -> str:
         raise ValueError("统防统治类型不能为空")
     if normalized != config.control_type:
         raise ValueError(f"{config.key} 不支持统防统治类型：{normalized}")
+    return normalized
+
+
+def build_task(entry: PestRegistryEntry, year: int, generation: str | None) -> str:
+    """根据害虫配置、年份和世代渲染统防统治任务名。"""
+
+    return entry.task_template.format(
+        year=year,
+        pest=entry.key,
+        generation=generation or "",
+    )
+
+
+def list_tasks(entry: PestRegistryEntry, year: int) -> tuple[str, ...]:
+    """列出某害虫在指定年份下的所有任务名。"""
+
+    return tuple(build_task(entry, year, gen) for gen in entry.generations)
+
+
+def normalize_generation(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def validate_generation(pest_type: str, generation: str | None) -> str | None:
+    """校验世代值是否在该害虫的注册范围内，返回归一化后的世代值。"""
+
+    config = get_pest_config(pest_type)
+    normalized = normalize_generation(generation)
+    if normalized is None:
+        if None not in config.generations:
+            raise ValueError(f"{config.key} 需要指定世代")
+    elif normalized not in config.generations:
+        raise ValueError(f"{config.key} 不支持世代：{normalized}")
     return normalized
