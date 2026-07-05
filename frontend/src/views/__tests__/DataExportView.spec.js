@@ -69,22 +69,44 @@ describe("DataExportView", () => {
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("加载并按虫种展示数据卡片及年份/世代筛选", async () => {
+  it("加载后默认展示第一个虫种，可通过选项卡切换", async () => {
     const wrapper = mountView();
     await flushPromises();
 
     expect(apiMocks.listPestExportTypes).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain("美国白蛾");
-    expect(wrapper.text()).toContain("春尺蠖");
     expect(wrapper.text()).toContain("美国白蛾调查表");
     expect(wrapper.text()).toContain("115");
 
+    // 默认未选中春尺蠖，表格内容不应出现
+    expect(wrapper.find('[data-testid="pest-panel-春尺蠖"]').exists()).toBe(false);
+
+    // 点击春尺蠖选项卡
+    await wrapper.get('[data-testid="data-export-pest-春尺蠖"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="pest-panel-春尺蠖"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("春尺蠖成虫调查表");
+    expect(wrapper.text()).toContain("65");
+  });
+
+  it("按虫种展示年份/世代筛选", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
     // 美国白蛾有年份和世代筛选
-    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("2025");
-    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("2026");
-    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("第1代");
-    // 春尺蠖只有年份筛选
-    expect(wrapper.find('[data-testid="pest-card-春尺蠖"]').text()).toContain("2026");
+    const usMothPanel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
+    expect(usMothPanel.text()).toContain("2025");
+    expect(usMothPanel.text()).toContain("2026");
+    expect(usMothPanel.text()).toContain("第1代");
+
+    // 切换到春尺蠖，只有年份筛选
+    await wrapper.get('[data-testid="data-export-pest-春尺蠖"]').trigger("click");
+    await flushPromises();
+
+    const chunPanel = wrapper.find('[data-testid="pest-panel-春尺蠖"]');
+    expect(chunPanel.text()).toContain("2026");
+    expect(chunPanel.findAll("select").length).toBe(1);
   });
 
   it("支持按年份世代筛选后导出", async () => {
@@ -92,10 +114,10 @@ describe("DataExportView", () => {
     await flushPromises();
 
     // 选择年份和世代
-    const pestCard = wrapper.find('[data-testid="pest-card-美国白蛾"]');
-    const yearSelect = pestCard.findAll("select")[0];
+    const panel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
+    const yearSelect = panel.findAll("select")[0];
     yearSelect.setValue("2026");
-    const genSelect = pestCard.findAll("select")[1];
+    const genSelect = panel.findAll("select")[1];
     genSelect.setValue("1");
     await flushPromises();
 
@@ -117,8 +139,8 @@ describe("DataExportView", () => {
     const wrapper = mountView();
     await flushPromises();
 
-    const pestCard = wrapper.find('[data-testid="pest-card-美国白蛾"]');
-    const yearSelect = pestCard.findAll("select")[0];
+    const panel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
+    const yearSelect = panel.findAll("select")[0];
     yearSelect.setValue("2026");
     await flushPromises();
 
