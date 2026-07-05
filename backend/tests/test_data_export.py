@@ -13,7 +13,9 @@ from backend.services.data_export import (
     ExportTableMeta,
     build_unique_sheet_names,
     export_all_tables,
+    export_pest_type,
     fetch_export_table_metadata,
+    fetch_pest_export_metadata,
 )
 
 
@@ -182,6 +184,240 @@ class DataExportServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(names[0]), 31)
         self.assertEqual(len(names[1]), 31)
         self.assertNotEqual(names[0], names[1])
+
+
+def _build_rich_fake_connection():
+    conn = FakeConnection()
+    conn.metadata_rows = [
+        {
+            "table_schema": "survey",
+            "table_name": "春尺蠖幼虫调查表",
+            "object_type": "table",
+            "columns": ["编号", "调查日期", "年份"],
+        },
+        {
+            "table_schema": "survey",
+            "table_name": "美国白蛾调查表",
+            "object_type": "table",
+            "columns": ["编号", "受害株数", "年份", "世代"],
+        },
+        {
+            "table_schema": "survey",
+            "table_name": "国槐尺蠖幼虫调查表",
+            "object_type": "table",
+            "columns": ["编号", "危害程度", "年份", "世代"],
+        },
+        {
+            "table_schema": "survey",
+            "table_name": "春尺蠖成虫调查表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "survey",
+            "table_name": "春尺蠖围环调查表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "survey",
+            "table_name": "其他害虫调查表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "美国白蛾问题点位事件流水表",
+            "object_type": "table",
+            "columns": ["编号", "事件类型", "年份", "世代"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "美国白蛾问题点位台账",
+            "object_type": "view",
+            "columns": ["编号", "当前状态", "年份", "世代"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "国槐尺蠖问题点位事件流水表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "国槐尺蠖问题点位台账",
+            "object_type": "view",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "春尺蠖问题点位事件流水表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "春尺蠖问题点位台账",
+            "object_type": "view",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "其他害虫问题点位事件流水表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "其他害虫问题点位台账",
+            "object_type": "view",
+            "columns": ["编号", "年份"],
+        },
+    ]
+    conn.counts = {
+        '"survey"."春尺蠖幼虫调查表"': 30,
+        '"survey"."美国白蛾调查表"': 50,
+        '"survey"."国槐尺蠖幼虫调查表"': 20,
+        '"survey"."春尺蠖成虫调查表"': 10,
+        '"survey"."春尺蠖围环调查表"': 5,
+        '"survey"."其他害虫调查表"': 8,
+        '"ledger"."美国白蛾问题点位事件流水表"': 40,
+        '"ledger"."美国白蛾问题点位台账"': 25,
+        '"ledger"."国槐尺蠖问题点位事件流水表"': 15,
+        '"ledger"."国槐尺蠖问题点位台账"': 10,
+        '"ledger"."春尺蠖问题点位事件流水表"': 12,
+        '"ledger"."春尺蠖问题点位台账"': 8,
+        '"ledger"."其他害虫问题点位事件流水表"': 6,
+        '"ledger"."其他害虫问题点位台账"': 4,
+    }
+    conn.table_rows = {
+        '"survey"."春尺蠖幼虫调查表"': [
+            {"编号": "YF001", "调查日期": date(2026, 4, 1), "年份": "2026"},
+            {"编号": "YF002", "调查日期": date(2026, 4, 2), "年份": "2025"},
+        ],
+        '"survey"."美国白蛾调查表"': [
+            {"编号": "MB001", "受害株数": 5, "年份": "2026", "世代": "1"},
+            {"编号": "MB002", "受害株数": 3, "年份": "2026", "世代": "2"},
+            {"编号": "MB003", "受害株数": 2, "年份": "2025", "世代": "1"},
+        ],
+        '"survey"."国槐尺蠖幼虫调查表"': [
+            {"编号": "GH001", "危害程度": "中", "年份": "2026", "世代": "1"},
+        ],
+        '"survey"."春尺蠖成虫调查表"': [
+            {"编号": "CC001", "年份": "2026"},
+        ],
+        '"survey"."春尺蠖围环调查表"': [
+            {"编号": "CC001", "年份": "2026"},
+        ],
+        '"survey"."其他害虫调查表"': [
+            {"编号": "QT001", "年份": "2026"},
+        ],
+    }
+    return conn
+
+
+class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
+    async def test_fetch_pest_export_metadata_returns_all_pest_types(self) -> None:
+        connection = _build_rich_fake_connection()
+        result = await fetch_pest_export_metadata(connection)
+        pest_types = [pm.pest_type for pm in result]
+        self.assertEqual(pest_types, ["美国白蛾", "国槐尺蠖", "春尺蠖", "其他害虫"])
+
+    async def test_fetch_pest_export_metadata_filters_by_pest_type(self) -> None:
+        connection = _build_rich_fake_connection()
+        result = await fetch_pest_export_metadata(connection, pest_type="春尺蠖")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].pest_type, "春尺蠖")
+        self.assertEqual(len(result[0].tables), 5)
+
+    async def test_fetch_pest_export_metadata_rejects_unknown_pest(self) -> None:
+        connection = _build_rich_fake_connection()
+        with self.assertRaises(ValueError) as context:
+            await fetch_pest_export_metadata(connection, pest_type="未知虫种")
+        self.assertEqual(str(context.exception), "不支持的虫种：未知虫种")
+
+    async def test_export_pest_type_creates_xlsx_with_correct_sheets(self) -> None:
+        connection = _build_rich_fake_connection()
+        with patch(
+            "backend.services.data_export.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            artifact = await export_pest_type("美国白蛾")
+
+        workbook = load_workbook(BytesIO(artifact.content), read_only=True, data_only=True)
+        self.assertIn("导出说明", workbook.sheetnames)
+        self.assertIn("survey.美国白蛾调查表", workbook.sheetnames)
+        self.assertIn("ledger.美国白蛾问题点位事件流水表", workbook.sheetnames)
+        self.assertIn("ledger.美国白蛾问题点位台账", workbook.sheetnames)
+
+        summary_rows = list(workbook["导出说明"].iter_rows(values_only=True))
+        self.assertIn(("导出范围", "虫种：美国白蛾"), summary_rows)
+        self.assertEqual(len(workbook.sheetnames), 4)
+
+    async def test_export_pest_type_with_year_filter_builds_correct_where_clause(self) -> None:
+        connection = _build_rich_fake_connection()
+        original_fetch = connection.fetch
+
+        async def capturing_fetch(query, *args):
+            connection._last_query = query
+            connection._last_args = args
+            return await original_fetch(query, *args)
+
+        connection.fetch = capturing_fetch
+
+        with patch(
+            "backend.services.data_export.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            artifact = await export_pest_type("美国白蛾", year="2026")
+
+        workbook = load_workbook(BytesIO(artifact.content), read_only=True, data_only=True)
+
+        summary_rows = list(workbook["导出说明"].iter_rows(values_only=True))
+        self.assertIn(("导出范围", "虫种：美国白蛾，年份=2026"), summary_rows)
+
+    async def test_export_pest_type_with_year_and_generation_filter(self) -> None:
+        connection = _build_rich_fake_connection()
+        with patch(
+            "backend.services.data_export.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            artifact = await export_pest_type("美国白蛾", year="2026", generation="1")
+
+        workbook = load_workbook(BytesIO(artifact.content), read_only=True, data_only=True)
+
+        summary_rows = list(workbook["导出说明"].iter_rows(values_only=True))
+        self.assertIn(("导出范围", "虫种：美国白蛾，年份=2026，世代=1"), summary_rows)
+
+    async def test_fetch_pest_export_metadata_includes_filter_options(self) -> None:
+        connection = _build_rich_fake_connection()
+        result = await fetch_pest_export_metadata(connection, pest_type="美国白蛾")
+        self.assertEqual(len(result), 1)
+        pm = result[0]
+        self.assertIn("2026", pm.available_years)
+        self.assertIn("2025", pm.available_years)
+        self.assertIn("1", pm.available_generations)
+        self.assertIn("2", pm.available_generations)
+
+    async def test_fetch_pest_export_metadata_filter_options_no_generation(self) -> None:
+        connection = _build_rich_fake_connection()
+        result = await fetch_pest_export_metadata(connection, pest_type="春尺蠖")
+        pm = result[0]
+        self.assertIn("2026", pm.available_years)
+        self.assertEqual(len(pm.available_generations), 0)
+
+    async def test_export_pest_type_with_no_tables_raises_error(self) -> None:
+        connection = FakeConnection()
+        connection.metadata_rows = []
+        connection.counts = {}
+        connection.table_rows = {}
+        with patch(
+            "backend.services.data_export.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            with self.assertRaises(ValueError) as context:
+                await export_pest_type("美国白蛾")
+            self.assertIn("虫种不存在或无数据", str(context.exception))
 
 
 class DataExportRouterTest(unittest.TestCase):

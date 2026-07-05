@@ -33,20 +33,19 @@ async function buildDownloadResult(response, fallbackFilename) {
   };
 }
 
-export async function listDataExportTables() {
-  const response = await apiFetch("/api/data-export/tables");
+export async function listPestExportTypes() {
+  const response = await apiFetch("/api/data-export/pest-types");
   await ensureApiSuccess(response);
   return response.json();
 }
 
-export async function downloadAllDataExportTables() {
-  const response = await apiFetch("/api/data-export/download");
-  return buildDownloadResult(response, "调查数据导出.xlsx");
-}
-
-export async function downloadDataExportTable({ schemaName, tableName }) {
+export async function downloadPestTypeExport(pestType, { year, generation } = {}) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year);
+  if (generation) params.set("generation", generation);
+  const query = params.toString();
   const response = await apiFetch(
-    `/api/data-export/tables/${encodeURIComponent(schemaName)}/${encodeURIComponent(tableName)}/download`,
+    `/api/data-export/pest/${encodeURIComponent(pestType)}/download${query ? "?" + query : ""}`,
   );
-  return buildDownloadResult(response, `${schemaName}_${tableName}.xlsx`);
+  return buildDownloadResult(response, `${pestType}数据导出.xlsx`);
 }

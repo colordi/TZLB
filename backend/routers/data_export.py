@@ -9,8 +9,10 @@ from fastapi.responses import Response
 from backend.services.data_export import (
     DataExportArtifact,
     export_all_tables,
+    export_pest_type,
     export_single_table,
     list_export_tables,
+    list_pest_export_types,
 )
 
 
@@ -44,6 +46,28 @@ async def download_all_export_tables() -> Response:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"导出全部数据表失败：{exc}") from exc
+
+
+@router.get("/pest-types", summary="按虫种列出可导出的数据表")
+async def get_pest_export_types() -> list[dict[str, Any]]:
+    try:
+        return await list_pest_export_types()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取虫种导出信息失败：{exc}") from exc
+
+
+@router.get("/pest/{pest}/download", summary="导出单个虫种全部关联数据表")
+async def download_pest_export(
+    pest: str,
+    year: str | None = None,
+    generation: str | None = None,
+) -> Response:
+    try:
+        return build_download_response(await export_pest_type(pest, year=year, generation=generation))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"导出虫种数据失败：{exc}") from exc
 
 
 @router.get("/tables/{schema_name}/{table_name}/download", summary="导出单张调查数据表")

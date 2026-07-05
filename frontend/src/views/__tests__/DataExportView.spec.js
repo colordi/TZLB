@@ -4,18 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DataExportView from "../DataExportView.vue";
 
 const apiMocks = vi.hoisted(() => ({
-  listDataExportTables: vi.fn(),
-  downloadAllDataExportTables: vi.fn(),
-  downloadDataExportTable: vi.fn(),
+  listPestExportTypes: vi.fn(),
+  downloadPestTypeExport: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
 }));
 
 vi.mock("../../api/dataExport.js", () => ({
-  listDataExportTables: apiMocks.listDataExportTables,
-  downloadAllDataExportTables: apiMocks.downloadAllDataExportTables,
-  downloadDataExportTable: apiMocks.downloadDataExportTable,
+  listPestExportTypes: apiMocks.listPestExportTypes,
+  downloadPestTypeExport: apiMocks.downloadPestTypeExport,
 }));
 
 vi.mock("../../utils/download.js", () => ({
@@ -29,28 +27,29 @@ vi.mock("../../composables/useToast.js", () => ({
   }),
 }));
 
-function buildTables() {
+function buildPestTypes() {
   return [
     {
-      schema_name: "survey",
-      table_name: "春尺蠖幼虫调查表",
-      object_type: "table",
-      column_count: 12,
-      row_count: 30,
+      pest_type: "美国白蛾",
+      total_row_count: 115,
+      available_years: ["2025", "2026"],
+      available_generations: ["1", "2"],
+      tables: [
+        { schema_name: "survey", table_name: "美国白蛾调查表", object_type: "table", column_count: 15, row_count: 50 },
+        { schema_name: "ledger", table_name: "美国白蛾问题点位事件流水表", object_type: "table", column_count: 12, row_count: 40 },
+        { schema_name: "ledger", table_name: "美国白蛾问题点位台账", object_type: "view", column_count: 10, row_count: 25 },
+      ],
     },
     {
-      schema_name: "ledger",
-      table_name: "2026年美国白蛾第一代问题点位台账",
-      object_type: "table",
-      column_count: 8,
-      row_count: 2,
-    },
-    {
-      schema_name: "ledger",
-      table_name: "2026年美国白蛾第一代问题点位视图",
-      object_type: "view",
-      column_count: 8,
-      row_count: 2,
+      pest_type: "春尺蠖",
+      total_row_count: 65,
+      available_years: ["2026"],
+      available_generations: [],
+      tables: [
+        { schema_name: "survey", table_name: "春尺蠖成虫调查表", object_type: "table", column_count: 8, row_count: 10 },
+        { schema_name: "survey", table_name: "春尺蠖幼虫调查表", object_type: "table", column_count: 12, row_count: 30 },
+        { schema_name: "survey", table_name: "春尺蠖围环调查表", object_type: "table", column_count: 6, row_count: 5 },
+      ],
     },
   ];
 }
@@ -62,72 +61,77 @@ function mountView() {
 describe("DataExportView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMocks.listDataExportTables.mockResolvedValue(buildTables());
-    apiMocks.downloadAllDataExportTables.mockResolvedValue({
-      blob: new Blob(["all"]),
-      filename: "调查数据导出.xlsx",
-    });
-    apiMocks.downloadDataExportTable.mockResolvedValue({
-      blob: new Blob(["table"]),
-      filename: "survey_春尺蠖幼虫调查表.xlsx",
+    apiMocks.listPestExportTypes.mockResolvedValue(buildPestTypes());
+    apiMocks.downloadPestTypeExport.mockResolvedValue({
+      blob: new Blob(["pest"]),
+      filename: "美国白蛾_20260705_120000.xlsx",
     });
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("加载并按 schema 展示表和视图", async () => {
+  it("加载并按虫种展示数据卡片及年份/世代筛选", async () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(apiMocks.listDataExportTables).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain("survey 调查数据");
-    expect(wrapper.text()).toContain("ledger 台账数据");
-    expect(wrapper.text()).toContain("春尺蠖幼虫调查表");
-    expect(wrapper.text()).toContain("2026年美国白蛾第一代问题点位台账");
-    expect(wrapper.text()).toContain("2026年美国白蛾第一代问题点位视图");
-    expect(wrapper.text()).toContain("视图");
-    expect(wrapper.text()).toContain("34");
+    expect(apiMocks.listPestExportTypes).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("美国白蛾");
+    expect(wrapper.text()).toContain("春尺蠖");
+    expect(wrapper.text()).toContain("美国白蛾调查表");
+    expect(wrapper.text()).toContain("115");
+
+    // 美国白蛾有年份和世代筛选
+    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("2025");
+    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("2026");
+    expect(wrapper.find('[data-testid="pest-card-美国白蛾"]').text()).toContain("第1代");
+    // 春尺蠖只有年份筛选
+    expect(wrapper.find('[data-testid="pest-card-春尺蠖"]').text()).toContain("2026");
   });
 
-  it("支持导出全部数据表", async () => {
+  it("支持按年份世代筛选后导出", async () => {
     const wrapper = mountView();
     await flushPromises();
 
-    await wrapper.get('[data-testid="data-export-download-all"]').trigger("click");
+    // 选择年份和世代
+    const pestCard = wrapper.find('[data-testid="pest-card-美国白蛾"]');
+    const yearSelect = pestCard.findAll("select")[0];
+    yearSelect.setValue("2026");
+    const genSelect = pestCard.findAll("select")[1];
+    genSelect.setValue("1");
     await flushPromises();
 
-    expect(apiMocks.downloadAllDataExportTables).toHaveBeenCalledTimes(1);
-    expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
-      expect.any(Blob),
-      "调查数据导出.xlsx",
-    );
-    expect(apiMocks.success).toHaveBeenCalledWith("全部表和视图已开始下载。", "导出成功");
-  });
-
-  it("支持导出单张表", async () => {
-    const wrapper = mountView();
+    await wrapper.get('[data-testid="pest-download-美国白蛾"]').trigger("click");
     await flushPromises();
 
-    await wrapper
-      .get('[data-testid="data-export-download-survey.春尺蠖幼虫调查表"]')
-      .trigger("click");
-    await flushPromises();
-
-    expect(apiMocks.downloadDataExportTable).toHaveBeenCalledWith({
-      schemaName: "survey",
-      tableName: "春尺蠖幼虫调查表",
+    expect(apiMocks.downloadPestTypeExport).toHaveBeenCalledWith("美国白蛾", {
+      year: "2026",
+      generation: "1",
     });
     expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
-      "survey_春尺蠖幼虫调查表.xlsx",
+      "美国白蛾_20260705_120000.xlsx",
     );
+    expect(apiMocks.success).toHaveBeenCalledWith("美国白蛾（2026年 第1代）已开始下载。", "导出成功");
+  });
+
+  it("按年份筛选后按钮文案显示筛选条件", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const pestCard = wrapper.find('[data-testid="pest-card-美国白蛾"]');
+    const yearSelect = pestCard.findAll("select")[0];
+    yearSelect.setValue("2026");
+    await flushPromises();
+
+    const button = wrapper.get('[data-testid="pest-download-美国白蛾"]');
+    expect(button.text()).toContain("2026年");
   });
 
   it("读取列表失败时展示错误提示", async () => {
-    apiMocks.listDataExportTables.mockRejectedValueOnce(new Error("连接失败"));
+    apiMocks.listPestExportTypes.mockRejectedValueOnce(new Error("连接失败"));
 
     mountView();
     await flushPromises();
 
-    expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取表和视图失败");
+    expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取虫种信息失败");
   });
 });

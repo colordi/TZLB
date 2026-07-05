@@ -1,121 +1,111 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { Database, Download, RefreshCw, Table2 } from "@lucide/vue";
+import { computed, onMounted, reactive, ref } from "vue";
+import { Download, RefreshCw, Bug } from "@lucide/vue";
 
-import {
-  downloadAllDataExportTables,
-  downloadDataExportTable,
-  listDataExportTables,
-} from "../api/dataExport.js";
+import { listPestExportTypes, downloadPestTypeExport } from "../api/dataExport.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
 
-const SCHEMA_LABELS = Object.freeze({
-  survey: "survey 调查数据",
-  ledger: "ledger 台账数据",
+const PEST_CARD_STYLES = Object.freeze({
+  "美国白蛾": { color: "var(--color-danger)" },
+  "国槐尺蠖": { color: "var(--color-success)" },
+  "春尺蠖": { color: "var(--color-warning)" },
+  "其他害虫": { color: "var(--color-muted)" },
+});
+
+const TABLE_TYPE_LABELS = Object.freeze({
+  table: "表",
+  view: "视图",
 });
 
 const { error, success } = useToast();
-const tables = ref([]);
+const pestTypes = ref([]);
 const loading = ref(false);
-const downloadingAll = ref(false);
-const downloadingTableKey = ref("");
+const downloadingPest = ref("");
+const pestFilters = reactive({});
 
-const groupedTables = computed(() =>
-  ["survey", "ledger"]
-    .map((schemaName) => ({
-      schemaName,
-      label: SCHEMA_LABELS[schemaName] || schemaName,
-      tables: tables.value.filter((table) => table.schema_name === schemaName),
-    }))
-    .filter((group) => group.tables.length > 0),
-);
-
-const totalTableCount = computed(() => tables.value.length);
-const totalRowCount = computed(() =>
-  tables.value.reduce((total, table) => total + Number(table.row_count || 0), 0),
-);
-const viewCount = computed(
-  () => tables.value.filter((table) => table.object_type === "view").length,
-);
+const iconColors = computed(() => {
+  const colors = {};
+  for (const pt of pestTypes.value) {
+    const style = PEST_CARD_STYLES[pt.pest_type];
+    colors[pt.pest_type] = style ? style.color : "var(--color-primary)";
+  }
+  return colors;
+});
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("zh-CN");
 }
 
-function formatObjectType(type) {
-  return type === "view" ? "视图" : "表";
+function tableLabel(objectType) {
+  return TABLE_TYPE_LABELS[objectType] || objectType;
 }
 
-function buildTableKey(table) {
-  return `${table.schema_name}.${table.table_name}`;
+function initFilters(pest) {
+  if (!pestFilters[pest.pest_type]) {
+    pestFilters[pest.pest_type] = { year: "", generation: "" };
+  }
 }
 
-async function loadTables() {
+function hasActiveFilter(pestType) {
+  const f = pestFilters[pestType];
+  return f && (f.year || f.generation);
+}
+
+function filterLabel(pestType) {
+  const f = pestFilters[pestType];
+  if (!f || (!f.year && !f.generation)) return "";
+  const parts = [];
+  if (f.year) parts.push(`${f.year}年`);
+  if (f.generation) parts.push(`第${f.generation}代`);
+  return parts.join(" ");
+}
+
+async function loadPestTypes() {
   loading.value = true;
   try {
-    tables.value = await listDataExportTables();
+    pestTypes.value = await listPestExportTypes();
+    for (const pest of pestTypes.value) {
+      initFilters(pest);
+    }
   } catch (loadError) {
-    tables.value = [];
+    pestTypes.value = [];
     if (isUnauthorizedError(loadError)) {
       return;
     }
-    error(`${loadError.message || loadError}`, "读取表和视图失败");
+    error(`${loadError.message || loadError}`, "读取虫种信息失败");
   } finally {
     loading.value = false;
   }
 }
 
-async function deliverDownload(result, label) {
-  await downloadBlob(result.blob, result.filename);
-  success(`${label}已开始下载。`, "导出成功");
-}
-
-async function handleDownloadAll() {
-  if (downloadingAll.value || totalTableCount.value === 0) {
+async function handleDownloadPest(pestType) {
+  if (downloadingPest.value) {
     return;
   }
 
-  downloadingAll.value = true;
+  downloadingPest.value = pestType;
+  const filters = pestFilters[pestType] || {};
   try {
-    await deliverDownload(await downloadAllDataExportTables(), "全部表和视图");
+    const result = await downloadPestTypeExport(pestType, {
+      year: filters.year || undefined,
+      generation: filters.generation || undefined,
+    });
+    await downloadBlob(result.blob, result.filename);
+    const label = filterLabel(pestType) || "全部";
+    success(`${pestType}（${label}）已开始下载。`, "导出成功");
   } catch (downloadError) {
     if (isUnauthorizedError(downloadError)) {
       return;
     }
     error(`${downloadError.message || downloadError}`, "导出失败");
   } finally {
-    downloadingAll.value = false;
+    downloadingPest.value = "";
   }
 }
 
-async function handleDownloadTable(table) {
-  const tableKey = buildTableKey(table);
-  if (downloadingTableKey.value) {
-    return;
-  }
-
-  downloadingTableKey.value = tableKey;
-  try {
-    await deliverDownload(
-      await downloadDataExportTable({
-        schemaName: table.schema_name,
-        tableName: table.table_name,
-      }),
-      tableKey,
-    );
-  } catch (downloadError) {
-    if (isUnauthorizedError(downloadError)) {
-      return;
-    }
-    error(`${downloadError.message || downloadError}`, "导出失败");
-  } finally {
-    downloadingTableKey.value = "";
-  }
-}
-
-onMounted(loadTables);
+onMounted(loadPestTypes);
 </script>
 
 <template>
@@ -124,135 +114,105 @@ onMounted(loadTables);
       <div>
         <p class="data-export-eyebrow">DATA EXPORT</p>
         <h1>数据导出</h1>
-        <p>导出当前数据库中 survey 和 ledger 下的最新表和视图。</p>
+        <p>按虫种导出调查数据和台账数据，可按年份/世代筛选。</p>
       </div>
       <div class="data-export-actions" aria-label="数据导出操作">
         <button
           type="button"
           class="button-secondary"
-          :disabled="loading || downloadingAll"
+          :disabled="loading"
           data-testid="data-export-refresh"
-          @click="loadTables"
+          @click="loadPestTypes"
         >
           <RefreshCw :size="18" :stroke-width="2" />
           <span>{{ loading ? "刷新中" : "刷新列表" }}</span>
         </button>
-        <button
-          type="button"
-          :disabled="loading || downloadingAll || totalTableCount === 0"
-          data-testid="data-export-download-all"
-          @click="handleDownloadAll"
-        >
-          <Download :size="18" :stroke-width="2" />
-          <span>{{ downloadingAll ? "导出中" : "导出全部" }}</span>
-        </button>
       </div>
     </header>
 
-    <section class="summary-grid" aria-label="导出数据概览">
-      <article class="summary-card is-highlight">
-        <span class="summary-label">可导出对象</span>
-        <strong class="summary-value">{{ formatNumber(totalTableCount) }}</strong>
-        <span class="summary-footnote">survey / ledger 表和视图</span>
-      </article>
-      <article class="summary-card">
-        <span class="summary-label">总记录数</span>
-        <strong class="summary-value">{{ formatNumber(totalRowCount) }}</strong>
-        <span class="summary-footnote">按当前数据库实时统计</span>
-      </article>
-      <article class="summary-card">
-        <span class="summary-label">视图数</span>
-        <strong class="summary-value">{{ formatNumber(viewCount) }}</strong>
-        <span class="summary-footnote">已纳入全量导出</span>
-      </article>
-      <article class="summary-card">
-        <span class="summary-label">导出格式</span>
-        <strong class="summary-value">XLSX</strong>
-        <span class="summary-footnote">全量导出包含导出说明 sheet</span>
-      </article>
-    </section>
+    <div v-if="loading" class="data-export-empty">正在读取虫种信息…</div>
+    <div v-else-if="pestTypes.length === 0" class="data-export-empty">暂无可导出的虫种数据。</div>
 
-    <section class="data-export-panel">
-      <div class="data-export-panel-head">
-        <div>
-          <h2>表和视图</h2>
-          <p>仅显示允许导出的 survey 和 ledger 表及视图。</p>
-        </div>
-      </div>
-
-      <div v-if="loading" class="data-export-empty">正在读取表和视图列表…</div>
-      <div v-else-if="tables.length === 0" class="data-export-empty">暂无可导出的表或视图。</div>
-
-      <div v-else class="data-export-groups">
-        <section
-          v-for="group in groupedTables"
-          :key="group.schemaName"
-          class="data-export-group"
-        >
-          <header class="data-export-group-head">
-            <span class="data-export-group-icon" aria-hidden="true">
-              <Database :size="18" :stroke-width="2" />
-            </span>
-            <div>
-              <h3>{{ group.label }}</h3>
-              <p>{{ formatNumber(group.tables.length) }} 个对象</p>
-            </div>
-          </header>
-
-          <div class="data-export-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>名称</th>
-                  <th>类型</th>
-                  <th>字段数</th>
-                  <th>记录数</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="table in group.tables"
-                  :key="buildTableKey(table)"
-                  :data-testid="`data-export-row-${buildTableKey(table)}`"
-                >
-                  <td>
-                    <span class="data-export-table-name">
-                      <Table2 :size="16" :stroke-width="2" />
-                      <span>{{ table.table_name }}</span>
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      class="data-export-type-badge"
-                      :class="{ 'is-view': table.object_type === 'view' }"
-                    >
-                      {{ formatObjectType(table.object_type) }}
-                    </span>
-                  </td>
-                  <td>{{ formatNumber(table.column_count) }}</td>
-                  <td>{{ formatNumber(table.row_count) }}</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="button-secondary data-export-table-button"
-                      :disabled="Boolean(downloadingTableKey)"
-                      :data-testid="`data-export-download-${buildTableKey(table)}`"
-                      @click="handleDownloadTable(table)"
-                    >
-                      <Download :size="16" :stroke-width="2" />
-                      <span>
-                        {{ downloadingTableKey === buildTableKey(table) ? "导出中" : "导出" }}
-                      </span>
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+    <div v-else class="data-export-pest-grid">
+      <article
+        v-for="pest in pestTypes"
+        :key="pest.pest_type"
+        class="data-export-pest-card"
+        :style="{ '--pest-accent': iconColors[pest.pest_type] }"
+        :data-testid="`pest-card-${pest.pest_type}`"
+      >
+        <div class="pest-card-head">
+          <span class="pest-card-icon" aria-hidden="true">
+            <Bug :size="22" :stroke-width="2" />
+          </span>
+          <div>
+            <h2 class="pest-card-title">{{ pest.pest_type }}</h2>
+            <p class="pest-card-subtitle">
+              <strong>{{ formatNumber(pest.total_row_count) }}</strong> 条记录，<strong>{{ pest.tables.length }}</strong> 张表
+            </p>
           </div>
-        </section>
-      </div>
-    </section>
+        </div>
+
+        <ul class="pest-card-tables">
+          <li v-for="table in pest.tables" :key="`${table.schema_name}.${table.table_name}`">
+            <span class="pest-table-badge" :class="`is-${table.object_type}`">
+              {{ tableLabel(table.object_type) }}
+            </span>
+            <span class="pest-table-name">{{ table.table_name }}</span>
+            <span class="pest-table-count">{{ formatNumber(table.row_count) }} 条</span>
+          </li>
+        </ul>
+
+        <div v-if="pest.available_years?.length || pest.available_generations?.length" class="pest-card-filters">
+          <label v-if="pest.available_years?.length" class="pest-filter-item">
+            <span class="pest-filter-label">年份</span>
+            <select
+              v-model="pestFilters[pest.pest_type].year"
+              class="pest-filter-select"
+              @focus="initFilters(pest)"
+            >
+              <option value="">全部年份</option>
+              <option
+                v-for="y in pest.available_years"
+                :key="y"
+                :value="y"
+              >{{ y }} 年</option>
+            </select>
+          </label>
+          <label v-if="pest.available_generations?.length" class="pest-filter-item">
+            <span class="pest-filter-label">世代</span>
+            <select
+              v-model="pestFilters[pest.pest_type].generation"
+              class="pest-filter-select"
+              @focus="initFilters(pest)"
+            >
+              <option value="">全部世代</option>
+              <option
+                v-for="g in pest.available_generations"
+                :key="g"
+                :value="g"
+              >第{{ g }}代</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="pest-card-action">
+          <button
+            type="button"
+            class="pest-card-download-button"
+            :class="{ 'is-filtered': hasActiveFilter(pest.pest_type) }"
+            :disabled="Boolean(downloadingPest)"
+            :data-testid="`pest-download-${pest.pest_type}`"
+            @click="handleDownloadPest(pest.pest_type)"
+          >
+            <Download :size="18" :stroke-width="2" />
+            <span>
+              {{ downloadingPest === pest.pest_type ? "导出中" : filterLabel(pest.pest_type) || "导出全部数据" }}
+            </span>
+          </button>
+        </div>
+      </article>
+    </div>
   </section>
 </template>
 
@@ -274,9 +234,7 @@ onMounted(loadTables);
   line-height: 1.08;
 }
 
-.data-export-head p:last-child,
-.data-export-panel-head p,
-.data-export-group-head p {
+.data-export-head p:last-child {
   color: var(--color-muted);
 }
 
@@ -295,126 +253,180 @@ onMounted(loadTables);
   gap: 0.65rem;
 }
 
-.data-export-actions button,
-.data-export-table-button {
+.data-export-actions button {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-}
-
-.data-export-panel {
-  padding: 1.15rem;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-container-lowest);
-  box-shadow: var(--shadow-card);
-}
-
-.data-export-panel-head,
-.data-export-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.9rem;
-}
-
-.data-export-panel-head {
-  margin-bottom: 1rem;
-}
-
-.data-export-panel-head h2,
-.data-export-group-head h3 {
-  margin: 0;
-}
-
-.data-export-groups {
-  display: grid;
-  gap: 1rem;
-}
-
-.data-export-group {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.data-export-group-head {
-  justify-content: flex-start;
-}
-
-.data-export-group-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-  background: var(--color-primary-container);
-}
-
-.data-export-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-}
-
-.data-export-table-wrap table {
-  width: 100%;
-  min-width: 38rem;
-  border-collapse: collapse;
-}
-
-.data-export-table-wrap th,
-.data-export-table-wrap td {
-  padding: 0.8rem 0.9rem;
-  border-bottom: 1px solid var(--color-line);
-  text-align: left;
-  vertical-align: middle;
-}
-
-.data-export-table-wrap th {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  background: var(--color-surface-container);
-}
-
-.data-export-table-wrap tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.data-export-table-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-weight: 700;
-}
-
-.data-export-table-name svg {
-  color: var(--color-primary);
-  flex: 0 0 auto;
-}
-
-.data-export-type-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.65rem;
-  padding: 0 0.55rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  color: var(--color-muted);
-  background: var(--color-surface-container);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-
-.data-export-type-badge.is-view {
-  color: var(--color-primary);
-  background: var(--color-primary-container);
 }
 
 .data-export-empty {
   padding: 2.4rem 1rem;
   color: var(--color-muted);
   text-align: center;
+}
+
+.data-export-pest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+  gap: 1rem;
+}
+
+.data-export-pest-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-lowest);
+  box-shadow: var(--shadow-card);
+  border-top: 3px solid var(--pest-accent, var(--color-primary));
+  gap: 0.85rem;
+}
+
+.pest-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pest-card-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--pest-accent, var(--color-primary));
+  background: color-mix(in srgb, var(--pest-accent, var(--color-primary)) 12%, transparent);
+  flex: 0 0 auto;
+}
+
+.pest-card-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.pest-card-subtitle {
+  margin: 0.1rem 0 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.pest-card-subtitle strong {
+  color: var(--color-on-surface);
+}
+
+.pest-card-tables {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pest-card-tables li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-sm);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.pest-card-tables li:last-child {
+  border-bottom: none;
+}
+
+.pest-table-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-line);
+  color: var(--color-muted);
+  background: var(--color-surface-container);
+}
+
+.pest-table-badge.is-view {
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+  border-color: transparent;
+}
+
+.pest-table-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.pest-table-count {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.pest-card-filters {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pest-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pest-filter-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-muted);
+  flex: 0 0 auto;
+}
+
+.pest-filter-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pest-filter-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-mist);
+}
+
+.pest-card-action {
+  margin-top: auto;
+}
+
+.pest-card-download-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.pest-card-download-button.is-filtered {
+  border-color: var(--pest-accent, var(--color-primary));
+  color: var(--pest-accent, var(--color-primary));
 }
 
 @media (max-width: 760px) {
@@ -430,6 +442,10 @@ onMounted(loadTables);
   .data-export-actions button {
     flex: 1;
     justify-content: center;
+  }
+
+  .data-export-pest-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
