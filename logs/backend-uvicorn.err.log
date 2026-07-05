@@ -582,3 +582,217 @@ INFO:     Application startup complete.
 2026-07-04 18:02:05 [INFO] [21d762380a764b52] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查 status=200 duration_ms=36.89
 2026-07-04 18:02:05 [INFO] [c090aff8bd9c4478] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
 2026-07-04 18:02:05 [INFO] [c090aff8bd9c4478] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=16.53
+2026-07-04 18:02:48 [INFO] [45a3add1ca184b40] backend.main: 请求开始 GET /api/map/views/2026_国槐尺蠖幼虫调查
+2026-07-04 18:02:48 [INFO] [45a3add1ca184b40] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查 status=200 duration_ms=45.42
+2026-07-04 18:02:48 [INFO] [d46881024dfd4a29] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-04 18:02:48 [INFO] [d46881024dfd4a29] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=13.90
+2026-07-04 18:03:20 [INFO] [69a46413cdb34839] backend.main: 请求开始 GET /api/admin/layers
+2026-07-04 18:03:20 [INFO] [8195a0c0b3d046eb] backend.main: 请求开始 GET /favicon.ico
+2026-07-04 18:03:20 [INFO] [8195a0c0b3d046eb] backend.main: 请求完成 GET /favicon.ico status=200 duration_ms=3.20
+2026-07-04 18:03:20 [INFO] [69a46413cdb34839] backend.main: 请求完成 GET /api/admin/layers status=200 duration_ms=14.99
+2026-07-04 18:04:13 [INFO] [fe3365838f824e16] backend.main: 请求开始 GET /api/map/views
+2026-07-04 18:04:13 [INFO] [6e5a0e36d74143b9] backend.main: 请求开始 GET /api/map/reference-layers
+2026-07-04 18:04:13 [INFO] [73a9df94f5a44526] backend.main: 请求开始 GET /api/map/white-moth-sites/code-rules
+2026-07-04 18:04:13 [INFO] [73a9df94f5a44526] backend.main: 请求完成 GET /api/map/white-moth-sites/code-rules status=200 duration_ms=1.62
+2026-07-04 18:04:13 [INFO] [fe3365838f824e16] backend.main: 请求完成 GET /api/map/views status=200 duration_ms=16.31
+2026-07-04 18:04:13 [INFO] [6b48dd7b24254e11] backend.main: 请求开始 GET /favicon.ico
+2026-07-04 18:04:13 [INFO] [6e5a0e36d74143b9] backend.main: 请求完成 GET /api/map/reference-layers status=200 duration_ms=17.11
+2026-07-04 18:04:13 [INFO] [6b48dd7b24254e11] backend.main: 请求完成 GET /favicon.ico status=200 duration_ms=4.83
+2026-07-04 18:04:13 [INFO] [491ccc4014804904] backend.main: 请求开始 GET /api/map/views/2026_国槐尺蠖幼虫调查/filter-options
+2026-07-04 18:04:13 [INFO] [86aae08c2b634248] backend.main: 请求开始 GET /api/map/views/2026_国槐尺蠖幼虫调查
+2026-07-04 18:04:13 [INFO] [32c528ee714b4fd4] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-04 18:04:13 [INFO] [32c528ee714b4fd4] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=21.17
+2026-07-04 18:04:14 [INFO] [86aae08c2b634248] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查 status=200 duration_ms=139.27
+2026-07-04 18:04:14 [INFO] [491ccc4014804904] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查/filter-options status=200 duration_ms=252.25
+2026-07-04 18:04:14 [INFO] [d75d9e83b5a24063] backend.main: 请求开始 GET /api/map/views/2026_国槐尺蠖幼虫调查
+2026-07-04 18:04:14 [INFO] [d75d9e83b5a24063] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查 status=200 duration_ms=155.18
+2026-07-04 18:04:15 [INFO] [b7e75e6dd566448a] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-04 18:04:15 [INFO] [b7e75e6dd566448a] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=16.48
+2026-07-04 18:04:17 [INFO] [40f04cabe6aa4261] backend.main: 请求开始 GET /api/map/views/2026_国槐尺蠖幼虫调查
+2026-07-04 18:04:17 [INFO] [40f04cabe6aa4261] backend.main: 请求完成 GET /api/map/views/2026_国槐尺蠖幼虫调查 status=200 duration_ms=161.31
+2026-07-04 18:04:19 [INFO] [0a03f16ddc934e70] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-04 18:04:19 [INFO] [0a03f16ddc934e70] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=15.52
+WARNING:  WatchFiles detected changes in 'backend\routers\map.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5520]
+WARNING:  WatchFiles detected changes in 'backend\tests\test_map_filters.py', 'backend\routers\map.py', 'backend\db\postgres.py'. Reloading...
+INFO:     Started server process [4460]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4460]
+INFO:     Started server process [29220]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-07-05 08:38:29 [INFO] [5bc2455e2da44e13] backend.main: 请求开始 GET /
+2026-07-05 08:38:29 [INFO] [5bc2455e2da44e13] backend.main: 请求完成 GET / status=200 duration_ms=16.25
+2026-07-05 08:38:29 [INFO] [9f12042ad7e24165] backend.main: 请求开始 GET /assets/index-sHJN6NxM.js
+2026-07-05 08:38:29 [INFO] [657743ddeb2f4919] backend.main: 请求开始 GET /assets/index-vLs64S5J.css
+2026-07-05 08:38:29 [INFO] [9f12042ad7e24165] backend.main: 请求完成 GET /assets/index-sHJN6NxM.js status=200 duration_ms=3.83
+2026-07-05 08:38:29 [INFO] [657743ddeb2f4919] backend.main: 请求完成 GET /assets/index-vLs64S5J.css status=200 duration_ms=2.68
+2026-07-05 08:38:29 [INFO] [546a8c4524c141fe] backend.main: 请求开始 GET /api/auth/me
+2026-07-05 08:38:29 [INFO] [546a8c4524c141fe] backend.main: 请求完成 GET /api/auth/me status=200 duration_ms=10.51
+2026-07-05 08:38:30 [INFO] [cf558d830642483f] backend.main: 请求开始 GET /favicon.ico
+2026-07-05 08:38:30 [INFO] [cf558d830642483f] backend.main: 请求完成 GET /favicon.ico status=200 duration_ms=3.28
+2026-07-05 08:38:39 [INFO] [78a89fd76e814e50] backend.main: 请求开始 GET /api/admin/layers
+2026-07-05 08:38:39 [INFO] [78a89fd76e814e50] backend.main: 请求完成 GET /api/admin/layers status=200 duration_ms=141.45
+2026-07-05 08:38:46 [INFO] [d7e65104b9b8495d] backend.main: 请求开始 GET /api/admin/layers
+2026-07-05 08:38:46 [INFO] [d7e65104b9b8495d] backend.main: 请求完成 GET /api/admin/layers status=200 duration_ms=9.89
+2026-07-05 08:39:31 [INFO] [097d689038c941d7] backend.main: 请求开始 PUT /api/admin/layers
+2026-07-05 08:39:31 [INFO] [097d689038c941d7] backend.main: 请求完成 PUT /api/admin/layers status=200 duration_ms=27.99
+2026-07-05 08:39:34 [INFO] [092ebaa7ec0e40b6] backend.main: 请求开始 GET /api/map/views
+2026-07-05 08:39:34 [INFO] [d5ee0d515d7b40a0] backend.main: 请求开始 GET /api/map/reference-layers
+2026-07-05 08:39:34 [INFO] [33c8067151074ad6] backend.main: 请求开始 GET /api/map/white-moth-sites/code-rules
+2026-07-05 08:39:34 [INFO] [33c8067151074ad6] backend.main: 请求完成 GET /api/map/white-moth-sites/code-rules status=200 duration_ms=2.22
+2026-07-05 08:39:34 [INFO] [092ebaa7ec0e40b6] backend.main: 请求完成 GET /api/map/views status=200 duration_ms=19.99
+2026-07-05 08:39:34 [INFO] [0e71248cf9ec4abf] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:34 [INFO] [7e361650899140fe] backend.main: 请求开始 GET /api/map/views/美国白蛾点位/filter-options
+2026-07-05 08:39:34 [INFO] [d5ee0d515d7b40a0] backend.main: 请求完成 GET /api/map/reference-layers status=200 duration_ms=69.15
+2026-07-05 08:39:34 [INFO] [ced82988c03c4a3e] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:34 [INFO] [7e361650899140fe] backend.main: 请求完成 GET /api/map/views/美国白蛾点位/filter-options status=200 duration_ms=65.11
+2026-07-05 08:39:35 [INFO] [ced82988c03c4a3e] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=478.13
+2026-07-05 08:39:35 [INFO] [0e71248cf9ec4abf] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=531.78
+2026-07-05 08:39:35 [INFO] [4987234206c74cd8] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:35 [INFO] [4987234206c74cd8] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=17.64
+2026-07-05 08:39:35 [INFO] [cef0bf26f79844ed] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:35 [INFO] [cef0bf26f79844ed] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=17.05
+2026-07-05 08:39:45 [INFO] [15422ed183154f88] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options
+2026-07-05 08:39:45 [INFO] [bc85a1e3a2894763] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 08:39:45 [INFO] [15422ed183154f88] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options status=200 duration_ms=76.05
+2026-07-05 08:39:45 [INFO] [bc85a1e3a2894763] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=177.98
+2026-07-05 08:39:45 [INFO] [ef098fa5e5264bef] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 08:39:45 [INFO] [ef098fa5e5264bef] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=175.83
+2026-07-05 08:39:46 [INFO] [fd23fdfb851f46dd] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:46 [INFO] [fd23fdfb851f46dd] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.40
+2026-07-05 08:39:47 [INFO] [f79b21b61a024db6] backend.main: 请求开始 GET /api/map/views/美国白蛾点位/filter-options
+2026-07-05 08:39:47 [INFO] [dc9861e7997b4029] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:47 [INFO] [f79b21b61a024db6] backend.main: 请求完成 GET /api/map/views/美国白蛾点位/filter-options status=200 duration_ms=12.85
+2026-07-05 08:39:47 [INFO] [dc9861e7997b4029] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=16.71
+2026-07-05 08:39:47 [INFO] [9ec76d2640974ec9] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:48 [INFO] [9ec76d2640974ec9] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=18.61
+2026-07-05 08:39:48 [INFO] [654ad472a507457e] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:48 [INFO] [654ad472a507457e] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=9.28
+2026-07-05 08:39:49 [INFO] [cb5ca53ee24d4129] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:49 [INFO] [cb5ca53ee24d4129] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=13.46
+2026-07-05 08:39:49 [INFO] [f861b0f39a804da3] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:49 [INFO] [f861b0f39a804da3] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.89
+2026-07-05 08:39:50 [INFO] [f708be3eab044253] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:50 [INFO] [f708be3eab044253] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=24.55
+2026-07-05 08:39:50 [INFO] [2b89bbd9fddc44d0] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:50 [INFO] [2b89bbd9fddc44d0] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=26.49
+2026-07-05 08:39:51 [INFO] [cec8eafcb44c4f94] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:51 [INFO] [cec8eafcb44c4f94] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=13.20
+2026-07-05 08:39:51 [INFO] [816e5482ffaa4f17] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:51 [INFO] [816e5482ffaa4f17] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=15.85
+2026-07-05 08:39:52 [INFO] [a9487bb500bf4c9a] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:52 [INFO] [a9487bb500bf4c9a] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=18.64
+2026-07-05 08:39:52 [INFO] [e978e7ed45334e10] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:52 [INFO] [e978e7ed45334e10] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.77
+2026-07-05 08:39:53 [INFO] [37e5983b0a7445c5] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:53 [INFO] [37e5983b0a7445c5] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=18.17
+2026-07-05 08:39:53 [INFO] [ca36065a59ca4ec7] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:53 [INFO] [ca36065a59ca4ec7] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=9.39
+2026-07-05 08:39:53 [INFO] [cd6d08d934c84415] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:53 [INFO] [cd6d08d934c84415] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=16.04
+2026-07-05 08:39:53 [INFO] [ed9cc137514c4aa7] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:53 [INFO] [ed9cc137514c4aa7] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.98
+2026-07-05 08:39:54 [INFO] [92678c0f6b374235] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:55 [INFO] [92678c0f6b374235] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=14.57
+2026-07-05 08:39:55 [INFO] [8484b8ad964d46cc] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:55 [INFO] [8484b8ad964d46cc] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=12.51
+2026-07-05 08:39:55 [INFO] [188f2aec2d67497a] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:55 [INFO] [188f2aec2d67497a] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=11.55
+2026-07-05 08:39:55 [INFO] [83d31cc29cde489c] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:55 [INFO] [83d31cc29cde489c] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.24
+2026-07-05 08:39:56 [INFO] [bd6c0c646d374713] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:56 [INFO] [bd6c0c646d374713] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=11.20
+2026-07-05 08:39:56 [INFO] [4112acb8af4944db] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:56 [INFO] [4112acb8af4944db] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=14.09
+2026-07-05 08:39:56 [INFO] [f8682144305648c9] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:56 [INFO] [f8682144305648c9] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=9.09
+2026-07-05 08:39:57 [INFO] [2927e3c2516041df] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:57 [INFO] [2927e3c2516041df] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=12.28
+2026-07-05 08:39:57 [INFO] [571b6a96cd294a3c] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:57 [INFO] [571b6a96cd294a3c] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=21.22
+2026-07-05 08:39:57 [INFO] [e7a426f0e3c04e7d] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:57 [INFO] [e7a426f0e3c04e7d] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.66
+2026-07-05 08:39:58 [INFO] [ef87fbda32ef42a2] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:58 [INFO] [ef87fbda32ef42a2] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=18.22
+2026-07-05 08:39:58 [INFO] [8f8b979ad5164ced] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:58 [INFO] [8f8b979ad5164ced] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=8.97
+2026-07-05 08:39:59 [INFO] [c933cb7291af4772] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 08:39:59 [INFO] [c933cb7291af4772] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=15.54
+2026-07-05 08:39:59 [INFO] [fdaf0a307bd74a6b] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 08:39:59 [INFO] [fdaf0a307bd74a6b] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.86
+2026-07-05 09:10:17 [INFO] [c07c2ed39a3f4b94] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:17 [INFO] [85071698b5ac487b] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options
+2026-07-05 09:10:17 [INFO] [85071698b5ac487b] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options status=200 duration_ms=104.74
+2026-07-05 09:10:17 [INFO] [c07c2ed39a3f4b94] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=144.34
+2026-07-05 09:10:17 [INFO] [6b228ba1fff54662] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:17 [INFO] [6b228ba1fff54662] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=97.68
+2026-07-05 09:10:17 [INFO] [0c0162d78b4d4717] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:17 [INFO] [0c0162d78b4d4717] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=17.44
+2026-07-05 09:10:21 [INFO] [1a0acf48c9bd4a50] backend.main: 请求开始 GET /api/map/views/美国白蛾点位/filter-options
+2026-07-05 09:10:21 [INFO] [5402aac796314ab9] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 09:10:21 [INFO] [1a0acf48c9bd4a50] backend.main: 请求完成 GET /api/map/views/美国白蛾点位/filter-options status=200 duration_ms=11.66
+2026-07-05 09:10:21 [INFO] [5402aac796314ab9] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=22.44
+2026-07-05 09:10:21 [INFO] [340fb5cc290a4528] backend.main: 请求开始 GET /api/map/views/美国白蛾点位
+2026-07-05 09:10:21 [INFO] [340fb5cc290a4528] backend.main: 请求完成 GET /api/map/views/美国白蛾点位 status=200 duration_ms=19.39
+2026-07-05 09:10:21 [INFO] [8edd0a30164e4910] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:21 [INFO] [8edd0a30164e4910] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=18.62
+2026-07-05 09:10:23 [INFO] [b6c49ca42ec54cb0] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:23 [INFO] [bb59a7950c2e4dd4] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options
+2026-07-05 09:10:23 [INFO] [bb59a7950c2e4dd4] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查/filter-options status=200 duration_ms=42.08
+2026-07-05 09:10:23 [INFO] [b6c49ca42ec54cb0] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=172.83
+2026-07-05 09:10:24 [INFO] [02c83770bdcd4f56] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:24 [INFO] [02c83770bdcd4f56] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=166.16
+2026-07-05 09:10:24 [INFO] [16c00982bf4b42af] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:24 [INFO] [16c00982bf4b42af] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=12.49
+2026-07-05 09:10:27 [INFO] [369de107a71e4b5c] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:27 [INFO] [369de107a71e4b5c] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=173.29
+2026-07-05 09:10:27 [INFO] [abf808f870b5483c] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:27 [INFO] [abf808f870b5483c] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=12.89
+2026-07-05 09:10:28 [INFO] [4586007e0ec9452c] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:28 [INFO] [4586007e0ec9452c] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=25.40
+2026-07-05 09:10:28 [INFO] [8ac4778ad7034d86] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:28 [INFO] [8ac4778ad7034d86] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.55
+2026-07-05 09:10:30 [INFO] [f5f5b6ccbdc04ff4] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:30 [INFO] [f5f5b6ccbdc04ff4] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=132.96
+2026-07-05 09:10:30 [INFO] [79687a25727d4024] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:30 [INFO] [79687a25727d4024] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=23.28
+2026-07-05 09:10:37 [INFO] [f7e97a35acfa4540] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:37 [INFO] [f7e97a35acfa4540] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=159.10
+2026-07-05 09:10:37 [INFO] [0fe2f262b29f4a99] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:37 [INFO] [0fe2f262b29f4a99] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.53
+2026-07-05 09:10:38 [INFO] [c7f9ed3c340341f7] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:38 [INFO] [c7f9ed3c340341f7] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=171.09
+2026-07-05 09:10:38 [INFO] [38ae705cf10144b5] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:38 [INFO] [38ae705cf10144b5] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=8.71
+2026-07-05 09:10:40 [INFO] [97948a792a5a44f0] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:40 [INFO] [97948a792a5a44f0] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=173.28
+2026-07-05 09:10:40 [INFO] [256bd074034d422c] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:40 [INFO] [256bd074034d422c] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=9.96
+2026-07-05 09:10:41 [INFO] [0c54ff8cdedb414d] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:41 [INFO] [0c54ff8cdedb414d] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=165.20
+2026-07-05 09:10:41 [INFO] [76f6fd056c6d44e0] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:41 [INFO] [76f6fd056c6d44e0] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=9.15
+2026-07-05 09:10:42 [INFO] [bb9ada74274e44ed] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:42 [INFO] [bb9ada74274e44ed] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=172.62
+2026-07-05 09:10:42 [INFO] [9fd93876fbce4687] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:42 [INFO] [9fd93876fbce4687] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=10.38
+2026-07-05 09:10:43 [INFO] [faa73195a2ab4c0e] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:43 [INFO] [faa73195a2ab4c0e] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=185.93
+2026-07-05 09:10:43 [INFO] [5a6276ff7e0f4b98] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:43 [INFO] [5a6276ff7e0f4b98] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.52
+2026-07-05 09:10:47 [INFO] [83a06ac7b12c4dde] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:47 [INFO] [83a06ac7b12c4dde] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=171.44
+2026-07-05 09:10:47 [INFO] [f847a2b8545c40b7] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:47 [INFO] [f847a2b8545c40b7] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=11.62
+2026-07-05 09:10:55 [INFO] [a15ab2d17dc94c37] backend.main: 请求开始 GET /api/map/views/2026_美国白蛾第 1 代调查
+2026-07-05 09:10:55 [INFO] [a15ab2d17dc94c37] backend.main: 请求完成 GET /api/map/views/2026_美国白蛾第 1 代调查 status=200 duration_ms=173.64
+2026-07-05 09:10:55 [INFO] [101177ab04b54110] backend.main: 请求开始 GET /api/map/reference-layers/通州区行政区边界
+2026-07-05 09:10:55 [INFO] [101177ab04b54110] backend.main: 请求完成 GET /api/map/reference-layers/通州区行政区边界 status=200 duration_ms=8.87

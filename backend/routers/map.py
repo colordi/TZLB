@@ -9,7 +9,6 @@ from backend.db.admin import (
     list_enabled_reference_layers,
 )
 from backend.db.postgres import (
-    MAP_DEFAULT_LIMIT,
     MAP_MAX_LIMIT,
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
@@ -50,9 +49,9 @@ def parse_bbox(raw_value: str | None) -> tuple[float, float, float, float] | Non
     return min_lng, min_lat, max_lng, max_lat
 
 
-def parse_limit(raw_value: str | None) -> int:
+def parse_limit(raw_value: str | None) -> int | None:
     if raw_value is None or raw_value.strip() == "":
-        return MAP_DEFAULT_LIMIT
+        return None
 
     try:
         limit = int(raw_value)

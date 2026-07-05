@@ -210,7 +210,8 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', query)
         self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
         self.assertIn('"调查日期" IS NOT NULL', query)
-        self.assertEqual(args, (["2024", "2025"], ["重"], 1001))
+        self.assertNotIn("LIMIT", query)
+        self.assertEqual(args, (["2024", "2025"], ["重"]))
 
     async def test_feature_collection_applies_bbox_limit_and_has_more_metadata(self) -> None:
         fetch_mock = AsyncMock(
@@ -357,7 +358,8 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         args = fetch_mock.await_args.args[1:]
         self.assertIn('"reference"."通州区小区边界"', query)
         self.assertIn("ST_AsGeoJSON", query)
-        self.assertEqual(args, (1001,))
+        self.assertNotIn("LIMIT", query)
+        self.assertEqual(args, ())
 
 
 class MapRouterQueryParamTest(unittest.TestCase):
@@ -372,7 +374,7 @@ class MapRouterQueryParamTest(unittest.TestCase):
             parse_bbox("116.9,39.5,116.1,40.1")
 
     def test_parse_limit_uses_default_and_rejects_out_of_range(self) -> None:
-        self.assertEqual(parse_limit(None), 1000)
+        self.assertIsNone(parse_limit(None))
         with self.assertRaises(ValueError):
             parse_limit("5001")
 

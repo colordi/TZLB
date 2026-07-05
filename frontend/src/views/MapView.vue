@@ -31,7 +31,6 @@ const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
 const LOCALITY_FIELD = "属地";
 const SURVEY_STATUS_FILTER_KEY = "调查状态";
 const SELECTED_VIEW_STORAGE_KEY = "tzlb.map.selectedView";
-const MAP_VIEW_LIMIT = 1000;
 const SURVEY_STATUS_FILTER_OPTIONS = [
   { key: "all", label: "全部", value: "" },
   { key: "completed", label: "已调查", value: "调查" },
@@ -68,7 +67,6 @@ const mapFocusRequest = ref(null);
 const whiteMothSiteCodeRules = ref(null);
 const whiteMothSiteDraftLocation = ref(null);
 const currentMapViewport = ref(null);
-const mapLimitNoticeKey = ref("");
 const whiteMothSiteForm = ref({
   code: "",
   siteName: "",
@@ -357,30 +355,7 @@ function isSameBbox(left, right) {
 function buildMapRequestOptions() {
   return {
     bbox: currentMapViewport.value?.bbox || null,
-    limit: MAP_VIEW_LIMIT,
   };
-}
-
-function buildMapLimitNoticeKey(viewName, payload) {
-  const bbox = currentMapViewport.value?.bbox || [];
-  return [viewName, payload?.limit, ...bbox.map((item) => item.toFixed(6))].join("|");
-}
-
-function maybeNotifyMapLimit(viewName, payload) {
-  if (!payload?.has_more) {
-    return;
-  }
-
-  const noticeKey = buildMapLimitNoticeKey(viewName, payload);
-  if (noticeKey === mapLimitNoticeKey.value) {
-    return;
-  }
-
-  mapLimitNoticeKey.value = noticeKey;
-  info(
-    `当前视窗仅显示前 ${payload.limit || MAP_VIEW_LIMIT} 条数据，请缩小地图范围后查看完整点位。`,
-    "地图数据超限",
-  );
 }
 
 const currentView = computed(
@@ -562,7 +537,6 @@ async function loadGeoJson({ autoFit = false } = {}) {
       return false;
     }
     geojson.value = payload;
-    maybeNotifyMapLimit(viewName, payload);
     return true;
   } catch (loadError) {
     if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
@@ -629,7 +603,6 @@ async function onMapViewportChange(viewport) {
     bbox,
     zoom: viewport?.zoom ?? null,
   };
-  mapLimitNoticeKey.value = "";
 
   if (selectedView.value && !loadingViews.value) {
     await loadGeoJson({ autoFit: false });

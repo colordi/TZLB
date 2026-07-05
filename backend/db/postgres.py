@@ -70,7 +70,6 @@ SURVEY_STATUS_FILTER_OPTIONS = [
 ]
 SURVEY_STATUS_FILTER_KEY = "调查状态"
 SURVEY_STATUS_FILTER_VALUES = {option["value"] for option in SURVEY_STATUS_FILTER_OPTIONS}
-MAP_DEFAULT_LIMIT = 1000
 MAP_MAX_LIMIT = 5000
 BBox = tuple[float, float, float, float]
 
@@ -445,7 +444,7 @@ def add_feature_collection_metadata(
     payload: dict[str, Any],
     *,
     has_more: bool,
-    limit: int,
+    limit: int | None,
 ) -> dict[str, Any]:
     payload["has_more"] = has_more
     payload["limit"] = limit
@@ -463,7 +462,7 @@ async def fetch_reference_layer_feature_collection(
     layer_name: str,
     *,
     bbox: BBox | None = None,
-    limit: int = MAP_DEFAULT_LIMIT,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """读取 reference schema 指定空间表并返回标准 GeoJSON。"""
 
@@ -477,22 +476,24 @@ async def fetch_reference_layer_feature_collection(
     if bbox is not None:
         args.extend(bbox)
         where_clauses.append(build_bbox_clause(len(args) - 3))
-    args.append(limit + 1)
+    if limit is not None:
+        args.append(limit + 1)
     where_sql = " AND ".join(where_clauses)
+    limit_clause = f" LIMIT ${len(args)}" if limit is not None else ""
     rows = await fetch(
         f"""
         SELECT
             ST_AsGeoJSON({normalized_geom_expression("t")}) AS geom_json,
             to_jsonb(t) - 'geom' AS properties
         FROM {qualified_table} AS t
-        WHERE {where_sql}
-        LIMIT ${len(args)}
+        WHERE {where_sql}{limit_clause}
         """,
         *args,
     )
-    has_more = len(rows) > limit
+    has_more = limit is not None and len(rows) > limit
+    features = rows if limit is None else rows[:limit]
     return add_feature_collection_metadata(
-        records_to_feature_collection(rows[:limit]),
+        records_to_feature_collection(features),
         has_more=has_more,
         limit=limit,
     )
@@ -694,7 +695,7 @@ async def fetch_view_feature_collection(
     filters: dict[str, str | list[str]] | None = None,
     *,
     bbox: BBox | None = None,
-    limit: int = MAP_DEFAULT_LIMIT,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     """读取指定视图并返回标准 GeoJSON。"""
 
@@ -710,8 +711,10 @@ async def fetch_view_feature_collection(
         args.extend(bbox)
         where_clauses.append(build_bbox_clause(len(args) - 3))
 
-    args.append(limit + 1)
+    if limit is not None:
+        args.append(limit + 1)
     where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    limit_clause = f" LIMIT ${len(args)}" if limit is not None else ""
     qualified_view = f"{quote_identifier(VIEW_SCHEMA)}.{quote_identifier(view_name)}"
     rows = await fetch(
         f"""
@@ -723,14 +726,15 @@ async def fetch_view_feature_collection(
             FROM {qualified_view} AS t
             {where_sql}
         ) AS t
-        LIMIT ${len(args)}
+        {limit_clause}
         """,
         *args,
     )
 
-    has_more = len(rows) > limit
+    has_more = limit is not None and len(rows) > limit
+    features = rows if limit is None else rows[:limit]
     return add_feature_collection_metadata(
-        records_to_feature_collection(rows[:limit], dedupe_features=True),
+        records_to_feature_collection(features, dedupe_features=True),
         has_more=has_more,
         limit=limit,
     )

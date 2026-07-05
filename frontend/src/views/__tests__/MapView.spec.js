@@ -154,7 +154,6 @@ function getLeafletMapStub(wrapper) {
 
 const DEFAULT_MAP_OPTIONS = {
   bbox: null,
-  limit: 1000,
 };
 
 describe("MapView", () => {
@@ -545,7 +544,6 @@ describe("MapView", () => {
     const bbox = [116.1, 39.5, 116.9, 40.1];
     const requestOptions = {
       bbox,
-      limit: 1000,
     };
 
     await vi.waitFor(() => {
