@@ -39,6 +39,18 @@ export async function listPestExportTypes() {
   return response.json();
 }
 
+export async function getPestExportMeta(pestType, { year, generation } = {}) {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year);
+  if (generation) params.set("generation", generation);
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/data-export/pest/${encodeURIComponent(pestType)}/meta${query ? "?" + query : ""}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function downloadPestTypeExport(pestType, { year, generation } = {}) {
   const params = new URLSearchParams();
   if (year) params.set("year", year);

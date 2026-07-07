@@ -1,18 +1,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import { Download, RefreshCw, Bug, Database, CalendarDays, Layers } from "@lucide/vue";
+import { Download, RefreshCw, Bug, Database, Layers } from "@lucide/vue";
 
-import { listPestExportTypes, downloadPestTypeExport } from "../api/dataExport.js";
+import { listPestExportTypes, getPestExportMeta, downloadPestTypeExport } from "../api/dataExport.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
-
-const PEST_CARD_STYLES = Object.freeze({
-  "美国白蛾": { color: "var(--color-danger)" },
-  "国槐尺蠖": { color: "var(--color-success)" },
-  "春尺蠖": { color: "var(--color-warning)" },
-  "其他害虫": { color: "var(--color-muted)" },
-});
 
 const TABLE_TYPE_LABELS = Object.freeze({
   table: "数据表",
@@ -25,15 +18,7 @@ const loading = ref(false);
 const downloadingPest = ref("");
 const selectedPest = ref("");
 const pestFilters = reactive({});
-
-const iconColors = computed(() => {
-  const colors = {};
-  for (const pt of pestTypes.value) {
-    const style = PEST_CARD_STYLES[pt.pest_type];
-    colors[pt.pest_type] = style ? style.color : "var(--color-primary)";
-  }
-  return colors;
-});
+const currentPestMeta = ref(null);
 
 const currentPest = computed(() => {
   return pestTypes.value.find((pt) => pt.pest_type === selectedPest.value) || pestTypes.value[0] || null;
@@ -53,6 +38,39 @@ function initFilters(pest) {
   }
 }
 
+async function loadCurrentPestMeta() {
+  if (!currentPest.value) {
+    currentPestMeta.value = null;
+    return;
+  }
+  const pest = currentPest.value;
+  const filters = pestFilters[pest.pest_type] || {};
+  try {
+    currentPestMeta.value = await getPestExportMeta(pest.pest_type, {
+      year: filters.year || undefined,
+      generation: filters.generation || undefined,
+    });
+  } catch (metaError) {
+    if (isUnauthorizedError(metaError)) {
+      return;
+    }
+    error(`${metaError.message || metaError}`, "读取筛选后记录数失败");
+  }
+}
+
+function selectPest(pest) {
+  selectedPest.value = pest.pest_type;
+  initFilters(pest);
+  const filters = pestFilters[pest.pest_type];
+  if (filters.year && !pest.available_years?.includes(filters.year)) {
+    filters.year = "";
+  }
+  if (filters.generation && !pest.available_generations?.includes(filters.generation)) {
+    filters.generation = "";
+  }
+  loadCurrentPestMeta();
+}
+
 function hasActiveFilter(pestType) {
   const f = pestFilters[pestType];
   return f && (f.year || f.generation);
@@ -63,7 +81,7 @@ function filterLabel(pestType) {
   if (!f || (!f.year && !f.generation)) return "";
   const parts = [];
   if (f.year) parts.push(`${f.year}年`);
-  if (f.generation) parts.push(`第${f.generation}代`);
+  if (f.generation) parts.push(f.generation);
   return parts.join(" ");
 }
 
@@ -80,6 +98,7 @@ async function loadPestTypes() {
     ) {
       selectedPest.value = pestTypes.value[0]?.pest_type || "";
     }
+    currentPestMeta.value = currentPest.value;
   } catch (loadError) {
     pestTypes.value = [];
     selectedPest.value = "";
@@ -122,7 +141,7 @@ onMounted(loadPestTypes);
 
 <template>
   <section class="page-shell data-export-page">
-    <header class="page-heading">
+    <header class="data-export-head">
       <div>
         <p class="data-export-eyebrow">DATA EXPORT</p>
         <h1>数据导出</h1>
@@ -150,7 +169,7 @@ onMounted(loadPestTypes);
         class="data-export-tab"
         :class="{ 'is-active': selectedPest === pest.pest_type }"
         :data-testid="`data-export-pest-${pest.pest_type}`"
-        @click="selectedPest = pest.pest_type"
+        @click="selectPest(pest)"
       >
         <Bug :size="16" :stroke-width="2" />
         <span>{{ pest.pest_type }}</span>
@@ -167,76 +186,61 @@ onMounted(loadPestTypes);
     </div>
 
     <section
-      v-else-if="currentPest"
+      v-else-if="currentPestMeta"
       class="data-export-panel"
-      :style="{ '--pest-accent': iconColors[currentPest.pest_type] }"
-      :data-testid="`pest-panel-${currentPest.pest_type}`"
+      :data-testid="`pest-panel-${currentPestMeta.pest_type}`"
     >
       <div class="data-export-panel-head">
-        <div class="panel-head-main">
-          <span class="panel-icon" aria-hidden="true">
-            <Bug :size="22" :stroke-width="2" />
-          </span>
-          <div>
-            <h2>{{ currentPest.pest_type }}</h2>
-            <p>
-              <strong>{{ formatNumber(currentPest.total_row_count) }}</strong> 条记录，
-              <strong>{{ currentPest.tables.length }}</strong> 张表 / 视图
-            </p>
-          </div>
+        <div>
+          <h2>{{ currentPestMeta.pest_type }}</h2>
+          <p>
+            <strong>{{ formatNumber(currentPestMeta.total_row_count) }}</strong> 条记录，
+            <strong>{{ currentPestMeta.tables.length }}</strong> 张表 / 视图
+          </p>
         </div>
 
-        <div class="panel-head-tools">
-          <div v-if="currentPest.available_years?.length || currentPest.available_generations?.length" class="panel-filters">
-            <label v-if="currentPest.available_years?.length" class="panel-filter-item">
-              <span class="panel-filter-label">
-                <CalendarDays :size="13" :stroke-width="2" />
-                年份
-              </span>
-              <select
-                v-model="pestFilters[currentPest.pest_type].year"
-                class="panel-filter-select"
-                @focus="initFilters(currentPest)"
-              >
-                <option value="">全部年份</option>
-                <option
-                  v-for="y in currentPest.available_years"
-                  :key="y"
-                  :value="y"
-                >{{ y }} 年</option>
-              </select>
-            </label>
-            <label v-if="currentPest.available_generations?.length" class="panel-filter-item">
-              <span class="panel-filter-label">
-                <Layers :size="13" :stroke-width="2" />
-                世代
-              </span>
-              <select
-                v-model="pestFilters[currentPest.pest_type].generation"
-                class="panel-filter-select"
-                @focus="initFilters(currentPest)"
-              >
-                <option value="">全部世代</option>
-                <option
-                  v-for="g in currentPest.available_generations"
-                  :key="g"
-                  :value="g"
-                >第{{ g }}代</option>
-              </select>
-            </label>
-          </div>
+        <div class="data-export-filters" aria-label="导出筛选条件">
+          <label v-if="currentPestMeta.available_years?.length" class="data-export-filter">
+            <span>年份</span>
+            <select
+              v-model="pestFilters[currentPestMeta.pest_type].year"
+              @focus="initFilters(currentPestMeta)"
+              @change="loadCurrentPestMeta"
+            >
+              <option value="">全部年份</option>
+              <option
+                v-for="y in currentPestMeta.available_years"
+                :key="y"
+                :value="y"
+              >{{ y }}</option>
+            </select>
+          </label>
+          <label v-if="currentPestMeta.available_generations?.length" class="data-export-filter">
+            <span>世代</span>
+            <select
+              v-model="pestFilters[currentPestMeta.pest_type].generation"
+              @focus="initFilters(currentPestMeta)"
+              @change="loadCurrentPestMeta"
+            >
+              <option value="">全部世代</option>
+              <option
+                v-for="g in currentPestMeta.available_generations"
+                :key="g"
+                :value="g"
+              >{{ g }}</option>
+            </select>
+          </label>
 
           <button
             type="button"
-            class="panel-download-button"
-            :class="{ 'is-filtered': hasActiveFilter(currentPest.pest_type) }"
+            class="data-export-download"
             :disabled="Boolean(downloadingPest)"
-            :data-testid="`pest-download-${currentPest.pest_type}`"
-            @click="handleDownloadPest(currentPest.pest_type)"
+            :data-testid="`pest-download-${currentPestMeta.pest_type}`"
+            @click="handleDownloadPest(currentPestMeta.pest_type)"
           >
             <Download :size="18" :stroke-width="2" />
             <span>
-              {{ downloadingPest === currentPest.pest_type ? "导出中" : filterLabel(currentPest.pest_type) || "导出全部数据" }}
+              {{ downloadingPest === currentPestMeta.pest_type ? "导出中" : filterLabel(currentPestMeta.pest_type) || "导出全部数据" }}
             </span>
           </button>
         </div>
@@ -253,7 +257,7 @@ onMounted(loadPestTypes);
           </thead>
           <tbody>
             <tr
-              v-for="table in currentPest.tables"
+              v-for="table in currentPestMeta.tables"
               :key="`${table.schema_name}.${table.table_name}`"
             >
               <td>
@@ -278,7 +282,25 @@ onMounted(loadPestTypes);
 
 <style scoped>
 .data-export-page {
-  gap: 1.25rem;
+  gap: 1.1rem;
+}
+
+.data-export-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.data-export-head h1 {
+  margin-top: 0.2rem;
+  font-size: clamp(1.7rem, 2.3vw, 2.35rem);
+  line-height: 1.08;
+}
+
+.data-export-head p:last-child,
+.data-export-panel-head p {
+  color: var(--color-muted);
 }
 
 .data-export-eyebrow {
@@ -302,17 +324,41 @@ onMounted(loadPestTypes);
   gap: 0.45rem;
 }
 
-.data-export-empty {
+.data-export-tabs {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.data-export-tab {
+  min-height: 2.65rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  background: var(--color-surface-container-lowest);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 3rem 1rem;
+  gap: 0.45rem;
+}
+
+.data-export-tab.is-active {
+  color: var(--color-accent-on);
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.data-export-tab:disabled {
+  color: var(--color-muted-soft);
+  background: var(--color-surface-container);
+}
+
+.data-export-empty {
+  padding: 2.4rem 1rem;
   color: var(--color-muted);
   text-align: center;
-  background: var(--color-surface-container-lowest);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
 }
 
 .empty-icon {
@@ -328,199 +374,66 @@ onMounted(loadPestTypes);
   to { transform: rotate(360deg); }
 }
 
-.data-export-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.data-export-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 2.65rem;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  color: var(--color-muted);
-  background: var(--color-surface-container-lowest);
-  box-shadow: none;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    color var(--motion-fast) ease;
-}
-
-.data-export-tab:hover {
-  border-color: var(--color-line-strong);
-  color: var(--color-ink);
-}
-
-.data-export-tab.is-active {
-  color: var(--color-accent-on);
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-}
-
 .data-export-panel {
-  padding: 1.25rem;
+  padding: 1.15rem;
   border-radius: var(--radius-md);
   background: var(--color-surface-container-lowest);
   box-shadow: var(--shadow-card);
-  border: 1px solid var(--color-border);
-  border-top: 3px solid var(--pest-accent, var(--color-primary));
 }
 
 .data-export-panel-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.9rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
-.panel-head-main {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  min-width: 0;
-}
-
-.panel-icon {
-  width: 2.8rem;
-  height: 2.8rem;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-md);
-  color: var(--pest-accent, var(--color-primary));
-  background: color-mix(in srgb, var(--pest-accent, var(--color-primary)) 12%, transparent);
-  flex: 0 0 auto;
-}
-
-.panel-head-main h2 {
+.data-export-panel-head h2 {
   margin: 0;
-  font-size: var(--text-xl);
-  line-height: 1.2;
 }
 
-.panel-head-main p {
-  margin: 0.15rem 0 0;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
-.panel-head-main p strong {
-  color: var(--color-ink);
-}
-
-.panel-head-tools {
+.data-export-filters {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.panel-filters {
-  display: flex;
-  align-items: flex-end;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.panel-filter-item {
+.data-export-filter {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 8rem;
-}
-
-.panel-filter-label {
-  display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: var(--text-xs);
-  font-weight: 700;
+  gap: 0.4rem;
   color: var(--color-muted);
-}
-
-.panel-filter-select {
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 0 0.65rem;
-  border: 1px solid var(--color-line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-container-lowest);
-  color: var(--color-ink);
   font-size: var(--text-sm);
-  font-family: inherit;
-  cursor: pointer;
-  transition:
-    border-color var(--motion-fast) ease,
-    box-shadow var(--motion-fast) ease,
-    background-color var(--motion-fast) ease;
 }
 
-.panel-filter-select:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface);
+.data-export-filter select {
+  width: auto;
+  min-width: 6.5rem;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.75rem;
 }
 
-.panel-filter-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.panel-download-button {
+.data-export-download {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   min-height: 2.65rem;
-  padding: 0 1.1rem;
+  padding: 0 1rem;
   border-radius: var(--radius-sm);
-  background: var(--pest-accent, var(--color-primary));
+  background: var(--color-primary);
   color: var(--color-accent-on);
   font-size: var(--text-sm);
   font-weight: 700;
   border: none;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--pest-accent, var(--color-primary)) 32%, transparent);
-  transition:
-    transform var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard),
-    background-color var(--motion-fast) var(--ease-standard);
+  white-space: nowrap;
 }
 
-.panel-download-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--pest-accent, var(--color-primary)) 40%, transparent);
-  background: color-mix(in srgb, var(--pest-accent, var(--color-primary)) 90%, black);
-}
-
-.panel-download-button:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.panel-download-button:disabled {
+.data-export-download:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.panel-download-button.is-filtered {
-  background: var(--color-surface);
-  color: var(--pest-accent, var(--color-primary));
-  border: 1.5px solid var(--pest-accent, var(--color-primary));
-  box-shadow: none;
-}
-
-.panel-download-button.is-filtered:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--pest-accent, var(--color-primary)) 8%, transparent);
 }
 
 .data-export-table-wrap {
@@ -537,7 +450,7 @@ onMounted(loadPestTypes);
 
 .data-export-table-wrap th,
 .data-export-table-wrap td {
-  padding: 0.85rem 0.95rem;
+  padding: 0.8rem 0.9rem;
   border-bottom: 1px solid var(--color-line);
   text-align: left;
   vertical-align: middle;
@@ -592,15 +505,15 @@ onMounted(loadPestTypes);
 }
 
 .table-count {
+  text-align: right;
   color: var(--color-muted);
   font-weight: 600;
   white-space: nowrap;
 }
 
 @media (max-width: 760px) {
-  .page-heading {
+  .data-export-head {
     flex-direction: column;
-    align-items: flex-start;
   }
 
   .data-export-actions {
@@ -613,26 +526,22 @@ onMounted(loadPestTypes);
     justify-content: center;
   }
 
-  .data-export-panel-head {
-    flex-direction: column;
-  }
-
-  .panel-head-tools {
+  .data-export-filters {
     width: 100%;
   }
 
-  .panel-filters {
-    width: 100%;
-  }
-
-  .panel-filter-item {
+  .data-export-filter {
     flex: 1 1 auto;
     min-width: 0;
   }
 
-  .panel-download-button {
-    flex: 1 1 auto;
+  .data-export-filter select {
     width: 100%;
+  }
+
+  .data-export-download {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 </style>

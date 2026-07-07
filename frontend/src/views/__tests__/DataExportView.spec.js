@@ -5,6 +5,7 @@ import DataExportView from "../DataExportView.vue";
 
 const apiMocks = vi.hoisted(() => ({
   listPestExportTypes: vi.fn(),
+  getPestExportMeta: vi.fn(),
   downloadPestTypeExport: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
@@ -13,6 +14,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("../../api/dataExport.js", () => ({
   listPestExportTypes: apiMocks.listPestExportTypes,
+  getPestExportMeta: apiMocks.getPestExportMeta,
   downloadPestTypeExport: apiMocks.downloadPestTypeExport,
 }));
 
@@ -33,7 +35,7 @@ function buildPestTypes() {
       pest_type: "美国白蛾",
       total_row_count: 115,
       available_years: ["2025", "2026"],
-      available_generations: ["1", "2"],
+      available_generations: ["第一代", "第二代"],
       tables: [
         { schema_name: "survey", table_name: "美国白蛾调查表", object_type: "table", column_count: 15, row_count: 50 },
         { schema_name: "ledger", table_name: "美国白蛾问题点位事件流水表", object_type: "table", column_count: 12, row_count: 40 },
@@ -62,6 +64,9 @@ describe("DataExportView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.listPestExportTypes.mockResolvedValue(buildPestTypes());
+    apiMocks.getPestExportMeta.mockImplementation((pestType) =>
+      Promise.resolve(buildPestTypes().find((p) => p.pest_type === pestType)),
+    );
     apiMocks.downloadPestTypeExport.mockResolvedValue({
       blob: new Blob(["pest"]),
       filename: "美国白蛾_20260705_120000.xlsx",
@@ -98,7 +103,7 @@ describe("DataExportView", () => {
     const usMothPanel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
     expect(usMothPanel.text()).toContain("2025");
     expect(usMothPanel.text()).toContain("2026");
-    expect(usMothPanel.text()).toContain("第1代");
+    expect(usMothPanel.text()).toContain("第一代");
 
     // 切换到春尺蠖，只有年份筛选
     await wrapper.get('[data-testid="data-export-pest-春尺蠖"]').trigger("click");
@@ -118,7 +123,7 @@ describe("DataExportView", () => {
     const yearSelect = panel.findAll("select")[0];
     yearSelect.setValue("2026");
     const genSelect = panel.findAll("select")[1];
-    genSelect.setValue("1");
+    genSelect.setValue("第一代");
     await flushPromises();
 
     await wrapper.get('[data-testid="pest-download-美国白蛾"]').trigger("click");
@@ -126,13 +131,13 @@ describe("DataExportView", () => {
 
     expect(apiMocks.downloadPestTypeExport).toHaveBeenCalledWith("美国白蛾", {
       year: "2026",
-      generation: "1",
+      generation: "第一代",
     });
     expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
       "美国白蛾_20260705_120000.xlsx",
     );
-    expect(apiMocks.success).toHaveBeenCalledWith("美国白蛾（2026年 第1代）已开始下载。", "导出成功");
+    expect(apiMocks.success).toHaveBeenCalledWith("美国白蛾（2026年 第一代）已开始下载。", "导出成功");
   });
 
   it("按年份筛选后按钮文案显示筛选条件", async () => {
@@ -146,6 +151,50 @@ describe("DataExportView", () => {
 
     const button = wrapper.get('[data-testid="pest-download-美国白蛾"]');
     expect(button.text()).toContain("2026年");
+  });
+
+  it("切换虫种时，若当前筛选值对新虫种不可用则自动清空", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const panel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
+    const yearSelect = panel.findAll("select")[0];
+    await yearSelect.setValue("2025");
+    await flushPromises();
+
+    await wrapper.get('[data-testid="data-export-pest-春尺蠖"]').trigger("click");
+    await flushPromises();
+
+    const chunPanel = wrapper.find('[data-testid="pest-panel-春尺蠖"]');
+    expect(chunPanel.findAll("select")[0].element.value).toBe("");
+  });
+
+  it("选择筛选条件后请求带条件的元数据并更新记录数", async () => {
+    apiMocks.getPestExportMeta.mockImplementation((pestType, filters) => {
+      const base = buildPestTypes().find((p) => p.pest_type === pestType);
+      return Promise.resolve({
+        ...base,
+        total_row_count: filters.year === "2026" ? 100 : base.total_row_count,
+        tables: base.tables.map((t) => ({ ...t, row_count: filters.year === "2026" ? 10 : t.row_count })),
+      });
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const panel = wrapper.find('[data-testid="pest-panel-美国白蛾"]');
+    expect(wrapper.text()).toContain("115");
+
+    const yearSelect = panel.findAll("select")[0];
+    await yearSelect.setValue("2026");
+    await flushPromises();
+
+    expect(apiMocks.getPestExportMeta).toHaveBeenCalledWith("美国白蛾", {
+      year: "2026",
+      generation: undefined,
+    });
+    expect(wrapper.text()).toContain("100");
+    expect(wrapper.text()).toContain("10");
   });
 
   it("读取列表失败时展示错误提示", async () => {

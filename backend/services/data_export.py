@@ -295,6 +295,63 @@ async def list_pest_export_types() -> list[dict[str, Any]]:
     return [pm.to_public_dict() for pm in pest_metas]
 
 
+async def fetch_pest_export_metadata_filtered(
+    connection: asyncpg.Connection,
+    pest_type: str,
+    year: str | None = None,
+    generation: str | None = None,
+) -> PestExportMeta:
+    if pest_type not in PEST_TABLE_MAPPING:
+        raise ValueError(f"不支持的虫种：{pest_type}")
+
+    all_tables = await fetch_export_table_metadata(connection)
+    table_lookup = {(t.schema_name, t.table_name): t for t in all_tables}
+
+    tables: list[ExportTableMeta] = []
+    for key in PEST_TABLE_MAPPING[pest_type]:
+        table = table_lookup.get(key)
+        if not table:
+            continue
+
+        conditions, params = _build_filter_params(table, year, generation)
+        qualified_table = (
+            f"{quote_identifier(table.schema_name)}.{quote_identifier(table.table_name)}"
+        )
+
+        if conditions:
+            where_clause = " AND ".join(conditions)
+            count_row = await connection.fetchrow(
+                f"SELECT COUNT(*) AS row_count FROM {qualified_table} WHERE {where_clause}",
+                *params,
+            )
+        else:
+            count_row = await connection.fetchrow(
+                f"SELECT COUNT(*) AS row_count FROM {qualified_table}"
+            )
+
+        filtered_count = int(count_row["row_count"] if count_row else 0)
+        tables.append(
+            ExportTableMeta(
+                schema_name=table.schema_name,
+                table_name=table.table_name,
+                object_type=table.object_type,
+                columns=table.columns,
+                row_count=filtered_count,
+            )
+        )
+
+    total = sum(t.row_count for t in tables)
+    years, generations = await _fetch_pest_filter_options(connection, pest_type, table_lookup)
+
+    return PestExportMeta(
+        pest_type=pest_type,
+        tables=tuple(tables),
+        total_row_count=total,
+        available_years=tuple(years),
+        available_generations=tuple(generations),
+    )
+
+
 def _build_filter_params(
     table: ExportTableMeta,
     year: str | None,

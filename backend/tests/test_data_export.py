@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 from openpyxl import load_workbook
 
-from backend.routers.data_export import build_download_response
+from backend.routers.data_export import build_download_response, get_pest_export_meta
 from backend.services.data_export import (
     DataExportArtifact,
     ExportTableMeta,
@@ -16,6 +16,7 @@ from backend.services.data_export import (
     export_pest_type,
     fetch_export_table_metadata,
     fetch_pest_export_metadata,
+    fetch_pest_export_metadata_filtered,
 )
 
 
@@ -406,6 +407,28 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("2026", pm.available_years)
         self.assertEqual(len(pm.available_generations), 0)
 
+    async def test_fetch_pest_export_metadata_filtered_applies_year_and_generation(self) -> None:
+        connection = _build_rich_fake_connection()
+        pm = await fetch_pest_export_metadata_filtered(
+            connection, pest_type="美国白蛾", year="2026", generation="1"
+        )
+
+        self.assertEqual(pm.pest_type, "美国白蛾")
+        self.assertGreater(len(pm.tables), 0)
+        self.assertIn("2026", pm.available_years)
+        self.assertIn("1", pm.available_generations)
+
+        # 验证按条件过滤后执行了带 WHERE 的 COUNT 查询
+        count_queries = [q for q in connection.fetchrow_calls if "COUNT(*)" in q]
+        self.assertTrue(any('"年份" = $1::text' in q for q in count_queries))
+        self.assertTrue(any('"世代" = $2::text' in q for q in count_queries))
+
+    async def test_fetch_pest_export_metadata_filtered_unknown_pest_raises(self) -> None:
+        connection = _build_rich_fake_connection()
+        with self.assertRaises(ValueError) as context:
+            await fetch_pest_export_metadata_filtered(connection, pest_type="未知虫种")
+        self.assertEqual(str(context.exception), "不支持的虫种：未知虫种")
+
     async def test_export_pest_type_with_no_tables_raises_error(self) -> None:
         connection = FakeConnection()
         connection.metadata_rows = []
@@ -420,7 +443,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("虫种不存在或无数据", str(context.exception))
 
 
-class DataExportRouterTest(unittest.TestCase):
+class DataExportRouterTest(unittest.IsolatedAsyncioTestCase):
     def test_download_response_sets_xlsx_attachment_headers(self) -> None:
         response = build_download_response(
             DataExportArtifact(
@@ -440,6 +463,18 @@ class DataExportRouterTest(unittest.TestCase):
             "%E8%B0%83%E6%9F%A5%E6%95%B0%E6%8D%AE%E5%AF%BC%E5%87%BA_20260606_120000.xlsx",
             response.headers["content-disposition"],
         )
+
+    async def test_get_pest_export_meta_router_returns_filtered_meta(self) -> None:
+        connection = _build_rich_fake_connection()
+        with patch(
+            "backend.routers.data_export.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            result = await get_pest_export_meta("美国白蛾", year="2026", generation="1")
+
+        self.assertEqual(result["pest_type"], "美国白蛾")
+        self.assertIn("tables", result)
+        self.assertIn("total_row_count", result)
 
 
 if __name__ == "__main__":

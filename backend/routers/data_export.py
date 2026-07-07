@@ -6,11 +6,14 @@ from urllib.parse import quote
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
+from backend.db.postgres import ensure_pool
+
 from backend.services.data_export import (
     DataExportArtifact,
     export_all_tables,
     export_pest_type,
     export_single_table,
+    fetch_pest_export_metadata_filtered,
     list_export_tables,
     list_pest_export_types,
 )
@@ -52,6 +55,28 @@ async def download_all_export_tables() -> Response:
 async def get_pest_export_types() -> list[dict[str, Any]]:
     try:
         return await list_pest_export_types()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取虫种导出信息失败：{exc}") from exc
+
+
+@router.get("/pest/{pest}/meta", summary="读取单个虫种带筛选条件的导出元数据")
+async def get_pest_export_meta(
+    pest: str,
+    year: str | None = None,
+    generation: str | None = None,
+) -> dict[str, Any]:
+    try:
+        pool = await ensure_pool()
+        async with pool.acquire() as connection:
+            meta = await fetch_pest_export_metadata_filtered(
+                connection,
+                pest_type=pest,
+                year=year,
+                generation=generation,
+            )
+        return meta.to_public_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取虫种导出信息失败：{exc}") from exc
 
