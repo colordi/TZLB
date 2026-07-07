@@ -39,7 +39,7 @@ class FakeConnection:
         self.fetch_calls: list[str] = []
 
     async def fetch(self, query: str, *args):
-        self.fetch_calls.append(query)
+        self.fetch_calls.append((query, args))
         return self.rows
 
 
@@ -90,6 +90,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["rows"][1]["cumulative_completed_points"], 51)
         self.assertEqual(result["rows"][1]["daily_dispatch_points"], 28)
         self.assertEqual(len(connection.fetch_calls), 1)
+        self.assertEqual(connection.fetch_calls[0][1], (None, None))
 
     async def test_white_moth_daily_statistics_supports_empty_result(self) -> None:
         connection = FakeConnection()
@@ -102,6 +103,17 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["rows"], [])
         self.assertGreater(len(result["columns"]), 0)
+
+    async def test_white_moth_daily_statistics_passes_year_and_generation(self) -> None:
+        connection = FakeConnection([build_row()])
+
+        with patch(
+            "backend.services.statistics.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            await get_white_moth_daily_statistics(year=2026, generation="第一代")
+
+        self.assertEqual(connection.fetch_calls[0][1], (2026, "第一代"))
 
     def test_white_moth_sql_uses_business_tables_not_map_view(self) -> None:
         self.assertIn('survey."美国白蛾调查表"', WHITE_MOTH_DAILY_SQL)

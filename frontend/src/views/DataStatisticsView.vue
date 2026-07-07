@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { ChartColumn, RefreshCw, Table2 } from "@lucide/vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { ChartColumn, ChevronLeft, ChevronRight, RefreshCw, Table2 } from "@lucide/vue";
 
 import { getWhiteMothDailyStatistics } from "../api/statistics.js";
 import { isUnauthorizedError } from "../api/http.js";
@@ -18,32 +18,26 @@ const loading = ref(false);
 const columns = ref([]);
 const rows = ref([]);
 const selectedPest = ref("white-moth");
+const currentPage = ref(1);
+const PAGE_SIZE = 7;
 
-const latestRow = computed(() => rows.value[0] || null);
+const currentYear = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 5 }, (_, index) => currentYear - 2 + index);
+const GENERATION_OPTIONS = ["", "第一代", "第二代", "第三代"];
 
-const summaryCards = computed(() => [
-  {
-    label: "最新日期",
-    value: latestRow.value?.date || "--",
-    footnote: "按每日统计结果取最新一日",
-    highlight: true,
-  },
-  {
-    label: "当日除治量",
-    value: formatNumber(latestRow.value?.daily_treatment_plants),
-    footnote: "单位：株",
-  },
-  {
-    label: "累积完成点数",
-    value: formatNumber(latestRow.value?.cumulative_completed_points),
-    footnote: "截至最新日期",
-  },
-  {
-    label: "当日派单数",
-    value: formatNumber(latestRow.value?.daily_dispatch_points),
-    footnote: "受害株数大于 0 的点位",
-  },
-]);
+const selectedYear = ref(currentYear);
+const selectedGeneration = ref("");
+
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)));
+
+const paginatedRows = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return rows.value.slice(start, start + PAGE_SIZE);
+});
+
+watch(rows, () => {
+  currentPage.value = 1;
+});
 
 function formatNumber(value) {
   if (value === null || value === undefined || value === "") {
@@ -57,15 +51,69 @@ function formatCell(row, column) {
   return column.type === "number" ? formatNumber(value) : value || "--";
 }
 
+function resolveColumnGroup(columnKey) {
+  if (columnKey === "date") {
+    return "日期";
+  }
+  if (
+    columnKey === "daily_treatment_plants" ||
+    columnKey === "cumulative_completed_points"
+  ) {
+    return "汇总";
+  }
+  if (columnKey.startsWith("urban_")) {
+    return "城区";
+  }
+  if (columnKey.startsWith("town_")) {
+    return "乡镇";
+  }
+  if (columnKey === "daily_dispatch_points") {
+    return "派单";
+  }
+  return "";
+}
+
+const groupedColumns = computed(() => {
+  const groups = [];
+  let current = null;
+  columns.value.forEach((column, index) => {
+    const label = resolveColumnGroup(column.key);
+    if (!current || current.label !== label) {
+      current = { label, start: index, count: 1, columns: [column] };
+      groups.push(current);
+    } else {
+      current.count += 1;
+      current.columns.push(column);
+    }
+  });
+  return groups;
+});
+
+const groupStartIndices = computed(() => {
+  return new Set(groupedColumns.value.filter((g) => g.start > 0).map((g) => g.start));
+});
+
+function cellClass(column) {
+  return {
+    "data-statistics-cell--date": column.type === "date",
+    "data-statistics-cell--number": column.type === "number",
+  };
+}
+
 async function loadWhiteMothDailyStatistics() {
   loading.value = true;
   try {
-    const result = await getWhiteMothDailyStatistics();
+    const result = await getWhiteMothDailyStatistics({
+      year: selectedYear.value,
+      generation: selectedGeneration.value || undefined,
+    });
     columns.value = Array.isArray(result.columns) ? result.columns : [];
     rows.value = Array.isArray(result.rows) ? result.rows : [];
+    currentPage.value = 1;
   } catch (loadError) {
     columns.value = [];
     rows.value = [];
+    currentPage.value = 1;
     if (isUnauthorizedError(loadError)) {
       return;
     }
@@ -116,24 +164,30 @@ onMounted(loadWhiteMothDailyStatistics);
       </button>
     </section>
 
-    <section class="summary-grid" aria-label="美国白蛾每日统计摘要">
-      <article
-        v-for="card in summaryCards"
-        :key="card.label"
-        class="summary-card"
-        :class="{ 'is-highlight': card.highlight }"
-      >
-        <span class="summary-label">{{ card.label }}</span>
-        <strong class="summary-value">{{ card.value }}</strong>
-        <span class="summary-footnote">{{ card.footnote }}</span>
-      </article>
-    </section>
-
     <section class="data-statistics-panel">
       <div class="data-statistics-panel-head">
         <div>
           <h2>美国白蛾每日信息统计</h2>
           <p>{{ rows.length }} 条每日记录</p>
+        </div>
+        <div class="data-statistics-filters" aria-label="筛选条件">
+          <label class="data-statistics-filter">
+            <span>年份</span>
+            <select v-model="selectedYear" data-testid="data-statistics-year-filter">
+              <option v-for="year in YEAR_OPTIONS" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </label>
+          <label class="data-statistics-filter">
+            <span>世代</span>
+            <select v-model="selectedGeneration" data-testid="data-statistics-generation-filter">
+              <option value="">全部</option>
+              <option v-for="gen in GENERATION_OPTIONS.slice(1)" :key="gen" :value="gen">
+                {{ gen }}
+              </option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -145,19 +199,51 @@ onMounted(loadWhiteMothDailyStatistics);
       <div v-else class="data-statistics-table-wrap">
         <table>
           <thead>
+            <tr class="data-statistics-group-row">
+              <template v-for="group in groupedColumns" :key="group.label">
+                <th
+                  v-if="group.count === 1"
+                  rowspan="2"
+                  :class="[
+                    'data-statistics-merged-header',
+                    cellClass(group.columns[0]),
+                    { 'group-start': group.start > 0 },
+                  ]"
+                >
+                  {{ group.label }}
+                </th>
+                <th
+                  v-else
+                  :colspan="group.count"
+                  :class="{ 'group-start': group.start > 0 }"
+                >
+                  {{ group.label }}
+                </th>
+              </template>
+            </tr>
             <tr>
-              <th v-for="column in columns" :key="column.key">
-                {{ column.label }}
-              </th>
+              <template v-for="(column, index) in columns" :key="column.key">
+                <th
+                  v-if="groupedColumns.find((g) => g.label === resolveColumnGroup(column.key)).count > 1"
+                  :class="[cellClass(column), { 'group-start': groupStartIndices.has(index) }]"
+                >
+                  {{ column.label }}
+                </th>
+              </template>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="row in rows"
+              v-for="(row, rowIndex) in paginatedRows"
               :key="row.date"
+              :class="{ 'is-latest': rowIndex === 0 && currentPage === 1 }"
               :data-testid="`data-statistics-row-${row.date}`"
             >
-              <td v-for="column in columns" :key="column.key">
+              <td
+                v-for="(column, index) in columns"
+                :key="column.key"
+                :class="[cellClass(column), { 'group-start': groupStartIndices.has(index) }]"
+              >
                 <span v-if="column.key === 'date'" class="data-statistics-date">
                   <Table2 :size="16" :stroke-width="2" />
                   <span>{{ formatCell(row, column) }}</span>
@@ -168,6 +254,36 @@ onMounted(loadWhiteMothDailyStatistics);
           </tbody>
         </table>
       </div>
+
+      <nav
+        v-if="totalPages > 1"
+        class="data-statistics-pagination"
+        aria-label="分页导航"
+      >
+        <button
+          type="button"
+          class="button-secondary"
+          :disabled="currentPage === 1"
+          data-testid="data-statistics-prev-page"
+          @click="currentPage -= 1"
+        >
+          <ChevronLeft :size="18" :stroke-width="2" />
+          <span>上一页</span>
+        </button>
+        <span class="data-statistics-page-info">
+          第 {{ currentPage }} / {{ totalPages }} 页
+        </span>
+        <button
+          type="button"
+          class="button-secondary"
+          :disabled="currentPage === totalPages"
+          data-testid="data-statistics-next-page"
+          @click="currentPage += 1"
+        >
+          <span>下一页</span>
+          <ChevronRight :size="18" :stroke-width="2" />
+        </button>
+      </nav>
     </section>
   </section>
 </template>
@@ -258,10 +374,33 @@ onMounted(loadWhiteMothDailyStatistics);
   justify-content: space-between;
   gap: 0.9rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .data-statistics-panel-head h2 {
   margin: 0;
+}
+
+.data-statistics-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.data-statistics-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.data-statistics-filter select {
+  width: auto;
+  min-width: 6.5rem;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.75rem;
 }
 
 .data-statistics-table-wrap {
@@ -280,20 +419,56 @@ onMounted(loadWhiteMothDailyStatistics);
 .data-statistics-table-wrap td {
   padding: 0.8rem 0.9rem;
   border-bottom: 1px solid var(--color-line);
-  text-align: left;
   vertical-align: middle;
   white-space: nowrap;
 }
 
-.data-statistics-table-wrap th {
+.data-statistics-table-wrap thead th {
   color: var(--color-muted);
   font-size: var(--text-xs);
   font-weight: 700;
   background: var(--color-surface-container);
 }
 
+.data-statistics-table-wrap thead th.group-start {
+  border-left: 2px solid var(--color-line-strong);
+}
+
+.data-statistics-table-wrap tbody td.group-start {
+  border-left: 2px solid var(--color-line);
+}
+
+.data-statistics-group-row th {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  text-align: center;
+  letter-spacing: 0.08em;
+  background: var(--color-bg-strong);
+}
+
+.data-statistics-merged-header {
+  background: var(--color-surface-container);
+  vertical-align: middle;
+}
+
+.data-statistics-cell--date {
+  text-align: left;
+}
+
+.data-statistics-cell--number {
+  text-align: right;
+}
+
 .data-statistics-table-wrap tbody tr:last-child td {
   border-bottom: none;
+}
+
+.data-statistics-table-wrap tbody tr.is-latest td {
+  background: var(--color-primary-soft);
+}
+
+.data-statistics-table-wrap tbody tr.is-latest .data-statistics-date {
+  color: var(--color-primary);
 }
 
 .data-statistics-date {
@@ -314,6 +489,25 @@ onMounted(loadWhiteMothDailyStatistics);
   text-align: center;
 }
 
+.data-statistics-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.data-statistics-pagination button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.data-statistics-page-info {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
 @media (max-width: 760px) {
   .data-statistics-head {
     flex-direction: column;
@@ -328,5 +522,6 @@ onMounted(loadWhiteMothDailyStatistics);
     flex: 1;
     justify-content: center;
   }
+
 }
 </style>

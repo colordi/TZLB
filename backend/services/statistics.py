@@ -35,6 +35,8 @@ WITH ledger_dates AS (
         ) AS date_text
     WHERE
         btrim(date_text) <> ''
+        AND ($1::integer IS NULL OR l."年份" = $1::integer)
+        AND ($2::text IS NULL OR l."世代" = $2::text)
 ),
 
 dates AS (
@@ -42,6 +44,9 @@ dates AS (
         "调查日期" AS "日期"
     FROM
         survey."美国白蛾调查表"
+    WHERE
+        ($1::integer IS NULL OR "年份" = $1::integer)
+        AND ($2::text IS NULL OR "世代" = $2::text)
 
     UNION
 
@@ -90,6 +95,9 @@ survey_daily AS (
         ) :: INTEGER AS "当日派单数"
     FROM
         survey."美国白蛾调查表"
+    WHERE
+        ($1::integer IS NULL OR "年份" = $1::integer)
+        AND ($2::text IS NULL OR "世代" = $2::text)
     GROUP BY
         "调查日期"
 ),
@@ -126,11 +134,13 @@ ledger_completed AS (
     WHERE
         (
             l."剪网彻底" = '是'
+            OR (
+                COALESCE(l."防治次数", 0) <> 0
+                AND l."剪网彻底" IS DISTINCT FROM '是'
+            )
         )
-        OR (
-            COALESCE(l."防治次数", 0) <> 0
-            AND l."剪网彻底" IS DISTINCT FROM '是'
-        )
+        AND ($1::integer IS NULL OR l."年份" = $1::integer)
+        AND ($2::text IS NULL OR l."世代" = $2::text)
 ),
 
 completed_daily AS (
@@ -193,10 +203,13 @@ def serialize_white_moth_daily_row(row: Any) -> dict[str, Any]:
     }
 
 
-async def get_white_moth_daily_statistics() -> dict[str, Any]:
+async def get_white_moth_daily_statistics(
+    year: int | None = None,
+    generation: str | None = None,
+) -> dict[str, Any]:
     pool = await ensure_pool()
     async with pool.acquire() as connection:
-        rows = await connection.fetch(WHITE_MOTH_DAILY_SQL)
+        rows = await connection.fetch(WHITE_MOTH_DAILY_SQL, year, generation)
 
     return {
         "columns": list(WHITE_MOTH_DAILY_COLUMNS),

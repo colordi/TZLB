@@ -28,4 +28,14 @@ describe("api/statistics", () => {
     expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ columns: [], rows: [] });
   });
+
+  it("携带年份和代数查询参数", async () => {
+    const { getWhiteMothDailyStatistics } = await import("../statistics.js");
+
+    await getWhiteMothDailyStatistics({ year: 2026, generation: "第一代" });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/white-moth/daily?year=2026&generation=%E7%AC%AC%E4%B8%80%E4%BB%A3",
+    );
+  });
 });

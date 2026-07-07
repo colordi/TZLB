@@ -18,7 +18,17 @@ vi.mock("../../composables/useToast.js", () => ({
   }),
 }));
 
-function buildPayload() {
+function buildPayload(rowCount = 2) {
+  const rows = [];
+  for (let index = 0; index < rowCount; index += 1) {
+    const day = String(rowCount - index).padStart(2, "0");
+    rows.push({
+      date: `2026-06-${day}`,
+      daily_treatment_plants: 100 + index,
+      cumulative_completed_points: 50 + index,
+      daily_dispatch_points: index,
+    });
+  }
   return {
     columns: [
       { key: "date", label: "日期", type: "date" },
@@ -26,20 +36,7 @@ function buildPayload() {
       { key: "cumulative_completed_points", label: "累积防治完成点数", type: "number" },
       { key: "daily_dispatch_points", label: "当日派单数", type: "number" },
     ],
-    rows: [
-      {
-        date: "2026-06-01",
-        daily_treatment_plants: 210,
-        cumulative_completed_points: 51,
-        daily_dispatch_points: 28,
-      },
-      {
-        date: "2026-05-31",
-        daily_treatment_plants: 122,
-        cumulative_completed_points: 37,
-        daily_dispatch_points: 10,
-      },
-    ],
+    rows,
   };
 }
 
@@ -53,18 +50,17 @@ describe("DataStatisticsView", () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
   });
 
-  it("加载美国白蛾每日统计并展示最新日摘要和表格", async () => {
+  it("加载美国白蛾每日统计并展示表格", async () => {
     const wrapper = mountView();
     await flushPromises();
 
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain("美国白蛾每日信息统计");
+    expect(wrapper.text()).toContain("2026-06-02");
     expect(wrapper.text()).toContain("2026-06-01");
-    expect(wrapper.text()).toContain("210");
-    expect(wrapper.text()).toContain("51");
     expect(wrapper.text()).toContain("当日除治量（株）");
-    expect(wrapper.get('[data-testid="data-statistics-row-2026-05-31"]').text()).toContain(
-      "122",
+    expect(wrapper.get('[data-testid="data-statistics-row-2026-06-01"]').text()).toContain(
+      "101",
     );
   });
 
@@ -88,7 +84,8 @@ describe("DataStatisticsView", () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("暂无美国白蛾每日统计数据。");
-    expect(wrapper.text()).toContain("--");
+    expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(0);
+    expect(wrapper.find('[data-testid="data-statistics-next-page"]').exists()).toBe(false);
   });
 
   it("读取失败时展示错误提示", async () => {
@@ -98,5 +95,28 @@ describe("DataStatisticsView", () => {
     await flushPromises();
 
     expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取数据统计失败");
+  });
+
+  it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {
+    apiMocks.getWhiteMothDailyStatistics.mockResolvedValueOnce(buildPayload(9));
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(7);
+    expect(wrapper.text()).toContain("第 1 / 2 页");
+    expect(wrapper.find('[data-testid="data-statistics-prev-page"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.get('[data-testid="data-statistics-next-page"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(2);
+    expect(wrapper.text()).toContain("第 2 / 2 页");
+    expect(wrapper.find('[data-testid="data-statistics-next-page"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.get('[data-testid="data-statistics-prev-page"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("第 1 / 2 页");
   });
 });
