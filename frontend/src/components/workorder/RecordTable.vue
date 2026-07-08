@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 
 import { getVisibleFields } from "./fieldConfig.js";
+import { toggleUidSelection } from "../../composables/workorder/useRecordSelection.js";
 
 const props = defineProps({
   records: {
@@ -20,17 +21,13 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  selectedIndexes: {
+  selectedUids: {
     type: Array,
     default: () => [],
   },
-  rowIndexes: {
-    type: Array,
-    default: null,
-  },
 });
 
-const emit = defineEmits(["row-click", "update:selectedIndexes"]);
+const emit = defineEmits(["row-click", "update:selectedUids"]);
 
 // We only show these four specific columns as requested by the user.
 const ALLOWED_KEYS = ["survey_date", "locality", "location_id", "location_name"];
@@ -40,49 +37,43 @@ const fields = computed(() => {
 });
 
 const hasRows = computed(() => props.records.length > 0);
-const resolvedRowIndexes = computed(() =>
-  props.rowIndexes?.length === props.records.length
-    ? props.rowIndexes
-    : props.records.map((_, index) => index),
-);
 
 const isAllSelected = computed(() => {
   return (
     hasRows.value &&
-    resolvedRowIndexes.value.every((recordIndex) => props.selectedIndexes.includes(recordIndex))
+    props.records.every((record) => props.selectedUids.includes(record.__uid))
   );
 });
 
 function toggleAll() {
-  const visibleIndexes = resolvedRowIndexes.value;
-  if (isAllSelected.value) {
-    emit(
-      "update:selectedIndexes",
-      props.selectedIndexes.filter((recordIndex) => !visibleIndexes.includes(recordIndex)),
-    );
-  } else {
-    emit("update:selectedIndexes", Array.from(new Set([...props.selectedIndexes, ...visibleIndexes])));
-  }
+  const visibleUids = props.records.map((record) => record.__uid);
+  emit("update:selectedUids", toggleUidSelection(props.selectedUids, visibleUids));
 }
 
-function toggleSelection(recordIndex) {
-  const current = [...props.selectedIndexes];
-  const pos = current.indexOf(recordIndex);
+function toggleSelection(uid) {
+  const current = [...props.selectedUids];
+  const pos = current.indexOf(uid);
   if (pos === -1) {
-    current.push(recordIndex);
+    current.push(uid);
   } else {
     current.splice(pos, 1);
   }
-  emit("update:selectedIndexes", current);
+  emit("update:selectedUids", current);
 }
 
-function handleRowClick(recordIndex) {
-  emit("row-click", recordIndex);
+function handleRowClick(uid) {
+  emit("row-click", uid);
 }
 </script>
 
 <template>
   <section class="record-workspace panel-card">
+    <div v-if="busy" class="record-busy-overlay" aria-live="polite" data-testid="record-busy-overlay">
+      <div class="record-busy-card">
+        <span class="record-busy-spinner" aria-hidden="true"></span>
+        <strong>正在导出…</strong>
+      </div>
+    </div>
     <div v-if="hasRows" class="desktop-records">
       <div class="table-scroll">
         <table class="record-table">
@@ -105,16 +96,16 @@ function handleRowClick(recordIndex) {
           <tbody>
             <tr
               v-for="(record, index) in records"
-              :key="resolvedRowIndexes[index]"
+              :key="record.__uid"
               class="clickable-row"
-              @click="handleRowClick(resolvedRowIndexes[index])"
+              @click="handleRowClick(record.__uid)"
             >
               <td class="cell-checkbox" @click.stop>
                 <input
                   type="checkbox"
                   class="cb-custom"
-                  :checked="selectedIndexes.includes(resolvedRowIndexes[index])"
-                  @change="toggleSelection(resolvedRowIndexes[index])"
+                  :checked="selectedUids.includes(record.__uid)"
+                  @change="toggleSelection(record.__uid)"
                 />
               </td>
               <td class="cell-serial">
@@ -146,9 +137,9 @@ function handleRowClick(recordIndex) {
     <div v-if="hasRows" class="mobile-records">
       <article
         v-for="(record, index) in records"
-        :key="`mobile-${resolvedRowIndexes[index]}`"
+        :key="`mobile-${record.__uid}`"
         class="mobile-card"
-        @click="handleRowClick(resolvedRowIndexes[index])"
+        @click="handleRowClick(record.__uid)"
       >
         <header class="mobile-card-head">
           <div class="mobile-card-meta">
@@ -156,8 +147,8 @@ function handleRowClick(recordIndex) {
               <input
                 type="checkbox"
                 class="cb-custom"
-                :checked="selectedIndexes.includes(resolvedRowIndexes[index])"
-                @change="toggleSelection(resolvedRowIndexes[index])"
+                :checked="selectedUids.includes(record.__uid)"
+                @change="toggleSelection(record.__uid)"
               />
             </div>
             <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
@@ -191,12 +182,50 @@ function handleRowClick(recordIndex) {
 
 <style scoped>
 .record-workspace {
+  position: relative;
   overflow: hidden;
   padding: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
+}
+
+.record-busy-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklch, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.record-busy-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+}
+
+.record-busy-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in oklch, var(--color-primary) 24%, transparent);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: record-busy-spin 0.7s linear infinite;
+}
+
+@keyframes record-busy-spin {
+  to { transform: rotate(360deg); }
 }
 
 .desktop-records,

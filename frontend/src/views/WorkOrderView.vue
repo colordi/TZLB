@@ -1,143 +1,99 @@
 <script setup>
 import { computed, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import { Archive, FileSpreadsheet, FolderUp, ShieldCheck } from "@lucide/vue";
 
+import { useWorkorderTaskConfig } from "../composables/workorder/useWorkorderTaskConfig.js";
+import { useWorkorderRecords } from "../composables/workorder/useWorkorderRecords.js";
+import { useRecordSelection } from "../composables/workorder/useRecordSelection.js";
+import { useWorkorderExport } from "../composables/workorder/useWorkorderExport.js";
+import { useDateFolderUpload } from "../composables/workorder/useDateFolderUpload.js";
+import { useRecordDetailModal } from "../composables/workorder/useRecordDetailModal.js";
+import { MOCK_WORKORDER_RECORDS } from "../fixtures/design/workorderMock.js";
 import { isUnauthorizedError } from "../api/http.js";
-import {
-  generateWorkorder,
-  generateWorkorderBatch,
-  uploadDateImageFolder,
-} from "../api/workorder.js";
+import { useToast } from "../composables/useToast.js";
 import ExcelImportDialog from "../components/workorder/ExcelImportDialog.vue";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
+import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
 import {
-  PEST_OPTIONS,
-  buildTask,
-  getCurrentYear,
-  getDefaultControlType,
   getDefaultTask,
-  getGenerationFromTask,
-  getTaskOptions,
-  hasValidationErrors,
   normalizeRecordForPest,
-  supportsSurveyImport,
-  toPayloadRecord,
-  validateRecords,
 } from "../components/workorder/fieldConfig.js";
-import { useToast } from "../composables/useToast.js";
-import { downloadBlob } from "../utils/download.js";
 
-const { error, info, success } = useToast();
+const toast = useToast();
+const route = useRoute();
+const isPreview = computed(() => route.meta?.previewMode === true);
 
-const pestType = ref("春尺蠖");
-const year = ref(getCurrentYear());
-const taskType = computed(() => getDefaultControlType(pestType.value));
-const taskName = ref(getDefaultTask(pestType.value, year.value));
-const records = ref([]);
-const generating = ref(false);
-const exportProgress = ref({
-  current: 0,
-  total: 0,
-});
-const showValidationErrors = ref(false);
+const taskConfig = useWorkorderTaskConfig();
+const {
+  PEST_OPTIONS, pestType, year, taskType, taskName,
+  generation, taskOptions, yearOptions, canImportSurvey,
+} = taskConfig;
+
+const recCtrl = useWorkorderRecords(pestType);
+const {
+  records, validationErrors,
+  normalizeAll, handleSurveyImport: importRecords,
+  handleUpdateRecord: updateRecord,
+  handleDeleteRecord: deleteRecord,
+  handleBatchDelete: batchDelete,
+} = recCtrl;
+
+if (isPreview.value) {
+  pestType.value = "美国白蛾";
+  records.value = MOCK_WORKORDER_RECORDS.map((r) => ({ ...r }));
+}
+
+const selection = useRecordSelection(records, validationErrors);
+const {
+  selectedUids, searchQuery, recordFilter,
+  filteredRecords, filteredRecordUids, filteredValidationErrors,
+  allVisibleSelected, toggleFilteredSelection, clearSelection,
+} = selection;
+
+const exportCtrl = useWorkorderExport(
+  taskConfig, records, isPreview,
+);
+const { generating, exportProgress, generateButtonLabel } = exportCtrl;
+
+const dateFolder = useDateFolderUpload();
+const { dateFolderInput, dateFolderUploading } = dateFolder;
+
 const surveyImportOpen = ref(false);
 const excelImportOpen = ref(false);
-const dateFolderInput = ref(null);
-const dateFolderUploading = ref(false);
+const pendingDelete = ref(null);
+const showConfirmDialog = ref(false);
 
-const selectedIndexes = ref([]);
-const activeRecordIndex = ref(-1);
-const showDetailModal = ref(false);
-const searchQuery = ref("");
-const recordFilter = ref("all");
-const DATE_FOLDER_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const detailModal = useRecordDetailModal(records, validationErrors, pestType);
+const {
+  activeRecordUid, showDetailModal, activeRecord, activeRecordError,
+  openDetail, closeDetail,
+} = detailModal;
 
-const taskOptions = computed(() => getTaskOptions(pestType.value, year.value));
-const generation = computed(() =>
-  getGenerationFromTask(pestType.value, taskName.value, year.value),
+const confirmDialogTitle = computed(() =>
+  pendingDelete.value?.scope === "batch"
+    ? "删除选中记录"
+    : "删除该条记录",
 );
-const yearOptions = computed(() => {
-  const current = getCurrentYear();
-  return [current - 2, current - 1, current, current + 1];
-});
-const canImportSurvey = computed(() => supportsSurveyImport(pestType.value));
-const validationErrors = computed(() =>
-  showValidationErrors.value ? validateRecords(records.value, pestType.value) : [],
-);
-const filteredRecordItems = computed(() => {
-  const query = searchQuery.value.trim().toLocaleLowerCase("zh-CN");
-
-  return records.value
-    .map((record, index) => ({
-      record,
-      index,
-      errors: validationErrors.value[index] || {},
-    }))
-    .filter(({ record, index, errors }) => {
-      if (recordFilter.value === "selected" && !selectedIndexes.value.includes(index)) {
-        return false;
-      }
-      if (recordFilter.value === "errors" && Object.keys(errors).length === 0) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-      return [
-        record.location_name,
-        record.location_id,
-        record.locality,
-        record.description,
-        record.note,
-      ].some((value) => `${value || ""}`.toLocaleLowerCase("zh-CN").includes(query));
-    });
-});
-const filteredRecords = computed(() => filteredRecordItems.value.map((item) => item.record));
-const filteredRecordIndexes = computed(() => filteredRecordItems.value.map((item) => item.index));
-const filteredValidationErrors = computed(() => filteredRecordItems.value.map((item) => item.errors));
-const allVisibleSelected = computed(
-  () =>
-    filteredRecordIndexes.value.length > 0 &&
-    filteredRecordIndexes.value.every((index) => selectedIndexes.value.includes(index)),
-);
-const generateButtonLabel = computed(() => {
-  const total = records.value.length;
-
-  if (!generating.value) {
-    return total > 1 ? `批量导出工作单（${total} 条）` : "导出工作单";
+const confirmDialogMessage = computed(() => {
+  const count = pendingDelete.value?.uids.length || 0;
+  if (pendingDelete.value?.scope === "batch") {
+    return `确认删除选中的 ${count} 条记录吗？此操作不可撤销。`;
   }
-
-  if (total > 1) {
-    return "正在生成批量导出包…";
-  }
-
-  const current = exportProgress.value.current || 1;
-  const progressTotal = exportProgress.value.total || total || 1;
-  return `正在导出 ${current}/${progressTotal}…`;
+  return "确认删除当前记录吗？此操作不可撤销。";
 });
 
-watch(pestType, (nextType) => {
-  taskName.value = getDefaultTask(nextType, year.value);
-  showValidationErrors.value = false;
+function resetWorkspace() {
+  taskConfig.resetTaskName();
   surveyImportOpen.value = false;
   excelImportOpen.value = false;
-  selectedIndexes.value = [];
-  records.value = records.value.length
-    ? records.value.map((record) => normalizeRecordForPest(record, nextType))
-    : [];
-});
+  selectedUids.value = [];
+  normalizeAll();
+}
 
-watch(year, () => {
-  taskName.value = getDefaultTask(pestType.value, year.value);
-});
-
-watch(taskOptions, (options) => {
-  if (!options.some((option) => option.value === taskName.value)) {
-    taskName.value = options[0]?.value || "";
-  }
-});
+watch(pestType, resetWorkspace);
 
 function openSurveyImportDialog() {
   if (!canImportSurvey.value || generating.value) {
@@ -161,269 +117,93 @@ function closeSurveyImportDialog() {
   surveyImportOpen.value = false;
 }
 
-function isValidDateFolderName(folderName) {
-  if (!DATE_FOLDER_PATTERN.test(folderName)) {
-    return false;
-  }
-
-  const [year, month, day] = folderName.split("-").map(Number);
-  const parsedDate = new Date(Date.UTC(year, month - 1, day));
-  return (
-    parsedDate.getUTCFullYear() === year &&
-    parsedDate.getUTCMonth() === month - 1 &&
-    parsedDate.getUTCDate() === day
-  );
+function onDateFolderChange(event) {
+  dateFolder.handleDateFolderChange(event, toast);
 }
 
-function resolveSelectedFolderName(files) {
-  const folderNames = new Set();
-  for (const file of files) {
-    const relativePath = file.webkitRelativePath || "";
-    const [folderName] = relativePath.split("/");
-    if (folderName) {
-      folderNames.add(folderName);
-    }
-  }
-
-  if (folderNames.size !== 1) {
-    throw new Error("请选择一个日期文件夹。");
-  }
-
-  const [folderName] = Array.from(folderNames);
-  if (!isValidDateFolderName(folderName)) {
-    throw new Error("文件夹名称必须是 YYYY-MM-DD 格式的有效日期。");
-  }
-  return folderName;
+function onOpenDateFolderPicker() {
+  dateFolder.openDateFolderPicker(generating.value);
 }
 
-function openDateFolderPicker() {
-  if (generating.value || dateFolderUploading.value) {
-    return;
-  }
-  dateFolderInput.value?.click();
-}
-
-function summarizeDateFolderUpload(result) {
-  const skippedParts = [];
-  if (result.skipped_existing_count) {
-    skippedParts.push(`同名跳过 ${result.skipped_existing_count}`);
-  }
-  if (result.skipped_non_image_count) {
-    skippedParts.push(`非图片跳过 ${result.skipped_non_image_count}`);
-  }
-  if (result.skipped_nested_count) {
-    skippedParts.push(`子目录跳过 ${result.skipped_nested_count}`);
-  }
-  return skippedParts.length ? `，${skippedParts.join("，")}` : "";
-}
-
-async function handleDateFolderChange(event) {
-  const input = event.target;
-  const files = Array.from(input.files || []);
-
-  try {
-    if (!files.length) {
-      return;
-    }
-
-    const folderName = resolveSelectedFolderName(files);
-    dateFolderUploading.value = true;
-    const result = await uploadDateImageFolder({
-      folderName,
-      files,
-    });
-    const skippedSummary = summarizeDateFolderUpload(result);
-    if (Number(result.saved_count || 0) > 0) {
-      success(
-        `已上传 ${result.saved_count} 张图片到 ${result.folder_name}${skippedSummary}。`,
-        "日期文件夹已上传",
-      );
-    } else {
-      info(`没有新增图片${skippedSummary}。`, "日期文件夹已处理");
-    }
-  } catch (uploadError) {
-    if (isUnauthorizedError(uploadError)) {
-      return;
-    }
-    error(`${uploadError.message || uploadError}`, "日期文件夹上传失败");
-  } finally {
-    dateFolderUploading.value = false;
-    input.value = "";
-  }
-}
-
-function handleSurveyImport(importedRecords) {
+function onSurveyImport(importedRecords) {
   if (!Array.isArray(importedRecords) || importedRecords.length === 0) {
-    info("请至少选择一条调查记录。", "没有可导入项");
+    toast.info("请至少选择一条调查记录。", "没有可导入项");
     return;
   }
-
-  const normalizedRecords = importedRecords.map((record) =>
-    normalizeRecordForPest(record, pestType.value)
-  );
-
-  records.value = records.value.concat(normalizedRecords);
+  const count = importRecords(importedRecords).length;
   surveyImportOpen.value = false;
-  showValidationErrors.value = false;
-  success(`已导入 ${normalizedRecords.length} 条调查记录。`, "导入完成");
+  toast.success(`已导入 ${count} 条调查记录。`, "导入完成");
 }
 
-function resetExportProgress() {
-  exportProgress.value = {
-    current: 0,
-    total: 0,
-  };
-}
-
-const activeRecord = computed(() => {
-  return activeRecordIndex.value >= 0 ? records.value[activeRecordIndex.value] : null;
-});
-
-const activeRecordError = computed(() => {
-  if (activeRecordIndex.value < 0 || !showValidationErrors.value) return {};
-  const currentRecord = records.value[activeRecordIndex.value];
-  if (!currentRecord) return {};
-  return validateRecords([currentRecord], pestType.value)[0] || {};
-});
-
-function handleRowClick(index) {
-  activeRecordIndex.value = index;
-  showDetailModal.value = true;
+function handleRowClick(uid) {
+  openDetail(uid);
 }
 
 function handleCloseDetailModal() {
-  showDetailModal.value = false;
-  activeRecordIndex.value = -1;
+  closeDetail();
 }
 
 function handleUpdateRecord(updatedRecord) {
-  if (activeRecordIndex.value >= 0) {
-    const next = records.value.slice();
-    next[activeRecordIndex.value] = normalizeRecordForPest(updatedRecord, pestType.value);
-    records.value = next;
-    selectedIndexes.value = []; // Safety reset
+  if (activeRecordUid.value) {
+    updateRecord(activeRecordUid.value, updatedRecord);
+    selectedUids.value = [];
     handleCloseDetailModal();
   }
 }
 
 function handleDeleteRecord() {
-  if (activeRecordIndex.value >= 0) {
-    const next = records.value.filter((_, idx) => idx !== activeRecordIndex.value);
-    records.value = next;
-    selectedIndexes.value = []; // Safety reset
+  if (!activeRecordUid.value) {
+    return;
+  }
+  pendingDelete.value = {
+    scope: "single",
+    uids: [activeRecordUid.value],
+  };
+  showConfirmDialog.value = true;
+}
+
+function onBatchDelete() {
+  if (!selectedUids.value.length) {
+    return;
+  }
+  pendingDelete.value = {
+    scope: "batch",
+    uids: [...selectedUids.value],
+  };
+  showConfirmDialog.value = true;
+}
+
+function closeConfirmDialog() {
+  showConfirmDialog.value = false;
+  pendingDelete.value = null;
+}
+
+function confirmDelete() {
+  if (!pendingDelete.value) {
+    return;
+  }
+  batchDelete(pendingDelete.value.uids);
+  selectedUids.value = selectedUids.value.filter(
+    (uid) => !pendingDelete.value.uids.includes(uid),
+  );
+  const wasSingle = pendingDelete.value.scope === "single";
+  closeConfirmDialog();
+  if (wasSingle) {
     handleCloseDetailModal();
   }
 }
 
-function handleBatchDelete() {
-  if (selectedIndexes.value.length === 0) return;
-  const set = new Set(selectedIndexes.value);
-  records.value = records.value.filter((_, idx) => !set.has(idx));
-  selectedIndexes.value = [];
-  handleCloseDetailModal(); // Just in case
-}
-
-function clearSelection() {
-  selectedIndexes.value = [];
-}
-
-function toggleFilteredSelection() {
-  if (allVisibleSelected.value) {
-    selectedIndexes.value = selectedIndexes.value.filter(
-      (index) => !filteredRecordIndexes.value.includes(index),
-    );
-    return;
-  }
-  selectedIndexes.value = Array.from(
-    new Set([...selectedIndexes.value, ...filteredRecordIndexes.value]),
-  );
-}
-
-function joinDeliveryLabel(label, message) {
-  return /^[A-Za-z0-9_.-]+$/.test(label) ? `${label} ${message}` : `${label}${message}`;
-}
-
-function buildDeliveryMessage(result, label) {
-  if (result?.delivery === "share") {
-    return joinDeliveryLabel(label, "已打开系统分享。");
-  }
-
-  if (result?.delivery === "preview") {
-    return joinDeliveryLabel(label, "已打开预览，请在新页面中保存文件。");
-  }
-
-  return joinDeliveryLabel(label, "已开始下载。");
-}
-
-async function handleGenerate() {
-  const errors = validateRecords(records.value, pestType.value);
-  if (hasValidationErrors(errors)) {
-    showValidationErrors.value = true;
-    error("请先补全所有必填项并修正错误字段。", "还有未完成的记录");
-    return;
-  }
-
-  generating.value = true;
-  exportProgress.value = {
-    current: 0,
-    total: records.value.length,
-  };
-
-  try {
-    const payload = {
-      pest_type: pestType.value,
-      task_type: taskType.value,
-      task: taskName.value,
-      year: year.value,
-      generation: generation.value,
-    };
-    const payloadRecords = records.value.map((record, index) => ({
-      ...toPayloadRecord(record, pestType.value),
-      serial_number: index + 1,
-    }));
-
-    showValidationErrors.value = false;
-
-    if (payloadRecords.length === 1) {
-      const { blob, filename } = await generateWorkorder({
-        ...payload,
-        records: payloadRecords,
-      });
-      const delivery = await downloadBlob(blob, filename);
-      success(buildDeliveryMessage(delivery, "工作单"), "导出成功");
-      return;
-    }
-
-    const { blob, filename } = await generateWorkorderBatch({
-      ...payload,
-      records: payloadRecords,
-    });
-    await downloadBlob(blob, filename);
-    success(`已批量导出 ${payloadRecords.length} 条记录的工作单包。`, "导出成功");
-  } catch (generateError) {
-    if (isUnauthorizedError(generateError)) {
-      return;
-    }
-
-    const message = generateError.message || generateError;
-    if (records.value.length > 1) {
-      error(
-        `批量导出失败：${message}。若提示包含失败记录清单，可查看压缩包内“失败记录.json”。`,
-        "批量导出失败",
-      );
-      return;
-    }
-
-    error(`${message}`, "工作单生成失败");
-  } finally {
-    generating.value = false;
-    resetExportProgress();
-  }
+function onGenerate() {
+  exportCtrl.handleGenerate(toast);
 }
 </script>
 
 <template>
   <section class="page-shell workorder-page">
+    <div v-if="isPreview" class="workorder-preview-banner" data-testid="workorder-preview-banner">
+      <strong>设计预览模式</strong>
+      <span>当前展示的是静态 mock 数据，导入和上传功能已禁用。</span>
+    </div>
     <header class="workorder-page-head">
       <div>
         <p class="workorder-eyebrow">WORK ORDER CONTROL DESK</p>
@@ -435,7 +215,8 @@ async function handleGenerate() {
           type="button"
           class="button-secondary"
           :disabled="generating || records.length === 0"
-          @click="handleGenerate"
+          data-testid="workorder-export-button"
+          @click="onGenerate"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
             <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h6" />
@@ -445,7 +226,7 @@ async function handleGenerate() {
         <button
           v-if="canImportSurvey"
           type="button"
-          :disabled="generating"
+          :disabled="generating || isPreview"
           data-testid="survey-import-button"
           @click="openSurveyImportDialog"
         >
@@ -489,7 +270,7 @@ async function handleGenerate() {
       <button
         type="button"
         class="workorder-action-card is-primary"
-        :disabled="generating"
+        :disabled="generating || isPreview"
         data-testid="survey-excel-import-button"
         @click="openExcelImportDialog"
       >
@@ -502,9 +283,9 @@ async function handleGenerate() {
       <button
         type="button"
         class="workorder-action-card"
-        :disabled="generating || dateFolderUploading"
+        :disabled="generating || dateFolderUploading || isPreview"
         data-testid="date-image-folder-button"
-        @click="openDateFolderPicker"
+        @click="onOpenDateFolderPicker"
       >
         <span class="workorder-action-icon"><FolderUp :size="21" /></span>
         <span class="workorder-action-copy">
@@ -520,7 +301,7 @@ async function handleGenerate() {
         webkitdirectory
         directory
         data-testid="date-image-folder-input"
-        @change="handleDateFolderChange"
+        @change="onDateFolderChange"
       />
       <button type="button" class="workorder-action-card" disabled>
         <span class="workorder-action-icon"><Archive :size="21" /></span>
@@ -590,9 +371,8 @@ async function handleGenerate() {
 
       <RecordTable
         class="workorder-record-table"
-        v-model:selectedIndexes="selectedIndexes"
+        v-model:selectedUids="selectedUids"
         :records="filteredRecords"
-        :row-indexes="filteredRecordIndexes"
         :pest-type="pestType"
         :busy="generating"
         :errors="filteredValidationErrors"
@@ -605,21 +385,21 @@ async function handleGenerate() {
 
       <footer class="workorder-panel-foot">
         <span>共 <strong>{{ filteredRecords.length }}</strong> 条记录</span>
-        <span>已选 <strong>{{ selectedIndexes.length }}</strong> 条</span>
+        <span>已选 <strong>{{ selectedUids.length }}</strong> 条</span>
       </footer>
     </section>
 
-    <aside v-if="selectedIndexes.length" class="workorder-batch-bar" aria-label="已选工单摘要">
-      <span>已选 <strong>{{ selectedIndexes.length }}</strong> 条记录</span>
+    <aside v-if="selectedUids.length" class="workorder-batch-bar" aria-label="已选工单摘要">
+      <span>已选 <strong>{{ selectedUids.length }}</strong> 条记录</span>
       <div>
         <button type="button" :disabled="generating" @click="clearSelection">取消选择</button>
-        <button type="button" :disabled="generating" @click="handleBatchDelete">
+        <button type="button" :disabled="generating" @click="onBatchDelete">
           删除选中
         </button>
         <button
           type="button"
           :disabled="generating || records.length === 0"
-          @click="handleGenerate"
+          @click="onGenerate"
         >
           {{ generating ? generateButtonLabel : "逐条导出工作单" }}
         </button>
@@ -644,7 +424,7 @@ async function handleGenerate() {
       :year="year"
       :generation="generation"
       @close="closeSurveyImportDialog"
-      @import="handleSurveyImport"
+      @import="onSurveyImport"
     />
 
     <ExcelImportDialog
@@ -652,10 +432,36 @@ async function handleGenerate() {
       :open="excelImportOpen"
       @close="closeExcelImportDialog"
     />
+
+    <ConfirmDialog
+      :open="showConfirmDialog"
+      :title="confirmDialogTitle"
+      :message="confirmDialogMessage"
+      :busy="generating"
+      @close="closeConfirmDialog"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>
 
 <style scoped>
+.workorder-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 40%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+}
+
+.workorder-preview-banner strong {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .workorder-page {
   position: relative;
   gap: var(--space-8);
@@ -957,13 +763,14 @@ async function handleGenerate() {
 }
 
 .workorder-batch-bar {
-  position: sticky;
-  bottom: calc(var(--space-10) * -1);
+  position: fixed;
+  bottom: 0;
+  inset-inline: 0;
   z-index: 16;
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  margin: var(--space-7) calc(var(--space-10) * -1) calc(var(--space-8) * -1);
+  margin: 0;
   padding: var(--space-5) var(--space-9);
   border-top: 1px solid color-mix(in oklch, var(--color-surface) 18%, transparent);
   background: var(--color-nav);
@@ -1023,8 +830,7 @@ async function handleGenerate() {
   }
 
   .workorder-batch-bar {
-    bottom: 0;
-    margin: var(--space-7) calc(var(--space-10) * -1) calc(var(--space-8) * -1);
+    margin: 0;
     padding: var(--space-5);
   }
 }

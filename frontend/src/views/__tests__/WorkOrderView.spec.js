@@ -1,5 +1,6 @@
 import { defineComponent } from "vue";
 import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter } from "vue-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createEmptyRecord } from "../../components/workorder/fieldConfig.js";
@@ -41,11 +42,7 @@ const RecordTableStub = defineComponent({
       type: Array,
       default: () => [],
     },
-    rowIndexes: {
-      type: Array,
-      default: () => [],
-    },
-    selectedIndexes: {
+    selectedUids: {
       type: Array,
       default: () => [],
     },
@@ -54,16 +51,16 @@ const RecordTableStub = defineComponent({
       default: () => [],
     },
   },
-  emits: ["row-click", "update:selectedIndexes"],
+  emits: ["row-click", "update:selectedUids"],
   template: `
     <div data-testid="record-table">
       记录表格 {{ records.length }}
       <button
         v-for="(record, index) in records"
-        :key="rowIndexes[index] ?? index"
+        :key="record.__uid ?? index"
         type="button"
-        :data-testid="'record-row-' + (rowIndexes[index] ?? index)"
-        @click="$emit('row-click', rowIndexes[index] ?? index)"
+        :data-testid="'record-row-' + (record.__uid ?? index)"
+        @click="$emit('row-click', record.__uid ?? index)"
       >
         {{ record.location_name }}
       </button>
@@ -123,14 +120,30 @@ const ExcelImportDialogStub = defineComponent({
   template: '<div data-testid="excel-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
 });
 
+function createTestRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: "/",
+        component: { template: "<div />" },
+        meta: {},
+      },
+    ],
+  });
+}
+
 function mountWorkOrderView() {
+  const router = createTestRouter();
   return mount(WorkOrderView, {
     global: {
+      plugins: [router],
       stubs: {
         ExcelImportDialog: ExcelImportDialogStub,
         RecordDetailModal: RecordDetailModalStub,
         RecordTable: RecordTableStub,
         SurveyImportDialog: SurveyImportDialogStub,
+        teleport: true,
       },
     },
   });
@@ -383,22 +396,25 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")[0].location_name).toBe("神仙村");
   });
 
-  it("搜索只过滤当前已导入记录，并保留原始行下标用于编辑", async () => {
+  it("搜索只过滤当前已导入记录，并保留原始记录用于编辑", async () => {
     const wrapper = mountWorkOrderView();
 
     await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
       createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
     ]);
+    const secondRecordUid = wrapper
+      .getComponent(RecordTableStub)
+      .props("records")
+      .find((record) => record.location_id === "HX0002").__uid;
 
     await wrapper.get('[data-testid="workorder-search"]').setValue("林场");
 
     const recordTable = wrapper.getComponent(RecordTableStub);
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("HX0002");
-    expect(recordTable.props("rowIndexes")).toEqual([1]);
 
-    await wrapper.get('[data-testid="record-row-1"]').trigger("click");
+    await wrapper.get(`[data-testid="record-row-${secondRecordUid}"]`).trigger("click");
     expect(wrapper.getComponent({ name: "RecordDetailModal" }).props("record").location_id).toBe(
       "HX0002",
     );
@@ -411,15 +427,18 @@ describe("WorkOrderView", () => {
       createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
       createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
     ]);
+    const secondRecordUid = wrapper
+      .getComponent(RecordTableStub)
+      .props("records")
+      .find((record) => record.location_id === "HX0002").__uid;
 
-    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedIndexes", [1]);
+    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedUids", [secondRecordUid]);
     await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="workorder-filter-selected"]').trigger("click");
 
     const recordTable = wrapper.getComponent(RecordTableStub);
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("HX0002");
-    expect(recordTable.props("rowIndexes")).toEqual([1]);
   });
 
   it("底部批量条支持删除选中记录并清空选择", async () => {
@@ -429,17 +448,22 @@ describe("WorkOrderView", () => {
       createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
       createValidRecord({ location_id: "HX0002", location_name: "林场二区" }),
     ]);
+    const secondRecordUid = wrapper
+      .getComponent(RecordTableStub)
+      .props("records")
+      .find((record) => record.location_id === "HX0002").__uid;
 
-    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedIndexes", [1]);
+    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedUids", [secondRecordUid]);
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find(".workorder-batch-bar").exists()).toBe(true);
     await findButtonByText(wrapper, "删除选中").trigger("click");
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
 
     const recordTable = wrapper.getComponent(RecordTableStub);
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("YF0069");
-    expect(recordTable.props("selectedIndexes")).toEqual([]);
+    expect(recordTable.props("selectedUids")).toEqual([]);
     expect(wrapper.find(".workorder-batch-bar").exists()).toBe(false);
   });
 
@@ -598,7 +622,7 @@ describe("WorkOrderView", () => {
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [createValidRecord()]);
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);

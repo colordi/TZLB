@@ -56,7 +56,7 @@ async function appendFiles(files) {
     updateImages(props.images.concat(encodedFiles));
     success(`已导入 ${encodedFiles.length} 张图片。`, "图片已更新");
   } catch (uploadError) {
-    error(`${uploadError}`, "图片读取失败");
+    error(`${uploadError.message || uploadError}`, "图片读取失败");
   }
 }
 

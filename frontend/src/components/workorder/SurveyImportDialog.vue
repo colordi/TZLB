@@ -5,6 +5,7 @@ import { isUnauthorizedError } from "../../api/http.js";
 import { fetchSurveyCandidates } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
 import { getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
+import BaseDialog from "./BaseDialog.vue";
 
 const props = defineProps({
   busy: {
@@ -148,30 +149,22 @@ function handleImport() {
 </script>
 
 <template>
-  <teleport to="body">
-    <div
-      v-if="open"
-      class="survey-import-mask"
-      role="presentation"
-      @click.self="emit('close')"
-      @keydown.esc.prevent="emit('close')"
-    >
-      <section
-        class="survey-import-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="导入调查数据"
-        tabindex="0"
-      >
-        <header class="dialog-head">
-          <div>
-            <h3>导入调查数据</h3>
-            <p>{{ dialogDescription }}</p>
-          </div>
-          <button type="button" class="dialog-close button-secondary" @click="emit('close')">
-            关闭
-          </button>
-        </header>
+  <BaseDialog
+    :open="open"
+    aria-label="导入调查数据"
+    mask-class="survey-import-mask"
+    dialog-class="survey-import-dialog"
+    @close="emit('close')"
+  >
+    <header class="dialog-head">
+      <div>
+        <h3>导入调查数据</h3>
+        <p>{{ dialogDescription }}</p>
+      </div>
+      <button type="button" class="dialog-close button-secondary" @click="emit('close')">
+        关闭
+      </button>
+    </header>
 
         <div class="query-panel">
           <div class="query-field">
@@ -275,38 +268,24 @@ function handleImport() {
             </button>
           </div>
         </footer>
-      </section>
-    </div>
-  </teleport>
+  </BaseDialog>
 </template>
 
-<style scoped>
-.survey-import-mask {
-  position: fixed;
-  inset: 0;
+<style>
+.base-dialog-mask.survey-import-mask {
   z-index: 1600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  background: rgba(29, 24, 54, 0.3);
   backdrop-filter: blur(8px);
 }
 
-.survey-import-dialog {
+.base-dialog-content.survey-import-dialog {
   width: min(72rem, 100%);
   max-height: min(46rem, calc(100vh - 2rem));
-  display: flex;
-  flex-direction: column;
   gap: var(--space-4);
-  overflow: hidden;
   padding: var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--elev-raised);
 }
+</style>
 
+<style scoped>
 .dialog-head {
   display: flex;
   align-items: flex-start;

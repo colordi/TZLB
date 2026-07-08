@@ -442,9 +442,17 @@ export function normalizeInputValue(field, value) {
   return raw;
 }
 
+let recordUidSeed = 0;
+
+export function createRecordUid() {
+  recordUidSeed += 1;
+  return `rec-${recordUidSeed}`;
+}
+
 export function createEmptyRecord(pestType) {
   return normalizeRecordForPest(
     {
+      __uid: createRecordUid(),
       survey_date: getTodayDate(),
       region: "",
       locality: "",
@@ -472,6 +480,7 @@ export function createEmptyRecord(pestType) {
 export function normalizeRecordForPest(record, pestType) {
   const config = getPestConfig(pestType);
   const next = {
+    __uid: record.__uid || createRecordUid(),
     survey_date: record.survey_date || getTodayDate(),
     region: record.region || config.defaultRegion,
     locality: record.locality || record.town_or_street || "",

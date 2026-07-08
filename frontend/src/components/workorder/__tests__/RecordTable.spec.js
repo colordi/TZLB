@@ -41,10 +41,11 @@ describe("RecordTable", () => {
     expect(wrapper.text()).not.toContain("详细情况描述");
   });
 
-  it("点击行会抛出 row-click 事件", async () => {
+  it("点击行会抛出 row-click 事件并携带记录 uid", async () => {
+    const record = buildRecord();
     const wrapper = mount(RecordTable, {
       props: {
-        records: [buildRecord()],
+        records: [record],
         pestType: "春尺蠖",
       },
     });
@@ -53,7 +54,7 @@ describe("RecordTable", () => {
 
     const events = wrapper.emitted("row-click");
     expect(events).toBeTruthy();
-    expect(events[0]).toEqual([0]);
+    expect(events[0]).toEqual([record.__uid]);
   });
 
   it("其他害虫列表仍保持同款 4 列紧凑总览", () => {

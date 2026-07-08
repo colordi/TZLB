@@ -19,7 +19,6 @@ import DesignLoginView from "../views/design/DesignLoginView.vue";
 import DesignOverviewView from "../views/design/DesignOverviewView.vue";
 import DesignMapView from "../views/design/DesignMapView.vue";
 import DesignPreviewStatusView from "../views/design/DesignPreviewStatusView.vue";
-import DesignWorkOrderView from "../views/design/DesignWorkOrderView.vue";
 
 const routes = [
   {
@@ -150,12 +149,14 @@ const routes = [
       {
         path: "workorder",
         name: "design-workorder",
-        component: DesignWorkOrderView,
+        component: WorkOrderView,
         meta: {
           section: "工单页设计预览",
           previewPage: "调查工单页",
           previewStage: "workorder",
           previewShell: true,
+          previewMode: true,
+          requiresAuth: false,
         },
       },
       {

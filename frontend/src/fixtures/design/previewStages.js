@@ -29,7 +29,7 @@ export const DESIGN_PREVIEW_STAGES = Object.freeze([
     label: "调查工单",
     to: "/design/workorder",
     ready: true,
-    description: "工单静态页的列表、弹窗、抽屉和附件展示已完成。",
+    description: "工单页复用生产组件，以 mock 数据预览。",
   }),
   Object.freeze({
     key: "map",

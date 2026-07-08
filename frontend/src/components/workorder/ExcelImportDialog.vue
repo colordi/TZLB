@@ -5,6 +5,7 @@ import { isUnauthorizedError } from "../../api/http.js";
 import { downloadImportTemplate, uploadSurveyExcel } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
 import { downloadBlob } from "../../utils/download.js";
+import BaseDialog from "./BaseDialog.vue";
 
 const props = defineProps({
   busy: {
@@ -153,28 +154,20 @@ async function handleConfirm() {
 </script>
 
 <template>
-  <teleport to="body">
-    <div
-      v-if="open"
-      class="excel-import-mask"
-      role="presentation"
-      @click.self="emit('close')"
-      @keydown.esc.prevent="emit('close')"
-    >
-      <section
-        class="excel-import-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="上传调查 Excel"
-        tabindex="0"
-      >
-        <header class="excel-dialog-head">
-          <div>
-            <h3>上传调查 Excel</h3>
-            <p>sheet 名必须与 survey 或 ledger 下的可写表名完全一致，预览确认后才会写入数据库。</p>
-          </div>
-          <button type="button" class="button-secondary" @click="emit('close')">关闭</button>
-        </header>
+  <BaseDialog
+    :open="open"
+    aria-label="上传调查 Excel"
+    mask-class="excel-import-mask"
+    dialog-class="excel-import-dialog"
+    @close="emit('close')"
+  >
+    <header class="excel-dialog-head">
+      <div>
+        <h3>上传调查 Excel</h3>
+        <p>sheet 名必须与 survey 或 ledger 下的可写表名完全一致，预览确认后才会写入数据库。</p>
+      </div>
+      <button type="button" class="button-secondary" @click="emit('close')">关闭</button>
+    </header>
 
         <div class="excel-import-picker">
           <label for="survey-excel-file">本地 Excel 文件</label>
@@ -257,15 +250,11 @@ async function handleConfirm() {
             {{ committing ? "正在入库…" : "确认入库" }}
           </button>
         </footer>
-      </section>
-    </div>
-  </teleport>
+  </BaseDialog>
 </template>
 
-<style scoped>
-.excel-import-mask {
-  position: fixed;
-  inset: 0;
+<style>
+.base-dialog-mask.excel-import-mask {
   z-index: 1200;
   display: grid;
   place-items: center;
@@ -273,18 +262,15 @@ async function handleConfirm() {
   background: color-mix(in oklch, var(--color-nav) 44%, transparent);
 }
 
-.excel-import-dialog {
+.base-dialog-content.excel-import-dialog {
   width: min(760px, calc(100vw - 2rem));
   max-height: calc(100vh - 2rem);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  background: var(--color-surface);
   box-shadow: var(--shadow-modal);
 }
+</style>
 
+<style scoped>
 .excel-dialog-head,
 .excel-dialog-foot {
   display: flex;

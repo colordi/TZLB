@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { getVisibleFields, normalizeInputValue } from "./fieldConfig.js";
+import BaseDialog from "./BaseDialog.vue";
 import ImageUploader from "./ImageUploader.vue";
 
 const props = defineProps({
@@ -48,17 +49,22 @@ function updateImages(images) {
 </script>
 
 <template>
-  <div v-if="open" class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <header class="modal-header">
-        <h2>记录详情</h2>
-        <button type="button" class="close-btn" @click="$emit('close')">
-          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </header>
+  <BaseDialog
+    :open="open"
+    aria-label="记录详情"
+    mask-class="modal-overlay"
+    dialog-class="modal-content"
+    @close="$emit('close')"
+  >
+    <header class="modal-header">
+      <h2>记录详情</h2>
+      <button type="button" class="close-btn" @click="$emit('close')">
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </header>
       <div class="modal-body" v-if="localRecord">
         <div 
           v-for="field in fields" 
@@ -109,34 +115,14 @@ function updateImages(images) {
           <button type="button" @click="handleSave" :disabled="busy">保存修改</button>
         </div>
       </footer>
-    </div>
-  </div>
+  </BaseDialog>
 </template>
 
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: rgba(29, 24, 54, 0.3);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-}
-
-.modal-content {
+<style>
+.base-dialog-content.modal-content {
   width: 100%;
   max-width: 32rem;
   max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-raised);
-  overflow: hidden;
   animation: scale-up 0.2s var(--ease-standard);
 }
 
@@ -144,7 +130,9 @@ function updateImages(images) {
   0% { transform: scale(0.95); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
 }
+</style>
 
+<style scoped>
 .modal-header {
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--color-border);
