@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -103,6 +104,18 @@ async def get_dashboard_stats() -> dict[str, Any]:
 LayerMetadataDict = dict[str, Any]
 
 
+def _parse_default_filters(value: Any) -> dict[str, str]:
+    """解析 JSONB 字段，兼容 dict（codec 已注册）和 str（未注册）两种返回。"""
+
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return json.loads(value) if value.strip() else {}
+    if isinstance(value, dict):
+        return value
+    return dict(value)
+
+
 async def ensure_layer_metadata_storage() -> None:
     """初始化图层元数据表结构。"""
 
@@ -121,8 +134,15 @@ async def ensure_layer_metadata_storage() -> None:
                     sort_order INT NOT NULL DEFAULT 0,
                     default_visible BOOLEAN NOT NULL DEFAULT FALSE,
                     is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                    default_filters JSONB NOT NULL DEFAULT '{{}}'::jsonb,
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
+                """
+            )
+            await connection.execute(
+                f"""
+                ALTER TABLE {layer_table}
+                ADD COLUMN IF NOT EXISTS default_filters JSONB NOT NULL DEFAULT '{{}}'::jsonb
                 """
             )
             await connection.execute(
@@ -230,6 +250,7 @@ async def list_layer_metadata() -> list[LayerMetadataDict]:
             sort_order,
             default_visible,
             is_enabled,
+            default_filters,
             updated_at
         FROM {_qualified_layer_table()}
         WHERE
@@ -249,6 +270,7 @@ async def list_layer_metadata() -> list[LayerMetadataDict]:
             "sort_order": row["sort_order"],
             "default_visible": bool(row["default_visible"]),
             "is_enabled": bool(row["is_enabled"]),
+            "default_filters": _parse_default_filters(row["default_filters"]),
             "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
         }
         for row in rows
@@ -270,6 +292,7 @@ async def get_layer_metadata_by_key(layer_type: str, layer_key: str) -> LayerMet
             sort_order,
             default_visible,
             is_enabled,
+            default_filters,
             updated_at
         FROM {_qualified_layer_table()}
         WHERE layer_type = $1 AND layer_key = $2
@@ -287,6 +310,7 @@ async def get_layer_metadata_by_key(layer_type: str, layer_key: str) -> LayerMet
         "sort_order": row["sort_order"],
         "default_visible": bool(row["default_visible"]),
         "is_enabled": bool(row["is_enabled"]),
+        "default_filters": _parse_default_filters(row["default_filters"]),
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
     }
 
@@ -311,6 +335,7 @@ async def list_enabled_map_views() -> list[dict[str, Any]]:
             {
                 **view,
                 "label": row["display_name"] or view["name"],
+                "default_filters": _parse_default_filters(row.get("default_filters")),
             }
         )
 
@@ -373,17 +398,24 @@ async def batch_upsert_layer_metadata(
 
     qualified = _qualified_layer_table()
     for item in items:
+        default_filters = item.get("default_filters") or {}
+        if not isinstance(default_filters, dict):
+            raise ValueError("default_filters 必须是对象")
         await fetch(
             f"""
-            INSERT INTO {qualified} (layer_key, layer_type, display_name, sort_order, default_visible, is_enabled)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO {qualified} (
+                layer_key, layer_type, display_name, sort_order,
+                default_visible, is_enabled, default_filters
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
             ON CONFLICT (layer_type, layer_key)
             DO UPDATE SET
-                display_name   = COALESCE(EXCLUDED.display_name, {qualified}.display_name),
-                sort_order     = EXCLUDED.sort_order,
+                display_name    = COALESCE(EXCLUDED.display_name, {qualified}.display_name),
+                sort_order      = EXCLUDED.sort_order,
                 default_visible = EXCLUDED.default_visible,
-                is_enabled     = EXCLUDED.is_enabled,
-                updated_at     = NOW()
+                is_enabled      = EXCLUDED.is_enabled,
+                default_filters = EXCLUDED.default_filters,
+                updated_at      = NOW()
             """,
             item.get("layer_key"),
             item.get("layer_type"),
@@ -391,6 +423,7 @@ async def batch_upsert_layer_metadata(
             item.get("sort_order", 0),
             item.get("default_visible", False),
             item.get("is_enabled", True),
+            json.dumps(default_filters, ensure_ascii=False),
         )
 
     return await list_layer_metadata()

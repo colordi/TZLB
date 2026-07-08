@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { RefreshCw, Save, Eye, EyeOff, GripVertical } from "@lucide/vue";
 
 import { fetchLayers, updateLayers } from "../api/admin.js";
+import { fetchMapFilterOptions } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
 
@@ -13,6 +14,7 @@ const viewLayers = ref([]);
 const referenceLayers = ref([]);
 const editCache = ref({});
 const hasChanges = ref(false);
+const filterOptionsByLayerKey = ref({});
 
 const dragKey = ref(null);
 const dragType = ref(null);
@@ -23,6 +25,8 @@ const layerTypeLabel = {
   view: "点位图层",
   reference: "参考图层",
 };
+
+const EXCLUDED_FILTER_KEYS = new Set(["属地", "调查状态"]);
 
 const totalCount = computed(
   () => viewLayers.value.length + referenceLayers.value.length
@@ -40,9 +44,27 @@ function buildCache(data) {
       sort_order: layer.sort_order,
       default_visible: layer.default_visible,
       is_enabled: layer.is_enabled,
+      default_filters: { ...(layer.default_filters || {}) },
     };
   }
   return cache;
+}
+
+async function loadFilterOptionsForViews(layers) {
+  const enabledViewLayers = layers.filter(
+    (l) => l.layer_type === "view" && l.is_enabled,
+  );
+  const results = await Promise.allSettled(
+    enabledViewLayers.map((layer) => fetchMapFilterOptions(layer.layer_key)),
+  );
+  const optionsMap = {};
+  enabledViewLayers.forEach((layer, idx) => {
+    const result = results[idx];
+    if (result.status === "fulfilled" && result.value) {
+      optionsMap[layer.layer_key] = result.value;
+    }
+  });
+  filterOptionsByLayerKey.value = optionsMap;
 }
 
 async function load() {
@@ -54,6 +76,7 @@ async function load() {
     referenceLayers.value = data.filter((l) => l.layer_type === "reference");
     editCache.value = buildCache(data);
     hasChanges.value = false;
+    await loadFilterOptionsForViews(data);
   } catch (err) {
     if (isUnauthorizedError(err)) return;
     error(`加载图层元数据失败：${err.message || err}`, "加载失败");
@@ -68,6 +91,36 @@ function getEdit(layer) {
 
 function markChanged() {
   hasChanges.value = true;
+}
+
+function configurableFieldsFor(layer) {
+  const options = filterOptionsByLayerKey.value[layer.layer_key];
+  if (!options) return [];
+  return (options.filter_fields || []).filter(
+    (field) => !EXCLUDED_FILTER_KEYS.has(field.key),
+  );
+}
+
+function getFilterValue(layer, fieldKey) {
+  return getEdit(layer).default_filters?.[fieldKey] || "";
+}
+
+function isStaleFilterValue(layer, field) {
+  const value = getFilterValue(layer, field.key);
+  if (!value) return false;
+  return !field.options.some((option) => option.value === value);
+}
+
+function setFilterValue(layer, fieldKey, value) {
+  const edit = getEdit(layer);
+  const filters = { ...(edit.default_filters || {}) };
+  if (value) {
+    filters[fieldKey] = value;
+  } else {
+    delete filters[fieldKey];
+  }
+  edit.default_filters = filters;
+  markChanged();
 }
 
 function toggleEnabled(layer) {
@@ -100,9 +153,9 @@ function onDragOver(e, layer, typeKey) {
     return;
   }
   const rect = e.currentTarget.getBoundingClientRect();
-  const offset = e.clientY - rect.top;
+  const offset = e.clientX - rect.left;
   dragOverKey.value = layer.layer_key;
-  dragOverPos.value = offset < rect.height / 2 ? "before" : "after";
+  dragOverPos.value = offset < rect.width / 2 ? "before" : "after";
 }
 
 function onDrop(e, targetLayer, typeKey) {
@@ -166,6 +219,7 @@ async function handleSave() {
         sort_order: edit.sort_order ?? layer.sort_order,
         default_visible: edit.default_visible ?? layer.default_visible,
         is_enabled: edit.is_enabled ?? layer.is_enabled,
+        default_filters: edit.default_filters || {},
       };
     });
 
@@ -217,7 +271,7 @@ onMounted(() => {
         <span class="section-count">{{ listFor(typeKey).length }}</span>
       </div>
 
-      <div class="layer-list">
+      <div class="layer-grid">
         <div
           v-for="(layer, index) in listFor(typeKey)"
           :key="layer.id"
@@ -234,18 +288,16 @@ onMounted(() => {
           @drop="onDrop($event, layer, typeKey)"
           @dragend="onDragEnd"
         >
-          <div
-            class="layer-handle"
-            draggable="true"
-            title="拖拽排序"
-            @dragstart="onDragStart($event, layer, typeKey)"
-          >
-            <GripVertical :size="16" :stroke-width="2" />
-          </div>
-
-          <span class="layer-index">{{ index + 1 }}</span>
-
-          <div class="layer-info">
+          <div class="layer-card-head">
+            <div
+              class="layer-handle"
+              draggable="true"
+              title="拖拽排序"
+              @dragstart="onDragStart($event, layer, typeKey)"
+            >
+              <GripVertical :size="16" :stroke-width="2" />
+            </div>
+            <span class="layer-index">{{ index + 1 }}</span>
             <input
               v-model="getEdit(layer).display_name"
               class="name-input"
@@ -253,8 +305,9 @@ onMounted(() => {
               :placeholder="layer.layer_key"
               @input="markChanged"
             />
-            <code class="layer-key">{{ layer.layer_key }}</code>
           </div>
+
+          <code class="layer-key">{{ layer.layer_key }}</code>
 
           <div class="layer-toggles">
             <button
@@ -287,6 +340,44 @@ onMounted(() => {
                 {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
               </span>
             </button>
+          </div>
+
+          <div
+            v-if="layer.layer_type === 'view' && configurableFieldsFor(layer).length"
+            class="layer-default-filters"
+            data-testid="layer-default-filters"
+          >
+            <span class="layer-default-filters-label">默认筛选</span>
+            <div class="layer-default-filters-fields">
+              <label
+                v-for="field in configurableFieldsFor(layer)"
+                :key="field.key"
+                class="layer-default-filter"
+              >
+                <span class="layer-default-filter-name">{{ field.label }}</span>
+                <select
+                  :value="getFilterValue(layer, field.key)"
+                  :data-testid="`layer-filter-${field.key}`"
+                  @change="setFilterValue(layer, field.key, $event.target.value)"
+                >
+                  <option value="">全部</option>
+                  <option
+                    v-for="option in field.options"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                  <option
+                    v-if="isStaleFilterValue(layer, field)"
+                    disabled
+                    :value="getFilterValue(layer, field.key)"
+                  >
+                    {{ getFilterValue(layer, field.key) }}（当前无此值）
+                  </option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -376,19 +467,19 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* layer list */
-.layer-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 0.5rem);
+/* layer grid */
+.layer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-3, 0.75rem);
 }
 
 .layer-card {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--space-4, 1rem);
-  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+  padding: var(--space-3, 0.75rem);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
   background: var(--color-surface);
@@ -415,15 +506,15 @@ onMounted(() => {
   box-shadow: var(--shadow-hover, 0 16px 40px rgba(0, 0, 0, 0.12));
 }
 
-/* 拖拽插入指示线 */
+/* 拖拽插入指示线（左右） */
 .layer-card::before {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
   background: var(--color-primary, #2a7a5a);
-  border-radius: 2px;
+  border-radius: 3px;
   opacity: 0;
   pointer-events: none;
   z-index: 2;
@@ -432,18 +523,24 @@ onMounted(() => {
 
 .layer-card.is-drag-over-before::before {
   opacity: 1;
-  top: -4px;
+  left: -4px;
 }
 
 .layer-card.is-drag-over-after::before {
   opacity: 1;
-  bottom: -4px;
+  right: -4px;
+}
+
+.layer-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
 }
 
 .layer-handle {
   display: grid;
   place-items: center;
-  width: 20px;
+  width: 18px;
   flex-shrink: 0;
   color: var(--color-text-muted, #bbb);
   cursor: grab;
@@ -468,16 +565,9 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.layer-info {
+.name-input {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.name-input {
-  width: 100%;
   box-sizing: border-box;
   padding: 0.35rem 0.55rem;
   border: 1px solid var(--color-border);
@@ -511,17 +601,21 @@ onMounted(() => {
 }
 
 .layer-key {
+  display: block;
   font-size: var(--text-xs, 0.75rem);
   color: var(--color-text-muted, #999);
-  padding: 0 0.55rem;
+  padding: 0 0.3rem;
   font-family: var(--font-mono, monospace);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .layer-toggles {
   display: flex;
   align-items: center;
   gap: var(--space-3, 0.75rem);
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .switch {
@@ -583,7 +677,72 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.layer-default-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+  padding-top: var(--space-2, 0.5rem);
+  border-top: 1px solid var(--color-border);
+}
+
+.layer-default-filters-label {
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  color: var(--color-text-muted, #666);
+  letter-spacing: 0.04em;
+}
+
+.layer-default-filters-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+}
+
+.layer-default-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.layer-default-filter-name {
+  flex-shrink: 0;
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 600;
+  color: var(--color-text-muted, #666);
+}
+
+.layer-default-filter select {
+  min-width: 0;
+  flex: 1;
+  min-height: 28px;
+  padding: 0 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.layer-default-filter select:hover {
+  border-color: color-mix(
+    in oklch,
+    var(--color-primary, #2a7a5a) 25%,
+    var(--color-border, #ddd)
+  );
+}
+
+.layer-default-filter select:focus {
+  outline: none;
+  border-color: var(--color-primary, #2a7a5a);
+  box-shadow: 0 0 0 2px
+    color-mix(in oklch, var(--color-primary, #2a7a5a) 18%, transparent);
+}
+
 .layer-empty {
+  grid-column: 1 / -1;
   text-align: center;
   padding: 2rem;
   color: var(--color-text-muted, #999);

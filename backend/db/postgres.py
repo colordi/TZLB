@@ -133,6 +133,17 @@ def resolve_white_moth_site_locality(code: str) -> tuple[str, str]:
     return normalized_code, locality
 
 
+async def _init_connection(connection: asyncpg.Connection) -> None:
+    """注册 JSONB codec，使 JSONB 列自动解码为 Python dict/list。"""
+
+    await connection.set_type_codec(
+        "jsonb",
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+
+
 async def ensure_pool() -> asyncpg.Pool:
     """按需初始化 asyncpg 连接池。"""
 
@@ -144,6 +155,7 @@ async def ensure_pool() -> asyncpg.Pool:
             min_size=1,
             max_size=6,
             command_timeout=60,
+            init=_init_connection,
         )
     return _pool
 

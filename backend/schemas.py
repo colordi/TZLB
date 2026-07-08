@@ -231,6 +231,7 @@ class LayerMetadataItem(BaseModel):
     sort_order: int = 0
     default_visible: bool = False
     is_enabled: bool = True
+    default_filters: dict[str, str] = Field(default_factory=dict)
 
 
 class LayerMetadataResponse(BaseModel):
@@ -243,6 +244,7 @@ class LayerMetadataResponse(BaseModel):
     sort_order: int
     default_visible: bool
     is_enabled: bool
+    default_filters: dict[str, str] = Field(default_factory=dict)
     updated_at: str | None = None
 
 

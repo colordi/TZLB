@@ -1040,4 +1040,152 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
     });
   });
+
+  it("切换到配了默认筛选的 view 后按默认筛选请求初始数据", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾调查",
+        columns: ["编号", "属地", "调查日期", "年份", "世代"],
+        default_filters: { 世代: "第二代" },
+      },
+    ]);
+    apiMocks.fetchMapFilterOptions.mockResolvedValue({
+      localities: [],
+      supports_locality_filter: true,
+      supports_survey_status_filter: true,
+      filter_fields: [
+        {
+          key: "调查状态",
+          label: "调查状态",
+          type: "select",
+          options: [
+            { value: "调查", label: "调查" },
+            { value: "未调查", label: "未调查" },
+          ],
+          default_value: "",
+        },
+        {
+          key: "世代",
+          label: "世代",
+          type: "select",
+          options: [
+            { value: "第一代", label: "第一代" },
+            { value: "第二代", label: "第二代" },
+            { value: "第三代", label: "第三代" },
+          ],
+          default_value: "",
+        },
+      ],
+      survey_status_counts: { all: 100, completed: 50, pending: 50 },
+    });
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([]));
+
+    mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "美国白蛾调查",
+        { 世代: ["第二代"] },
+        DEFAULT_MAP_OPTIONS,
+      );
+    });
+  });
+
+  it("默认筛选值不在当前选项中时忽略该项", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾调查",
+        columns: ["编号", "属地", "调查日期", "年份", "世代"],
+        default_filters: { 世代: "第四代" },
+      },
+    ]);
+    apiMocks.fetchMapFilterOptions.mockResolvedValue({
+      localities: [],
+      supports_locality_filter: true,
+      supports_survey_status_filter: true,
+      filter_fields: [
+        {
+          key: "调查状态",
+          label: "调查状态",
+          type: "select",
+          options: [
+            { value: "调查", label: "调查" },
+            { value: "未调查", label: "未调查" },
+          ],
+          default_value: "",
+        },
+        {
+          key: "世代",
+          label: "世代",
+          type: "select",
+          options: [
+            { value: "第一代", label: "第一代" },
+            { value: "第二代", label: "第二代" },
+          ],
+          default_value: "",
+        },
+      ],
+      survey_status_counts: { all: 100, completed: 50, pending: 50 },
+    });
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([]));
+
+    mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "美国白蛾调查",
+        {},
+        DEFAULT_MAP_OPTIONS,
+      );
+    });
+  });
+
+  it("未配默认筛选时年份字段回退到后端 default_value", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾调查",
+        columns: ["编号", "属地", "调查日期", "年份", "世代"],
+        default_filters: {},
+      },
+    ]);
+    apiMocks.fetchMapFilterOptions.mockResolvedValue({
+      localities: [],
+      supports_locality_filter: true,
+      supports_survey_status_filter: true,
+      filter_fields: [
+        {
+          key: "调查状态",
+          label: "调查状态",
+          type: "select",
+          options: [
+            { value: "调查", label: "调查" },
+            { value: "未调查", label: "未调查" },
+          ],
+          default_value: "",
+        },
+        {
+          key: "年份",
+          label: "年份",
+          type: "select",
+          options: [
+            { value: "2025", label: "2025" },
+            { value: "2026", label: "2026" },
+          ],
+          default_value: "2026",
+        },
+      ],
+      survey_status_counts: { all: 100, completed: 50, pending: 50 },
+    });
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([]));
+
+    mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
+        "美国白蛾调查",
+        { 年份: ["2026"] },
+        DEFAULT_MAP_OPTIONS,
+      );
+    });
+  });
 });

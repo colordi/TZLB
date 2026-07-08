@@ -346,6 +346,34 @@ function resetDynamicFilters() {
   dynamicFilterValues.value = {};
 }
 
+function resolveDefaultDynamicFilters() {
+  const view = views.value.find((v) => v.name === selectedView.value);
+  const configuredDefaults = view?.default_filters || {};
+  const excludedKeys = new Set([SURVEY_STATUS_FILTER_KEY, LOCALITY_FIELD]);
+  const dynamicFields = (mapFilterOptions.value?.filter_fields || []).filter(
+    (field) => !excludedKeys.has(field.key),
+  );
+
+  const resolved = {};
+  for (const field of dynamicFields) {
+    const configuredValue = configuredDefaults[field.key];
+    if (configuredValue) {
+      const optionValues = (field.options || []).map((o) => o.value);
+      if (optionValues.includes(configuredValue)) {
+        resolved[field.key] = configuredValue;
+      }
+      continue;
+    }
+    if (field.default_value) {
+      const optionValues = (field.options || []).map((o) => o.value);
+      if (optionValues.includes(field.default_value)) {
+        resolved[field.key] = field.default_value;
+      }
+    }
+  }
+  return resolved;
+}
+
 async function selectDynamicFilter(key, value) {
   dynamicFilterValues.value = { ...dynamicFilterValues.value, [key]: value };
   selectedFeature.value = null;
@@ -845,10 +873,12 @@ watch(selectedView, async () => {
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
   loading.value = Boolean(selectedView.value);
-  await Promise.all([
-    loadFilterOptions(),
-    loadGeoJson({ autoFit: shouldAutoFit }),
-  ]);
+
+  const optionsLoaded = await loadFilterOptions();
+  if (optionsLoaded && selectedView.value) {
+    dynamicFilterValues.value = resolveDefaultDynamicFilters();
+  }
+  await loadGeoJson({ autoFit: shouldAutoFit });
 });
 
 onMounted(async () => {

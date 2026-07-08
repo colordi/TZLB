@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 from backend.db.admin import (
+    batch_upsert_layer_metadata,
     get_dashboard_stats,
     list_enabled_map_views,
     list_enabled_reference_layers,
@@ -35,6 +36,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                         "sort_order": 0,
                         "default_visible": False,
                         "is_enabled": True,
+                        "default_filters": {},
                         "updated_at": updated_at,
                     },
                     {
@@ -45,6 +47,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                         "sort_order": 0,
                         "default_visible": True,
                         "is_enabled": True,
+                        "default_filters": {},
                         "updated_at": updated_at,
                     },
                 ]
@@ -165,7 +168,10 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
         ):
             payload = await list_enabled_map_views()
 
-        self.assertEqual(payload, [{"name": "虫情总览", "columns": ["编号"], "label": "总览"}])
+        self.assertEqual(
+            payload,
+            [{"name": "虫情总览", "columns": ["编号"], "label": "总览", "default_filters": {}}],
+        )
 
     async def test_enabled_reference_layers_exclude_disabled_metadata_rows(self) -> None:
         with (
@@ -225,6 +231,100 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         )
+
+
+    async def test_enabled_map_views_pass_through_default_filters(self) -> None:
+        with (
+            patch(
+                "backend.db.admin.list_layer_metadata",
+                new=AsyncMock(
+                    return_value=[
+                        {
+                            "layer_key": "美国白蛾调查",
+                            "layer_type": "view",
+                            "display_name": "美国白蛾调查",
+                            "sort_order": 0,
+                            "default_visible": False,
+                            "is_enabled": True,
+                            "default_filters": {"世代": "第二代"},
+                        }
+                    ]
+                ),
+            ),
+            patch(
+                "backend.db.admin.list_map_views",
+                new=AsyncMock(
+                    return_value=[
+                        {"name": "美国白蛾调查", "columns": ["编号", "年份", "世代"]},
+                    ]
+                ),
+            ),
+        ):
+            payload = await list_enabled_map_views()
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["default_filters"], {"世代": "第二代"})
+
+    async def test_batch_upsert_writes_default_filters_as_jsonb(self) -> None:
+        import json as _json
+
+        captured_args: list[tuple] = []
+
+        async def fake_fetch(query: str, *args):
+            normalized = " ".join(query.split())
+            if normalized.startswith("INSERT INTO"):
+                captured_args.append(args)
+                return []
+            self.fail(f"未预期的查询：{query}")
+
+        with (
+            patch("backend.db.admin.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.admin.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch(
+                "backend.db.admin.list_layer_metadata",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            await batch_upsert_layer_metadata(
+                [
+                    {
+                        "layer_key": "美国白蛾调查",
+                        "layer_type": "view",
+                        "display_name": None,
+                        "sort_order": 0,
+                        "default_visible": False,
+                        "is_enabled": True,
+                        "default_filters": {"世代": "第二代", "年份": "2026"},
+                    }
+                ]
+            )
+
+        self.assertEqual(len(captured_args), 1)
+        args = captured_args[0]
+        self.assertEqual(args[0], "美国白蛾调查")
+        self.assertEqual(args[1], "view")
+        json_param = args[6]
+        self.assertEqual(_json.loads(json_param), {"世代": "第二代", "年份": "2026"})
+
+    async def test_batch_upsert_rejects_non_dict_default_filters(self) -> None:
+        with (
+            patch("backend.db.admin.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.admin.fetch", new=AsyncMock(return_value=[])),
+        ):
+            with self.assertRaises(ValueError):
+                await batch_upsert_layer_metadata(
+                    [
+                        {
+                            "layer_key": "美国白蛾调查",
+                            "layer_type": "view",
+                            "display_name": None,
+                            "sort_order": 0,
+                            "default_visible": False,
+                            "is_enabled": True,
+                            "default_filters": ["世代"],
+                        }
+                    ]
+                )
 
 
 if __name__ == "__main__":
