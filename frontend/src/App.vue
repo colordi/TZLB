@@ -463,6 +463,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
   overflow: hidden;
   background: var(--color-bg);
   transition: grid-template-columns 200ms ease;
