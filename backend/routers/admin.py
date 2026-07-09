@@ -11,6 +11,7 @@ from backend.db.admin import (
     get_dashboard_stats,
     get_user_by_id,
     list_layer_metadata,
+    list_operation_logs,
     list_users,
     reset_user_password,
     update_user,
@@ -21,6 +22,7 @@ from backend.schemas import (
     CreateUserRequest,
     DashboardStatsResponse,
     LayerMetadataResponse,
+    OperationLogListResponse,
     ResetPasswordRequest,
     UpdateUserRequest,
 )
@@ -170,3 +172,25 @@ async def post_reset_password(user_id: int, payload: ResetPasswordRequest) -> di
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"重置密码失败：{exc}") from exc
+
+
+# ──────────────────────────────────────────────
+#  Operation Logs
+# ──────────────────────────────────────────────
+
+
+@router.get(
+    "/operation-logs",
+    response_model=OperationLogListResponse,
+    summary="列出点位操作日志",
+)
+async def get_operation_logs(limit: int = 100, offset: int = 0) -> OperationLogListResponse:
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="limit 参数必须在 1 到 500 之间")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="offset 参数必须大于等于 0")
+    try:
+        items, total = await list_operation_logs(limit=limit, offset=offset)
+        return OperationLogListResponse(items=items, total=total)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取操作日志失败：{exc}") from exc

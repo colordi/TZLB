@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from backend.auth.dependencies import require_authenticated_user, require_user_role
 from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
 from backend.config import get_settings
+from backend.db.admin import ensure_operation_log_storage
 from backend.db.postgres import close_pool
 from backend.exceptions import (
     BusinessError,
@@ -37,6 +38,7 @@ async def lifespan(_: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
     await ensure_auth_storage()
+    await ensure_operation_log_storage()
     yield
     await close_pool()
 

@@ -188,6 +188,54 @@ class WhiteMothSiteResponse(BaseModel):
     latitude: float
 
 
+class WhiteMothSiteDeleteCheckResponse(BaseModel):
+    """美国白蛾点位删除前检查响应。"""
+
+    code: str
+    exists: bool
+    site_name: str | None = None
+    locality: str | None = None
+    longitude: float | None = None
+    latitude: float | None = None
+    survey_record_count: int = 0
+
+
+class WhiteMothSiteDeleteResponse(BaseModel):
+    """美国白蛾点位删除响应。"""
+
+    code: str
+    site_name: str = ""
+    locality: str = ""
+    longitude: float
+    latitude: float
+    survey_record_count: int = 0
+
+
+class OperationLogItem(BaseModel):
+    """点位操作日志条目。"""
+
+    id: int
+    occurred_at: str | None = None
+    action: str
+    operator_id: int | None = None
+    operator_username: str
+    operator_display_name: str
+    operator_role: str
+    site_code: str
+    site_name: str = ""
+    locality: str = ""
+    longitude: float | None = None
+    latitude: float | None = None
+    survey_record_count: int = 0
+
+
+class OperationLogListResponse(BaseModel):
+    """点位操作日志列表响应。"""
+
+    items: list[OperationLogItem]
+    total: int
+
+
 class AuthenticatedUser(BaseModel):
     """已登录用户信息。"""
 

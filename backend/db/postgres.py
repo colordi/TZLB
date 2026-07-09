@@ -562,6 +562,144 @@ async def create_white_moth_site(
     return dict(row or {})
 
 
+async def check_white_moth_site_deletion(code: str) -> dict[str, Any] | None:
+    """删除前检查美国白蛾点位：返回点位信息与关联调查记录数。点位不存在返回 None。"""
+
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(WHITE_MOTH_SITE_TABLE)}"
+    )
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(MEI_GUO_BAI_E_SURVEY_TABLE)}"
+    )
+
+    row = await fetchrow(
+        f"""
+        SELECT
+            s."编号" AS code,
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+            COALESCE(s."点位名称", '') AS site_name,
+            ST_X(s.geom) AS longitude,
+            ST_Y(s.geom) AS latitude,
+            COUNT(i."编号") AS survey_record_count
+        FROM {qualified_site_table} AS s
+        LEFT JOIN {qualified_survey_table} AS i
+          ON BTRIM(i."编号") = s."编号"
+        WHERE s."编号" = $1
+        GROUP BY s."编号", s.{quote_identifier(LOCALITY_COLUMN)}, s."点位名称", s.geom
+        """,
+        code,
+    )
+    if row is None:
+        return None
+    return {
+        "code": row["code"],
+        "locality": row["locality"],
+        "site_name": row["site_name"],
+        "longitude": row["longitude"],
+        "latitude": row["latitude"],
+        "survey_record_count": row["survey_record_count"],
+    }
+
+
+async def delete_white_moth_site(*, code: str, operator: dict[str, Any]) -> dict[str, Any] | None:
+    """删除美国白蛾点位并在同一事务内写入操作日志。点位不存在返回 None。"""
+
+    from backend.db.admin import (
+        ADMIN_SCHEMA,
+        OPERATION_LOG_ACTION_DELETE_WHITE_MOTH_SITE,
+        OPERATION_LOG_TABLE,
+        ensure_operation_log_storage,
+    )
+
+    await ensure_operation_log_storage()
+
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(WHITE_MOTH_SITE_TABLE)}"
+    )
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(MEI_GUO_BAI_E_SURVEY_TABLE)}"
+    )
+    qualified_log_table = (
+        f'"{ADMIN_SCHEMA}"."{OPERATION_LOG_TABLE}"'
+    )
+
+    operator_id = operator.get("id")
+    operator_username = operator.get("username") or ""
+    operator_display_name = operator.get("display_name") or ""
+    operator_role = operator.get("role") or ""
+
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            deleted = await connection.fetchrow(
+                f"""
+                DELETE FROM {qualified_site_table}
+                WHERE "编号" = $1
+                RETURNING
+                    gid,
+                    "编号" AS code,
+                    COALESCE({quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+                    COALESCE("点位名称", '') AS site_name,
+                    ST_X(geom) AS longitude,
+                    ST_Y(geom) AS latitude
+                """,
+                code,
+            )
+            if deleted is None:
+                return None
+
+            survey_count_row = await connection.fetchrow(
+                f"""
+                SELECT COUNT(*) AS survey_record_count
+                FROM {qualified_survey_table}
+                WHERE BTRIM("编号") = $1
+                """,
+                code,
+            )
+            survey_record_count = (
+                survey_count_row["survey_record_count"] if survey_count_row else 0
+            )
+
+            await connection.execute(
+                f"""
+                INSERT INTO {qualified_log_table} (
+                    action,
+                    operator_id,
+                    operator_username,
+                    operator_display_name,
+                    operator_role,
+                    site_code,
+                    site_name,
+                    locality,
+                    longitude,
+                    latitude,
+                    survey_record_count
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                """,
+                OPERATION_LOG_ACTION_DELETE_WHITE_MOTH_SITE,
+                operator_id,
+                operator_username,
+                operator_display_name,
+                operator_role,
+                deleted["code"],
+                deleted["site_name"],
+                deleted["locality"],
+                deleted["longitude"],
+                deleted["latitude"],
+                survey_record_count,
+            )
+
+            return {
+                "code": deleted["code"],
+                "site_name": deleted["site_name"],
+                "locality": deleted["locality"],
+                "longitude": deleted["longitude"],
+                "latitude": deleted["latitude"],
+                "survey_record_count": survey_record_count,
+            }
+
+
 async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
     """读取指定视图的筛选选项。"""
 

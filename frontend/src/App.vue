@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Users,
   Layers,
+  ScrollText,
   ChevronDown,
   LogOut,
   PanelLeftClose,
@@ -100,6 +101,12 @@ const navGroups = [
         icon: "layers",
         requiredRoles: [USER_ROLES.ADMIN],
       },
+      {
+        to: "/admin/logs",
+        label: "操作日志",
+        icon: "scrolltext",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
     ],
   },
 ];
@@ -111,6 +118,7 @@ const navIconComponents = {
   dashboard: LayoutDashboard,
   users: Users,
   layers: Layers,
+  scrolltext: ScrollText,
 };
 function resolveNavIcon(icon) {
   return navIconComponents[icon] || MapPin;

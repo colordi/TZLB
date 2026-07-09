@@ -79,3 +79,18 @@ export async function resetUserPassword(userId, newPassword) {
   await ensureApiSuccess(response);
   return response.json();
 }
+
+/* ──────────────────────────────────────────
+   Operation Logs
+   ────────────────────────────────────────── */
+
+export async function fetchOperationLogs(params = {}) {
+  const search = new URLSearchParams();
+  const limit = params.limit ?? 100;
+  const offset = params.offset ?? 0;
+  search.set("limit", `${limit}`);
+  search.set("offset", `${offset}`);
+  const response = await apiFetch(`/api/admin/operation-logs?${search.toString()}`);
+  await ensureApiSuccess(response);
+  return response.json();
+}

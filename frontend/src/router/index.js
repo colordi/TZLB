@@ -14,6 +14,7 @@ import WorkOrderView from "../views/WorkOrderView.vue";
 import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminUsersView from "../views/AdminUsersView.vue";
 import AdminLayersView from "../views/AdminLayersView.vue";
+import AdminOperationLogsView from "../views/AdminOperationLogsView.vue";
 import DesignPreviewLayout from "../components/design/DesignPreviewLayout.vue";
 import DesignLoginView from "../views/design/DesignLoginView.vue";
 import DesignOverviewView from "../views/design/DesignOverviewView.vue";
@@ -103,6 +104,16 @@ const routes = [
     meta: {
       section: "图层管理",
       blurb: "管理地图图层元数据。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/admin/logs",
+    name: "admin-logs",
+    component: AdminOperationLogsView,
+    meta: {
+      section: "操作日志",
+      blurb: "查看调查员与管理员的点位删除操作记录。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },

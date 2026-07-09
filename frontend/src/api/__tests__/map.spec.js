@@ -126,4 +126,27 @@ describe("api/map", () => {
     expect(search.get("bbox")).toBe("116.1,39.5,116.9,40.1");
     expect(search.get("limit")).toBe("1000");
   });
+
+  it("删除前检查点位时编码编号并发起 GET", async () => {
+    const { deleteWhiteMothSiteCheck } = await import("../map.js");
+
+    await deleteWhiteMothSiteCheck("MQ001");
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/white-moth-sites/MQ001/delete-check",
+    );
+  });
+
+  it("删除点位时编码编号并发起 DELETE", async () => {
+    const { deleteWhiteMothSite } = await import("../map.js");
+
+    await deleteWhiteMothSite("MQ001");
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/white-moth-sites/MQ001",
+      {
+        method: "DELETE",
+      },
+    );
+  });
 });

@@ -5,6 +5,8 @@ import { computed, nextTick, onMounted, ref, shallowRef, watch } from "vue";
 import { useToast } from "../composables/useToast.js";
 import {
   createWhiteMothSite,
+  deleteWhiteMothSite,
+  deleteWhiteMothSiteCheck,
   fetchMapFilterOptions,
   fetchMapView,
   fetchReferenceLayer,
@@ -17,6 +19,7 @@ import {
   buildPopupRows,
   resolveFeatureHoverLabel,
 } from "../components/map/popupFields.js";
+import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
 import LeafletMap from "../components/map/LeafletMap.vue";
 
 function createEmptyFeatureCollection() {
@@ -74,6 +77,10 @@ const whiteMothSiteForm = ref({
 });
 const isAddingWhiteMothSite = ref(false);
 const isSavingWhiteMothSite = ref(false);
+const showDeleteConfirm = ref(false);
+const isDeletingWhiteMothSite = ref(false);
+const deleteCheckLoading = ref(false);
+const pendingDeleteSite = ref(null);
 let geojsonRequestToken = 0;
 let filterOptionsRequestToken = 0;
 let shouldAutoFitOnNextViewChange = true;
@@ -132,6 +139,79 @@ const featureRows = computed(() => {
   if (!selectedFeature.value?.properties) return [];
   return buildPopupRows(currentView.value.columns, selectedFeature.value.properties);
 });
+
+const canDeleteSelectedSite = computed(() => {
+  if (selectedView.value !== WHITE_MOTH_SITE_VIEW_NAME) return false;
+  if (!selectedFeature.value?.properties) return false;
+  const code = `${selectedFeature.value.properties["编号"] ?? ""}`.trim();
+  return code !== "";
+});
+
+const deleteConfirmMessage = computed(() => {
+  const site = pendingDeleteSite.value;
+  if (!site) return "";
+  const label = `${site.locality || "未知属地"} · ${site.site_name || "未命名"}`;
+  if (!site.survey_record_count) {
+    return `将删除美国白蛾点位「${site.code}」（${label}）。此操作仅删除点位，不删除已关联的调查记录和台账，且不可撤销。`;
+  }
+  return `将删除美国白蛾点位「${site.code}」（${label}）。该编号当前关联 ${site.survey_record_count} 条调查记录，删除点位后这些调查记录和台账将变为悬空数据。此操作不可撤销，确认仍要删除吗？`;
+});
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false;
+  pendingDeleteSite.value = null;
+}
+
+async function requestDeleteWhiteMothSite() {
+  if (isDeletingWhiteMothSite.value || deleteCheckLoading.value) return;
+  const code = `${selectedFeature.value?.properties?.["编号"] ?? ""}`.trim();
+  if (!code) {
+    error("未读取到点位编号。", "删除失败");
+    return;
+  }
+
+  deleteCheckLoading.value = true;
+  try {
+    const result = await deleteWhiteMothSiteCheck(code);
+    if (!result.exists) {
+      error("点位已被删除或不存在。", "删除失败");
+      closeDetail();
+      await refreshWhiteMothSiteView();
+      return;
+    }
+    pendingDeleteSite.value = result;
+    showDeleteConfirm.value = true;
+  } catch (checkError) {
+    if (isUnauthorizedError(checkError)) return;
+    error(`${checkError.message || checkError}`, "删除前检查失败");
+  } finally {
+    deleteCheckLoading.value = false;
+  }
+}
+
+async function confirmDeleteWhiteMothSite() {
+  const site = pendingDeleteSite.value;
+  if (!site) {
+    closeDeleteConfirm();
+    return;
+  }
+
+  isDeletingWhiteMothSite.value = true;
+  try {
+    const deleted = await deleteWhiteMothSite(site.code);
+    success(`点位 ${deleted.code} 已删除。`, "删除成功");
+    closeDeleteConfirm();
+    closeDetail();
+    await refreshWhiteMothSiteView();
+  } catch (deleteError) {
+    if (isUnauthorizedError(deleteError)) {
+      return;
+    }
+    error(`${deleteError.message || deleteError}`, "删除失败");
+  } finally {
+    isDeletingWhiteMothSite.value = false;
+  }
+}
 
 function normalizeSearchValue(value) {
   return `${value ?? ""}`.trim();
@@ -1076,6 +1156,17 @@ onMounted(async () => {
               <span class="detail-value">{{ value }}</span>
             </div>
           </div>
+          <footer v-if="canDeleteSelectedSite" class="detail-footer">
+            <button
+              type="button"
+              class="delete-site-btn"
+              data-testid="white-moth-site-delete-btn"
+              :disabled="deleteCheckLoading"
+              @click="requestDeleteWhiteMothSite"
+            >
+              {{ deleteCheckLoading ? "检查中…" : "删除点位" }}
+            </button>
+          </footer>
         </article>
       </aside>
 
@@ -1199,6 +1290,16 @@ onMounted(async () => {
 
     </div>
   </section>
+
+  <ConfirmDialog
+    :open="showDeleteConfirm"
+    :busy="isDeletingWhiteMothSite"
+    title="删除点位"
+    confirm-text="确认删除"
+    :message="deleteConfirmMessage"
+    @close="closeDeleteConfirm"
+    @confirm="confirmDeleteWhiteMothSite"
+  />
 </template>
 
 <style scoped>
@@ -1700,6 +1801,36 @@ onMounted(async () => {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.detail-footer {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.delete-site-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-3) 1.2rem;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-danger);
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--color-danger);
+  box-shadow: none;
+}
+
+.delete-site-btn:hover:not(:disabled) {
+  background: rgba(229, 72, 77, 0.08);
+}
+
+.delete-site-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .detail-row {

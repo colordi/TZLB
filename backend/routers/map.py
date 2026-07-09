@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from backend.auth.dependencies import require_authenticated_user
 from backend.db.admin import (
     get_enabled_map_view,
     get_enabled_reference_layer,
@@ -12,14 +13,21 @@ from backend.db.postgres import (
     MAP_MAX_LIMIT,
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
+    check_white_moth_site_deletion,
     create_white_moth_site,
+    delete_white_moth_site,
     fetch_admin_boundary_feature_collection,
     fetch_map_filter_options,
     fetch_reference_layer_feature_collection,
     fetch_view_feature_collection,
     get_white_moth_site_code_rules,
 )
-from backend.schemas import WhiteMothSiteCreateRequest, WhiteMothSiteResponse
+from backend.schemas import (
+    WhiteMothSiteCreateRequest,
+    WhiteMothSiteDeleteCheckResponse,
+    WhiteMothSiteDeleteResponse,
+    WhiteMothSiteResponse,
+)
 
 
 router = APIRouter()
@@ -107,6 +115,52 @@ async def post_white_moth_site(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"新增美国白蛾点位失败：{exc}") from exc
+
+
+@router.get(
+    "/white-moth-sites/{code}/delete-check",
+    response_model=WhiteMothSiteDeleteCheckResponse,
+    summary="删除前检查美国白蛾点位",
+)
+async def get_white_moth_site_delete_check(code: str) -> WhiteMothSiteDeleteCheckResponse:
+    normalized_code = code.strip().upper()
+    try:
+        result = await check_white_moth_site_deletion(normalized_code)
+        if result is None:
+            return WhiteMothSiteDeleteCheckResponse(
+                code=normalized_code,
+                exists=False,
+            )
+        return WhiteMothSiteDeleteCheckResponse(exists=True, **result)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"删除前检查失败：{exc}") from exc
+
+
+@router.delete(
+    "/white-moth-sites/{code}",
+    response_model=WhiteMothSiteDeleteResponse,
+    summary="删除美国白蛾点位",
+)
+async def delete_white_moth_site_endpoint(
+    code: str,
+    current_user: dict = Depends(require_authenticated_user),
+) -> WhiteMothSiteDeleteResponse:
+    normalized_code = code.strip().upper()
+    try:
+        deleted = await delete_white_moth_site(
+            code=normalized_code,
+            operator=current_user,
+        )
+        if deleted is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"编号不存在：{normalized_code}",
+            )
+        return WhiteMothSiteDeleteResponse(**deleted)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"删除美国白蛾点位失败：{exc}") from exc
 
 
 @router.get("/views/{view_name}", summary="读取指定地图视图的 GeoJSON")

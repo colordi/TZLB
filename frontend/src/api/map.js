@@ -48,6 +48,25 @@ export async function createWhiteMothSite(payload) {
   return response.json();
 }
 
+export async function deleteWhiteMothSiteCheck(code) {
+  const response = await apiFetch(
+    `/api/map/white-moth-sites/${encodeURIComponent(code)}/delete-check`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function deleteWhiteMothSite(code) {
+  const response = await apiFetch(
+    `/api/map/white-moth-sites/${encodeURIComponent(code)}`,
+    {
+      method: "DELETE",
+    },
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 function appendBbox(search, bbox) {
   if (!bbox) {
     return;

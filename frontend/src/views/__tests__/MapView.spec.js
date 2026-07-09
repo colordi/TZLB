@@ -9,6 +9,8 @@ const apiMocks = vi.hoisted(() => ({
   fetchMapFilterOptions: vi.fn(),
   fetchWhiteMothSiteCodeRules: vi.fn(),
   createWhiteMothSite: vi.fn(),
+  deleteWhiteMothSite: vi.fn(),
+  deleteWhiteMothSiteCheck: vi.fn(),
   fetchMapView: vi.fn(),
   fetchReferenceLayer: vi.fn(),
   listReferenceLayers: vi.fn(),
@@ -19,6 +21,8 @@ vi.mock("../../api/map.js", () => ({
   fetchMapFilterOptions: apiMocks.fetchMapFilterOptions,
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
+  deleteWhiteMothSite: apiMocks.deleteWhiteMothSite,
+  deleteWhiteMothSiteCheck: apiMocks.deleteWhiteMothSiteCheck,
   fetchMapView: apiMocks.fetchMapView,
   fetchReferenceLayer: apiMocks.fetchReferenceLayer,
   listReferenceLayers: apiMocks.listReferenceLayers,
@@ -143,6 +147,7 @@ function mountMapView() {
     global: {
       stubs: {
         LeafletMap: LeafletMapStub,
+        teleport: true,
       },
     },
   });
@@ -240,6 +245,23 @@ describe("MapView", () => {
       site_name: "示范点",
       longitude: 116.5,
       latitude: 39.7,
+    });
+    apiMocks.deleteWhiteMothSiteCheck.mockResolvedValue({
+      code: "MQ001",
+      exists: true,
+      site_name: "示范点",
+      locality: "马驹桥镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 0,
+    });
+    apiMocks.deleteWhiteMothSite.mockResolvedValue({
+      code: "MQ001",
+      site_name: "示范点",
+      locality: "马驹桥镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 0,
     });
   });
 
@@ -1187,5 +1209,170 @@ describe("MapView", () => {
         DEFAULT_MAP_OPTIONS,
       );
     });
+  });
+
+  it("在美国白蛾点位视图选中点位后显示删除按钮", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "MQ001",
+        点位名称: "马驹桥示范点",
+        属地: "马驹桥镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="white-moth-site-delete-btn"]').exists(),
+    ).toBe(true);
+  });
+
+  it("非美国白蛾点位视图选中点位后不显示删除按钮", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "TY001",
+        点位名称: "高风险点位",
+      },
+      geometry: { type: "Point", coordinates: [116.6, 39.8] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      { name: "高风险点位", columns: ["编号", "总虫口数"] },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("高风险点位");
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.find('[data-testid="white-moth-site-delete-btn"]').exists(),
+    ).toBe(false);
+  });
+
+  it("删除点位触发预检查与二次确认，确认后调用删除并关闭详情", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "MQ001",
+        点位名称: "马驹桥示范点",
+        属地: "马驹桥镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+    apiMocks.deleteWhiteMothSiteCheck.mockResolvedValue({
+      code: "MQ001",
+      exists: true,
+      site_name: "马驹桥示范点",
+      locality: "马驹桥镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 2,
+    });
+    apiMocks.deleteWhiteMothSite.mockResolvedValue({
+      code: "MQ001",
+      site_name: "马驹桥示范点",
+      locality: "马驹桥镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 2,
+    });
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="white-moth-site-delete-btn"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.deleteWhiteMothSiteCheck).toHaveBeenCalledWith("MQ001");
+    });
+
+    const message = wrapper.get(".confirm-message").text();
+    expect(message).toContain("MQ001");
+    expect(message).toContain("2 条调查记录");
+
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.deleteWhiteMothSite).toHaveBeenCalledWith("MQ001");
+    });
+
+    expect(wrapper.find(".detail-drawer").exists()).toBe(false);
+  });
+
+  it("预检查返回点位不存在时提示并刷新，不弹确认窗", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "MQ001",
+        点位名称: "马驹桥示范点",
+        属地: "马驹桥镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+    apiMocks.deleteWhiteMothSiteCheck.mockResolvedValue({
+      code: "MQ001",
+      exists: false,
+      survey_record_count: 0,
+    });
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="white-moth-site-delete-btn"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.deleteWhiteMothSiteCheck).toHaveBeenCalledWith("MQ001");
+    });
+
+    expect(apiMocks.deleteWhiteMothSite).not.toHaveBeenCalled();
+    expect(wrapper.find(".confirm-message").exists()).toBe(false);
   });
 });
