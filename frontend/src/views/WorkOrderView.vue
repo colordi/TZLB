@@ -303,11 +303,23 @@ function onGenerate() {
         data-testid="date-image-folder-input"
         @change="onDateFolderChange"
       />
-      <button type="button" class="workorder-action-card" disabled>
+      <router-link
+        v-if="!isPreview"
+        to="/workorder/point-screenshots"
+        class="workorder-action-card"
+        data-testid="point-screenshot-entry"
+      >
         <span class="workorder-action-icon"><Archive :size="21" /></span>
         <span class="workorder-action-copy">
-          <strong>占位功能二</strong>
-          <small>暂未启用</small>
+          <strong>点位截图管理</strong>
+          <small>上传、替换、删除点位截图</small>
+        </span>
+      </router-link>
+      <button v-else type="button" class="workorder-action-card" disabled>
+        <span class="workorder-action-icon"><Archive :size="21" /></span>
+        <span class="workorder-action-copy">
+          <strong>点位截图管理</strong>
+          <small>预览模式禁用</small>
         </span>
       </button>
       <button type="button" class="workorder-action-card" disabled>
@@ -566,7 +578,14 @@ function onGenerate() {
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
+  text-decoration: none;
   box-shadow: var(--shadow-card);
+}
+
+.workorder-action-card:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
 }
 
 .workorder-action-card:not(:disabled):hover {

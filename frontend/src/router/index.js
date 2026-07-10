@@ -10,6 +10,7 @@ import DataExportView from "../views/DataExportView.vue";
 import DataStatisticsView from "../views/DataStatisticsView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
+import PointScreenshotView from "../views/PointScreenshotView.vue";
 import WorkOrderView from "../views/WorkOrderView.vue";
 import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminUsersView from "../views/AdminUsersView.vue";
@@ -44,6 +45,16 @@ const routes = [
     meta: {
       section: "工单录入",
       blurb: "通过调查导入整理工单记录，补充图片后生成 Word 工作单。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/workorder/point-screenshots",
+    name: "point-screenshots",
+    component: PointScreenshotView,
+    meta: {
+      section: "点位截图管理",
+      blurb: "按害虫类型管理点位截图，支持上传、替换、删除。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },

@@ -129,6 +129,10 @@ function createTestRouter() {
         component: { template: "<div />" },
         meta: {},
       },
+      {
+        path: "/workorder/point-screenshots",
+        component: { template: "<div />" },
+      },
     ],
   });
 }
@@ -217,7 +221,7 @@ describe("WorkOrderView", () => {
     expect(wrapper.text()).toContain("从数据库追加工单记录");
     expect(wrapper.text()).toContain("上传调查 Excel");
     expect(wrapper.text()).toContain("上传日期图片文件夹");
-    expect(wrapper.text()).toContain("占位功能二");
+    expect(wrapper.text()).toContain("点位截图管理");
     expect(wrapper.text()).toContain("占位功能三");
     expect(wrapper.find(".workorder-controls").exists()).toBe(true);
     expect(wrapper.find(".workorder-stats").exists()).toBe(false);
@@ -227,7 +231,7 @@ describe("WorkOrderView", () => {
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("上传调查 Excel 按钮会打开 Excel 导入弹窗，两个占位按钮保持禁用", async () => {
+  it("上传调查 Excel 按钮会打开弹窗，点位截图入口启用且占位功能三保持禁用", async () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(false);
@@ -237,8 +241,10 @@ describe("WorkOrderView", () => {
     expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(true);
     const actionButtons = wrapper.findAll(".workorder-action-card");
     expect(actionButtons[1].attributes("disabled")).toBeUndefined();
-    expect(actionButtons.slice(2).every((button) => button.attributes("disabled") !== undefined))
-      .toBe(true);
+    expect(wrapper.get('[data-testid="point-screenshot-entry"]').attributes("href"))
+      .toBe("/workorder/point-screenshots");
+    expect(actionButtons[2].attributes("disabled")).toBeUndefined();
+    expect(actionButtons[3].attributes("disabled")).toBeDefined();
   });
 
   it("日期图片文件夹按钮会触发文件夹选择", async () => {

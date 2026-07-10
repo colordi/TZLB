@@ -102,6 +102,42 @@ describe("router", () => {
     expect(router.currentRoute.value.fullPath).toBe("/map");
   });
 
+  it("管理员可以访问点位截图管理页面", async () => {
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 1,
+      username: "admin",
+      display_name: "管理员",
+      role: "admin",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/workorder/point-screenshots");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/workorder/point-screenshots");
+    expect(router.currentRoute.value.meta.requiredRoles).toEqual(["admin"]);
+  });
+
+  it("调查员访问点位截图管理页面时会跳转到地图页", async () => {
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 2,
+      username: "dc01",
+      display_name: "调查员 dc01",
+      role: "investigator",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/map");
+    await router.push("/workorder/point-screenshots");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/map");
+  });
+
   it("已登录调查员从登录页携带工单重定向时仍进入地图页", async () => {
     resetAuthSessionState();
     mockCurrentUser({

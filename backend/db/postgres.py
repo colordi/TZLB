@@ -1055,6 +1055,48 @@ async def fetch_survey_candidates(
     )
 
 
+async def fetch_site_points(pest_type: str) -> list[dict[str, str]]:
+    """读取指定害虫的全部基础点位，不关联调查记录。"""
+
+    config = get_pest_config(pest_type)
+    site_sources = {
+        "春尺蠖": (SITE_TABLE, "村"),
+        "国槐尺蠖": (SOPHORA_SITE_TABLE, "村"),
+        "美国白蛾": (WHITE_MOTH_SITE_TABLE, "点位名称"),
+    }
+    source = site_sources.get(config.key)
+    if source is None:
+        raise ValueError(f"{config.key} 暂不支持点位截图管理")
+
+    table_name, name_column = source
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(table_name)}"
+    )
+    quoted_name_column = quote_identifier(name_column)
+    quoted_locality_column = quote_identifier(LOCALITY_COLUMN)
+    rows = await fetch(
+        f"""
+        SELECT
+            BTRIM(COALESCE(s."编号"::text, '')) AS code,
+            BTRIM(COALESCE(s.{quoted_name_column}::text, '')) AS name,
+            BTRIM(COALESCE(s.{quoted_locality_column}::text, '')) AS locality
+        FROM {qualified_site_table} AS s
+        WHERE BTRIM(COALESCE(s."编号"::text, '')) <> ''
+        ORDER BY
+            BTRIM(COALESCE(s.{quoted_locality_column}::text, '')),
+            BTRIM(COALESCE(s."编号"::text, ''))
+        """
+    )
+    return [
+        {
+            "code": str(row["code"] or "").strip(),
+            "name": str(row["name"] or "").strip(),
+            "locality": str(row["locality"] or "").strip(),
+        }
+        for row in rows
+    ]
+
+
 async def fetch_survey_candidates_by_type(
     survey_date: date_cls,
     pest_type: str,

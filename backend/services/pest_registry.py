@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+from backend.config import get_settings
 
 
 IMAGE_STRATEGY_UPLOADED = "uploaded_images"
@@ -35,6 +38,7 @@ class PestRegistryEntry:
     context_overrides: dict[str, Any] = field(default_factory=dict)
     image_strategy: str = IMAGE_STRATEGY_UPLOADED
     survey_import_strategy: str | None = None
+    screenshot_dir_attr: str | None = None
 
 
 COMMON_REQUIRED_FIELD_KEYS = (
@@ -117,6 +121,7 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
             "tree_height": "8米上",
         },
         survey_import_strategy=SURVEY_IMPORT_SPRING_INCHWORM,
+        screenshot_dir_attr="point_screenshot_dir",
     ),
     PestRegistryEntry(
         key="国槐尺蠖",
@@ -145,6 +150,7 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
             "tree_height": "8米下",
         },
         survey_import_strategy=SURVEY_IMPORT_GUO_HUAI_INCHWORM,
+        screenshot_dir_attr="sophora_point_screenshot_dir",
     ),
     PestRegistryEntry(
         key="美国白蛾",
@@ -168,6 +174,7 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         context_overrides={"pest_species": "美国白蛾"},
         image_strategy=IMAGE_STRATEGY_WHITE_MOTH_AUTO,
         survey_import_strategy=SURVEY_IMPORT_MEI_GUO_BAI_E,
+        screenshot_dir_attr="meiguobaie_point_screenshot_dir",
     ),
     PestRegistryEntry(
         key="其他害虫",
@@ -219,6 +226,16 @@ def get_pest_config(pest_type: str) -> PestRegistryEntry:
     if config is None:
         raise ValueError(f"不支持的害虫类型：{normalized}")
     return config
+
+
+def get_screenshot_dir(pest_type: str) -> Path | None:
+    """返回害虫对应的点位截图目录，未配置时返回 None。"""
+
+    config = get_pest_config(pest_type)
+    if not config.screenshot_dir_attr:
+        return None
+    settings = get_settings()
+    return getattr(settings, config.screenshot_dir_attr)
 
 
 def validate_pest_type(pest_type: str) -> str:

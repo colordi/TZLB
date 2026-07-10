@@ -24,6 +24,7 @@ from backend.routers import auth as auth_router
 from backend.routers import admin as admin_router
 from backend.routers import data_export as data_export_router
 from backend.routers import map as map_router
+from backend.routers import point_screenshot as point_screenshot_router
 from backend.routers import statistics as statistics_router
 from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
@@ -169,6 +170,12 @@ app.include_router(
     workorder_router.router,
     prefix="/api/workorder",
     tags=["工作单"],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+)
+app.include_router(
+    point_screenshot_router.router,
+    prefix="/api/point-screenshots",
+    tags=["点位截图"],
     dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(
