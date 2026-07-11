@@ -189,6 +189,78 @@ WHITE_MOTH_ROW_FIELD_MAP: tuple[tuple[str, str], ...] = (
     ("daily_dispatch_points", "当日派单数"),
 )
 
+WHITE_MOTH_GENERATION_SUMMARY_SQL = """
+WITH generations("世代", sort_order) AS (
+    VALUES ('第一代'::text, 1), ('第二代'::text, 2), ('第三代'::text, 3)
+),
+point_stats AS (
+    SELECT
+        "世代",
+        BTRIM("编号") AS "编号",
+        CASE
+            WHEN BOOL_OR(COALESCE("区域", '乡镇') = '城区') THEN '城区'
+            ELSE '乡镇'
+        END AS "区域",
+        COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)::integer AS dispatch_count
+    FROM survey."美国白蛾调查表"
+    WHERE
+        "年份" = EXTRACT(YEAR FROM CURRENT_DATE)::integer
+        AND "调查日期" <= CURRENT_DATE
+        AND BTRIM(COALESCE("编号", '')) <> ''
+    GROUP BY "世代", BTRIM("编号")
+),
+generation_stats AS (
+    SELECT
+        "世代",
+        COUNT(*)::integer AS surveyed_points,
+        COUNT(*) FILTER (WHERE "区域" = '城区')::integer AS urban_surveyed_points,
+        COUNT(*) FILTER (WHERE "区域" = '乡镇')::integer AS town_surveyed_points,
+        COUNT(*) FILTER (WHERE dispatch_count > 0)::integer AS damaged_points,
+        COUNT(*) FILTER (WHERE dispatch_count > 0 AND "区域" = '城区')::integer AS urban_damaged_points,
+        COUNT(*) FILTER (WHERE dispatch_count > 0 AND "区域" = '乡镇')::integer AS town_damaged_points,
+        COALESCE(SUM(dispatch_count), 0)::integer AS dispatch_count
+    FROM point_stats
+    GROUP BY "世代"
+)
+SELECT
+    CURRENT_DATE AS as_of_date,
+    EXTRACT(YEAR FROM CURRENT_DATE)::integer AS year,
+    g."世代",
+    COALESCE(s.surveyed_points, 0)::integer AS surveyed_points,
+    COALESCE(s.urban_surveyed_points, 0)::integer AS urban_surveyed_points,
+    COALESCE(s.town_surveyed_points, 0)::integer AS town_surveyed_points,
+    COALESCE(s.damaged_points, 0)::integer AS damaged_points,
+    COALESCE(s.urban_damaged_points, 0)::integer AS urban_damaged_points,
+    COALESCE(s.town_damaged_points, 0)::integer AS town_damaged_points,
+    COALESCE(s.dispatch_count, 0)::integer AS dispatch_count
+FROM generations g
+LEFT JOIN generation_stats s ON s."世代" = g."世代"
+ORDER BY g.sort_order;
+"""
+
+WHITE_MOTH_DISPATCH_FREQUENCY_SQL = """
+WITH point_dispatch AS (
+    SELECT
+        "世代",
+        BTRIM("编号") AS "编号",
+        COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)::integer AS dispatch_times
+    FROM survey."美国白蛾调查表"
+    WHERE
+        "年份" = EXTRACT(YEAR FROM CURRENT_DATE)::integer
+        AND "调查日期" <= CURRENT_DATE
+        AND BTRIM(COALESCE("编号", '')) <> ''
+    GROUP BY "世代", BTRIM("编号")
+)
+SELECT
+    "世代",
+    dispatch_times,
+    COUNT(*)::integer AS point_count
+FROM point_dispatch
+WHERE dispatch_times > 0
+GROUP BY "世代", dispatch_times
+ORDER BY "世代", dispatch_times;
+"""
+
 
 def serialize_daily_value(value: Any) -> Any:
     if isinstance(value, date):
@@ -214,4 +286,41 @@ async def get_white_moth_daily_statistics(
     return {
         "columns": list(WHITE_MOTH_DAILY_COLUMNS),
         "rows": [serialize_white_moth_daily_row(row) for row in rows],
+    }
+
+
+async def get_white_moth_generation_summary() -> dict[str, Any]:
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        summary_rows = await connection.fetch(WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        frequency_rows = await connection.fetch(WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
+
+    frequencies: dict[str, list[dict[str, int]]] = {}
+    for row in frequency_rows:
+        frequencies.setdefault(row["世代"], []).append(
+            {
+                "dispatch_times": row["dispatch_times"],
+                "point_count": row["point_count"],
+            }
+        )
+
+    generations = [
+        {
+            "generation": row["世代"],
+            "surveyed_points": row["surveyed_points"],
+            "urban_surveyed_points": row["urban_surveyed_points"],
+            "town_surveyed_points": row["town_surveyed_points"],
+            "damaged_points": row["damaged_points"],
+            "urban_damaged_points": row["urban_damaged_points"],
+            "town_damaged_points": row["town_damaged_points"],
+            "dispatch_count": row["dispatch_count"],
+            "dispatch_frequency": frequencies.get(row["世代"], []),
+        }
+        for row in summary_rows
+    ]
+
+    return {
+        "as_of_date": serialize_daily_value(summary_rows[0]["as_of_date"]) if summary_rows else None,
+        "year": summary_rows[0]["year"] if summary_rows else date.today().year,
+        "generations": generations,
     }

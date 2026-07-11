@@ -5,11 +5,13 @@ import DataStatisticsView from "../DataStatisticsView.vue";
 
 const apiMocks = vi.hoisted(() => ({
   getWhiteMothDailyStatistics: vi.fn(),
+  getWhiteMothGenerationSummary: vi.fn(),
   error: vi.fn(),
 }));
 
 vi.mock("../../api/statistics.js", () => ({
   getWhiteMothDailyStatistics: apiMocks.getWhiteMothDailyStatistics,
+  getWhiteMothGenerationSummary: apiMocks.getWhiteMothGenerationSummary,
 }));
 
 vi.mock("../../composables/useToast.js", () => ({
@@ -26,6 +28,8 @@ function buildPayload(rowCount = 2) {
       date: `2026-06-${day}`,
       daily_treatment_plants: 100 + index,
       cumulative_completed_points: 50 + index,
+      urban_daily_inspected_points: 10 + index,
+      town_daily_inspected_points: 20 + index,
       daily_dispatch_points: index,
     });
   }
@@ -34,6 +38,8 @@ function buildPayload(rowCount = 2) {
       { key: "date", label: "日期", type: "date" },
       { key: "daily_treatment_plants", label: "当日除治量（株）", type: "number" },
       { key: "cumulative_completed_points", label: "累积防治完成点数", type: "number" },
+      { key: "urban_daily_inspected_points", label: "城区当日巡查点位数", type: "number" },
+      { key: "town_daily_inspected_points", label: "乡镇当日巡查点位数", type: "number" },
       { key: "daily_dispatch_points", label: "当日派单数", type: "number" },
     ],
     rows,
@@ -44,10 +50,45 @@ function mountView() {
   return mount(DataStatisticsView);
 }
 
+function buildGenerationSummary() {
+  return {
+    as_of_date: "2026-07-11",
+    year: 2026,
+    generations: [
+      {
+        generation: "第一代",
+        surveyed_points: 44,
+        urban_surveyed_points: 18,
+        town_surveyed_points: 26,
+        damaged_points: 17,
+        urban_damaged_points: 7,
+        town_damaged_points: 10,
+        dispatch_count: 21,
+        dispatch_frequency: [
+          { dispatch_times: 1, point_count: 13 },
+          { dispatch_times: 2, point_count: 4 },
+        ],
+      },
+      {
+        generation: "第二代",
+        surveyed_points: 0,
+        urban_surveyed_points: 0,
+        town_surveyed_points: 0,
+        damaged_points: 0,
+        urban_damaged_points: 0,
+        town_damaged_points: 0,
+        dispatch_count: 0,
+        dispatch_frequency: [],
+      },
+    ],
+  };
+}
+
 describe("DataStatisticsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
+    apiMocks.getWhiteMothGenerationSummary.mockResolvedValue(buildGenerationSummary());
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -61,6 +102,31 @@ describe("DataStatisticsView", () => {
     expect(wrapper.text()).toContain("当日除治量（株）");
     expect(wrapper.get('[data-testid="data-statistics-row-2026-06-01"]').text()).toContain(
       "101",
+    );
+  });
+
+  it("按世代展示独立的调查、受害和派单汇总", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledWith();
+    const summary = wrapper.get('[data-testid="data-statistics-summary-第一代"]').text();
+    expect(summary).toContain("完成调查 44 个点位");
+    expect(summary).toContain("城区 18 个、乡镇 26 个");
+    expect(summary).toContain("发现受害点位 17 个");
+    expect(summary).toContain("城区 7 个、乡镇 10 个");
+    expect(summary).toContain("共下发派单 21 次");
+    expect(summary).toContain("1 次派单点位 13 个");
+    expect(summary).toContain("2 次派单点位 4 个");
+    expect(wrapper.get('[data-testid="data-statistics-summary-第二代"]').text()).toContain("暂无派单");
+    expect(wrapper.get('[data-testid="data-statistics-summary-panel"]').text()).toContain(
+      "各世代累计情况",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-summary-panel"]').text()).not.toContain(
+      "美国白蛾每日信息统计",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-daily-panel"]').text()).not.toContain(
+      "各世代累计情况",
     );
   });
 

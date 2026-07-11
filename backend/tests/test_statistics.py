@@ -6,10 +6,13 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
-from backend.routers.statistics import get_white_moth_daily
+from backend.routers.statistics import get_white_moth_daily, get_white_moth_generation_statistics
 from backend.services.statistics import (
     WHITE_MOTH_DAILY_SQL,
+    WHITE_MOTH_DISPATCH_FREQUENCY_SQL,
+    WHITE_MOTH_GENERATION_SUMMARY_SQL,
     get_white_moth_daily_statistics,
+    get_white_moth_generation_summary,
     serialize_white_moth_daily_row,
 )
 
@@ -41,6 +44,16 @@ class FakeConnection:
     async def fetch(self, query: str, *args):
         self.fetch_calls.append((query, args))
         return self.rows
+
+
+class SequentialFakeConnection(FakeConnection):
+    def __init__(self, results):
+        super().__init__()
+        self.results = list(results)
+
+    async def fetch(self, query: str, *args):
+        self.fetch_calls.append((query, args))
+        return self.results.pop(0)
 
 
 class FakeRow(dict):
@@ -136,6 +149,58 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["urban_daily_damaged_points"], 17)
         self.assertEqual(result["town_daily_inspected_points"], 26)
 
+    async def test_generation_summary_returns_each_generation_and_dispatch_frequency(self) -> None:
+        connection = SequentialFakeConnection(
+            [
+                [
+                    FakeRow(
+                        {
+                            "as_of_date": date(2026, 7, 11),
+                            "year": 2026,
+                            "世代": "第一代",
+                            "surveyed_points": 44,
+                            "urban_surveyed_points": 18,
+                            "town_surveyed_points": 26,
+                            "damaged_points": 17,
+                            "urban_damaged_points": 7,
+                            "town_damaged_points": 10,
+                            "dispatch_count": 21,
+                        }
+                    )
+                ],
+                [
+                    FakeRow({"世代": "第一代", "dispatch_times": 1, "point_count": 13}),
+                    FakeRow({"世代": "第一代", "dispatch_times": 2, "point_count": 4}),
+                ],
+            ]
+        )
+
+        with patch(
+            "backend.services.statistics.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            result = await get_white_moth_generation_summary()
+
+        self.assertEqual(result["as_of_date"], "2026-07-11")
+        self.assertEqual(result["year"], 2026)
+        self.assertEqual(result["generations"][0]["surveyed_points"], 44)
+        self.assertEqual(result["generations"][0]["damaged_points"], 17)
+        self.assertEqual(result["generations"][0]["dispatch_count"], 21)
+        self.assertEqual(
+            result["generations"][0]["dispatch_frequency"],
+            [
+                {"dispatch_times": 1, "point_count": 13},
+                {"dispatch_times": 2, "point_count": 4},
+            ],
+        )
+        self.assertEqual(len(connection.fetch_calls), 2)
+
+    def test_generation_summary_sql_groups_by_generation_and_point_code(self) -> None:
+        self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('"调查日期" <= CURRENT_DATE', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
+
 
 class StatisticsRouterTest(unittest.IsolatedAsyncioTestCase):
     async def test_white_moth_daily_router_returns_service_result(self) -> None:
@@ -159,6 +224,28 @@ class StatisticsRouterTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(context.exception.status_code, 500)
         self.assertEqual(context.exception.detail, "读取美国白蛾每日统计失败：连接失败")
+
+    async def test_white_moth_generation_router_returns_service_result(self) -> None:
+        payload = {"as_of_date": "2026-07-11", "year": 2026, "generations": []}
+
+        with patch(
+            "backend.routers.statistics.get_white_moth_generation_summary",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = await get_white_moth_generation_statistics()
+
+        self.assertEqual(result, payload)
+
+    async def test_white_moth_generation_router_wraps_errors(self) -> None:
+        with patch(
+            "backend.routers.statistics.get_white_moth_generation_summary",
+            new=AsyncMock(side_effect=RuntimeError("连接失败")),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                await get_white_moth_generation_statistics()
+
+        self.assertEqual(context.exception.status_code, 500)
+        self.assertEqual(context.exception.detail, "读取美国白蛾世代汇总失败：连接失败")
 
 
 if __name__ == "__main__":

@@ -38,4 +38,14 @@ describe("api/statistics", () => {
       "/api/statistics/white-moth/daily?year=2026&generation=%E7%AC%AC%E4%B8%80%E4%BB%A3",
     );
   });
+
+  it("读取不携带筛选条件的美国白蛾世代汇总", async () => {
+    const { getWhiteMothGenerationSummary } = await import("../statistics.js");
+
+    await getWhiteMothGenerationSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/white-moth/generation-summary",
+    );
+  });
 });

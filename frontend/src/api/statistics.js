@@ -13,3 +13,9 @@ export async function getWhiteMothDailyStatistics({ year, generation } = {}) {
   await ensureApiSuccess(response);
   return response.json();
 }
+
+export async function getWhiteMothGenerationSummary() {
+  const response = await apiFetch("/api/statistics/white-moth/generation-summary");
+  await ensureApiSuccess(response);
+  return response.json();
+}

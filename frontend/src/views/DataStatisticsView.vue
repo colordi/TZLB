@@ -2,7 +2,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { ChartColumn, ChevronLeft, ChevronRight, RefreshCw, Table2 } from "@lucide/vue";
 
-import { getWhiteMothDailyStatistics } from "../api/statistics.js";
+import {
+  getWhiteMothDailyStatistics,
+  getWhiteMothGenerationSummary,
+} from "../api/statistics.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
 
@@ -17,6 +20,7 @@ const { error } = useToast();
 const loading = ref(false);
 const columns = ref([]);
 const rows = ref([]);
+const generationSummary = ref({ as_of_date: "", year: null, generations: [] });
 const selectedPest = ref("white-moth");
 const currentPage = ref(1);
 const PAGE_SIZE = 7;
@@ -103,16 +107,25 @@ function cellClass(column) {
 async function loadWhiteMothDailyStatistics() {
   loading.value = true;
   try {
-    const result = await getWhiteMothDailyStatistics({
-      year: selectedYear.value,
-      generation: selectedGeneration.value || undefined,
-    });
+    const [result, summaryResult] = await Promise.all([
+      getWhiteMothDailyStatistics({
+        year: selectedYear.value,
+        generation: selectedGeneration.value || undefined,
+      }),
+      getWhiteMothGenerationSummary(),
+    ]);
     columns.value = Array.isArray(result.columns) ? result.columns : [];
     rows.value = Array.isArray(result.rows) ? result.rows : [];
+    generationSummary.value = {
+      as_of_date: summaryResult.as_of_date || "",
+      year: summaryResult.year || null,
+      generations: Array.isArray(summaryResult.generations) ? summaryResult.generations : [],
+    };
     currentPage.value = 1;
   } catch (loadError) {
     columns.value = [];
     rows.value = [];
+    generationSummary.value = { as_of_date: "", year: null, generations: [] };
     currentPage.value = 1;
     if (isUnauthorizedError(loadError)) {
       return;
@@ -164,7 +177,42 @@ onMounted(loadWhiteMothDailyStatistics);
       </button>
     </section>
 
-    <section class="data-statistics-panel">
+    <section
+      class="data-statistics-panel data-statistics-summary-panel"
+      data-testid="data-statistics-summary-panel"
+    >
+      <div class="data-statistics-summary-head">
+        <h2>{{ generationSummary.year || selectedYear }} 年各世代累计情况</h2>
+        <span v-if="generationSummary.as_of_date">截至 {{ generationSummary.as_of_date }}</span>
+      </div>
+      <div class="data-statistics-summaries" data-testid="data-statistics-generation-summary">
+        <article
+          v-for="item in generationSummary.generations"
+          :key="item.generation"
+          class="data-statistics-summary"
+          :data-testid="`data-statistics-summary-${item.generation}`"
+        >
+          <h4>{{ item.generation }}</h4>
+          <p>
+            完成调查 <strong>{{ formatNumber(item.surveyed_points) }}</strong> 个点位
+            <span>（城区 {{ formatNumber(item.urban_surveyed_points) }} 个、乡镇 {{ formatNumber(item.town_surveyed_points) }} 个）</span>
+          </p>
+          <p>
+            发现受害点位 <strong>{{ formatNumber(item.damaged_points) }}</strong> 个
+            <span>（城区 {{ formatNumber(item.urban_damaged_points) }} 个、乡镇 {{ formatNumber(item.town_damaged_points) }} 个）</span>
+          </p>
+          <p>共下发派单 <strong>{{ formatNumber(item.dispatch_count) }}</strong> 次</p>
+          <p v-if="item.dispatch_frequency?.length" class="data-statistics-frequency">
+            <span v-for="frequency in item.dispatch_frequency" :key="frequency.dispatch_times">
+              {{ frequency.dispatch_times }} 次派单点位 {{ formatNumber(frequency.point_count) }} 个
+            </span>
+          </p>
+          <p v-else class="data-statistics-frequency">暂无派单</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="data-statistics-panel" data-testid="data-statistics-daily-panel">
       <div class="data-statistics-panel-head">
         <div>
           <h2>美国白蛾每日信息统计</h2>
@@ -388,6 +436,76 @@ onMounted(loadWhiteMothDailyStatistics);
   flex-wrap: wrap;
 }
 
+.data-statistics-summary-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.data-statistics-summary-head h2 {
+  margin: 0;
+}
+
+.data-statistics-summary-head span {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.data-statistics-summaries {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.data-statistics-summary-panel {
+  padding-bottom: 0.35rem;
+}
+
+.data-statistics-summary {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-line);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  background: var(--color-primary-soft);
+  line-height: 1.8;
+}
+
+.data-statistics-summary h4,
+.data-statistics-summary p {
+  margin: 0;
+}
+
+.data-statistics-summary h4 {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+}
+
+.data-statistics-summary p span {
+  display: block;
+}
+
+.data-statistics-summary strong {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 1.1em;
+}
+
+.data-statistics-frequency {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.data-statistics-frequency span {
+  display: inline;
+}
+
 .data-statistics-filter {
   display: flex;
   align-items: center;
@@ -521,6 +639,10 @@ onMounted(loadWhiteMothDailyStatistics);
   .data-statistics-actions button {
     flex: 1;
     justify-content: center;
+  }
+
+  .data-statistics-summaries {
+    grid-template-columns: 1fr;
   }
 
 }
