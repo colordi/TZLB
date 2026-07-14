@@ -1,4 +1,6 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+
+export const WORKORDER_PAGE_SIZE = 10;
 
 export function toggleUidSelection(currentUids, targetUids) {
   if (!targetUids.length) {
@@ -13,10 +15,11 @@ export function toggleUidSelection(currentUids, targetUids) {
   return Array.from(new Set([...currentUids, ...targetUids]));
 }
 
-export function useRecordSelection(records, validationErrors) {
+export function useRecordSelection(records, validationErrors, pageSize = WORKORDER_PAGE_SIZE) {
   const selectedUids = ref([]);
   const searchQuery = ref("");
   const recordFilter = ref("all");
+  const currentPage = ref(1);
 
   const errorByUid = computed(() => {
     const map = {};
@@ -63,29 +66,80 @@ export function useRecordSelection(records, validationErrors) {
   const filteredRecordUids = computed(() => filteredRecordItems.value.map((item) => item.record.__uid));
   const filteredValidationErrors = computed(() => filteredRecordItems.value.map((item) => item.errors));
 
+  const totalPages = computed(() => {
+    const total = filteredRecords.value.length;
+    if (total <= 0) {
+      return 1;
+    }
+    return Math.ceil(total / pageSize);
+  });
+
+  const serialOffset = computed(() => (currentPage.value - 1) * pageSize);
+
+  const pagedRecordItems = computed(() => {
+    const start = serialOffset.value;
+    return filteredRecordItems.value.slice(start, start + pageSize);
+  });
+
+  const pagedRecords = computed(() => pagedRecordItems.value.map((item) => item.record));
+  const pagedValidationErrors = computed(() => pagedRecordItems.value.map((item) => item.errors));
+
   const allVisibleSelected = computed(
     () =>
-      filteredRecordUids.value.length > 0 &&
-      filteredRecordUids.value.every((uid) => selectedUids.value.includes(uid)),
+      pagedRecords.value.length > 0 &&
+      pagedRecords.value.every((record) => selectedUids.value.includes(record.__uid)),
   );
 
   function toggleFilteredSelection() {
-    selectedUids.value = toggleUidSelection(selectedUids.value, filteredRecordUids.value);
+    const visibleUids = pagedRecords.value.map((record) => record.__uid);
+    selectedUids.value = toggleUidSelection(selectedUids.value, visibleUids);
   }
 
   function clearSelection() {
     selectedUids.value = [];
   }
 
+  function goToPage(page) {
+    const next = Math.min(Math.max(1, Number(page) || 1), totalPages.value);
+    currentPage.value = next;
+  }
+
+  function goToPrevPage() {
+    goToPage(currentPage.value - 1);
+  }
+
+  function goToNextPage() {
+    goToPage(currentPage.value + 1);
+  }
+
+  watch([searchQuery, recordFilter], () => {
+    currentPage.value = 1;
+  }, { flush: "sync" });
+
+  watch(totalPages, (pages) => {
+    if (currentPage.value > pages) {
+      currentPage.value = pages;
+    }
+  }, { flush: "sync" });
+
   return {
     selectedUids,
     searchQuery,
     recordFilter,
+    currentPage,
+    pageSize,
+    totalPages,
+    serialOffset,
     filteredRecords,
     filteredRecordUids,
     filteredValidationErrors,
+    pagedRecords,
+    pagedValidationErrors,
     allVisibleSelected,
     toggleFilteredSelection,
     clearSelection,
+    goToPage,
+    goToPrevPage,
+    goToNextPage,
   };
 }

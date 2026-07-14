@@ -541,28 +541,46 @@ def build_batch_zip_filename(success_count: int, year: int | None = None) -> str
     return f"{resolved_year}年工作单批量导出_{timestamp}_{success_count}份.zip"
 
 
-def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> GeneratedArtifact:
+def generate_workorder_batch_artifact(
+    payload: WorkOrderGenerateRequest,
+    progress_callback=None,
+) -> GeneratedArtifact:
     """批量生成工作单并打包为 zip。
 
     单条失败不影响整体流程，成功文件放入 zip，失败记录写入 失败记录.json。
     如果全部失败，则抛出 ValueError 统一返回 400。
+
+    progress_callback 可选，签名：
+    callback(current: int, total: int, phase: str, message: str = "") -> None
+    - phase=generating：每完成一条记录调用一次（current 为已处理条数）
+    - phase=packing：开始打包时调用
+    - phase=completed：打包完成时调用
     """
 
     template_path = get_template_path(payload.pest_type)
     output_format = resolve_output_format(payload)
     successes: list[BatchResult] = []
     failures: list[BatchFailure] = []
+    total_records = len(payload.records)
+    # 文档生成 + 打包 两段步骤，便于前端显示真实进度
+    total_steps = total_records + 1
+
+    def report(current: int, phase: str, message: str = "") -> None:
+        if progress_callback is None:
+            return
+        progress_callback(current, total_steps, phase, message)
 
     logger.info(
         "开始批量生成工作单: pest_type=%s task_type=%s output_format=%s count=%d",
         payload.pest_type,
         payload.task_type,
         output_format,
-        len(payload.records),
+        total_records,
     )
 
     for index, record in enumerate(payload.records):
         temp_images: list[Path] = []
+        location_label = record.location_name or record.location_id or f"第{index + 1}条"
         try:
             filename, content = render_single_document(
                 template_path=template_path,
@@ -595,6 +613,11 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
             )
         finally:
             cleanup_temp_images(temp_images)
+            report(
+                index + 1,
+                "generating",
+                f"正在生成 {index + 1}/{total_records}：{location_label}",
+            )
 
     if not successes:
         failure_details = "；".join(
@@ -602,6 +625,8 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
             for failure in failures
         )
         raise ValueError(f"批量导出全部失败：{failure_details}")
+
+    report(total_records, "packing", "正在打包导出文件…")
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -612,7 +637,7 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
             failures_json = io.StringIO()
             json.dump(
                 {
-                    "total": len(payload.records),
+                    "total": total_records,
                     "success_count": len(successes),
                     "failure_count": len(failures),
                     "failures": [
@@ -636,6 +661,8 @@ def generate_workorder_batch_artifact(payload: WorkOrderGenerateRequest) -> Gene
         len(successes),
         len(failures),
     )
+
+    report(total_steps, "completed", f"已完成 {len(successes)} 份工作单打包")
 
     return GeneratedArtifact(
         filename=build_batch_zip_filename(len(successes), payload.year),

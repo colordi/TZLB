@@ -17,6 +17,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  busyLabel: {
+    type: String,
+    default: "正在导出…",
+  },
+  busyPercent: {
+    type: Number,
+    default: 0,
+  },
   errors: {
     type: Array,
     default: () => [],
@@ -24,6 +32,10 @@ const props = defineProps({
   selectedUids: {
     type: Array,
     default: () => [],
+  },
+  serialOffset: {
+    type: Number,
+    default: 0,
   },
 });
 
@@ -71,7 +83,20 @@ function handleRowClick(uid) {
     <div v-if="busy" class="record-busy-overlay" aria-live="polite" data-testid="record-busy-overlay">
       <div class="record-busy-card">
         <span class="record-busy-spinner" aria-hidden="true"></span>
-        <strong>正在导出…</strong>
+        <div class="record-busy-copy">
+          <strong>{{ busyLabel || "正在导出…" }}</strong>
+          <span v-if="busyPercent > 0" data-testid="record-busy-percent">{{ Math.round(busyPercent) }}%</span>
+        </div>
+        <div
+          class="record-busy-track"
+          role="progressbar"
+          :aria-valuenow="Math.round(busyPercent)"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          data-testid="record-busy-progress"
+        >
+          <div class="record-busy-fill" :style="{ width: `${Math.max(0, Math.min(100, busyPercent))}%` }" />
+        </div>
       </div>
     </div>
     <div v-if="hasRows" class="desktop-records">
@@ -109,7 +134,7 @@ function handleRowClick(uid) {
                 />
               </td>
               <td class="cell-serial">
-                <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
+                <span class="serial-badge">{{ String(serialOffset + index + 1).padStart(2, "0") }}</span>
               </td>
 
               <td
@@ -151,7 +176,7 @@ function handleRowClick(uid) {
                 @change="toggleSelection(record.__uid)"
               />
             </div>
-            <span class="serial-badge">{{ String(index + 1).padStart(2, "0") }}</span>
+            <span class="serial-badge">{{ String(serialOffset + index + 1).padStart(2, "0") }}</span>
             <div>
               <strong>{{ record.location_name || `现场记录 ${index + 1}` }}</strong>
               <p>{{ record.survey_date || '未填写日期' }}</p>
@@ -203,12 +228,14 @@ function handleRowClick(uid) {
 }
 
 .record-busy-card {
-  display: inline-flex;
+  width: min(360px, calc(100% - 2rem));
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 1.1rem;
+  padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
   color: var(--color-ink);
@@ -216,12 +243,49 @@ function handleRowClick(uid) {
 }
 
 .record-busy-spinner {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border: 2px solid color-mix(in oklch, var(--color-primary) 24%, transparent);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: record-busy-spin 0.7s linear infinite;
+}
+
+.record-busy-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.record-busy-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-busy-copy span {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-busy-track {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-primary) 12%, var(--color-bg));
+}
+
+.record-busy-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 160ms ease;
 }
 
 @keyframes record-busy-spin {

@@ -86,19 +86,29 @@
   --line-hero: 1.08;
   --tracking-display: 0;
 
-  /* 间距系统 */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-7: 1.75rem;
-  --space-8: 2rem;
-  --space-9: 2.25rem;
-  --space-10: 2.5rem;
-  --space-11: 2.75rem;
-  --space-12: 3rem;
+  /* 间距系统（固定 8px 体系） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 24px;
+  --space-8: 32px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 40px;
+  --space-12: 48px;
+  --space-page-x: 40px;
+  --space-page-y-top: 32px;
+  --space-page-y-bottom: 48px;
+  --space-module: 24px;
+  --space-card: 24px;
+  --space-title: 8px;
+  --space-label: 8px;
+  --space-form: 16px;
+  --space-icon: 8px;
+  --content-max-width: 1440px;
 
   /* 透明度系统 */
   --opacity-10: 0.1;
@@ -302,8 +312,11 @@ button:disabled,
 .page-shell {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-height: 0;
+  gap: var(--space-module);
+  width: 100%;
+  /* 默认按内容撑高，驱动 .site-main 出现整页滚动；需要铺满视口的页面（如地图）自行覆盖 min-height/flex */
+  flex: 0 0 auto;
+  min-height: min-content;
   animation: fade-up 420ms ease;
 }
 

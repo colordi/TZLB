@@ -6,9 +6,16 @@ from unittest.mock import patch
 from pydantic import ValidationError
 
 from backend.exceptions import BusinessError
-from backend.routers.workorder import generate_workorder, generate_workorder_batch
+from backend.routers.workorder import (
+    create_workorder_batch_job,
+    download_workorder_batch_job,
+    generate_workorder,
+    generate_workorder_batch,
+    get_workorder_batch_job_status,
+)
 from backend.schemas import WorkOrderBatchGenerateRequest, WorkOrderGenerateRequest
 from backend.services.docgen import GeneratedArtifact
+from backend.services.workorder_batch_jobs import batch_job_store
 
 
 def create_payload(records: list[dict] | None = None) -> dict:
@@ -178,6 +185,64 @@ class WorkorderRouterTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("attachment;", response.headers["content-disposition"])
         self.assertIn("%E6%89%B9%E9%87%8F%E5%AF%BC%E5%87%BA_2%E4%BB%BD.zip", response.headers["content-disposition"])
         mocked_batch.assert_called_once()
+
+    async def test_batch_job_create_status_and_download(self) -> None:
+        payload = WorkOrderBatchGenerateRequest(
+            **create_payload(
+                records=[
+                    {
+                        "survey_date": "2026-04-01",
+                        "locality": "于家务乡",
+                        "location_id": "YF0069",
+                        "location_name": "神仙村",
+                        "description": "点位描述",
+                        "note": "",
+                        "images": [],
+                    },
+                    {
+                        "survey_date": "2026-04-02",
+                        "locality": "于家务乡",
+                        "location_id": "YF0070",
+                        "location_name": "中心林地",
+                        "description": "第二条点位描述",
+                        "note": "",
+                        "images": [],
+                    },
+                ]
+            )
+        )
+
+        with patch(
+            "backend.services.workorder_batch_jobs.generate_workorder_batch_artifact",
+            return_value=GeneratedArtifact(
+                filename="批量导出_2份.zip",
+                media_type="application/zip",
+                content=b"zip-job-bytes",
+            ),
+        ):
+            created = await create_workorder_batch_job(payload)
+            self.assertTrue(created.job_id)
+            self.assertEqual(created.total, 3)
+
+            # 等待后台任务完成
+            for _ in range(50):
+                status = await get_workorder_batch_job_status(created.job_id)
+                if status.status in {"completed", "failed"}:
+                    break
+                await __import__("asyncio").sleep(0.02)
+
+            status = await get_workorder_batch_job_status(created.job_id)
+            self.assertEqual(status.status, "completed")
+            self.assertEqual(status.percent, 100)
+            self.assertTrue(status.ready_for_download)
+
+            response = await download_workorder_batch_job(created.job_id)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.body, b"zip-job-bytes")
+
+        # 清理任务，避免污染其它用例
+        with batch_job_store._lock:
+            batch_job_store._jobs.pop(created.job_id, None)
 
 
 if __name__ == "__main__":

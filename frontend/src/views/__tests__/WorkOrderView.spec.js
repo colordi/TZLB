@@ -10,6 +10,9 @@ import WorkOrderView from "../WorkOrderView.vue";
 const apiMocks = vi.hoisted(() => ({
   generateWorkorder: vi.fn(),
   generateWorkorderBatch: vi.fn(),
+  startWorkorderBatchJob: vi.fn(),
+  getWorkorderBatchJobStatus: vi.fn(),
+  downloadWorkorderBatchJob: vi.fn(),
   uploadDateImageFolder: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
@@ -20,6 +23,9 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("../../api/workorder.js", () => ({
   generateWorkorder: apiMocks.generateWorkorder,
   generateWorkorderBatch: apiMocks.generateWorkorderBatch,
+  startWorkorderBatchJob: apiMocks.startWorkorderBatchJob,
+  getWorkorderBatchJobStatus: apiMocks.getWorkorderBatchJobStatus,
+  downloadWorkorderBatchJob: apiMocks.downloadWorkorderBatchJob,
   uploadDateImageFolder: apiMocks.uploadDateImageFolder,
 }));
 
@@ -49,6 +55,10 @@ const RecordTableStub = defineComponent({
     errors: {
       type: Array,
       default: () => [],
+    },
+    serialOffset: {
+      type: Number,
+      default: 0,
     },
   },
   emits: ["row-click", "update:selectedUids"],
@@ -200,6 +210,25 @@ describe("WorkOrderView", () => {
       blob: new Blob(["doc"]),
       filename: "工作单.doc",
     });
+    apiMocks.startWorkorderBatchJob.mockResolvedValue({
+      job_id: "job-1",
+      total: 3,
+      status: "queued",
+    });
+    apiMocks.getWorkorderBatchJobStatus.mockResolvedValue({
+      job_id: "job-1",
+      status: "completed",
+      current: 3,
+      total: 3,
+      percent: 100,
+      phase: "completed",
+      message: "导出完成，可下载",
+      ready_for_download: true,
+    });
+    apiMocks.downloadWorkorderBatchJob.mockResolvedValue({
+      blob: new Blob(["zip-content"]),
+      filename: "批量导出_2份.zip",
+    });
     apiMocks.uploadDateImageFolder.mockResolvedValue({
       folder_name: "2026-05-26",
       saved_count: 1,
@@ -211,40 +240,42 @@ describe("WorkOrderView", () => {
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("按设计结构渲染页头、横向任务配置、四个操作按钮和记录面板", () => {
+  it("按设计结构渲染页头、任务配置、导入区与点位清单", () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.find(".page-title-row").exists()).toBe(false);
     expect(wrapper.find(".workspace-intro").exists()).toBe(false);
-    expect(wrapper.text()).toContain("害虫类型");
+    expect(wrapper.text()).toContain("调查工单");
+    expect(wrapper.text()).toContain("导入调查记录，检查点位信息并批量生成工单。");
+    expect(wrapper.text()).toContain("从数据库追加");
+    expect(wrapper.text()).toContain("任务配置");
+    expect(wrapper.text()).toContain("导入调查数据");
+    expect(wrapper.text()).toContain("Excel导入");
+    expect(wrapper.text()).toContain("图片文件夹导入");
+    expect(wrapper.text()).toContain("截图管理");
+    expect(wrapper.text()).not.toContain("拖拽或选择调查 Excel");
+    expect(wrapper.text()).toContain("点位清单");
+    expect(wrapper.text()).toContain("共 0 个点位");
     expect(wrapper.text()).toContain("导出工作单");
-    expect(wrapper.text()).toContain("从数据库追加工单记录");
-    expect(wrapper.text()).toContain("上传调查 Excel");
-    expect(wrapper.text()).toContain("上传日期图片文件夹");
-    expect(wrapper.text()).toContain("点位截图管理");
-    expect(wrapper.text()).toContain("占位功能三");
+    expect(wrapper.text()).not.toContain("占位功能三");
     expect(wrapper.find(".workorder-controls").exists()).toBe(true);
-    expect(wrapper.find(".workorder-stats").exists()).toBe(false);
-    expect(wrapper.find(".workorder-action-grid").exists()).toBe(true);
-    expect(wrapper.findAll(".workorder-action-card")).toHaveLength(4);
-    expect(wrapper.find(".workorder-panel").exists()).toBe(true);
+    expect(wrapper.find(".workorder-action-grid").exists()).toBe(false);
+    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-excel-dropzone"]').exists()).toBe(false);
+    expect(wrapper.find(".workorder-list-card").exists()).toBe(true);
     expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("上传调查 Excel 按钮会打开弹窗，点位截图入口启用且占位功能三保持禁用", async () => {
+  it("Excel 导入按钮会打开弹窗，截图管理入口可用", async () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(false);
 
     await wrapper.get('[data-testid="survey-excel-import-button"]').trigger("click");
-
     expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(true);
-    const actionButtons = wrapper.findAll(".workorder-action-card");
-    expect(actionButtons[1].attributes("disabled")).toBeUndefined();
+
     expect(wrapper.get('[data-testid="point-screenshot-entry"]').attributes("href"))
       .toBe("/workorder/point-screenshots");
-    expect(actionButtons[2].attributes("disabled")).toBeUndefined();
-    expect(actionButtons[3].attributes("disabled")).toBeDefined();
   });
 
   it("日期图片文件夹按钮会触发文件夹选择", async () => {
@@ -447,7 +478,41 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")[0].location_id).toBe("HX0002");
   });
 
-  it("底部批量条支持删除选中记录并清空选择", async () => {
+  it("点位清单分页每页最多 10 条，可翻页并重置到第一页", async () => {
+    const wrapper = mountWorkOrderView();
+    const batch = Array.from({ length: 12 }, (_, index) =>
+      createValidRecord({
+        location_id: `PG${String(index + 1).padStart(4, "0")}`,
+        location_name: `分页点位${index + 1}`,
+      }),
+    );
+    await importRecords(wrapper, batch);
+
+    const recordTable = wrapper.getComponent(RecordTableStub);
+    expect(recordTable.props("records")).toHaveLength(10);
+    expect(recordTable.props("records")[0].location_id).toBe("PG0001");
+    expect(recordTable.props("serialOffset")).toBe(0);
+    expect(wrapper.get('[data-testid="workorder-page-status"]').text()).toContain("第 1 / 2 页");
+    expect(wrapper.get('[data-testid="workorder-page-prev"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.get('[data-testid="workorder-page-next"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    expect(recordTable.props("records")).toHaveLength(2);
+    expect(recordTable.props("records")[0].location_id).toBe("PG0011");
+    expect(recordTable.props("serialOffset")).toBe(10);
+    expect(wrapper.get('[data-testid="workorder-page-status"]').text()).toContain("第 2 / 2 页");
+    expect(wrapper.get('[data-testid="workorder-page-next"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.get('[data-testid="workorder-search"]').setValue("分页点位1");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="workorder-page-status"]').text()).toContain("第 1 /");
+    expect(recordTable.props("records").length).toBeLessThanOrEqual(10);
+    expect(recordTable.props("serialOffset")).toBe(0);
+  });
+
+  it("清单底部支持删除选中记录并清空选择", async () => {
     const wrapper = mountWorkOrderView();
 
     await importRecords(wrapper, [
@@ -462,7 +527,8 @@ describe("WorkOrderView", () => {
     wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedUids", [secondRecordUid]);
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(true);
+    expect(wrapper.find(".workorder-list-foot").exists()).toBe(true);
+    expect(wrapper.text()).toContain("已选择 1 个点位");
     await findButtonByText(wrapper, "删除选中").trigger("click");
     await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
 
@@ -470,7 +536,7 @@ describe("WorkOrderView", () => {
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("YF0069");
     expect(recordTable.props("selectedUids")).toEqual([]);
-    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(false);
+    expect(wrapper.text()).toContain("已选择 0 个点位");
   });
 
   it("其他害虫导入后保留模板字段并支持导出", async () => {
@@ -495,10 +561,14 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        expect.stringContaining("工作单"),
+        "导出成功",
+      );
     });
 
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
@@ -541,10 +611,14 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        expect.stringContaining("工作单"),
+        "导出成功",
+      );
     });
 
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
@@ -593,10 +667,14 @@ describe("WorkOrderView", () => {
       },
     ]);
 
-    await findButtonByText(wrapper, "导出工作单").trigger("click");
+    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        expect.stringContaining("工作单"),
+        "导出成功",
+      );
     });
 
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
@@ -632,6 +710,7 @@ describe("WorkOrderView", () => {
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith("工作单已开始下载。", "导出成功");
     });
 
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
@@ -648,28 +727,29 @@ describe("WorkOrderView", () => {
       ],
     });
     expect(apiMocks.downloadBlob).toHaveBeenCalledTimes(1);
-    expect(apiMocks.success).toHaveBeenCalledWith("工作单已开始下载。", "导出成功");
   });
 
   it("多条记录会批量导出为一个 zip，并显示批量导出成功提示", async () => {
-    apiMocks.generateWorkorderBatch.mockResolvedValue({
-      blob: new Blob(["zip-content"]),
-      filename: "批量导出_2份.zip",
-    });
-
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
       createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
     ]);
 
-    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
+    expect(wrapper.get('[data-testid="workorder-export-button"]').text()).toContain(
+      "导出 2 份工作单",
+    );
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledTimes(1);
+      expect(apiMocks.startWorkorderBatchJob).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        "已批量导出 2 条记录的工作单包。",
+        "导出成功",
+      );
     });
 
-    expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledWith({
+    expect(apiMocks.startWorkorderBatchJob).toHaveBeenCalledWith({
       pest_type: "春尺蠖",
       task_type: "春尺蠖防治",
       task: "2026春尺蠖防治",
@@ -686,19 +766,119 @@ describe("WorkOrderView", () => {
         }),
       ],
     });
+    expect(apiMocks.getWorkorderBatchJobStatus).toHaveBeenCalledWith("job-1");
+    expect(apiMocks.downloadWorkorderBatchJob).toHaveBeenCalledWith("job-1");
     expect(apiMocks.generateWorkorder).not.toHaveBeenCalled();
     expect(apiMocks.downloadBlob).toHaveBeenCalledWith(
       expect.any(Blob),
       "批量导出_2份.zip",
     );
-    expect(apiMocks.success).toHaveBeenCalledWith(
-      "已批量导出 2 条记录的工作单包。",
-      "导出成功",
+  });
+
+  it("批量导出过程中按后端真实进度更新进度条", async () => {
+    apiMocks.getWorkorderBatchJobStatus
+      .mockResolvedValueOnce({
+        job_id: "job-1",
+        status: "running",
+        current: 1,
+        total: 3,
+        percent: 33,
+        phase: "generating",
+        message: "正在生成 1/2：神仙村",
+        ready_for_download: false,
+      })
+      .mockResolvedValueOnce({
+        job_id: "job-1",
+        status: "completed",
+        current: 3,
+        total: 3,
+        percent: 100,
+        phase: "completed",
+        message: "导出完成，可下载",
+        ready_for_download: true,
+      });
+
+    const wrapper = mountWorkOrderView();
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069" }),
+      createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
+    ]);
+
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="workorder-export-progress"]').exists()).toBe(true);
+      expect(wrapper.get('[data-testid="workorder-export-progress"]').text()).toContain(
+        "正在生成 1/2：神仙村",
+      );
+      expect(wrapper.get('[data-testid="workorder-export-progress-percent"]').text()).toBe("33%");
+    });
+
+    await vi.waitFor(() => {
+      expect(apiMocks.downloadWorkorderBatchJob).toHaveBeenCalledWith("job-1");
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        "已批量导出 2 条记录的工作单包。",
+        "导出成功",
+      );
+      expect(wrapper.find('[data-testid="workorder-export-progress"]').exists()).toBe(false);
+    });
+  });
+
+  it("有选中时只导出选中记录", async () => {
+    const wrapper = mountWorkOrderView();
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069" }),
+      createValidRecord({ location_id: "YF0070", location_name: "中心林地" }),
+    ]);
+    const secondRecordUid = wrapper
+      .getComponent(RecordTableStub)
+      .props("records")
+      .find((record) => record.location_id === "YF0070").__uid;
+
+    wrapper.getComponent(RecordTableStub).vm.$emit("update:selectedUids", [secondRecordUid]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="workorder-export-button"]').text()).toContain(
+      "导出 1 份工作单",
     );
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
+      expect(apiMocks.success).toHaveBeenCalledWith(
+        expect.stringContaining("工作单"),
+        "导出成功",
+      );
+    });
+
+    expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
+      pest_type: "春尺蠖",
+      task_type: "春尺蠖防治",
+      task: "2026春尺蠖防治",
+      year: 2026,
+      generation: null,
+      records: [
+        expect.objectContaining({
+          location_id: "YF0070",
+          serial_number: 1,
+        }),
+      ],
+    });
+    expect(apiMocks.generateWorkorderBatch).not.toHaveBeenCalled();
   });
 
   it("多条记录批量导出失败时展示批量导出失败提示", async () => {
-    apiMocks.generateWorkorderBatch.mockRejectedValue(new Error("网络异常"));
+    apiMocks.getWorkorderBatchJobStatus.mockResolvedValue({
+      job_id: "job-1",
+      status: "failed",
+      current: 1,
+      total: 3,
+      percent: 33,
+      phase: "failed",
+      message: "导出失败",
+      error: "网络异常",
+      ready_for_download: false,
+    });
 
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
@@ -707,7 +887,7 @@ describe("WorkOrderView", () => {
     ]);
     apiMocks.success.mockClear();
 
-    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.error).toHaveBeenCalledWith(
@@ -717,10 +897,11 @@ describe("WorkOrderView", () => {
     });
 
     expect(apiMocks.success).not.toHaveBeenCalled();
+    expect(apiMocks.downloadWorkorderBatchJob).not.toHaveBeenCalled();
   });
 
   it("认证失效时批量导出中断", async () => {
-    apiMocks.generateWorkorderBatch.mockRejectedValueOnce(new UnauthorizedError());
+    apiMocks.startWorkorderBatchJob.mockRejectedValueOnce(new UnauthorizedError());
 
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
@@ -731,10 +912,11 @@ describe("WorkOrderView", () => {
     apiMocks.error.mockClear();
     apiMocks.downloadBlob.mockClear();
 
-    await findButtonByText(wrapper, "批量导出工作单（2 条）").trigger("click");
+    await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.generateWorkorderBatch).toHaveBeenCalledTimes(1);
+      expect(apiMocks.startWorkorderBatchJob).toHaveBeenCalledTimes(1);
+      expect(wrapper.find('[data-testid="workorder-export-progress"]').exists()).toBe(false);
     });
 
     expect(apiMocks.downloadBlob).not.toHaveBeenCalled();

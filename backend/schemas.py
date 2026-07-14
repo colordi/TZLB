@@ -154,6 +154,29 @@ class WorkOrderBatchGenerateRequest(BaseModel):
         return self
 
 
+class WorkOrderBatchJobCreateResponse(BaseModel):
+    """批量导出任务创建响应。"""
+
+    job_id: str
+    total: int
+    status: str
+
+
+class WorkOrderBatchJobStatusResponse(BaseModel):
+    """批量导出任务进度响应。"""
+
+    job_id: str
+    status: str
+    current: int
+    total: int
+    percent: int
+    phase: str
+    message: str
+    error: str | None = None
+    filename: str | None = None
+    ready_for_download: bool = False
+
+
 class MapViewSummary(BaseModel):
     """地图视图摘要。"""
 

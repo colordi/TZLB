@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateWorkorderBatch, uploadDateImageFolder } from "../workorder.js";
+import {
+  generateWorkorderBatch,
+  getWorkorderBatchJobStatus,
+  startWorkorderBatchJob,
+  uploadDateImageFolder,
+} from "../workorder.js";
 
 function buildResponse(payload, ok = true) {
   return {
@@ -94,5 +99,42 @@ describe("workorder api", () => {
     );
     expect(result.blob).toBe(blob);
     expect(result.filename).toBe("批量导出.zip");
+  });
+
+  it("startWorkorderBatchJob 创建批量任务并返回 job_id", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse({ job_id: "abc", total: 3, status: "queued" }),
+    );
+
+    const payload = {
+      pest_type: "春尺蠖",
+      task_type: "春尺蠖防治",
+      task: "2026春尺蠖防治",
+      records: [{ survey_date: "2026-04-01", location_name: "神仙村" }],
+    };
+    const result = await startWorkorderBatchJob(payload);
+
+    expect(global.fetch.mock.calls[0][0]).toBe("/api/workorder/generate-batch-jobs");
+    expect(result).toEqual({ job_id: "abc", total: 3, status: "queued" });
+  });
+
+  it("getWorkorderBatchJobStatus 查询任务进度", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse({
+        job_id: "abc",
+        status: "running",
+        current: 1,
+        total: 3,
+        percent: 33,
+        phase: "generating",
+        message: "正在生成 1/2",
+      }),
+    );
+
+    const result = await getWorkorderBatchJobStatus("abc");
+
+    expect(global.fetch.mock.calls[0][0]).toBe("/api/workorder/generate-batch-jobs/abc");
+    expect(result.percent).toBe(33);
+    expect(result.status).toBe("running");
   });
 });

@@ -229,11 +229,11 @@ onBeforeUnmount(() => {
         <div class="app-sidebar-brand-row">
           <RouterLink :to="homePath" class="app-sidebar-brand">
             <span class="app-sidebar-brand-mark" aria-hidden="true">
-              <TreePine :size="22" :stroke-width="2" />
+              <TreePine :size="18" :stroke-width="2" />
             </span>
             <span class="app-sidebar-brand-copy">
               <strong>林业调查工作台</strong>
-              <span>FORESTRY SURVEY WORKBENCH</span>
+              <span>FORESTRY SURVEY</span>
             </span>
           </RouterLink>
           <button
@@ -243,8 +243,8 @@ onBeforeUnmount(() => {
             :aria-expanded="!sidebarCollapsed"
             @click="toggleSidebar"
           >
-            <PanelLeftOpen v-if="sidebarCollapsed" :size="18" :stroke-width="2" />
-            <PanelLeftClose v-else :size="18" :stroke-width="2" />
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="16" :stroke-width="1.8" />
+            <PanelLeftClose v-else :size="16" :stroke-width="1.8" />
           </button>
         </div>
 
@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
               class="app-sidebar-link"
               :data-testid="`sidebar-link-${item.to.slice(1)}`"
             >
-              <component :is="resolveNavIcon(item.icon)" :size="18" :stroke-width="2" />
+              <component :is="resolveNavIcon(item.icon)" :size="18" :stroke-width="1.8" />
               <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
@@ -469,7 +469,7 @@ onBeforeUnmount(() => {
 
 .shell-layout.has-sidebar {
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
@@ -478,7 +478,7 @@ onBeforeUnmount(() => {
 }
 
 .shell-layout.has-sidebar:has(.app-sidebar.is-collapsed) {
-  grid-template-columns: 68px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .shell-layout.is-standalone {
@@ -500,11 +500,11 @@ onBeforeUnmount(() => {
   background: var(--color-nav);
   color: var(--color-surface);
   transition: width 200ms ease;
-  width: 228px;
+  width: 236px;
 }
 
 .app-sidebar.is-collapsed {
-  width: 68px;
+  width: 64px;
 }
 
 .app-sidebar.is-collapsed .app-sidebar-brand-copy,
@@ -525,14 +525,15 @@ onBeforeUnmount(() => {
 .app-sidebar.is-collapsed .app-sidebar-brand-row {
   flex-direction: column;
   justify-content: center;
-  gap: 10px;
-  min-height: 96px;
-  padding: 12px 0;
+  gap: 8px;
+  min-height: 72px;
+  padding: 10px 0;
 }
 
 .app-sidebar.is-collapsed .app-sidebar-link {
   justify-content: center;
   padding: 0;
+  min-height: 40px;
 }
 
 .app-sidebar.is-collapsed .app-sidebar-link svg {
@@ -541,23 +542,25 @@ onBeforeUnmount(() => {
 
 .app-sidebar.is-collapsed .app-sidebar-profile {
   justify-content: center;
+  padding: 4px 0;
 }
 
-.app-sidebar.is-collapsed .app-sidebar-profile span {
+.app-sidebar.is-collapsed .app-sidebar-profile > span:not(.app-sidebar-avatar) {
   display: none;
 }
 
 .app-sidebar.is-collapsed .app-sidebar-foot {
-  padding: var(--space-6) var(--space-2);
+  padding: 10px 8px;
 }
 
 .app-sidebar-brand-row {
-  min-height: 68px;
+  position: relative;
+  min-height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px 0 0;
-  border-bottom: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+  gap: 4px;
+  padding: 0 8px 0 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--color-surface) 10%, transparent);
 }
 
 .app-sidebar-brand {
@@ -565,165 +568,184 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   flex: 1;
-  gap: 11px;
-  padding: 0 18px;
+  gap: 10px;
+  padding: 0 10px 0 14px;
   color: inherit;
   text-decoration: none;
 }
 
 .app-sidebar-brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid color-mix(in oklch, var(--color-surface) 22%, transparent);
-  border-radius: 9px;
-  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-surface) 8%, transparent);
+  color: var(--color-surface);
+}
+
+.app-sidebar-brand-mark :deep(svg) {
+  width: 18px;
+  height: 18px;
 }
 
 .app-sidebar-brand-copy {
   min-width: 0;
-}
-
-.app-sidebar-brand-copy strong,
-.app-sidebar-brand-copy span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1;
 }
 
 .app-sidebar-brand-copy strong {
+  display: block;
+  overflow: visible;
+  white-space: nowrap;
   font-family: var(--font-display);
-  font-size: var(--text-lg);
-  letter-spacing: 0.03em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
 }
 
 .app-sidebar-brand-copy span {
-  color: color-mix(in oklch, var(--color-surface) 62%, transparent);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.06em;
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in oklch, var(--color-surface) 55%, transparent);
+  font-size: 10px;
+  letter-spacing: 0.05em;
 }
 
 .app-sidebar-caption {
-  padding: 20px 18px 8px;
-  color: color-mix(in oklch, var(--color-surface) 48%, transparent);
+  padding: 12px 16px 4px;
+  color: color-mix(in oklch, var(--color-surface) 68%, transparent);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  letter-spacing: 0.08em;
 }
 
 .app-sidebar-nav {
   display: grid;
-  gap: var(--space-1);
-  padding: 0 var(--space-4);
+  gap: 2px;
+  padding: 0 10px;
 }
 
 .app-sidebar-link {
-  min-height: 42px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 var(--space-5);
-  border: 1px solid transparent;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
   border-radius: var(--radius-md);
-  color: color-mix(in oklch, var(--color-surface) 72%, transparent);
+  color: color-mix(in oklch, var(--color-surface) 78%, transparent);
   font-size: var(--text-md);
   font-weight: 650;
   text-decoration: none;
   transition:
     background var(--motion-base) ease,
-    border-color var(--motion-base) ease,
     color var(--motion-base) ease;
 }
 
+.app-sidebar-link :deep(svg) {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 .app-sidebar-link:hover {
-  background: color-mix(in oklch, var(--color-surface) 7%, transparent);
+  background: color-mix(in oklch, var(--color-surface) 8%, transparent);
   color: var(--color-surface);
 }
 
 .app-sidebar-link.router-link-active {
-  border-color: color-mix(in oklch, var(--color-surface) 13%, transparent);
-  background: color-mix(in oklch, var(--color-surface) 10%, transparent);
+  border: 0;
+  background: color-mix(in oklch, var(--color-surface) 12%, transparent);
   color: var(--color-surface);
+  box-shadow: none;
 }
 
 .app-sidebar-foot {
   margin-top: auto;
-  padding: var(--space-6) var(--space-4);
-  border-top: 1px solid color-mix(in oklch, var(--color-surface) 12%, transparent);
+  padding: 10px 12px;
+  border-top: 1px solid color-mix(in oklch, var(--color-surface) 10%, transparent);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 0;
 }
 
 .sidebar-toggle-btn {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  min-height: 32px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  margin-right: 6px;
   box-sizing: border-box;
   padding: 0;
-  border: 1px solid color-mix(in oklch, var(--color-surface) 15%, transparent);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--color-nav) 86%, var(--color-surface));
-  color: color-mix(in oklch, var(--color-surface) 80%, transparent);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in oklch, var(--color-surface) 62%, transparent);
   cursor: pointer;
   transition:
     background var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
 
 .sidebar-toggle-btn:hover {
   transform: none;
   box-shadow: none;
-  background: color-mix(in oklch, var(--color-surface) 15%, transparent);
-  border-color: color-mix(in oklch, var(--color-surface) 25%, transparent);
+  background: color-mix(in oklch, var(--color-surface) 10%, transparent);
   color: var(--color-surface);
 }
 
 .sidebar-toggle-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .app-sidebar-profile {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3);
+  gap: 8px;
+  padding: 4px 2px;
   border-radius: var(--radius-md);
 }
 
 .app-sidebar-avatar {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
   border-radius: var(--radius-round);
-  background: color-mix(in oklch, var(--color-surface) 14%, transparent);
-  font-size: var(--text-sm);
+  background: color-mix(in oklch, var(--color-surface) 12%, transparent);
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
 .app-sidebar-profile strong,
 .app-sidebar-profile span {
   display: block;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .app-sidebar-profile strong {
   font-size: var(--text-sm);
+  font-weight: 650;
 }
 
-.app-sidebar-profile span span {
-  color: color-mix(in oklch, var(--color-surface) 52%, transparent);
-  font-size: var(--text-2xs);
+.app-sidebar-profile > span:not(.app-sidebar-avatar) {
+  min-width: 0;
+}
+
+.app-sidebar-profile > span:not(.app-sidebar-avatar) span {
+  color: color-mix(in oklch, var(--color-surface) 58%, transparent);
+  font-size: 10px;
 }
 
 /* ================================================================
@@ -973,20 +995,32 @@ onBeforeUnmount(() => {
    ================================================================ */
 .site-main {
   grid-column: 2;
+  grid-row: 2;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  margin: 0;
+  min-height: 0;
+  /* 占满侧栏右侧第二行，内容超出时在此区域滚动；侧栏保持固定 */
+  height: 100%;
+  max-height: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: var(--space-10);
-  overflow: auto;
+  padding: var(--space-page-y-top) var(--space-page-x) var(--space-page-y-bottom);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .site-main.is-standalone {
   width: 100%;
   max-width: none;
   min-height: 100vh;
+  height: auto;
+  max-height: none;
+  margin: 0;
   padding: 0;
 }
 
@@ -994,7 +1028,9 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: none;
   min-height: 0;
+  margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 /* ================================================================
@@ -1152,8 +1188,7 @@ onBeforeUnmount(() => {
   }
 
   .site-main {
-    padding-top: 0.85rem;
-    padding-bottom: 1.6rem;
+    padding: 24px 16px 32px;
   }
 
   .mobile-drawer-overlay {
