@@ -277,17 +277,33 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
             "/api/point-screenshots/",
             "/api/point-screenshots/preview",
         }
-        routes = [
-            route
-            for route in app.routes
-            if getattr(route, "path", "").startswith("/api/point-screenshots")
-        ]
 
-        self.assertEqual({route.path for route in routes}, expected_paths)
-        for route in routes:
-            self.assertEqual(len(route.dependencies), 1)
+        # 路径注册：优先读 OpenAPI（新旧 FastAPI 都稳定）；
+        # 权限依赖：兼容 0.139 的 _IncludedRouter 与旧版展开后的 APIRoute。
+        openapi_paths = {
+            path
+            for path in app.openapi().get("paths", {})
+            if path.startswith("/api/point-screenshots")
+        }
+        self.assertEqual(openapi_paths, expected_paths)
 
-        admin_dependency = routes[0].dependencies[0].dependency
+        admin_dependencies = []
+        for route in app.routes:
+            route_path = getattr(route, "path", None)
+            if isinstance(route_path, str) and route_path.startswith("/api/point-screenshots"):
+                admin_dependencies.extend(getattr(route, "dependencies", []) or [])
+                continue
+
+            include_context = getattr(route, "include_context", None)
+            if include_context is None:
+                continue
+            if getattr(include_context, "prefix", None) != "/api/point-screenshots":
+                continue
+            admin_dependencies.extend(getattr(include_context, "dependencies", []) or [])
+
+        self.assertGreaterEqual(len(admin_dependencies), 1, "点位截图路由应挂载 admin 依赖")
+
+        admin_dependency = admin_dependencies[0].dependency
         with self.assertRaises(HTTPException) as context:
             await admin_dependency(
                 {
