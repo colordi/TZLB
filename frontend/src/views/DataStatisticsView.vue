@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { ChartColumn, ChevronLeft, ChevronRight, RefreshCw, Table2 } from "@lucide/vue";
+import { ChartColumn, ChevronLeft, ChevronRight, Table2 } from "@lucide/vue";
 
 import {
   getWhiteMothDailyStatistics,
@@ -41,6 +41,10 @@ const paginatedRows = computed(() => {
 
 watch(rows, () => {
   currentPage.value = 1;
+});
+
+watch([selectedYear, selectedGeneration], () => {
+  loadWhiteMothDailyStatistics();
 });
 
 function formatNumber(value) {
@@ -146,18 +150,6 @@ onMounted(loadWhiteMothDailyStatistics);
         <p class="data-statistics-eyebrow">DATA STATISTICS</p>
         <h1>数据统计</h1>
         <p>查看各虫种的核心统计指标。</p>
-      </div>
-      <div class="data-statistics-actions" aria-label="数据统计操作">
-        <button
-          type="button"
-          class="button-secondary"
-          :disabled="loading"
-          data-testid="data-statistics-refresh"
-          @click="loadWhiteMothDailyStatistics"
-        >
-          <RefreshCw :size="18" :stroke-width="2" />
-          <span>{{ loading ? "刷新中" : "刷新统计" }}</span>
-        </button>
       </div>
     </header>
 
@@ -367,14 +359,6 @@ onMounted(loadWhiteMothDailyStatistics);
   letter-spacing: 0.1em;
 }
 
-.data-statistics-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.data-statistics-actions button,
 .data-statistics-tab {
   display: inline-flex;
   align-items: center;
@@ -629,16 +613,6 @@ onMounted(loadWhiteMothDailyStatistics);
 @media (max-width: 760px) {
   .data-statistics-head {
     flex-direction: column;
-  }
-
-  .data-statistics-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .data-statistics-actions button {
-    flex: 1;
-    justify-content: center;
   }
 
   .data-statistics-summaries {

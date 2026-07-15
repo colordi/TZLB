@@ -147,18 +147,6 @@ onMounted(loadPestTypes);
         <h1>数据导出</h1>
         <p>按虫种导出调查数据和台账数据，选择虫种后可按年份/世代筛选并下载。</p>
       </div>
-      <div class="data-export-actions" aria-label="数据导出操作">
-        <button
-          type="button"
-          class="button-secondary"
-          :disabled="loading"
-          data-testid="data-export-refresh"
-          @click="loadPestTypes"
-        >
-          <RefreshCw :size="18" :stroke-width="2" />
-          <span>{{ loading ? "刷新中" : "刷新列表" }}</span>
-        </button>
-      </div>
     </header>
 
     <section v-if="!loading && pestTypes.length > 0" class="data-export-tabs" aria-label="虫种选择">
@@ -309,19 +297,6 @@ onMounted(loadPestTypes);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.1em;
-}
-
-.data-export-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.data-export-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
 }
 
 .data-export-tabs {
@@ -514,16 +489,6 @@ onMounted(loadPestTypes);
 @media (max-width: 760px) {
   .data-export-head {
     flex-direction: column;
-  }
-
-  .data-export-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .data-export-actions button {
-    flex: 1;
-    justify-content: center;
   }
 
   .data-export-filters {

@@ -163,6 +163,37 @@ describe("DataStatisticsView", () => {
     expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取数据统计失败");
   });
 
+  it("切换年份或世代后自动重新加载统计", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear(),
+      generation: undefined,
+    });
+
+    await wrapper.get('[data-testid="data-statistics-year-filter"]').setValue(
+      String(new Date().getFullYear() - 1),
+    );
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: undefined,
+    });
+
+    await wrapper.get('[data-testid="data-statistics-generation-filter"]').setValue("第一代");
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(3);
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: "第一代",
+    });
+  });
+
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValueOnce(buildPayload(9));
 
