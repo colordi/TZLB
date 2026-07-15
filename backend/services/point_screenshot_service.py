@@ -17,6 +17,7 @@ from backend.services.docgen import (
     SUPPORTED_IMAGE_FORMAT_LABEL,
     ensure_image_size_limits,
     find_point_screenshot,
+    image_to_rgb,
     is_image_file,
     natural_path_sort_key,
 )
@@ -24,6 +25,9 @@ from backend.services.pest_registry import get_screenshot_dir
 
 
 POINT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9\u4e00-\u9fa5_-]+$")
+PREVIEW_SIZES = frozenset({"full", "thumb"})
+THUMB_MAX_EDGE = 360
+THUMB_JPEG_QUALITY = 82
 IMAGE_EXTENSION_BY_FORMAT = {
     "JPEG": "jpg",
     "PNG": "png",
@@ -168,8 +172,49 @@ def delete_point_screenshot(pest_type: str, code: str) -> dict[str, object]:
     return {"code": normalized_code, "deleted": True}
 
 
-def read_point_screenshot(pest_type: str, code: str) -> tuple[bytes, str]:
-    """读取点位截图内容和媒体类型。"""
+def _build_thumbnail_bytes(content: bytes) -> bytes:
+    """将原图缩放为列表用缩略图，统一输出 JPEG。"""
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(content)) as image:
+                image.load()
+                rgb_image = image_to_rgb(image)
+                rgb_image.thumbnail(
+                    (THUMB_MAX_EDGE, THUMB_MAX_EDGE),
+                    Image.Resampling.LANCZOS,
+                )
+                buffer = io.BytesIO()
+                rgb_image.save(
+                    buffer,
+                    format="JPEG",
+                    quality=THUMB_JPEG_QUALITY,
+                    optimize=True,
+                )
+                return buffer.getvalue()
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
+        raise ValueError("截图像素尺寸过大，无法生成缩略图") from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValueError("截图文件损坏，无法生成缩略图") from exc
+
+
+def read_point_screenshot(
+    pest_type: str,
+    code: str,
+    *,
+    size: str = "full",
+) -> tuple[bytes, str]:
+    """读取点位截图内容和媒体类型。
+
+    size:
+      - full: 原图
+      - thumb: 最长边不超过 THUMB_MAX_EDGE 的 JPEG 缩略图
+    """
+
+    normalized_size = str(size or "full").strip().lower()
+    if normalized_size not in PREVIEW_SIZES:
+        raise ValueError("预览尺寸仅支持 full 或 thumb")
 
     normalized_code = validate_point_code(code)
     screenshot_dir = require_screenshot_dir(pest_type)
@@ -178,5 +223,9 @@ def read_point_screenshot(pest_type: str, code: str) -> tuple[bytes, str]:
         raise FileNotFoundError(f"未找到点位 {normalized_code} 的截图")
 
     ensure_inside_directory(screenshot_dir, screenshot_path)
+    content = screenshot_path.read_bytes()
+    if normalized_size == "thumb":
+        return _build_thumbnail_bytes(content), "image/jpeg"
+
     media_type, _ = mimetypes.guess_type(screenshot_path.name)
-    return screenshot_path.read_bytes(), media_type or "application/octet-stream"
+    return content, media_type or "application/octet-stream"

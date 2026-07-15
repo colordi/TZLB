@@ -69,7 +69,7 @@ describe("pointScreenshot api", () => {
     expect(init).toEqual(expect.objectContaining({ method: "DELETE" }));
   });
 
-  it("读取预览图片并返回 objectURL", async () => {
+  it("读取预览图片并返回 objectURL，默认 size=full", async () => {
     const blob = new Blob(["image"], { type: "image/jpeg" });
     const createObjectURL = vi.fn().mockReturnValue("blob:point-preview");
     vi.stubGlobal("URL", { createObjectURL });
@@ -84,5 +84,27 @@ describe("pointScreenshot api", () => {
 
     expect(result).toBe("blob:point-preview");
     expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      `/api/point-screenshots/preview?pest_type=${encodeURIComponent("春尺蠖")}&code=YT001&size=full`,
+    );
+  });
+
+  it("可请求缩略图预览 size=thumb", async () => {
+    const blob = new Blob(["thumb"], { type: "image/jpeg" });
+    const createObjectURL = vi.fn().mockReturnValue("blob:point-thumb");
+    vi.stubGlobal("URL", { createObjectURL });
+    global.fetch.mockResolvedValue({
+      ok: true,
+      async blob() {
+        return blob;
+      },
+    });
+
+    const result = await fetchPointScreenshotBlob("美国白蛾", "MQ001", { size: "thumb" });
+
+    expect(result).toBe("blob:point-thumb");
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      `/api/point-screenshots/preview?pest_type=${encodeURIComponent("美国白蛾")}&code=MQ001&size=thumb`,
+    );
   });
 });

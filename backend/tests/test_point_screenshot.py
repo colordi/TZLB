@@ -18,6 +18,7 @@ from backend.routers.point_screenshot import (
 )
 from backend.services.docgen import find_point_screenshot
 from backend.services.point_screenshot_service import (
+    THUMB_MAX_EDGE,
     delete_point_screenshot,
     list_point_screenshot_status,
     read_point_screenshot,
@@ -266,7 +267,41 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(read_content, content)
         self.assertEqual(media_type, "image/png")
         self.assertEqual(response.body, content)
-        self.assertEqual(response.headers["content-type"], "image/png")
+        self.assertEqual(response.headers["content-type"].startswith("image/png"), True)
+        self.assertEqual(response.headers.get("cache-control"), "private, max-age=300")
+
+    async def test_preview_thumb_returns_downscaled_jpeg(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            screenshot_dir = Path(tempdir)
+            buffer = io.BytesIO()
+            Image.new("RGB", (1200, 800), color=(45, 120, 80)).save(buffer, format="PNG")
+            original = buffer.getvalue()
+            (screenshot_dir / "MQ001.png").write_bytes(original)
+
+            with patch(
+                "backend.services.point_screenshot_service.get_screenshot_dir",
+                return_value=screenshot_dir,
+            ):
+                thumb_content, media_type = read_point_screenshot(
+                    "美国白蛾",
+                    "MQ001",
+                    size="thumb",
+                )
+                response = await preview_route("美国白蛾", "MQ001", size="thumb")
+
+        self.assertEqual(media_type, "image/jpeg")
+        self.assertLess(len(thumb_content), len(original))
+        with Image.open(io.BytesIO(thumb_content)) as thumb:
+            self.assertEqual(thumb.format, "JPEG")
+            self.assertLessEqual(max(thumb.size), THUMB_MAX_EDGE)
+            self.assertEqual(thumb.size, (THUMB_MAX_EDGE, 240))
+        self.assertEqual(response.body, thumb_content)
+        self.assertEqual(response.headers["content-type"].startswith("image/jpeg"), True)
+
+    async def test_preview_rejects_invalid_size(self) -> None:
+        with self.assertRaises(ValueError) as context:
+            read_point_screenshot("美国白蛾", "MQ001", size="medium")
+        self.assertIn("full 或 thumb", str(context.exception))
 
     async def test_main_routes_require_admin_role(self) -> None:
         from backend.main import app

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
@@ -50,14 +52,23 @@ async def delete_point_screenshot(pest_type: str, code: str) -> dict:
 
 
 @router.get("/preview", summary="预览点位截图")
-async def preview_point_screenshot(pest_type: str, code: str) -> Response:
+async def preview_point_screenshot(
+    pest_type: str,
+    code: str,
+    size: Literal["full", "thumb"] = "full",
+) -> Response:
     try:
         content, media_type = point_screenshot_service.read_point_screenshot(
             pest_type,
             code,
+            size=size,
         )
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(content=content, media_type=media_type)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=300"},
+    )

@@ -124,7 +124,9 @@ describe("PointScreenshotView", () => {
     expect(wrapper.get('[data-testid="point-screenshot-existing"]').text()).toContain("1");
     expect(wrapper.get('[data-testid="point-screenshot-missing"]').text()).toContain("1");
     expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
-    expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001");
+    expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
+      size: "thumb",
+    });
 
     await wrapper.get('[data-testid="point-screenshot-tab-春尺蠖"]').trigger("click");
     await flushPromises();
@@ -257,6 +259,40 @@ describe("PointScreenshotView", () => {
       "已删除 MQ001 的点位截图。",
       "截图已删除",
     );
+  });
+
+  it("列表仅请求缩略图，点击后才加载原图大图", async () => {
+    apiMocks.fetchPointScreenshotBlob.mockImplementation((pestType, code, options = {}) =>
+      Promise.resolve(`blob:${pestType}:${code}:${options.size || "full"}`),
+    );
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
+      size: "thumb",
+    });
+    expect(apiMocks.fetchPointScreenshotBlob).not.toHaveBeenCalledWith(
+      "美国白蛾",
+      "MQ001",
+      { size: "full" },
+    );
+
+    await wrapper.get('[data-testid="point-screenshot-preview-MQ001"]').trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
+      size: "full",
+    });
+    expect(wrapper.get('[data-testid="point-screenshot-lightbox-image"]').attributes("src")).toBe(
+      "blob:美国白蛾:MQ001:full",
+    );
+
+    await wrapper.get('[data-testid="point-screenshot-lightbox-close"]').trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.revokeObjectURL).toHaveBeenCalledWith("blob:美国白蛾:MQ001:full");
+    expect(wrapper.find('[data-testid="point-screenshot-lightbox"]').exists()).toBe(false);
   });
 
   it("页面卸载时回收当前页缩略图 objectURL", async () => {

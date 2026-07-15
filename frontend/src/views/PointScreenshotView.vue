@@ -10,6 +10,7 @@ import {
   uploadPointScreenshot,
 } from "../api/pointScreenshot.js";
 import { isUnauthorizedError } from "../api/http.js";
+import BaseDialog from "../components/workorder/BaseDialog.vue";
 import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
 import { useToast } from "../composables/useToast.js";
 
@@ -34,8 +35,10 @@ const deletingCode = ref("");
 const currentPage = ref(1);
 const thumbnailUrls = reactive(new Map());
 const thumbnailStates = reactive(new Map());
+const lightbox = ref(null);
 let loadRequestId = 0;
 let thumbnailRequestId = 0;
+let lightboxRequestId = 0;
 let searchTimer = null;
 let componentActive = false;
 
@@ -88,7 +91,7 @@ async function loadThumbnail(point, requestId, previewRequestId, requestedPestTy
   const code = pointKey(point);
   thumbnailStates.set(code, "loading");
   try {
-    const url = await fetchPointScreenshotBlob(requestedPestType, code);
+    const url = await fetchPointScreenshotBlob(requestedPestType, code, { size: "thumb" });
     if (
       !componentActive ||
       requestId !== loadRequestId ||
@@ -108,6 +111,73 @@ async function loadThumbnail(point, requestId, previewRequestId, requestedPestTy
       requestedPestType === pestType.value
     ) {
       thumbnailStates.set(code, "error");
+    }
+    if (isUnauthorizedError(error)) {
+      return;
+    }
+  }
+}
+
+function closeLightbox() {
+  lightboxRequestId += 1;
+  const current = lightbox.value;
+  if (current?.url) {
+    revokeObjectUrl(current.url);
+  }
+  lightbox.value = null;
+}
+
+async function openLightbox(point) {
+  if (!point?.has_screenshot || operationBusy.value) {
+    return;
+  }
+
+  const code = pointKey(point);
+  const requestedPestType = pestType.value;
+  const requestId = ++lightboxRequestId;
+
+  if (lightbox.value?.url) {
+    revokeObjectUrl(lightbox.value.url);
+  }
+
+  lightbox.value = {
+    code,
+    name: point.name || "",
+    url: "",
+    loading: true,
+    error: false,
+  };
+
+  try {
+    const url = await fetchPointScreenshotBlob(requestedPestType, code, { size: "full" });
+    if (
+      !componentActive ||
+      requestId !== lightboxRequestId ||
+      requestedPestType !== pestType.value
+    ) {
+      revokeObjectUrl(url);
+      return;
+    }
+    lightbox.value = {
+      code,
+      name: point.name || "",
+      url,
+      loading: false,
+      error: false,
+    };
+  } catch (error) {
+    if (
+      componentActive &&
+      requestId === lightboxRequestId &&
+      requestedPestType === pestType.value
+    ) {
+      lightbox.value = {
+        code,
+        name: point.name || "",
+        url: "",
+        loading: false,
+        error: true,
+      };
     }
     if (isUnauthorizedError(error)) {
       return;
@@ -207,6 +277,7 @@ function selectPest(nextPestType) {
   if (operationBusy.value) {
     return;
   }
+  closeLightbox();
   pestType.value = nextPestType;
   loadPoints();
 }
@@ -316,6 +387,7 @@ onBeforeUnmount(() => {
   componentActive = false;
   loadRequestId += 1;
   clearSearchTimer();
+  closeLightbox();
   releaseThumbnailUrls();
 });
 </script>
@@ -395,23 +467,29 @@ onBeforeUnmount(() => {
         :data-testid="`point-screenshot-card-${point.code}`"
       >
         <div class="point-screenshot-preview">
-          <img
-            v-if="thumbnailUrls.get(pointKey(point))"
-            :src="thumbnailUrls.get(pointKey(point))"
-            :alt="`${point.code} 点位截图`"
-          />
-          <div
-            v-else
-            class="point-screenshot-placeholder"
-            :class="{ 'has-file': point.has_screenshot }"
+          <button
+            v-if="point.has_screenshot"
+            type="button"
+            class="point-screenshot-preview-trigger"
+            :disabled="operationBusy"
+            :data-testid="`point-screenshot-preview-${point.code}`"
+            :aria-label="`查看 ${point.code} 大图`"
+            @click="openLightbox(point)"
           >
-            <Image v-if="point.has_screenshot" :size="26" :stroke-width="1.7" />
-            <ImageOff v-else :size="26" :stroke-width="1.7" />
-            <span v-if="point.has_screenshot && thumbnailStates.get(pointKey(point)) === 'loading'">
-              加载中…
-            </span>
-            <span v-else-if="point.has_screenshot">预览不可用</span>
-            <span v-else>缺失</span>
+            <img
+              v-if="thumbnailUrls.get(pointKey(point))"
+              :src="thumbnailUrls.get(pointKey(point))"
+              :alt="`${point.code} 点位截图缩略图`"
+            />
+            <div v-else class="point-screenshot-placeholder has-file">
+              <Image :size="26" :stroke-width="1.7" />
+              <span v-if="thumbnailStates.get(pointKey(point)) === 'loading'">加载中…</span>
+              <span v-else>预览不可用</span>
+            </div>
+          </button>
+          <div v-else class="point-screenshot-placeholder">
+            <ImageOff :size="26" :stroke-width="1.7" />
+            <span>缺失</span>
           </div>
           <span
             class="point-screenshot-status"
@@ -506,6 +584,36 @@ onBeforeUnmount(() => {
       @close="closeDeleteDialog"
       @confirm="confirmDelete"
     />
+
+    <BaseDialog
+      :open="Boolean(lightbox)"
+      :aria-label="lightbox ? `${lightbox.code} 点位截图大图` : '点位截图大图'"
+      mask-class="point-screenshot-lightbox-mask"
+      dialog-class="point-screenshot-lightbox-dialog"
+      @close="closeLightbox"
+    >
+      <header v-if="lightbox" class="point-screenshot-lightbox-head">
+        <div>
+          <h3>{{ lightbox.code }}</h3>
+          <p>{{ lightbox.name || "未命名点位" }}</p>
+        </div>
+        <button type="button" class="button-secondary" data-testid="point-screenshot-lightbox-close" @click="closeLightbox">
+          关闭
+        </button>
+      </header>
+      <div v-if="lightbox" class="point-screenshot-lightbox-body" data-testid="point-screenshot-lightbox">
+        <div v-if="lightbox.loading" class="point-screenshot-lightbox-state">正在加载大图…</div>
+        <div v-else-if="lightbox.error" class="point-screenshot-lightbox-state is-error">
+          大图加载失败，请稍后重试。
+        </div>
+        <img
+          v-else-if="lightbox.url"
+          :src="lightbox.url"
+          :alt="`${lightbox.code} 点位截图`"
+          data-testid="point-screenshot-lightbox-image"
+        />
+      </div>
+    </BaseDialog>
   </section>
 </template>
 
@@ -666,6 +774,28 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
+}
+
+.point-screenshot-preview-trigger {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  color: inherit;
+  text-align: inherit;
+}
+
+.point-screenshot-preview-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.point-screenshot-preview-trigger:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 .point-screenshot-preview img {
@@ -862,5 +992,76 @@ onBeforeUnmount(() => {
   .point-screenshot-stats span + span {
     padding-left: var(--space-3);
   }
+}
+
+.point-screenshot-lightbox-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.point-screenshot-lightbox-head h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.point-screenshot-lightbox-head p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.point-screenshot-lightbox-body {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-5);
+  background: var(--color-bg);
+}
+
+.point-screenshot-lightbox-body img {
+  max-width: min(100%, 92vw);
+  max-height: min(72vh, 48rem);
+  width: auto;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.point-screenshot-lightbox-state {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.point-screenshot-lightbox-state.is-error {
+  color: var(--color-danger);
+}
+</style>
+
+<style>
+.base-dialog-mask.point-screenshot-lightbox-mask {
+  z-index: 1600;
+  backdrop-filter: blur(8px);
+}
+
+.base-dialog-content.point-screenshot-lightbox-dialog {
+  width: min(56rem, calc(100vw - 2rem));
+  max-height: min(90vh, 54rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>
