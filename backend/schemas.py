@@ -200,6 +200,16 @@ class WhiteMothSiteCreateRequest(BaseModel):
         return value.strip().upper()
 
 
+class WhiteMothSiteCodeHintResponse(BaseModel):
+    """美国白蛾点位编号提示响应。"""
+
+    prefix: str
+    locality: str
+    latest_code: str | None = None
+    latest_serial: int | None = None
+    suggested_next_code: str | None = None
+
+
 class WhiteMothSiteResponse(BaseModel):
     """美国白蛾点位新增响应。"""
 

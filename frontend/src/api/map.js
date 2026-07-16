@@ -28,6 +28,16 @@ export async function fetchWhiteMothSiteCodeRules() {
   return response.json();
 }
 
+export async function fetchWhiteMothSiteCodeHint(prefix) {
+  const search = new URLSearchParams();
+  search.set("prefix", `${prefix || ""}`.trim().toUpperCase());
+  const response = await apiFetch(
+    `/api/map/white-moth-sites/code-hint?${search.toString()}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function fetchMapFilterOptions(name) {
   const response = await apiFetch(
     `/api/map/views/${encodeURIComponent(name)}/filter-options`,

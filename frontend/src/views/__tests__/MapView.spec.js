@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({
   listMapViews: vi.fn(),
   fetchMapFilterOptions: vi.fn(),
   fetchWhiteMothSiteCodeRules: vi.fn(),
+  fetchWhiteMothSiteCodeHint: vi.fn(),
   createWhiteMothSite: vi.fn(),
   deleteWhiteMothSite: vi.fn(),
   deleteWhiteMothSiteCheck: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("../../api/map.js", () => ({
   listMapViews: apiMocks.listMapViews,
   fetchMapFilterOptions: apiMocks.fetchMapFilterOptions,
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
+  fetchWhiteMothSiteCodeHint: apiMocks.fetchWhiteMothSiteCodeHint,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
   deleteWhiteMothSite: apiMocks.deleteWhiteMothSite,
   deleteWhiteMothSiteCheck: apiMocks.deleteWhiteMothSiteCheck,
@@ -231,13 +233,32 @@ describe("MapView", () => {
       features: [],
     });
     apiMocks.fetchWhiteMothSiteCodeRules.mockResolvedValue({
-      code_pattern: "^[A-Z]{2}\\d{3}$",
+      code_pattern: "^[A-Z]{2,3}\\d{3}$",
       code_example: "MQ001",
       prefix_localities: {
         MQ: "马驹桥镇",
         TH: "台湖镇",
+        LY: "梨园镇",
+        LYI: "潞邑街道",
+        LYU: "潞源街道",
+        JK: "九棵树街道",
       },
     });
+    apiMocks.fetchWhiteMothSiteCodeHint.mockImplementation(async (prefix) => ({
+      prefix: `${prefix}`.toUpperCase(),
+      locality:
+        {
+          MQ: "马驹桥镇",
+          TH: "台湖镇",
+          LY: "梨园镇",
+          LYI: "潞邑街道",
+          LYU: "潞源街道",
+          JK: "九棵树街道",
+        }[`${prefix}`.toUpperCase()] || "",
+      latest_code: `${`${prefix}`.toUpperCase()}042`,
+      latest_serial: 42,
+      suggested_next_code: `${`${prefix}`.toUpperCase()}043`,
+    }));
     apiMocks.createWhiteMothSite.mockResolvedValue({
       gid: 14,
       code: "MQ001",
@@ -1000,6 +1021,59 @@ describe("MapView", () => {
     );
     await wrapper.get(".site-add-form").trigger("submit");
     expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
+  });
+
+  it("三位编号前缀能正确识别属地且不与两位前缀混淆", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+    });
+
+    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-click-target"]').trigger("click");
+
+    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("lyi001");
+    expect(wrapper.get('[data-testid="white-moth-site-code"]').element.value).toBe("LYI001");
+    expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("潞邑街道");
+
+    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("ly001");
+    expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("梨园镇");
+
+    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("jk001");
+    expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("九棵树街道");
+  });
+
+  it("仅输入前缀即可识别属地并展示最新编号提示", async () => {
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+    });
+
+    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-click-target"]').trigger("click");
+    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("mq");
+
+    expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("马驹桥镇");
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchWhiteMothSiteCodeHint).toHaveBeenCalledWith("MQ");
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="white-moth-site-code-hint-text"]').text()).toContain(
+        "MQ042",
+      );
+      expect(wrapper.get('[data-testid="white-moth-site-code-hint-text"]').text()).toContain(
+        "MQ043",
+      );
+    });
+    expect(wrapper.get('[data-testid="white-moth-site-submit"]').attributes("disabled")).toBe(
+      "",
+    );
+
+    await wrapper.get('[data-testid="white-moth-site-fill-suggested-code"]').trigger("click");
+    expect(wrapper.get('[data-testid="white-moth-site-code"]').element.value).toBe("MQ043");
+    expect(wrapper.get('[data-testid="white-moth-site-submit"]').attributes("disabled")).toBeUndefined();
   });
 
   it("保存成功后刷新视图并切换到美国白蛾点位视图", async () => {

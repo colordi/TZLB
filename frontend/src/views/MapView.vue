@@ -10,6 +10,7 @@ import {
   fetchMapFilterOptions,
   fetchMapView,
   fetchReferenceLayer,
+  fetchWhiteMothSiteCodeHint,
   fetchWhiteMothSiteCodeRules,
   listMapViews,
   listReferenceLayers,
@@ -75,6 +76,8 @@ const whiteMothSiteForm = ref({
   code: "",
   siteName: "",
 });
+const whiteMothSiteCodeHint = ref(null);
+const loadingWhiteMothSiteCodeHint = ref(false);
 const isAddingWhiteMothSite = ref(false);
 const isSavingWhiteMothSite = ref(false);
 const showDeleteConfirm = ref(false);
@@ -83,6 +86,7 @@ const deleteCheckLoading = ref(false);
 const pendingDeleteSite = ref(null);
 let geojsonRequestToken = 0;
 let filterOptionsRequestToken = 0;
+let whiteMothSiteCodeHintRequestToken = 0;
 let shouldAutoFitOnNextViewChange = true;
 let mapFocusRequestToken = 0;
 
@@ -507,12 +511,39 @@ const whiteMothSiteCodeRegex = computed(() => {
     return null;
   }
 });
-const resolvedWhiteMothSiteLocality = computed(() => {
+const sortedWhiteMothSitePrefixes = computed(() =>
+  Object.keys(whiteMothSitePrefixLocalities.value).sort((a, b) => b.length - a.length),
+);
+const matchedWhiteMothSitePrefix = computed(() => {
   const code = normalizedWhiteMothSiteCode.value;
-  if (!code || !whiteMothSiteCodeRegex.value?.test(code)) {
+  if (!code) {
     return "";
   }
-  return whiteMothSitePrefixLocalities.value[code.slice(0, 2)] || "";
+  // 按前缀长度从长到短匹配，输入前缀即可识别，且避免 LYI 被误判为 LY
+  for (const prefix of sortedWhiteMothSitePrefixes.value) {
+    if (code === prefix) {
+      return prefix;
+    }
+    if (code.startsWith(prefix) && /^\d{0,3}$/.test(code.slice(prefix.length))) {
+      return prefix;
+    }
+  }
+  return "";
+});
+const resolvedWhiteMothSiteLocality = computed(() => {
+  if (!matchedWhiteMothSitePrefix.value) {
+    return "";
+  }
+  return whiteMothSitePrefixLocalities.value[matchedWhiteMothSitePrefix.value] || "";
+});
+const isCompleteWhiteMothSiteCode = computed(() => {
+  const code = normalizedWhiteMothSiteCode.value;
+  return Boolean(
+    code &&
+      matchedWhiteMothSitePrefix.value &&
+      whiteMothSiteCodeRegex.value?.test(code) &&
+      code.slice(matchedWhiteMothSitePrefix.value.length).length === 3,
+  );
 });
 const whiteMothSiteCodeError = computed(() => {
   if (!whiteMothSiteCodeRules.value) {
@@ -523,10 +554,37 @@ const whiteMothSiteCodeError = computed(() => {
   if (!code) {
     return "请输入编号";
   }
-  if (!whiteMothSiteCodeRegex.value?.test(code) || !resolvedWhiteMothSiteLocality.value) {
-    return `编号格式不正确，请输入类似 ${whiteMothSiteCodeExample.value} 的编号`;
+  if (matchedWhiteMothSitePrefix.value) {
+    // 前缀已识别：完整编号才可提交；输入过程中不报红错
+    return "";
   }
-  return "";
+  // 仍在输入首个字母时先不报错
+  if (/^[A-Z]$/.test(code)) {
+    return "";
+  }
+  return `编号格式不正确，请输入类似 ${whiteMothSiteCodeExample.value} 的编号`;
+});
+const whiteMothSiteCodeHintText = computed(() => {
+  if (!matchedWhiteMothSitePrefix.value) {
+    return "";
+  }
+  if (loadingWhiteMothSiteCodeHint.value) {
+    return "正在查询该属地最新编号…";
+  }
+  const hint = whiteMothSiteCodeHint.value;
+  if (!hint || hint.prefix !== matchedWhiteMothSitePrefix.value) {
+    return "编号提示暂不可用";
+  }
+  if (hint.latest_code && hint.suggested_next_code) {
+    return `当前最大编号 ${hint.latest_code}，建议新编号 ${hint.suggested_next_code}`;
+  }
+  if (hint.suggested_next_code) {
+    return `该属地暂无点位，建议新编号 ${hint.suggested_next_code}`;
+  }
+  if (hint.latest_code) {
+    return `当前最大编号 ${hint.latest_code}，序号已用尽`;
+  }
+  return "编号提示暂不可用";
 });
 const whiteMothSiteLocationText = computed(() => {
   if (!whiteMothSiteDraftLocation.value) {
@@ -539,7 +597,7 @@ const whiteMothSiteLocationText = computed(() => {
 const canSubmitWhiteMothSite = computed(
   () =>
     Boolean(whiteMothSiteDraftLocation.value) &&
-    !whiteMothSiteCodeError.value &&
+    isCompleteWhiteMothSiteCode.value &&
     !isSavingWhiteMothSite.value,
 );
 const pointCount = computed(() => geojson.value?.features?.length || 0);
@@ -861,6 +919,46 @@ function resetWhiteMothSiteDraft() {
     code: "",
     siteName: "",
   };
+  whiteMothSiteCodeHint.value = null;
+  loadingWhiteMothSiteCodeHint.value = false;
+  whiteMothSiteCodeHintRequestToken += 1;
+}
+
+async function loadWhiteMothSiteCodeHint(prefix) {
+  const normalizedPrefix = `${prefix || ""}`.trim().toUpperCase();
+  if (!normalizedPrefix) {
+    whiteMothSiteCodeHint.value = null;
+    loadingWhiteMothSiteCodeHint.value = false;
+    return;
+  }
+
+  const requestToken = ++whiteMothSiteCodeHintRequestToken;
+  loadingWhiteMothSiteCodeHint.value = true;
+  try {
+    const hint = await fetchWhiteMothSiteCodeHint(normalizedPrefix);
+    if (requestToken !== whiteMothSiteCodeHintRequestToken) {
+      return;
+    }
+    whiteMothSiteCodeHint.value = hint;
+  } catch {
+    if (requestToken !== whiteMothSiteCodeHintRequestToken) {
+      return;
+    }
+    // 提示失败不打断录入，仅隐藏建议编号。
+    whiteMothSiteCodeHint.value = null;
+  } finally {
+    if (requestToken === whiteMothSiteCodeHintRequestToken) {
+      loadingWhiteMothSiteCodeHint.value = false;
+    }
+  }
+}
+
+function applySuggestedWhiteMothSiteCode() {
+  const suggested = whiteMothSiteCodeHint.value?.suggested_next_code;
+  if (!suggested || isSavingWhiteMothSite.value) {
+    return;
+  }
+  whiteMothSiteForm.value.code = suggested;
 }
 
 function startWhiteMothSiteAdd() {
@@ -908,6 +1006,14 @@ async function submitWhiteMothSite() {
   normalizeWhiteMothSiteCodeInput();
   if (!whiteMothSiteDraftLocation.value) {
     error("请先在地图上点击点位位置。", "新增点位失败");
+    return;
+  }
+  if (!isCompleteWhiteMothSiteCode.value) {
+    error(
+      whiteMothSiteCodeError.value ||
+        `请输入完整编号，例如 ${whiteMothSiteCodeExample.value}`,
+      "新增点位失败",
+    );
     return;
   }
   if (whiteMothSiteCodeError.value) {
@@ -959,6 +1065,16 @@ watch(selectedView, async () => {
     dynamicFilterValues.value = resolveDefaultDynamicFilters();
   }
   await loadGeoJson({ autoFit: shouldAutoFit });
+});
+
+watch(matchedWhiteMothSitePrefix, (prefix) => {
+  if (!prefix) {
+    whiteMothSiteCodeHintRequestToken += 1;
+    whiteMothSiteCodeHint.value = null;
+    loadingWhiteMothSiteCodeHint.value = false;
+    return;
+  }
+  loadWhiteMothSiteCodeHint(prefix);
 });
 
 onMounted(async () => {
@@ -1227,6 +1343,27 @@ onMounted(async () => {
               <strong data-testid="white-moth-site-locality">
                 {{ resolvedWhiteMothSiteLocality || '待识别' }}
               </strong>
+            </div>
+
+            <div
+              v-if="matchedWhiteMothSitePrefix"
+              class="site-add-location site-add-code-hint"
+              data-testid="white-moth-site-code-hint"
+            >
+              <span class="detail-label">编号提示</span>
+              <strong data-testid="white-moth-site-code-hint-text">
+                {{ whiteMothSiteCodeHintText }}
+              </strong>
+              <button
+                v-if="whiteMothSiteCodeHint?.suggested_next_code && !loadingWhiteMothSiteCodeHint"
+                type="button"
+                class="site-add-hint-fill-btn"
+                data-testid="white-moth-site-fill-suggested-code"
+                :disabled="isSavingWhiteMothSite"
+                @click="applySuggestedWhiteMothSiteCode"
+              >
+                填入建议编号
+              </button>
             </div>
 
             <label class="site-add-field">
@@ -1928,6 +2065,33 @@ onMounted(async () => {
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.site-add-code-hint {
+  gap: 0.45rem;
+}
+
+.site-add-hint-fill-btn {
+  align-self: flex-start;
+  margin-top: 0.1rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.site-add-hint-fill-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+}
+
+.site-add-hint-fill-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .site-add-actions {

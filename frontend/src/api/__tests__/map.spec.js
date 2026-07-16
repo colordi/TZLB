@@ -100,6 +100,16 @@ describe("api/map", () => {
     );
   });
 
+  it("读取美国白蛾编号提示时编码前缀", async () => {
+    const { fetchWhiteMothSiteCodeHint } = await import("../map.js");
+
+    await fetchWhiteMothSiteCodeHint("mq");
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/map/white-moth-sites/code-hint?prefix=MQ",
+    );
+  });
+
   it("读取参考图层列表", async () => {
     const { listReferenceLayers } = await import("../map.js");
 

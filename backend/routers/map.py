@@ -20,9 +20,11 @@ from backend.db.postgres import (
     fetch_map_filter_options,
     fetch_reference_layer_feature_collection,
     fetch_view_feature_collection,
+    get_white_moth_site_code_hint,
     get_white_moth_site_code_rules,
 )
 from backend.schemas import (
+    WhiteMothSiteCodeHintResponse,
     WhiteMothSiteCreateRequest,
     WhiteMothSiteDeleteCheckResponse,
     WhiteMothSiteDeleteResponse,
@@ -90,6 +92,24 @@ async def get_reference_layers() -> list[dict]:
 @router.get("/white-moth-sites/code-rules", summary="读取美国白蛾点位编号规则")
 async def get_white_moth_site_rules() -> dict:
     return get_white_moth_site_code_rules()
+
+
+@router.get(
+    "/white-moth-sites/code-hint",
+    response_model=WhiteMothSiteCodeHintResponse,
+    summary="读取美国白蛾点位编号提示",
+)
+async def get_white_moth_site_code_hint_endpoint(
+    prefix: str,
+) -> WhiteMothSiteCodeHintResponse:
+    try:
+        return WhiteMothSiteCodeHintResponse(
+            **await get_white_moth_site_code_hint(prefix)
+        )
+    except WhiteMothSiteCodeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取编号提示失败：{exc}") from exc
 
 
 @router.post(

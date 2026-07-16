@@ -35,7 +35,8 @@ SOPHORA_SITE_TABLE = "国槐点位基础表"
 OTHER_PEST_SITE_TABLE = "其他害虫点位基础表"
 WHITE_MOTH_SITE_TABLE = "美国白蛾点位基础表"
 LOCALITY_COLUMN = "属地"
-WHITE_MOTH_SITE_CODE_PATTERN = re.compile(r"^[A-Z]{2}\d{3}$")
+# 前缀 2～3 位字母 + 3 位数字；三位前缀用于区分与两位前缀的冲突（如 LY / LYI / LYU）
+WHITE_MOTH_SITE_CODE_PATTERN = re.compile(r"^[A-Z]{2,3}\d{3}$")
 WHITE_MOTH_SITE_CODE_EXAMPLE = "MQ001"
 WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "MQ": "马驹桥镇",
@@ -52,6 +53,12 @@ WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "YQ": "玉桥街道",
     "LY": "梨园镇",
     "WJ": "文景街道",
+    "JK": "九棵树街道",
+    "ZC": "中仓街道",
+    "XH": "新华街道",
+    "LYI": "潞邑街道",
+    "LYU": "潞源街道",
+    "BY": "北苑街道",
 }
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",
@@ -102,7 +109,7 @@ def get_white_moth_site_code_rules() -> dict[str, Any]:
     """返回美国白蛾点位编号规则。"""
 
     return {
-        "code_pattern": r"^[A-Z]{2}\d{3}$",
+        "code_pattern": WHITE_MOTH_SITE_CODE_PATTERN.pattern,
         "code_example": WHITE_MOTH_SITE_CODE_EXAMPLE,
         "prefix_localities": WHITE_MOTH_SITE_PREFIX_LOCALITIES,
     }
@@ -114,6 +121,18 @@ def normalize_white_moth_site_code(value: str) -> str:
     return (value or "").strip().upper()
 
 
+def resolve_white_moth_site_prefix(prefix: str) -> tuple[str, str]:
+    """解析已知编号前缀及其属地。"""
+
+    normalized_prefix = normalize_white_moth_site_code(prefix)
+    locality = WHITE_MOTH_SITE_PREFIX_LOCALITIES.get(normalized_prefix)
+    if locality is None:
+        raise WhiteMothSiteCodeError(
+            f"未知编号前缀，请输入类似 {WHITE_MOTH_SITE_CODE_EXAMPLE} 的编号"
+        )
+    return normalized_prefix, locality
+
+
 def resolve_white_moth_site_locality(code: str) -> tuple[str, str]:
     """根据美国白蛾点位编号解析标准编号和属地。"""
 
@@ -123,7 +142,9 @@ def resolve_white_moth_site_locality(code: str) -> tuple[str, str]:
             f"编号格式不正确，请输入类似 {WHITE_MOTH_SITE_CODE_EXAMPLE} 的编号"
         )
 
-    prefix = normalized_code[:2]
+    # 字母前缀整体匹配（支持 2～3 位，避免 LYI 被误判为 LY）
+    prefix_match = re.fullmatch(r"([A-Z]{2,3})\d{3}", normalized_code)
+    prefix = prefix_match.group(1) if prefix_match else ""
     locality = WHITE_MOTH_SITE_PREFIX_LOCALITIES.get(prefix)
     if locality is None:
         raise WhiteMothSiteCodeError(
@@ -131,6 +152,48 @@ def resolve_white_moth_site_locality(code: str) -> tuple[str, str]:
         )
 
     return normalized_code, locality
+
+
+async def get_white_moth_site_code_hint(prefix: str) -> dict[str, Any]:
+    """按编号前缀返回该属地当前最大编号与建议下一编号。"""
+
+    normalized_prefix, locality = resolve_white_moth_site_prefix(prefix)
+    qualified_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(WHITE_MOTH_SITE_TABLE)}"
+    )
+    escaped_prefix = re.escape(normalized_prefix)
+    code_pattern = f"^{escaped_prefix}[0-9]{{3}}$"
+    serial_pattern = f"^{escaped_prefix}([0-9]{{3}})$"
+
+    row = await fetchrow(
+        f"""
+        SELECT MAX(CAST(substring("编号" FROM $1) AS integer)) AS max_serial
+        FROM {qualified_table}
+        WHERE "编号" ~ $2
+        """,
+        serial_pattern,
+        code_pattern,
+    )
+    max_serial = row["max_serial"] if row else None
+    if max_serial is None:
+        return {
+            "prefix": normalized_prefix,
+            "locality": locality,
+            "latest_code": None,
+            "latest_serial": None,
+            "suggested_next_code": f"{normalized_prefix}001",
+        }
+
+    next_serial = int(max_serial) + 1
+    return {
+        "prefix": normalized_prefix,
+        "locality": locality,
+        "latest_code": f"{normalized_prefix}{int(max_serial):03d}",
+        "latest_serial": int(max_serial),
+        "suggested_next_code": (
+            f"{normalized_prefix}{next_serial:03d}" if next_serial <= 999 else None
+        ),
+    }
 
 
 async def _init_connection(connection: asyncpg.Connection) -> None:
