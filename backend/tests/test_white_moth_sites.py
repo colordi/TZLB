@@ -37,6 +37,8 @@ class WhiteMothSiteCodeTest(unittest.TestCase):
             "LYI001": "潞邑街道",
             "LYU001": "潞源街道",
             "BY001": "北苑街道",
+            "TY001": "通运街道",
+            "LH001": "临河里街道",
         }
 
         for code, expected_locality in expected_localities.items():

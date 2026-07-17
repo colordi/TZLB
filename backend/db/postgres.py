@@ -59,6 +59,8 @@ WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "LYI": "潞邑街道",
     "LYU": "潞源街道",
     "BY": "北苑街道",
+    "TY": "通运街道",
+    "LH": "临河里街道",
 }
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",
