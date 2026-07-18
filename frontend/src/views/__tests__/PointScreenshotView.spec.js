@@ -138,6 +138,38 @@ describe("PointScreenshotView", () => {
     expect(apiMocks.revokeObjectURL).toHaveBeenCalledWith("blob:美国白蛾:MQ001");
   });
 
+  it("点击顶部统计可按截图状态筛选列表", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
+
+    await wrapper.get('[data-testid="point-screenshot-existing"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(1);
+    expect(wrapper.text()).toContain("MQ001");
+    expect(wrapper.text()).not.toContain("MQ002");
+    expect(wrapper.get('[data-testid="point-screenshot-existing"]').classes()).toContain(
+      "is-active",
+    );
+
+    await wrapper.get('[data-testid="point-screenshot-missing"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(1);
+    expect(wrapper.text()).toContain("MQ002");
+    expect(wrapper.text()).not.toContain("玉桥东路");
+    expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
+      size: "thumb",
+    });
+
+    await wrapper.get('[data-testid="point-screenshot-total"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
+  });
+
   it("每页最多加载 48 个缩略图，翻页时回收上一页 objectURL", async () => {
     const points = Array.from({ length: 100 }, (_, index) => ({
       code: `MQ${String(index + 1).padStart(4, "0")}`,

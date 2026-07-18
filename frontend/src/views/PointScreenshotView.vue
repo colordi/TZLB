@@ -22,9 +22,16 @@ const PEST_TABS = Object.freeze([
 const PAGE_SIZE = 48;
 
 const toast = useToast();
+const STATUS_FILTERS = Object.freeze([
+  { value: "all", label: "总点位", testId: "point-screenshot-total" },
+  { value: "existing", label: "已有截图", testId: "point-screenshot-existing" },
+  { value: "missing", label: "缺失", testId: "point-screenshot-missing" },
+]);
+
 const pestType = ref("美国白蛾");
 const points = ref([]);
 const searchQuery = ref("");
+const statusFilter = ref("all");
 const loading = ref(false);
 const loadFailed = ref(false);
 const fileInput = ref(null);
@@ -49,16 +56,45 @@ const hasScreenshot = computed(
 const missing = computed(() => total.value - hasScreenshot.value);
 const operationBusy = computed(() => Boolean(uploadingCode.value || deletingCode.value));
 
+const statusFilterCount = computed(() => ({
+  all: total.value,
+  existing: hasScreenshot.value,
+  missing: missing.value,
+}));
+
 const filteredPoints = computed(() => {
-  const query = searchQuery.value.trim().toLocaleLowerCase("zh-CN");
-  if (!query) {
-    return points.value;
+  let result = points.value;
+  if (statusFilter.value === "existing") {
+    result = result.filter((point) => point.has_screenshot);
+  } else if (statusFilter.value === "missing") {
+    result = result.filter((point) => !point.has_screenshot);
   }
 
-  return points.value.filter((point) =>
+  const query = searchQuery.value.trim().toLocaleLowerCase("zh-CN");
+  if (!query) {
+    return result;
+  }
+
+  return result.filter((point) =>
     [point.code, point.name, point.locality]
       .some((value) => String(value ?? "").toLocaleLowerCase("zh-CN").includes(query)),
   );
+});
+
+const emptyFilterMessage = computed(() => {
+  if (searchQuery.value.trim() && statusFilter.value !== "all") {
+    return "没有同时符合状态筛选与搜索条件的点位。";
+  }
+  if (searchQuery.value.trim()) {
+    return "没有符合搜索条件的点位。";
+  }
+  if (statusFilter.value === "existing") {
+    return "当前没有已有截图的点位。";
+  }
+  if (statusFilter.value === "missing") {
+    return "当前没有缺失截图的点位。";
+  }
+  return "没有符合条件的点位。";
 });
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(filteredPoints.value.length / PAGE_SIZE)),
@@ -261,6 +297,21 @@ function onSearchInput(event) {
   }, 180);
 }
 
+function setStatusFilter(nextFilter) {
+  if (operationBusy.value) {
+    return;
+  }
+  if (!STATUS_FILTERS.some((item) => item.value === nextFilter)) {
+    return;
+  }
+  if (statusFilter.value === nextFilter) {
+    return;
+  }
+  statusFilter.value = nextFilter;
+  currentPage.value = 1;
+  loadCurrentPageThumbnails();
+}
+
 function goToPage(nextPage) {
   if (operationBusy.value) {
     return;
@@ -278,6 +329,8 @@ function selectPest(nextPestType) {
     return;
   }
   closeLightbox();
+  statusFilter.value = "all";
+  searchQuery.value = "";
   pestType.value = nextPestType;
   loadPoints();
 }
@@ -424,12 +477,21 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="point-screenshot-tools">
-        <div class="point-screenshot-stats" aria-label="截图统计" aria-live="polite">
-          <span data-testid="point-screenshot-total">总点位 <strong>{{ total }}</strong></span>
-          <span data-testid="point-screenshot-existing">
-            已有截图 <strong>{{ hasScreenshot }}</strong>
-          </span>
-          <span data-testid="point-screenshot-missing">缺失 <strong>{{ missing }}</strong></span>
+        <div class="point-screenshot-stats" role="group" aria-label="按截图状态筛选" aria-live="polite">
+          <button
+            v-for="item in STATUS_FILTERS"
+            :key="item.value"
+            type="button"
+            class="point-screenshot-stat"
+            :class="{ 'is-active': statusFilter === item.value }"
+            :aria-pressed="statusFilter === item.value"
+            :disabled="operationBusy"
+            :data-testid="item.testId"
+            @click="setStatusFilter(item.value)"
+          >
+            {{ item.label }}
+            <strong>{{ statusFilterCount[item.value] }}</strong>
+          </button>
         </div>
 
         <label class="point-screenshot-search">
@@ -456,7 +518,7 @@ onBeforeUnmount(() => {
       当前害虫类型暂无点位。
     </div>
     <div v-else-if="filteredPoints.length === 0" class="point-screenshot-state">
-      没有符合搜索条件的点位。
+      {{ emptyFilterMessage }}
     </div>
 
     <div v-else class="point-screenshot-grid" aria-live="polite">
@@ -713,22 +775,60 @@ onBeforeUnmount(() => {
 .point-screenshot-stats {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.point-screenshot-stat {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: none;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
-.point-screenshot-stats span + span {
-  padding-left: var(--space-5);
-  border-left: 1px solid var(--color-border);
+.point-screenshot-stat:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--color-primary) 35%, var(--color-border));
+  background: var(--color-primary-soft, var(--color-bg));
+  color: var(--color-text);
+  box-shadow: none;
+  transform: none;
 }
 
-.point-screenshot-stats strong {
-  margin-left: var(--space-1);
+.point-screenshot-stat.is-active {
+  border-color: color-mix(in oklch, var(--color-primary) 45%, var(--color-border));
+  background: var(--color-primary-container, var(--color-primary-soft));
+  color: var(--color-primary);
+}
+
+.point-screenshot-stat:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.point-screenshot-stat:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.point-screenshot-stat strong {
   color: var(--color-text);
   font-family: var(--font-mono);
   font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.point-screenshot-stat.is-active strong {
+  color: var(--color-primary);
 }
 
 .point-screenshot-search {
@@ -986,11 +1086,7 @@ onBeforeUnmount(() => {
   }
 
   .point-screenshot-stats {
-    gap: var(--space-3);
-  }
-
-  .point-screenshot-stats span + span {
-    padding-left: var(--space-3);
+    width: 100%;
   }
 }
 
