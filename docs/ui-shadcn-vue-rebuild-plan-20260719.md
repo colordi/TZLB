@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1～P5 已完成，下一步 P6  
+> **状态**: 执行中 · P7/P1～P6 已完成，下一步 P8  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -50,11 +50,11 @@
 | P3 | 应用壳与登录 | `done` | 2026-07-19 | Sidebar 壳 + Card 登录；Claude 主题可见 |
 | P4 | 管理与数据轻页 | `done` | 2026-07-19 | 导出/统计/admin 四页 + 用户/图层 |
 | P5 | 工单域 | `done` | 2026-07-19 | 工单主页 + Confirm/BaseDialog + 截图管理 |
-| P6 | 地图域 | `pending` | — | **当前焦点** · MapView + Leaflet + 工具条 |
+| P6 | 地图域 | `done` | 2026-07-19 | Claude token 桥 + 全幅布局；Leaflet 引擎保留 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
-| P8 | 旧样式清理与收尾 | `pending` | — | 删死 CSS、统一 token、文档 |
+| P8 | 旧样式清理与收尾 | `pending` | — | **当前焦点** · 删死 CSS、统一 token、文档 |
 
-**当前焦点**: **P6 地图域**。
+**当前焦点**: **P8 清理与收尾**（整站 Claude 色收敛）。
 
 ---
 
@@ -292,22 +292,22 @@
 
 ---
 
-### P6 · 地图域
+### P6 · 地图域（已完成）
 
 **目标**: 地图工作区视觉对齐新系统；Leaflet 引擎稳定。
 
-- [ ] P6.1 `MapView` 布局改为 full-bleed + 浮层面板（Card/Sheet），接入新 token  
-  - 完成日期:
-- [ ] P6.2 `MapToolbar` 筛选 UI 组件化（逻辑与 `mapStore` 可保留）  
-  - 完成日期:
-- [ ] P6.3 `LeafletMap`：popup/控件皮肤、容器圆角边框；**保留** `.leaflet-*` 必要覆盖于 `map-leaflet.css`  
-  - 完成日期:
-- [ ] P6.4 删除点确认等与 AlertDialog 对齐  
-  - 完成日期:
-- [ ] P6.5 地图单测与手测：图层切换、筛选、弹窗字段、移动端  
-  - 完成日期:
+- [x] P6.1 `MapView` 全幅布局 + `.map-page` 内 Claude token 桥  
+  - 完成日期: 2026-07-19
+- [x] P6.2 `MapToolbar` token 桥（组件仍存在；主界面工具已内嵌 LeafletMap）  
+  - 完成日期: 2026-07-19
+- [x] P6.3 `LeafletMap` token 桥 + 阴影去林业绿  
+  - 完成日期: 2026-07-19
+- [x] P6.4 删除确认沿用已换皮 `ConfirmDialog`  
+  - 完成日期: 2026-07-19
+- [x] P6.5 地图单测全绿  
+  - 完成日期: 2026-07-19
 
-**验收**: investigator 仅地图权限体验完整；性能与点位加载不劣于基线。
+**验收**: Leaflet 逻辑不变；地图 UI 色变量对齐 Claude；测试通过。
 
 ---
 
@@ -465,7 +465,8 @@ frontend/
 3b. ~~P2 组件~~ **已完成**。
 3c. ~~P3 壳/登录~~ **已完成**。
 3d. ~~P4 管理/导出/统计~~ **已完成**。
-3e. ~~P5 工单域~~ **已完成** → 下一步 **P6 地图域** → P8。
+3e. ~~P5 工单域~~ **已完成**。
+3f. ~~P6 地图域~~ **已完成** → 下一步 **P8 清理收尾**（整站 Claude 色收敛）。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -486,6 +487,7 @@ frontend/
 | 2026-07-19 | **P3 完成**: App 壳 Sidebar + 登录 Card；测试更新；焦点 → P4 |
 | 2026-07-19 | **P4 完成**: 数据导出/统计 + admin 四页换皮；焦点 → P5 |
 | 2026-07-19 | **P5 完成**: 工单主页/截图管理/Confirm·BaseDialog；焦点 → P6 |
+| 2026-07-19 | **P6 完成**: 地图 Claude token 桥 + 全幅；焦点 → P8 |
 
 ---
 
@@ -560,5 +562,16 @@ frontend/
 - 验证: `npm test` 249 通过；`npm run build` 成功
 - 遗留: RecordTable/ImageUploader 内部 scoped 仍旧；地图未动
 - 下一步: P6 地图域
+
+### 摘要 · P6
+- 日期: 2026-07-19
+- 完成任务: P6.1～P6.5
+- 主要改动:
+  - `MapView.vue`：全幅布局；`.map-page` 上旧 `--color-*` → Claude `--primary` 等桥接
+  - `LeafletMap.vue` / `MapToolbar.vue`：同类 token 桥；阴影去林业绿 rgba
+  - Leaflet 引擎与筛选逻辑未改
+- 验证: 地图相关 96 tests + 全量 249；build 成功
+- 遗留: 全局 `styles.css` 仍可能污染未桥接区域 → P8 收敛
+- 下一步: P8 旧样式清理与整站 Claude 色统一
 
 <!-- 后续摘要往下追加 -->

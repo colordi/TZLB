@@ -1376,6 +1376,29 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Claude 色桥（地图控件） */
+.map-shell,
+.map-toolbar {
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary);
+  --color-primary-soft: color-mix(in oklch, var(--primary) 12%, white);
+  --color-accent: var(--primary);
+  --color-accent-on: var(--primary-foreground);
+  --color-surface: var(--card);
+  --color-surface-container: var(--muted);
+  --color-surface-container-low: var(--muted);
+  --color-surface-container-lowest: var(--card);
+  --color-border: var(--border);
+  --color-line: var(--border);
+  --color-line-strong: var(--border);
+  --color-text: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-muted: var(--muted-foreground);
+  --color-ink: var(--foreground);
+  --color-ink-soft: var(--muted-foreground);
+  --color-danger: var(--destructive);
+}
+
 .map-shell {
   position: relative;
   width: 100%;
@@ -1434,7 +1457,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.8);
   color: var(--color-ink);
-  box-shadow: 0 8px 30px rgba(18, 52, 29, 0.08);
+  box-shadow: 0 8px 30px hsl(0 0% 0% / 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
@@ -1457,7 +1480,7 @@ onBeforeUnmount(() => {
   color: var(--color-primary-strong);
   font-weight: 700;
   font-size: 0.92rem;
-  box-shadow: 0 12px 30px rgba(18, 52, 29, 0.08);
+  box-shadow: 0 12px 30px hsl(0 0% 0% / 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   appearance: none;
@@ -1477,7 +1500,7 @@ onBeforeUnmount(() => {
   padding: 0.85rem 1.05rem;
   background: rgba(255, 255, 255, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 12px 36px rgba(18, 52, 29, 0.1);
+  box-shadow: 0 12px 36px hsl(0 0% 0% / 0.1);
   border-radius: 18px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -1541,7 +1564,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
   border-radius: 9px;
   background: var(--color-surface);
-  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
+  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
   pointer-events: auto;
 }
 
@@ -1608,7 +1631,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   border: 1px solid rgba(0, 0, 0, 0.85);
   border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(18, 52, 29, 0.12);
+  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.12);
 }
 
 .map-loading {
@@ -1631,7 +1654,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
   border-radius: 9px;
   background: var(--color-surface);
-  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
+  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
 }
 
 .map-tool-btn {
@@ -1685,7 +1708,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in oklch, var(--color-border) 86%, transparent);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: 0 18px 38px rgba(18, 52, 29, 0.14);
+  box-shadow: 0 18px 38px hsl(0 0% 0% / 0.14);
 }
 
 .map-layer-panel h2,
@@ -1837,7 +1860,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 12px 26px rgba(18, 52, 29, 0.08);
+  box-shadow: 0 12px 26px hsl(0 0% 0% / 0.08);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
@@ -1931,7 +1954,7 @@ onBeforeUnmount(() => {
   padding: 0.38rem 0.65rem;
   background: rgba(21, 47, 31, 0.86);
   color: #fff;
-  box-shadow: 0 10px 26px rgba(18, 52, 29, 0.22);
+  box-shadow: 0 10px 26px hsl(0 0% 0% / 0.22);
 }
 
 :deep(.leaflet-tooltip-top:before) {
@@ -1988,7 +2011,7 @@ onBeforeUnmount(() => {
     1px 0 0 #fff,
     0 -1px 0 #fff,
     -1px 0 0 #fff,
-    0 2px 4px rgba(18, 52, 29, 0.18);
+    0 2px 4px hsl(0 0% 0% / 0.18);
 }
 
 @media (max-width: 760px) {

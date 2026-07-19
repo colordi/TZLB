@@ -1440,25 +1440,55 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Claude 色桥：地图子树内把旧 --color-* 映射到 shadcn/Claude token */
 .map-page {
+  /* shadcn semantic */
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary);
+  --color-primary-soft: color-mix(in oklch, var(--primary) 12%, white);
+  --color-accent: var(--primary);
+  --color-accent-on: var(--primary-foreground);
+  --color-accent-hover: color-mix(in oklch, var(--primary) 88%, black);
+  --color-surface: var(--card);
+  --color-surface-container: var(--muted);
+  --color-surface-container-low: var(--muted);
+  --color-surface-container-lowest: var(--card);
+  --color-border: var(--border);
+  --color-line: var(--border);
+  --color-line-strong: var(--border);
+  --color-text: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-muted: var(--muted-foreground);
+  --color-ink: var(--foreground);
+  --color-ink-soft: var(--muted-foreground);
+  --color-nav: var(--sidebar);
+  --color-bg: var(--background);
+  --color-map-land: var(--background);
+  --color-danger: var(--destructive);
+  --color-warning: var(--chart-1);
+  --shadow-card: var(--shadow-sm, 0 1px 3px hsl(0 0% 0% / 0.1));
+
   flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 0;
   min-height: 0;
+  height: 100%;
   padding: 0;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 .map-workspace {
   position: relative;
   flex: 1;
-  min-height: calc(100vh - var(--header-h-map, 52px) - 2rem);
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--color-border) 72%, transparent);
-  border-radius: var(--radius-xl);
-  background:
-    radial-gradient(circle at 18% 24%, color-mix(in oklch, var(--color-primary) 10%, transparent) 0 9%, transparent 9.4%),
-    radial-gradient(circle at 74% 19%, color-mix(in oklch, var(--color-nav) 9%, transparent) 0 13%, transparent 13.6%),
-    var(--color-map-land);
-  box-shadow: var(--shadow-card);
+  border: none;
+  border-radius: 0;
+  background: var(--background);
+  box-shadow: none;
   isolation: isolate;
 }
 
@@ -1520,7 +1550,7 @@ onMounted(async () => {
   border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
   border-radius: 9px;
   background: var(--color-surface);
-  box-shadow: 0 8px 22px rgba(18, 52, 29, 0.1);
+  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
 }
 
 .map-control-icon-button {

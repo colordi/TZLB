@@ -281,6 +281,29 @@ watch(isFilterPanelOpen, (isOpen) => {
 </template>
 
 <style scoped>
+/* Claude 色桥（地图控件） */
+.map-shell,
+.map-toolbar {
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary);
+  --color-primary-soft: color-mix(in oklch, var(--primary) 12%, white);
+  --color-accent: var(--primary);
+  --color-accent-on: var(--primary-foreground);
+  --color-surface: var(--card);
+  --color-surface-container: var(--muted);
+  --color-surface-container-low: var(--muted);
+  --color-surface-container-lowest: var(--card);
+  --color-border: var(--border);
+  --color-line: var(--border);
+  --color-line-strong: var(--border);
+  --color-text: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-muted: var(--muted-foreground);
+  --color-ink: var(--foreground);
+  --color-ink-soft: var(--muted-foreground);
+  --color-danger: var(--destructive);
+}
+
 .map-toolbar {
   position: absolute;
   top: 1.25rem;
