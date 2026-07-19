@@ -14,6 +14,10 @@ import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+
 
 const toast = useToast();
 
@@ -190,247 +194,303 @@ function onGenerate() {
 }
 </script>
 
+
 <template>
-  <section class="page-shell workorder-page">
-    <header class="workorder-page-head">
-      <div>
-        <h1>调查工单</h1>
-        <p>导入调查记录，检查点位信息并批量生成工单。</p>
+  <section class="workorder-page mx-auto flex w-full max-w-6xl flex-col gap-4">
+    <header class="workorder-page-head flex flex-wrap items-start justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="text-2xl font-bold tracking-tight md:text-3xl">调查工单</h1>
+        <p class="max-w-2xl text-sm text-muted-foreground">
+          导入调查记录，检查点位信息并批量生成工单。
+        </p>
       </div>
-      <div class="workorder-page-actions" aria-label="工单操作">
-        <button
+      <div class="workorder-page-actions flex flex-wrap gap-2" aria-label="工单操作">
+        <Button
           v-if="canImportSurvey"
           type="button"
-          class="button-secondary"
+          variant="outline"
           :disabled="generating"
           data-testid="survey-import-button"
           @click="openSurveyImportDialog"
         >
           从数据库追加
-        </button>
+        </Button>
       </div>
     </header>
 
-    <section class="workorder-card workorder-card--accent" aria-label="任务配置">
-      <h2 class="workorder-card-title">任务配置</h2>
-      <div class="workorder-controls">
-        <label class="workorder-field" for="pest-type">
-          <span class="workorder-sr-only">害虫类型</span>
-          <select id="pest-type" v-model="pestType" :disabled="generating">
-            <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
+    <Card class="workorder-card workorder-card--accent" aria-label="任务配置">
+      <CardHeader class="pb-3">
+        <CardTitle class="workorder-card-title text-base">任务配置</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="workorder-controls flex flex-wrap gap-3">
+          <label class="workorder-field grid min-w-[8rem] gap-1" for="pest-type">
+            <span class="workorder-sr-only sr-only">害虫类型</span>
+            <select
+              id="pest-type"
+              v-model="pestType"
+              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              :disabled="generating"
+            >
+              <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
 
-        <label class="workorder-field" for="workorder-year">
-          <span class="workorder-sr-only">年份</span>
-          <select id="workorder-year" v-model="year" :disabled="generating">
-            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-          </select>
-        </label>
+          <label class="workorder-field grid min-w-[7rem] gap-1" for="workorder-year">
+            <span class="workorder-sr-only sr-only">年份</span>
+            <select
+              id="workorder-year"
+              v-model="year"
+              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              :disabled="generating"
+            >
+              <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
+            </select>
+          </label>
 
-        <label class="workorder-field is-task" for="task-name">
-          <span class="workorder-sr-only">统防统治任务</span>
-          <select id="task-name" v-model="taskName" :disabled="generating || !taskOptions.length">
-            <option v-if="!taskOptions.length" value="">暂无预设任务</option>
-            <option v-for="option in taskOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-      </div>
-    </section>
+          <label class="workorder-field is-task grid min-w-[12rem] flex-1 gap-1" for="task-name">
+            <span class="workorder-sr-only sr-only">统防统治任务</span>
+            <select
+              id="task-name"
+              v-model="taskName"
+              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              :disabled="generating || !taskOptions.length"
+            >
+              <option v-if="!taskOptions.length" value="">暂无预设任务</option>
+              <option v-for="option in taskOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+        </div>
+      </CardContent>
+    </Card>
 
-    <section class="workorder-card workorder-card--accent" aria-label="导入调查数据">
-      <h2 class="workorder-card-title">导入调查数据</h2>
-      <div class="workorder-import-actions">
-        <button
-          type="button"
-          class="workorder-import-btn"
-          :disabled="generating"
-          data-testid="survey-excel-import-button"
-          @click="openExcelImportDialog"
-        >
-          <FileSpreadsheet :size="16" />
-          <span>Excel导入</span>
-        </button>
-        <button
-          type="button"
-          class="workorder-import-btn"
-          :disabled="generating || dateFolderUploading"
-          data-testid="date-image-folder-button"
-          @click="onOpenDateFolderPicker"
-        >
-          <FolderUp :size="16" />
-          <span>{{ dateFolderUploading ? "正在上传…" : "图片文件夹导入" }}</span>
-        </button>
-        <input
-          ref="dateFolderInput"
-          class="workorder-folder-input"
-          type="file"
-          multiple
-          webkitdirectory
-          directory
-          data-testid="date-image-folder-input"
-          @change="onDateFolderChange"
-        />
-        <router-link
-          to="/workorder/point-screenshots"
-          class="workorder-import-btn"
-          data-testid="point-screenshot-entry"
-        >
-          <Archive :size="16" />
-          <span>截图管理</span>
-        </router-link>
-      </div>
-    </section>
-
-    <section class="workorder-card workorder-list-card" aria-label="点位清单">
-      <div class="workorder-list-head">
-        <h2 class="workorder-card-title">点位清单</h2>
-        <span class="workorder-list-count">共 {{ records.length }} 个点位</span>
-      </div>
-
-      <div class="workorder-toolbar">
-        <label class="workorder-search">
-          <span class="workorder-sr-only">搜索点位</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+    <Card class="workorder-card workorder-card--accent" aria-label="导入调查数据">
+      <CardHeader class="pb-3">
+        <CardTitle class="workorder-card-title text-base">导入调查数据</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div class="workorder-import-actions flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            class="workorder-import-btn"
+            :disabled="generating"
+            data-testid="survey-excel-import-button"
+            @click="openExcelImportDialog"
+          >
+            <FileSpreadsheet class="size-4" />
+            <span>Excel导入</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            class="workorder-import-btn"
+            :disabled="generating || dateFolderUploading"
+            data-testid="date-image-folder-button"
+            @click="onOpenDateFolderPicker"
+          >
+            <FolderUp class="size-4" />
+            <span>{{ dateFolderUploading ? "正在上传…" : "图片文件夹导入" }}</span>
+          </Button>
           <input
-            v-model="searchQuery"
-            type="search"
-            placeholder="搜索点位……"
-            data-testid="workorder-search"
+            ref="dateFolderInput"
+            class="workorder-folder-input hidden"
+            type="file"
+            multiple
+            webkitdirectory
+            directory
+            data-testid="date-image-folder-input"
+            @change="onDateFolderChange"
           />
-        </label>
-
-        <div class="workorder-segmented" aria-label="记录筛选">
-          <button
-            type="button"
-            :class="{ 'is-active': recordFilter === 'all' }"
-            data-testid="workorder-filter-all"
-            @click="recordFilter = 'all'"
-          >
-            全部
-          </button>
-          <button
-            type="button"
-            :class="{ 'is-active': recordFilter === 'errors' }"
-            data-testid="workorder-filter-errors"
-            @click="recordFilter = 'errors'"
-          >
-            错误
-          </button>
-          <button
-            type="button"
-            :class="{ 'is-active': recordFilter === 'selected' }"
-            data-testid="workorder-filter-selected"
-            @click="recordFilter = 'selected'"
-          >
-            已选
-          </button>
+          <Button as-child variant="outline" class="workorder-import-btn">
+            <router-link to="/workorder/point-screenshots" data-testid="point-screenshot-entry">
+              <Archive class="size-4" />
+              <span>截图管理</span>
+            </router-link>
+          </Button>
         </div>
-      </div>
+      </CardContent>
+    </Card>
 
-      <RecordTable
-        class="workorder-record-table"
-        v-model:selectedUids="selectedUids"
-        :records="pagedRecords"
-        :pest-type="pestType"
-        :busy="generating"
-        :busy-label="exportProgressLabel"
-        :busy-percent="exportProgressPercent"
-        :errors="pagedValidationErrors"
-        :serial-offset="serialOffset"
-        @row-click="handleRowClick"
-      />
-
-      <div v-if="records.length > 0 && filteredRecords.length === 0" class="workorder-empty">
-        当前筛选条件下没有工单记录。
-      </div>
-
-      <div
-        v-if="generating"
-        class="workorder-export-progress"
-        data-testid="workorder-export-progress"
-        aria-live="polite"
-      >
-        <div class="workorder-export-progress-head">
-          <strong>{{ exportProgressLabel }}</strong>
-          <span data-testid="workorder-export-progress-percent">{{ exportProgressPercent }}%</span>
-        </div>
-        <div
-          class="workorder-export-progress-track"
-          role="progressbar"
-          :aria-valuenow="exportProgressPercent"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          :aria-label="exportProgressLabel"
-        >
-          <div
-            class="workorder-export-progress-fill"
-            :style="{ width: `${exportProgressPercent}%` }"
-          />
-        </div>
-        <p v-if="exportProgress.total > 0" class="workorder-export-progress-meta">
-          进度 {{ Math.min(exportProgress.current, exportProgress.total) }} / {{ exportProgress.total }}
-        </p>
-      </div>
-
-      <div
-        v-if="filteredRecords.length > 0"
-        class="workorder-pagination"
-        data-testid="workorder-pagination"
-      >
-        <button
-          type="button"
-          class="workorder-page-btn"
-          :disabled="currentPage <= 1 || generating"
-          data-testid="workorder-page-prev"
-          @click="goToPrevPage"
-        >
-          上一页
-        </button>
-        <span class="workorder-page-status" data-testid="workorder-page-status">
-          第 {{ currentPage }} / {{ totalPages }} 页
+    <Card class="workorder-card workorder-list-card" aria-label="点位清单">
+      <CardHeader class="workorder-list-head flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle class="workorder-card-title text-base">点位清单</CardTitle>
+        <span class="workorder-list-count text-sm text-muted-foreground">
+          共 {{ records.length }} 个点位
         </span>
-        <button
-          type="button"
-          class="workorder-page-btn"
-          :disabled="currentPage >= totalPages || generating"
-          data-testid="workorder-page-next"
-          @click="goToNextPage"
-        >
-          下一页
-        </button>
-      </div>
+      </CardHeader>
+      <CardContent class="space-y-4">
+        <div class="workorder-toolbar flex flex-wrap items-center gap-3">
+          <label class="workorder-search relative min-w-[12rem] flex-1">
+            <span class="workorder-sr-only sr-only">搜索点位</span>
+            <Input
+              v-model="searchQuery"
+              type="search"
+              class="pl-3"
+              placeholder="搜索点位……"
+              data-testid="workorder-search"
+            />
+          </label>
 
-      <footer class="workorder-list-foot">
-        <div class="workorder-list-foot-meta">
-          <span>已选择 <strong>{{ selectedUids.length }}</strong> 个点位</span>
-          <template v-if="selectedUids.length">
-            <button type="button" class="workorder-text-btn" :disabled="generating" @click="clearSelection">
-              取消选择
-            </button>
-            <button type="button" class="workorder-text-btn is-danger" :disabled="generating" @click="onBatchDelete">
-              删除选中
-            </button>
-          </template>
+          <div
+            class="workorder-segmented inline-flex rounded-md border p-0.5"
+            aria-label="记录筛选"
+          >
+            <Button
+              type="button"
+              size="sm"
+              :variant="recordFilter === 'all' ? 'default' : 'ghost'"
+              :class="{ 'is-active': recordFilter === 'all' }"
+              data-testid="workorder-filter-all"
+              @click="recordFilter = 'all'"
+            >
+              全部
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              :variant="recordFilter === 'errors' ? 'default' : 'ghost'"
+              :class="{ 'is-active': recordFilter === 'errors' }"
+              data-testid="workorder-filter-errors"
+              @click="recordFilter = 'errors'"
+            >
+              错误
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              :variant="recordFilter === 'selected' ? 'default' : 'ghost'"
+              :class="{ 'is-active': recordFilter === 'selected' }"
+              data-testid="workorder-filter-selected"
+              @click="recordFilter = 'selected'"
+            >
+              已选
+            </Button>
+          </div>
         </div>
-        <button
-          type="button"
-          class="workorder-export-btn"
-          :disabled="generating || records.length === 0"
-          data-testid="workorder-export-button"
-          @click="onGenerate"
+
+        <RecordTable
+          class="workorder-record-table"
+          v-model:selectedUids="selectedUids"
+          :records="pagedRecords"
+          :pest-type="pestType"
+          :busy="generating"
+          :busy-label="exportProgressLabel"
+          :busy-percent="exportProgressPercent"
+          :errors="pagedValidationErrors"
+          :serial-offset="serialOffset"
+          @row-click="handleRowClick"
+        />
+
+        <div
+          v-if="records.length > 0 && filteredRecords.length === 0"
+          class="workorder-empty py-6 text-center text-sm text-muted-foreground"
         >
-          {{ generateButtonLabel }}
-        </button>
-      </footer>
-    </section>
+          当前筛选条件下没有工单记录。
+        </div>
+
+        <div
+          v-if="generating"
+          class="workorder-export-progress space-y-2 rounded-md border bg-muted/30 p-3"
+          data-testid="workorder-export-progress"
+          aria-live="polite"
+        >
+          <div class="workorder-export-progress-head flex items-center justify-between text-sm">
+            <strong>{{ exportProgressLabel }}</strong>
+            <span data-testid="workorder-export-progress-percent">{{ exportProgressPercent }}%</span>
+          </div>
+          <div
+            class="workorder-export-progress-track h-2 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            :aria-valuenow="exportProgressPercent"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-label="exportProgressLabel"
+          >
+            <div
+              class="workorder-export-progress-fill h-full bg-primary transition-[width]"
+              :style="{ width: `${exportProgressPercent}%` }"
+            />
+          </div>
+          <p v-if="exportProgress.total > 0" class="workorder-export-progress-meta text-xs text-muted-foreground">
+            进度 {{ Math.min(exportProgress.current, exportProgress.total) }} / {{ exportProgress.total }}
+          </p>
+        </div>
+
+        <div
+          v-if="filteredRecords.length > 0"
+          class="workorder-pagination flex items-center justify-center gap-3"
+          data-testid="workorder-pagination"
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="workorder-page-btn"
+            :disabled="currentPage <= 1 || generating"
+            data-testid="workorder-page-prev"
+            @click="goToPrevPage"
+          >
+            上一页
+          </Button>
+          <span class="workorder-page-status text-sm text-muted-foreground" data-testid="workorder-page-status">
+            第 {{ currentPage }} / {{ totalPages }} 页
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            class="workorder-page-btn"
+            :disabled="currentPage >= totalPages || generating"
+            data-testid="workorder-page-next"
+            @click="goToNextPage"
+          >
+            下一页
+          </Button>
+        </div>
+
+        <footer class="workorder-list-foot flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <div class="workorder-list-foot-meta flex flex-wrap items-center gap-3 text-sm">
+            <span>
+              已选择 <strong>{{ selectedUids.length }}</strong> 个点位
+            </span>
+            <template v-if="selectedUids.length">
+              <Button
+                type="button"
+                variant="link"
+                class="workorder-text-btn h-auto px-0"
+                :disabled="generating"
+                @click="clearSelection"
+              >
+                取消选择
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                class="workorder-text-btn is-danger h-auto px-0 text-destructive"
+                :disabled="generating"
+                @click="onBatchDelete"
+              >
+                删除选中
+              </Button>
+            </template>
+          </div>
+          <Button
+            type="button"
+            class="workorder-export-btn"
+            :disabled="generating || records.length === 0"
+            data-testid="workorder-export-button"
+            @click="onGenerate"
+          >
+            {{ generateButtonLabel }}
+          </Button>
+        </footer>
+      </CardContent>
+    </Card>
 
     <RecordDetailModal
       :open="showDetailModal"
@@ -469,520 +529,3 @@ function onGenerate() {
     />
   </section>
 </template>
-
-<style scoped>
-.workorder-page {
-  position: relative;
-  gap: var(--space-module);
-}
-
-.workorder-page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-form);
-}
-
-.workorder-page-head h1 {
-  color: var(--color-text);
-  font-size: var(--text-title);
-  letter-spacing: 0.01em;
-}
-
-.workorder-page-head p {
-  margin-top: var(--space-title);
-  max-width: 46rem;
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-}
-
-.workorder-page-actions {
-  display: flex;
-  gap: var(--space-icon);
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.workorder-card {
-  display: grid;
-  gap: var(--space-form);
-  padding: var(--space-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-/* 任务配置 / 导入区：右侧淡色装饰，缓解横向留白 */
-.workorder-card--accent {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  background:
-    radial-gradient(
-      120px 90px at calc(100% - 48px) 18%,
-      color-mix(in oklch, var(--color-primary) 9%, transparent),
-      transparent 72%
-    ),
-    radial-gradient(
-      160px 120px at calc(100% - 8px) 88%,
-      color-mix(in oklch, var(--color-secondary) 10%, transparent),
-      transparent 70%
-    ),
-    linear-gradient(
-      105deg,
-      var(--color-surface) 0%,
-      var(--color-surface) 58%,
-      color-mix(in oklch, var(--color-primary-soft) 55%, var(--color-surface)) 100%
-    );
-}
-
-.workorder-card--accent::before {
-  content: "";
-  position: absolute;
-  top: -24px;
-  right: -18px;
-  z-index: 0;
-  width: 120px;
-  height: 120px;
-  border-radius: 40% 60% 55% 45%;
-  background: color-mix(in oklch, var(--color-primary) 6%, transparent);
-  transform: rotate(18deg);
-  pointer-events: none;
-}
-
-.workorder-card--accent::after {
-  content: "";
-  position: absolute;
-  right: 28px;
-  bottom: -28px;
-  z-index: 0;
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  border: 1px solid color-mix(in oklch, var(--color-primary) 10%, transparent);
-  background: color-mix(in oklch, var(--color-secondary) 5%, transparent);
-  pointer-events: none;
-}
-
-.workorder-card--accent > * {
-  position: relative;
-  z-index: 1;
-}
-
-.workorder-card-title {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--text-base);
-  font-weight: 700;
-}
-
-.workorder-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-form);
-  flex-wrap: wrap;
-}
-
-.workorder-field {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-label);
-}
-
-.workorder-field > select {
-  width: 160px;
-  min-height: 36px;
-}
-
-.workorder-field.is-task > select {
-  width: 240px;
-}
-
-#workorder-year {
-  width: 100px;
-}
-
-.workorder-import-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-icon);
-}
-
-.workorder-import-btn {
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-icon);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.workorder-import-btn:focus-visible {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.workorder-import-btn:not(:disabled):hover {
-  border-color: color-mix(in oklch, var(--color-primary) 46%, var(--color-border));
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.workorder-import-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.68;
-}
-
-.workorder-folder-input {
-  display: none;
-}
-
-.workorder-list-card {
-  padding: 0;
-  gap: 0;
-  overflow: visible;
-}
-
-.workorder-list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-form);
-  padding: var(--space-card) var(--space-card) 0;
-}
-
-.workorder-list-count {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 650;
-}
-
-.workorder-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-form);
-  flex-wrap: wrap;
-  padding: var(--space-form) var(--space-card);
-}
-
-.workorder-search {
-  position: relative;
-  min-width: 210px;
-  flex: 1;
-}
-
-.workorder-search svg {
-  position: absolute;
-  top: 50%;
-  left: var(--space-form);
-  width: 14px;
-  height: 14px;
-  color: var(--color-text-muted);
-  transform: translateY(-50%);
-}
-
-.workorder-search input {
-  width: 100%;
-  min-height: 34px;
-  padding: 0 var(--space-form) 0 36px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  outline: none;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-}
-
-.workorder-search input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-primary) 10%, transparent);
-}
-
-.workorder-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.workorder-segmented {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-}
-
-.workorder-segmented button {
-  min-height: 26px;
-  padding: 0 var(--space-4);
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 650;
-}
-
-.workorder-segmented button.is-active {
-  background: var(--color-surface);
-  color: var(--color-primary);
-  box-shadow: 0 1px 4px color-mix(in oklch, var(--color-text) 8%, transparent);
-}
-
-.workorder-record-table {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-/* 表格随内容撑开，由右侧主内容区整页滚动，不在清单内部锁高度 */
-.workorder-record-table :deep(.record-workspace) {
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.workorder-record-table :deep(.desktop-records),
-.workorder-record-table :deep(.table-scroll) {
-  min-height: unset;
-  overflow: visible;
-}
-
-.workorder-record-table :deep(.table-scroll) {
-  overflow-x: auto;
-  overflow-y: visible;
-}
-
-.workorder-empty {
-  padding: 48px var(--space-card);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-align: center;
-}
-
-.workorder-export-progress {
-  display: grid;
-  gap: 8px;
-  padding: var(--space-form) var(--space-card);
-  border-top: 1px solid var(--color-border);
-  background: color-mix(in oklch, var(--color-primary) 4%, var(--color-surface));
-}
-
-.workorder-export-progress-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--color-text);
-  font-size: var(--text-sm);
-}
-
-.workorder-export-progress-head strong {
-  font-weight: 700;
-}
-
-.workorder-export-progress-head span {
-  color: var(--color-primary);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.workorder-export-progress-track {
-  height: 8px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in oklch, var(--color-primary) 12%, var(--color-bg));
-}
-
-.workorder-export-progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: var(--color-primary);
-  transition: width 160ms ease;
-}
-
-.workorder-export-progress-meta {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-
-.workorder-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-form);
-  padding: var(--space-form) var(--space-card);
-  border-top: 1px solid var(--color-border);
-}
-
-.workorder-page-status {
-  min-width: 7rem;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  text-align: center;
-}
-
-.workorder-page-btn {
-  min-height: 32px;
-  padding: 0 var(--space-form);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 650;
-}
-
-.workorder-page-btn:hover:not(:disabled) {
-  border-color: color-mix(in oklch, var(--color-primary) 46%, var(--color-border));
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-}
-
-.workorder-page-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.workorder-list-foot {
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-form);
-  flex-wrap: wrap;
-  padding: var(--space-form) var(--space-card);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.workorder-list-foot-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-form);
-  flex-wrap: wrap;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.workorder-list-foot-meta strong {
-  color: var(--color-text);
-}
-
-.workorder-text-btn {
-  min-height: 28px;
-  padding: 0 var(--space-icon);
-  border: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 650;
-}
-
-.workorder-text-btn:hover:not(:disabled) {
-  color: var(--color-primary);
-}
-
-.workorder-text-btn.is-danger:hover:not(:disabled) {
-  color: var(--color-danger);
-}
-
-.workorder-text-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.workorder-export-btn {
-  min-height: 36px;
-  padding: 0 var(--space-form);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  font-size: var(--text-sm);
-  font-weight: 650;
-}
-
-.workorder-export-btn:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-.workorder-export-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-@media (max-width: 760px) {
-  .workorder-page-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .workorder-page-actions {
-    justify-content: stretch;
-  }
-
-  .workorder-page-actions button {
-    width: 100%;
-  }
-
-  .workorder-card {
-    padding: var(--space-form);
-  }
-
-  .workorder-list-head,
-  .workorder-toolbar,
-  .workorder-list-foot,
-  .workorder-pagination {
-    padding-left: var(--space-form);
-    padding-right: var(--space-form);
-  }
-
-  .workorder-list-foot {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .workorder-export-btn {
-    width: 100%;
-  }
-}
-
-@media (max-width: 520px) {
-  .workorder-field,
-  .workorder-field > select,
-  .workorder-field.is-task > select,
-  .workorder-search {
-    width: 100%;
-  }
-
-  .workorder-import-actions {
-    flex-direction: column;
-  }
-
-  .workorder-import-btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-</style>

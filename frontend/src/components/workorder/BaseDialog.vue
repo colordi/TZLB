@@ -1,4 +1,6 @@
 <script setup>
+import { cn } from "@/lib/utils";
+
 const props = defineProps({
   open: {
     type: Boolean,
@@ -35,13 +37,19 @@ function handleMaskClick() {
   <teleport to="body">
     <div
       v-if="open"
-      :class="['base-dialog-mask', maskClass]"
+      :class="cn(
+        'base-dialog-mask fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm',
+        maskClass,
+      )"
       role="presentation"
       @click.self="handleMaskClick"
       @keydown.esc.prevent="emit('close')"
     >
       <section
-        :class="['base-dialog-content', dialogClass]"
+        :class="cn(
+          'base-dialog-content flex max-h-[min(90vh,52rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-border bg-background text-foreground shadow-lg',
+          dialogClass,
+        )"
         role="dialog"
         aria-modal="true"
         :aria-label="ariaLabel"
@@ -52,27 +60,3 @@ function handleMaskClick() {
     </div>
   </teleport>
 </template>
-
-<style>
-.base-dialog-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-4);
-  background: rgba(29, 24, 54, 0.3);
-  backdrop-filter: blur(4px);
-}
-
-.base-dialog-content {
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-raised);
-  overflow: hidden;
-}
-</style>

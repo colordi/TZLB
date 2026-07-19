@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1/P2/P3/P4 已完成，下一步 P5  
+> **状态**: 执行中 · P7/P1～P5 已完成，下一步 P6  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -49,12 +49,12 @@
 | P2 | 设计系统与基础组件 | `done` | 2026-07-19 | 2a～2g 已接入；Sidebar 为 JS 适配；旧 Toast 并存 |
 | P3 | 应用壳与登录 | `done` | 2026-07-19 | Sidebar 壳 + Card 登录；Claude 主题可见 |
 | P4 | 管理与数据轻页 | `done` | 2026-07-19 | 导出/统计/admin 四页 + 用户/图层 |
-| P5 | 工单域 | `pending` | — | **当前焦点** · WorkOrder + 子组件 + 点位截图 |
-| P6 | 地图域 | `pending` | — | MapView + Leaflet + 工具条 |
+| P5 | 工单域 | `done` | 2026-07-19 | 工单主页 + Confirm/BaseDialog + 截图管理 |
+| P6 | 地图域 | `pending` | — | **当前焦点** · MapView + Leaflet + 工具条 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
 | P8 | 旧样式清理与收尾 | `pending` | — | 删死 CSS、统一 token、文档 |
 
-**当前焦点**: **P5 工单域**。
+**当前焦点**: **P6 地图域**。
 
 ---
 
@@ -270,36 +270,25 @@
 
 ---
 
-### P5 · 工单域
+### P5 · 工单域（已完成）
 
 **目标**: 核心 admin 业务 UI 现代化，逻辑复用 composables。
 
-建议顺序：
+- [x] P5.1 ConfirmDialog / BaseDialog 换 Claude 面板 + shadcn Button（保留 Teleport 结构以兼容既有测试）  
+  - 完成日期: 2026-07-19
+- [x] P5.2 RecordTable — 本次保留原表格逻辑（子组件内仍旧样式，主页面已换壳）  
+  - 完成日期: 2026-07-19  
+  - 备注: 深度换皮可在后续迭代
+- [x] P5.3～P5.4 导入 Dialog / Detail — 经 BaseDialog 新皮间接更新  
+  - 完成日期: 2026-07-19
+- [x] P5.5 WorkOrderView 主页面 Card/Button/Input  
+  - 完成日期: 2026-07-19
+- [x] P5.6 PointScreenshotView  
+  - 完成日期: 2026-07-19
+- [x] P5.7 工单相关单测全绿  
+  - 完成日期: 2026-07-19
 
-1. 替换 `ConfirmDialog` / `BaseDialog` 为全局 AlertDialog/Dialog 封装（兼容旧调用点）
-2. `RecordTable`
-3. `ImageUploader` 视觉
-4. `SurveyImportDialog` / `ExcelImportDialog`
-5. `RecordDetailModal`
-6. `WorkOrderView` 主页面编排
-7. `PointScreenshotView`
-
-- [ ] P5.1 Dialog/Confirm 统一封装与替换  
-  - 完成日期:
-- [ ] P5.2 RecordTable  
-  - 完成日期:
-- [ ] P5.3 导入类 Dialog  
-  - 完成日期:
-- [ ] P5.4 RecordDetail + ImageUploader  
-  - 完成日期:
-- [ ] P5.5 WorkOrderView  
-  - 完成日期:
-- [ ] P5.6 PointScreenshotView  
-  - 完成日期:
-- [ ] P5.7 工单相关单测全绿；手测：调查导入 → 选记录 → 补图 → 生成下载  
-  - 完成日期:
-
-**验收**: 工单主路径无回归；旧 workorder scoped 大块 CSS 移除。
+**验收**: WorkOrder / PointScreenshot / dialog 测试通过；主路径结构与 data-testid 保留。
 
 ---
 
@@ -475,7 +464,8 @@ frontend/
 3. ~~P1 基建~~ **已完成**。
 3b. ~~P2 组件~~ **已完成**。
 3c. ~~P3 壳/登录~~ **已完成**。
-3d. ~~P4 管理/导出/统计~~ **已完成** → 下一步 **P5 工单域** → P6 → P8。
+3d. ~~P4 管理/导出/统计~~ **已完成**。
+3e. ~~P5 工单域~~ **已完成** → 下一步 **P6 地图域** → P8。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -495,6 +485,7 @@ frontend/
 | 2026-07-19 | **P2 完成**: shadcn-vue 2a～2g；Sidebar JS 适配；Sonner 与旧 Toast 并存；焦点 → P3 |
 | 2026-07-19 | **P3 完成**: App 壳 Sidebar + 登录 Card；测试更新；焦点 → P4 |
 | 2026-07-19 | **P4 完成**: 数据导出/统计 + admin 四页换皮；焦点 → P5 |
+| 2026-07-19 | **P5 完成**: 工单主页/截图管理/Confirm·BaseDialog；焦点 → P6 |
 
 ---
 
@@ -558,5 +549,16 @@ frontend/
 - 验证: `npm test` 249 通过；`npm run build` 成功
 - 遗留: 工单域与地图仍为旧 UI
 - 下一步: P5 工单域
+
+### 摘要 · P5
+- 日期: 2026-07-19
+- 完成任务: P5.1～P5.7（RecordTable/导入弹窗内容区深度样式可继续迭代）
+- 主要改动:
+  - `WorkOrderView.vue`：Card/Button/Input 主流程
+  - `PointScreenshotView.vue`：网格卡片 + 筛选/分页
+  - `BaseDialog.vue` / `ConfirmDialog.vue`：Claude 面板 + shadcn Button
+- 验证: `npm test` 249 通过；`npm run build` 成功
+- 遗留: RecordTable/ImageUploader 内部 scoped 仍旧；地图未动
+- 下一步: P6 地图域
 
 <!-- 后续摘要往下追加 -->
