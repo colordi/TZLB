@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
 import { Archive, FileSpreadsheet, FolderUp } from "@lucide/vue";
 
 import { useWorkorderTaskConfig } from "../composables/workorder/useWorkorderTaskConfig.js";
@@ -9,7 +8,6 @@ import { useRecordSelection } from "../composables/workorder/useRecordSelection.
 import { useWorkorderExport } from "../composables/workorder/useWorkorderExport.js";
 import { useDateFolderUpload } from "../composables/workorder/useDateFolderUpload.js";
 import { useRecordDetailModal } from "../composables/workorder/useRecordDetailModal.js";
-import { MOCK_WORKORDER_RECORDS } from "../fixtures/design/workorderMock.js";
 import { useToast } from "../composables/useToast.js";
 import ExcelImportDialog from "../components/workorder/ExcelImportDialog.vue";
 import RecordTable from "../components/workorder/RecordTable.vue";
@@ -18,8 +16,6 @@ import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
 import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
 
 const toast = useToast();
-const route = useRoute();
-const isPreview = computed(() => route.meta?.previewMode === true);
 
 const taskConfig = useWorkorderTaskConfig();
 const {
@@ -35,11 +31,6 @@ const {
   handleBatchDelete: batchDelete,
 } = recCtrl;
 
-if (isPreview.value) {
-  pestType.value = "美国白蛾";
-  records.value = MOCK_WORKORDER_RECORDS.map((r) => ({ ...r }));
-}
-
 const selection = useRecordSelection(records, validationErrors);
 const {
   selectedUids, searchQuery, recordFilter,
@@ -49,7 +40,7 @@ const {
 } = selection;
 
 const exportCtrl = useWorkorderExport(
-  taskConfig, records, isPreview, selectedUids,
+  taskConfig, records, selectedUids,
 );
 const {
   generating,
@@ -104,7 +95,7 @@ function openSurveyImportDialog() {
 }
 
 function openExcelImportDialog() {
-  if (generating.value || isPreview.value) {
+  if (generating.value) {
     return;
   }
   excelImportOpen.value = true;
@@ -123,7 +114,7 @@ function onDateFolderChange(event) {
 }
 
 function onOpenDateFolderPicker() {
-  dateFolder.openDateFolderPicker(generating.value || isPreview.value);
+  dateFolder.openDateFolderPicker(generating.value);
 }
 
 function onSurveyImport(importedRecords) {
@@ -201,11 +192,6 @@ function onGenerate() {
 
 <template>
   <section class="page-shell workorder-page">
-    <div v-if="isPreview" class="workorder-preview-banner" data-testid="workorder-preview-banner">
-      <strong>设计预览模式</strong>
-      <span>当前展示的是静态 mock 数据，导入和上传功能已禁用。</span>
-    </div>
-
     <header class="workorder-page-head">
       <div>
         <h1>调查工单</h1>
@@ -216,7 +202,7 @@ function onGenerate() {
           v-if="canImportSurvey"
           type="button"
           class="button-secondary"
-          :disabled="generating || isPreview"
+          :disabled="generating"
           data-testid="survey-import-button"
           @click="openSurveyImportDialog"
         >
@@ -262,7 +248,7 @@ function onGenerate() {
         <button
           type="button"
           class="workorder-import-btn"
-          :disabled="generating || isPreview"
+          :disabled="generating"
           data-testid="survey-excel-import-button"
           @click="openExcelImportDialog"
         >
@@ -272,7 +258,7 @@ function onGenerate() {
         <button
           type="button"
           class="workorder-import-btn"
-          :disabled="generating || dateFolderUploading || isPreview"
+          :disabled="generating || dateFolderUploading"
           data-testid="date-image-folder-button"
           @click="onOpenDateFolderPicker"
         >
@@ -290,7 +276,6 @@ function onGenerate() {
           @change="onDateFolderChange"
         />
         <router-link
-          v-if="!isPreview"
           to="/workorder/point-screenshots"
           class="workorder-import-btn"
           data-testid="point-screenshot-entry"
@@ -298,16 +283,6 @@ function onGenerate() {
           <Archive :size="16" />
           <span>截图管理</span>
         </router-link>
-        <button
-          v-else
-          type="button"
-          class="workorder-import-btn"
-          disabled
-          data-testid="point-screenshot-entry"
-        >
-          <Archive :size="16" />
-          <span>截图管理</span>
-        </button>
       </div>
     </section>
 
@@ -496,23 +471,6 @@ function onGenerate() {
 </template>
 
 <style scoped>
-.workorder-preview-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid color-mix(in oklch, var(--color-primary) 40%, var(--color-border));
-  border-radius: var(--radius-md);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-size: var(--text-sm);
-}
-
-.workorder-preview-banner strong {
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .workorder-page {
   position: relative;
   gap: var(--space-module);

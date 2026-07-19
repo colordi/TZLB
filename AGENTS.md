@@ -202,6 +202,3 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `WORKORDER_IMAGE_MAX_BYTES`、`WORKORDER_IMAGE_MAX_TOTAL_BYTES`、`WORKORDER_IMAGE_MAX_DIMENSION`：图片大小与压缩限制
 
-### 设计预览
-
-`/design` 路由下有一组设计预览页面，使用 `frontend/src/components/design/` 和 `frontend/src/views/design/` 中的组件。这些页面不依赖登录会话，仅用于 UI 走查。

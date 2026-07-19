@@ -7,7 +7,6 @@ import {
   getWorkorderBatchJobStatus,
   startWorkorderBatchJob,
 } from "../../api/workorder.js";
-import { MOCK_PREVIEW_DELAY_MS } from "../../fixtures/design/workorderMock.js";
 import { hasValidationErrors, toPayloadRecord, validateRecords } from "../../components/workorder/fieldConfig.js";
 import { downloadBlob } from "../../utils/download.js";
 
@@ -20,13 +19,11 @@ function sleep(ms) {
 /**
  * @param {object} taskConfig
  * @param {import('vue').Ref|import('vue').ComputedRef} records
- * @param {import('vue').Ref|import('vue').ComputedRef|boolean} isPreview
  * @param {import('vue').Ref|import('vue').ComputedRef} [selectedUids] 有选中时优先导出选中记录
  */
 export function useWorkorderExport(
   taskConfig,
   records,
-  isPreview,
   selectedUids,
 ) {
   const generating = ref(false);
@@ -180,32 +177,6 @@ export function useWorkorderExport(
     });
 
     try {
-      if (unref(isPreview)) {
-        setProgress({
-          current: 0,
-          total: total + 1,
-          percent: 10,
-          message: `预览模式：模拟生成 0/${total}`,
-        });
-        const steps = total + 1;
-        for (let step = 1; step <= steps; step += 1) {
-          await sleep(Math.max(80, Math.floor(MOCK_PREVIEW_DELAY_MS / steps)));
-          setProgress({
-            current: step,
-            total: steps,
-            percent: Math.round((step / steps) * 100),
-            message: step <= total
-              ? `预览模式：模拟生成 ${step}/${total}`
-              : "预览模式：模拟打包…",
-          });
-        }
-        success(
-          `预览模式已模拟导出 ${total} 条记录的工作单。`,
-          "预览导出完成",
-        );
-        return;
-      }
-
       const payload = {
         pest_type: taskConfig.pestType.value,
         task_type: taskConfig.taskType.value,

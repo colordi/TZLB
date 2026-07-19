@@ -16,11 +16,6 @@ import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminUsersView from "../views/AdminUsersView.vue";
 import AdminLayersView from "../views/AdminLayersView.vue";
 import AdminOperationLogsView from "../views/AdminOperationLogsView.vue";
-import DesignPreviewLayout from "../components/design/DesignPreviewLayout.vue";
-import DesignLoginView from "../views/design/DesignLoginView.vue";
-import DesignOverviewView from "../views/design/DesignOverviewView.vue";
-import DesignMapView from "../views/design/DesignMapView.vue";
-import DesignPreviewStatusView from "../views/design/DesignPreviewStatusView.vue";
 
 const routes = [
   {
@@ -127,73 +122,6 @@ const routes = [
       blurb: "查看调查员与管理员的点位删除操作记录。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
-  },
-  {
-    path: "/design",
-    component: DesignPreviewLayout,
-    meta: {
-      section: "设计预览",
-      hideShell: true,
-      requiresAuth: false,
-      skipSessionLoad: true,
-    },
-    children: [
-      {
-        path: "",
-        name: "design-status",
-        component: DesignPreviewStatusView,
-        meta: {
-          previewPage: "迁移状态",
-          previewStage: "foundation",
-        },
-      },
-      {
-        path: "login",
-        name: "design-login",
-        component: DesignLoginView,
-        meta: {
-          section: "登录页设计预览",
-          previewPage: "登录页",
-          previewStage: "login",
-        },
-      },
-      {
-        path: "overview",
-        name: "design-overview",
-        component: DesignOverviewView,
-        meta: {
-          section: "工作概览设计预览",
-          previewPage: "工作概览页",
-          previewStage: "overview",
-          previewShell: true,
-        },
-      },
-      {
-        path: "workorder",
-        name: "design-workorder",
-        component: WorkOrderView,
-        meta: {
-          section: "工单页设计预览",
-          previewPage: "调查工单页",
-          previewStage: "workorder",
-          previewShell: true,
-          previewMode: true,
-          requiresAuth: false,
-        },
-      },
-      {
-        path: "map",
-        name: "design-map",
-        component: DesignMapView,
-        meta: {
-          section: "地图页设计预览",
-          previewPage: "调查点位地图页",
-          previewStage: "map",
-          previewShell: true,
-          previewFullBleed: true,
-        },
-      },
-    ],
   },
 ];
 
