@@ -40,6 +40,7 @@ async function mountLogin(initialPath = "/login") {
     global: {
       plugins: [router],
     },
+    attachTo: document.body,
   });
 
   await flushPromises();
@@ -59,6 +60,7 @@ describe("LoginView", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.body.innerHTML = "";
   });
 
   it("会回填记住的用户名", async () => {
@@ -67,7 +69,13 @@ describe("LoginView", () => {
     const { wrapper } = await mountLogin();
 
     expect(wrapper.get("#login-username").element.value).toBe("护林员甲");
-    expect(wrapper.get("#remember-me").element.checked).toBe(true);
+    // reka Checkbox 用 data-state 表示勾选
+    const remember = wrapper.get("#remember-me");
+    expect(
+      remember.attributes("data-state") === "checked" ||
+        remember.element.getAttribute("aria-checked") === "true" ||
+        remember.element.checked === true,
+    ).toBe(true);
   });
 
   it("密码显示切换只更新本地输入框类型", async () => {
@@ -104,15 +112,23 @@ describe("LoginView", () => {
 
     await wrapper.get("#login-username").setValue("巡查员乙");
     await wrapper.get("#login-password").setValue("secret");
-    await wrapper.get("#remember-me").setValue(true);
+
+    // 勾选记住我（reka Checkbox）
+    const remember = wrapper.get("#remember-me");
+    await remember.trigger("click");
+    await flushPromises();
+
     await wrapper.get("form").trigger("submit.prevent");
     await flushPromises();
 
     expect(window.localStorage.getItem("tzlb.rememberedUsername")).toBe("巡查员乙");
     expect(router.currentRoute.value.fullPath).toBe("/workorder");
-    expect(fetchMock).toHaveBeenCalledWith("/api/auth/login", expect.objectContaining({
-      method: "POST",
-      credentials: "same-origin",
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/login",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+      }),
+    );
   });
 });

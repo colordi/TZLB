@@ -3,13 +3,17 @@ import { Primitive } from "reka-ui";
 import { cn } from "@/lib/utils";
 import { sidebarMenuButtonVariants } from ".";
 
-const props = withDefaults(defineProps(), {
-  as: "button",
-  variant: "default",
-  size: "default",
-  isActive: false,
-  asChild: false,
-  class: undefined,
+const props = defineProps({
+  as: { type: null, required: false, default: "button" },
+  asChild: { type: Boolean, required: false, default: false },
+  variant: { type: String, required: false, default: "default" },
+  size: { type: String, required: false, default: "default" },
+  isActive: { type: Boolean, required: false, default: false },
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
 });
 </script>
 

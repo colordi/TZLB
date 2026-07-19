@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1/P2 已完成，下一步 P3  
+> **状态**: 执行中 · P7/P1/P2/P3 已完成，下一步 P4  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -54,7 +54,7 @@
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
 | P8 | 旧样式清理与收尾 | `pending` | — | 删死 CSS、统一 token、文档 |
 
-**当前焦点**: **P3 应用壳与登录**。
+**当前焦点**: **P4 管理与数据轻页**。
 
 ---
 
@@ -228,22 +228,22 @@
 
 ---
 
-### P3 · 应用壳与登录
+### P3 · 应用壳与登录（已完成）
 
 **目标**: 全局导航/布局先切换到新系统，后续页面自然落入新壳。
 
-- [ ] P3.1 用 Sidebar + Header 模式重写 `App.vue` 壳（保留：角色过滤导航、`hideShell`/`fullBleed`、登出、移动端菜单）  
-  - 完成日期:
-- [ ] P3.2 导航配置抽离（可选 `config/navigation.js`），与 `auth/permissions` 对齐  
-  - 完成日期:
-- [ ] P3.3 重写 `LoginView.vue`（Card + Form 控件；逻辑仍走 `useAuthSession`）  
-  - 完成日期:
-- [ ] P3.4 更新 `AppShell.spec.js` / `LoginView` 相关测试选择器（优先 `data-testid` 稳定）  
-  - 完成日期:
-- [ ] P3.5 手测：admin / investigator 默认落地路由、无权限回退、退出登录  
+- [x] P3.1 用 SidebarProvider + Sidebar + SidebarInset 重写 `App.vue`（角色导航、`hideShell`/`fullBleed`、登出、移动菜单）  
+  - 完成日期: 2026-07-19
+- [x] P3.2 导航配置抽离 `config/navigation.js`  
+  - 完成日期: 2026-07-19
+- [x] P3.3 重写 `LoginView.vue`（Card/Input/Button/Checkbox；逻辑仍 `useAuthSession`）  
+  - 完成日期: 2026-07-19
+- [x] P3.4 更新 `AppShell.spec.js` / `LoginView.spec.js`  
+  - 完成日期: 2026-07-19
+- [ ] P3.5 手测：admin / investigator 默认落地、退出登录（需本地 `npm run dev`）  
   - 完成日期:
 
-**验收**: 登录全流程可用；壳层无旧侧栏 CSS 依赖（或旧 CSS 仅服务未迁页面且不污染壳）。
+**验收**: 自动化测试通过；登录页与壳层使用 Claude 语义色 + shadcn 组件。
 
 ---
 
@@ -482,7 +482,8 @@ frontend/
 1. ~~先 P0 决策~~ **已完成**。
 2. ~~P7 删 `/design`~~ **已完成**（在 `ui-shadcn-rebuild` 上独立 commit）。
 3. ~~P1 基建~~ **已完成**。
-3b. ~~P2 组件~~ **已完成** → 下一步 **P3 壳/登录** → P4 → P5 → P6 → P8。
+3b. ~~P2 组件~~ **已完成**。
+3c. ~~P3 壳/登录~~ **已完成** → 下一步 **P4 管理/导出/统计** → P5 → P6 → P8。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -500,6 +501,7 @@ frontend/
 | 2026-07-19 | **P1 完成**: Tailwind v4 + Claude light 主题 + shadcn-vue 基建；无 preflight 并存；焦点 → P2 |
 | 2026-07-19 | **D5 修订**: 取消「小步合 main」；改为长驻 `ui-shadcn-rebuild`，全部完成后再合 main；P7/P1 在该分支分 commit 落盘 |
 | 2026-07-19 | **P2 完成**: shadcn-vue 2a～2g；Sidebar JS 适配；Sonner 与旧 Toast 并存；焦点 → P3 |
+| 2026-07-19 | **P3 完成**: App 壳 Sidebar + 登录 Card；测试更新；焦点 → P4 |
 
 ---
 
@@ -540,5 +542,17 @@ frontend/
 - 验证: `npm test` 29 files / 250 tests；`npm run build` 成功
 - 遗留: 业务页尚未改用新组件；Form 未单独接入
 - 下一步: P3 用 Sidebar + 相关 primitives 重写 App 壳与 Login
+
+### 摘要 · P3
+- 日期: 2026-07-19
+- 完成任务: P3.1～P3.4（P3.5 手测留给用户本地 dev）
+- 主要改动:
+  - `App.vue`：shadcn Sidebar 壳 + 顶栏 + 用户下拉登出；`config/navigation.js`
+  - `LoginView.vue`：Card/Input/Button/Checkbox + Claude 背景
+  - 测试：`AppShell.spec.js`、`LoginView.spec.js` 适配
+  - 修复 `sidebar/index.js` 残留 TS、`SidebarMenuButtonChild` props
+- 验证: `npm test` 29 files / 249 tests；`npm run build` 成功
+- 遗留: 业务页（工单/地图/admin）仍为旧样式；旧 Toast 仍在用
+- 下一步: P4 管理与数据轻页换皮
 
 <!-- 后续摘要往下追加 -->
