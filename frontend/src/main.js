@@ -2,7 +2,7 @@ import { createApp } from "vue";
 
 import App from "./App.vue";
 import router from "./router/index.js";
-/* shadcn/Tailwind 入口在前；旧 styles.css 并存，业务页逐步迁移 */
+/* Claude + Tailwind 在前；styles.css 仅做旧变量桥接与遗留控件样式 */
 import "./styles/shadcn.css";
 import "./styles.css";
 

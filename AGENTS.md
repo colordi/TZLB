@@ -4,7 +4,7 @@
 
 - 后端：`backend/` 目录，FastAPI + asyncpg + Pydantic Settings
 
-- 前端：`frontend/` 目录，Vue 3 + Vue Router + Vite + Vitest + Leaflet
+- 前端：`frontend/` 目录，Vue 3 + Vue Router + Vite + Vitest + Leaflet + Tailwind CSS v4 + shadcn-vue（Claude light 主题）
 
 - 数据库：本机 PostgreSQL/PostGIS，连接串由 `.env` 中的 `DATABASE_URL` 指定
 

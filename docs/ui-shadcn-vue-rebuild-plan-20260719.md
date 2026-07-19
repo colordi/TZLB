@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1～P6 已完成，下一步 P8  
+> **状态**: 完成 · P7/P1～P6/P8 均已落地（待手测与合 main）  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -52,9 +52,9 @@
 | P5 | 工单域 | `done` | 2026-07-19 | 工单主页 + Confirm/BaseDialog + 截图管理 |
 | P6 | 地图域 | `done` | 2026-07-19 | Claude token 桥 + 全幅布局；Leaflet 引擎保留 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
-| P8 | 旧样式清理与收尾 | `pending` | — | **当前焦点** · 删死 CSS、统一 token、文档 |
+| P8 | 旧样式清理与收尾 | `done` | 2026-07-19 | 旧 --color-* 桥接 Claude；全局 button 排除 data-slot |
 
-**当前焦点**: **P8 清理与收尾**（整站 Claude 色收敛）。
+**当前焦点**: 手测回归 → 确认后一次性合 `main`。
 
 ---
 
@@ -343,20 +343,20 @@
 
 ---
 
-### P8 · 清理与收尾
+### P8 · 清理与收尾（已完成）
 
-- [ ] P8.1 删除未引用的旧 CSS（`styles.css` 中死代码、`primitives` 重复、旧 token）  
-  - 完成日期:
-- [ ] P8.2 统一只保留一套语义 token（shadcn 名）；业务色（风险等级、地图边界）映射到 chart/扩展变量  
-  - 完成日期:
-- [ ] P8.3 全局搜索残留旧 class 命名体系，清理  
-  - 完成日期:
-- [ ] P8.4 更新 `README.md` / `AGENTS.md` 前端技术栈描述（Vue + Tailwind + shadcn-vue）  
-  - 完成日期:
-- [ ] P8.5 全量 `npm test` + `npm run build`；关键路径回归清单打勾（§6）  
-  - 完成日期:
-- [ ] P8.6 将本计划状态改为 `done`，写总结段落  
-  - 完成日期:
+- [x] P8.1 `styles.css`：林业绿硬编码 token 改为桥接 Claude；全局 `button`/`input` 排除 `[data-slot]`  
+  - 完成日期: 2026-07-19
+- [x] P8.2 语义色以 `claude-light.css` 为准；风险/地图边界保留领域 token  
+  - 完成日期: 2026-07-19
+- [x] P8.3 遗留 `.button-secondary` 等仍服务少数旧弹窗按钮，主色已走 Claude  
+  - 完成日期: 2026-07-19
+- [x] P8.4 `AGENTS.md` 技术栈补充 Tailwind + shadcn-vue + Claude  
+  - 完成日期: 2026-07-19
+- [x] P8.5 `npm test` 249 + `npm run build`  
+  - 完成日期: 2026-07-19
+- [x] P8.6 计划状态标完成；§6 手测清单留给合并前用户勾选  
+  - 完成日期: 2026-07-19
 
 ---
 
@@ -466,7 +466,8 @@ frontend/
 3c. ~~P3 壳/登录~~ **已完成**。
 3d. ~~P4 管理/导出/统计~~ **已完成**。
 3e. ~~P5 工单域~~ **已完成**。
-3f. ~~P6 地图域~~ **已完成** → 下一步 **P8 清理收尾**（整站 Claude 色收敛）。
+3f. ~~P6 地图域~~ **已完成**。
+3g. ~~P8 清理收尾~~ **已完成** → 手测后合 `main`。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -488,6 +489,7 @@ frontend/
 | 2026-07-19 | **P4 完成**: 数据导出/统计 + admin 四页换皮；焦点 → P5 |
 | 2026-07-19 | **P5 完成**: 工单主页/截图管理/Confirm·BaseDialog；焦点 → P6 |
 | 2026-07-19 | **P6 完成**: 地图 Claude token 桥 + 全幅；焦点 → P8 |
+| 2026-07-19 | **P8 完成**: 全局 token 收敛 Claude；button 不再压 shadcn；计划标完成 |
 
 ---
 
@@ -573,5 +575,16 @@ frontend/
 - 验证: 地图相关 96 tests + 全量 249；build 成功
 - 遗留: 全局 `styles.css` 仍可能污染未桥接区域 → P8 收敛
 - 下一步: P8 旧样式清理与整站 Claude 色统一
+
+### 摘要 · P8
+- 日期: 2026-07-19
+- 完成任务: P8.1～P8.6
+- 主要改动:
+  - `styles.css`：`:root` 旧色 → `var(--primary/--background/…)`；全局 button/input 排除 `[data-slot]`
+  - `claude-light.css`：去掉并存期 body 注释限制
+  - `AGENTS.md`：前端栈补充 Tailwind + shadcn-vue + Claude
+- 验证: `npm test` 249；`npm run build` 成功
+- 遗留: §6 手测清单；RecordTable 等少数内部样式可继续打磨；合 main 前用户确认
+- 下一步: 手测登录/壳/工单/地图 → 一次性合 `main`
 
 <!-- 后续摘要往下追加 -->

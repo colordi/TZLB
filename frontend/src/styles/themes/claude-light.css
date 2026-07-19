@@ -111,9 +111,5 @@
   * {
     border-color: var(--border);
   }
-  body {
-    /* 并存期不强制覆盖 body 色；新页用 bg-background text-foreground */
-    letter-spacing: var(--tracking-normal, 0em);
-  }
 }
 
