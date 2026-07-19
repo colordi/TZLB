@@ -47,8 +47,8 @@
 | P0 | 决策冻结与基线 | `done` | 2026-07-19 | 见 §4 已决；P0.2 截图可选跳过；主题快照并入 P1 |
 | P1 | 工程基建（Tailwind + shadcn-vue + 主题） | `done` | 2026-07-19 | Tailwind v4 + Claude light + components.json；未装 preflight |
 | P2 | 设计系统与基础组件 | `done` | 2026-07-19 | 2a～2g 已接入；Sidebar 为 JS 适配；旧 Toast 并存 |
-| P3 | 应用壳与登录 | `pending` | — | **当前焦点** · App shell + Login |
-| P4 | 管理与数据轻页 | `pending` | — | admin + export + statistics |
+| P3 | 应用壳与登录 | `done` | 2026-07-19 | Sidebar 壳 + Card 登录；Claude 主题可见 |
+| P4 | 管理与数据轻页 | `pending` | — | **当前焦点** · admin + export + statistics |
 | P5 | 工单域 | `pending` | — | WorkOrder + 子组件 + 点位截图 |
 | P6 | 地图域 | `pending` | — | MapView + Leaflet + 工具条 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
