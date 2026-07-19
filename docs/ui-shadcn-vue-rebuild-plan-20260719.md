@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1 已完成，下一步 P2  
+> **状态**: 执行中 · P7/P1/P2 已完成，下一步 P3  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -46,15 +46,15 @@
 |------|------|------|----------|------|
 | P0 | 决策冻结与基线 | `done` | 2026-07-19 | 见 §4 已决；P0.2 截图可选跳过；主题快照并入 P1 |
 | P1 | 工程基建（Tailwind + shadcn-vue + 主题） | `done` | 2026-07-19 | Tailwind v4 + Claude light + components.json；未装 preflight |
-| P2 | 设计系统与基础组件 | `pending` | — | **当前焦点** · Button/Input/Dialog/Table 等 |
-| P3 | 应用壳与登录 | `pending` | — | App shell + Login |
+| P2 | 设计系统与基础组件 | `done` | 2026-07-19 | 2a～2g 已接入；Sidebar 为 JS 适配；旧 Toast 并存 |
+| P3 | 应用壳与登录 | `pending` | — | **当前焦点** · App shell + Login |
 | P4 | 管理与数据轻页 | `pending` | — | admin + export + statistics |
 | P5 | 工单域 | `pending` | — | WorkOrder + 子组件 + 点位截图 |
 | P6 | 地图域 | `pending` | — | MapView + Leaflet + 工具条 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
 | P8 | 旧样式清理与收尾 | `pending` | — | 删死 CSS、统一 token、文档 |
 
-**当前焦点**: **P2 设计系统与基础组件**。
+**当前焦点**: **P3 应用壳与登录**。
 
 ---
 
@@ -197,11 +197,9 @@
 
 ---
 
-### P2 · 设计系统与基础组件
+### P2 · 设计系统与基础组件（已完成）
 
 **目标**: 业务页重构时只组合 primitives，不再复制 scoped 色值。
-
-建议按依赖顺序添加（名称以 shadcn-vue 为准，可微调）：
 
 | 批次 | 组件 | 主要消费者 |
 |------|------|------------|
@@ -210,21 +208,23 @@
 | 2c | Dialog, AlertDialog, Sheet | 确认/详情/移动侧栏 |
 | 2d | Table, DropdownMenu, Popover, Tabs | 表格与筛选 |
 | 2e | Sidebar, ScrollArea, Tooltip | 应用壳 |
-| 2f | Toast/Sonner, Form（若采用） | 反馈与校验 |
-| 2g | Switch, Pagination（按需） | 管理页 |
+| 2f | Sonner | 反馈（旧 ToastViewport 并存） |
+| 2g | Switch, Pagination | 管理页 |
 
-- [ ] P2.1 批次 2a 接入 + 用法记录（写在本计划摘要或 `docs/` 短文；**不**再开 `/design` 路由）  
-  - 完成日期:
-- [ ] P2.2 批次 2b～2c  
-  - 完成日期:
-- [ ] P2.3 批次 2d～2e  
-  - 完成日期:
-- [ ] P2.4 批次 2f～2g + Toast 替换方案评估（新旧并行期）  
-  - 完成日期:
-- [ ] P2.5 统一 `components/ui/*` 目录约定；禁止业务页直写原始 hex  
-  - 完成日期:
+- [x] P2.1 批次 2a 接入 + 用法记录 `docs/ui-components-usage.md`  
+  - 完成日期: 2026-07-19
+- [x] P2.2 批次 2b～2c  
+  - 完成日期: 2026-07-19
+- [x] P2.3 批次 2d～2e（Sidebar CLI 因 TS 失败，已手动 JS 适配）  
+  - 完成日期: 2026-07-19
+- [x] P2.4 批次 2f～2g；Toast：**新旧并存**，P3 壳层可选用 Sonner，旧 `ToastViewport` 暂留  
+  - 完成日期: 2026-07-19
+- [x] P2.5 目录约定：`src/components/ui/<name>/` + smoke 测试；用法见 `docs/ui-components-usage.md`  
+  - 完成日期: 2026-07-19
 
-**验收**: 组件目录可独立引用；无业务 API 依赖。
+**验收**: `npm test` 含 primitives smoke；可 `import { Button } from '@/components/ui/button'`。
+
+**附带依赖**: `reka-ui`、`@vueuse/core`、`vue-sonner`、`@tanstack/vue-table`、`tw-animate-css`。
 
 ---
 
@@ -481,7 +481,8 @@ frontend/
 
 1. ~~先 P0 决策~~ **已完成**。
 2. ~~P7 删 `/design`~~ **已完成**（在 `ui-shadcn-rebuild` 上独立 commit）。
-3. ~~P1 基建~~ **已完成**（同上）→ 下一步 **P2 组件** → P3 → P4 → P5 → P6 → P8。
+3. ~~P1 基建~~ **已完成**。
+3b. ~~P2 组件~~ **已完成** → 下一步 **P3 壳/登录** → P4 → P5 → P6 → P8。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -498,6 +499,7 @@ frontend/
 | 2026-07-19 | **P7 完成**: 删除 `/design` 全树；剥离 WorkOrder preview；`npm test`/`build` 通过。焦点 → P1 |
 | 2026-07-19 | **P1 完成**: Tailwind v4 + Claude light 主题 + shadcn-vue 基建；无 preflight 并存；焦点 → P2 |
 | 2026-07-19 | **D5 修订**: 取消「小步合 main」；改为长驻 `ui-shadcn-rebuild`，全部完成后再合 main；P7/P1 在该分支分 commit 落盘 |
+| 2026-07-19 | **P2 完成**: shadcn-vue 2a～2g；Sidebar JS 适配；Sonner 与旧 Toast 并存；焦点 → P3 |
 
 ---
 
@@ -525,5 +527,18 @@ frontend/
 - 验证: `npm test` 28 files / 246 tests；`npm run build` 含 `.bg-background` `.bg-primary`
 - 遗留: 尚未添加任何 shadcn 组件（P2）；旧林业绿 token 仍在 `styles.css`
 - 下一步: P2 用 `npx shadcn-vue@latest add` 分批接入 primitives
+
+### 摘要 · P2
+- 日期: 2026-07-19
+- 完成任务: P2.1～P2.5
+- 主要改动:
+  - `src/components/ui/*`：button/input/label/textarea/checkbox/select/card/separator/badge/skeleton/dialog/alert-dialog/sheet/table/dropdown-menu/popover/tabs/scroll-area/tooltip/sidebar/sonner/switch/pagination
+  - Sidebar：CLI TS 失败 → 从 registry 手写 JS 适配
+  - `tw-animate-css` 接入动画类
+  - 用法：`docs/ui-components-usage.md`；smoke：`components/ui/__tests__/primitives.smoke.spec.js`
+  - 旧 `ToastViewport.vue` 保留
+- 验证: `npm test` 29 files / 250 tests；`npm run build` 成功
+- 遗留: 业务页尚未改用新组件；Form 未单独接入
+- 下一步: P3 用 Sidebar + 相关 primitives 重写 App 壳与 Login
 
 <!-- 后续摘要往下追加 -->

@@ -3,6 +3,7 @@
  * 主题变量见 themes/claude-light.css（tweakcn Claude 原样 light）。
  */
 @import "tailwindcss/theme.css" layer(theme);
+@import "tw-animate-css";
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /* 扫描业务源码生成 utility；并预置核心语义类供新页直接使用 */
