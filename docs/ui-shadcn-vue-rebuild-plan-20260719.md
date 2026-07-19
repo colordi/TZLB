@@ -1,6 +1,6 @@
 # 前端 UI 完全重构计划（路径 C：shadcn-vue + Tailwind + Claude 主题）
 
-> **状态**: 执行中 · P7/P1/P2/P3 已完成，下一步 P4  
+> **状态**: 执行中 · P7/P1/P2/P3/P4 已完成，下一步 P5  
 > **编制日期**: 2026-07-19  
 > **最后更新**: 2026-07-19  
 > **适用项目**: TZLB 林业调查工作台（Vue 3 + Vite + Leaflet + FastAPI）  
@@ -48,13 +48,13 @@
 | P1 | 工程基建（Tailwind + shadcn-vue + 主题） | `done` | 2026-07-19 | Tailwind v4 + Claude light + components.json；未装 preflight |
 | P2 | 设计系统与基础组件 | `done` | 2026-07-19 | 2a～2g 已接入；Sidebar 为 JS 适配；旧 Toast 并存 |
 | P3 | 应用壳与登录 | `done` | 2026-07-19 | Sidebar 壳 + Card 登录；Claude 主题可见 |
-| P4 | 管理与数据轻页 | `pending` | — | **当前焦点** · admin + export + statistics |
-| P5 | 工单域 | `pending` | — | WorkOrder + 子组件 + 点位截图 |
+| P4 | 管理与数据轻页 | `done` | 2026-07-19 | 导出/统计/admin 四页 + 用户/图层 |
+| P5 | 工单域 | `pending` | — | **当前焦点** · WorkOrder + 子组件 + 点位截图 |
 | P6 | 地图域 | `pending` | — | MapView + Leaflet + 工具条 |
 | P7 | 删除 `/design` 预览体系 | `done` | 2026-07-19 | 路由/组件/fixtures/样式/测试已删；工单 preview 耦合已剥离 |
 | P8 | 旧样式清理与收尾 | `pending` | — | 删死 CSS、统一 token、文档 |
 
-**当前焦点**: **P4 管理与数据轻页**。
+**当前焦点**: **P5 工单域**。
 
 ---
 
@@ -247,35 +247,26 @@
 
 ---
 
-### P4 · 管理与数据轻页
+### P4 · 管理与数据轻页（已完成）
 
 **目标**: 低业务复杂度页面先完成，验证表格/表单模式。
 
-建议顺序（由易到难）：
+- [x] P4.1 DataExport — Card/Table/Button  
+  - 完成日期: 2026-07-19
+- [x] P4.2 DataStatistics — Card + 原生表/分页  
+  - 完成日期: 2026-07-19
+- [x] P4.3 AdminDashboard — KPI Card + Skeleton  
+  - 完成日期: 2026-07-19
+- [x] P4.4 AdminOperationLogs — Table + 分页  
+  - 完成日期: 2026-07-19
+- [x] P4.5 AdminUsers — Table + Dialog 表单  
+  - 完成日期: 2026-07-19
+- [x] P4.6 AdminLayers — Card 网格 + 拖拽逻辑保留  
+  - 完成日期: 2026-07-19
+- [x] P4.7 测试与构建  
+  - 完成日期: 2026-07-19
 
-1. `DataExportView`
-2. `DataStatisticsView`
-3. `AdminDashboardView`
-4. `AdminOperationLogsView`
-5. `AdminUsersView`
-6. `AdminLayersView`
-
-- [ ] P4.1 DataExport  
-  - 完成日期:
-- [ ] P4.2 DataStatistics  
-  - 完成日期:
-- [ ] P4.3 AdminDashboard  
-  - 完成日期:
-- [ ] P4.4 AdminOperationLogs  
-  - 完成日期:
-- [ ] P4.5 AdminUsers  
-  - 完成日期:
-- [ ] P4.6 AdminLayers  
-  - 完成日期:
-- [ ] P4.7 对应 `views/__tests__/*` 与构建  
-  - 完成日期:
-
-**验收**: admin 数据链路功能等价；页面级 scoped 样式删除或近空。
+**验收**: 既有 data-testid 与关键 class（如 pager-btn）保留；scoped 大块 CSS 已移除。
 
 ---
 
@@ -483,7 +474,8 @@ frontend/
 2. ~~P7 删 `/design`~~ **已完成**（在 `ui-shadcn-rebuild` 上独立 commit）。
 3. ~~P1 基建~~ **已完成**。
 3b. ~~P2 组件~~ **已完成**。
-3c. ~~P3 壳/登录~~ **已完成** → 下一步 **P4 管理/导出/统计** → P5 → P6 → P8。
+3c. ~~P3 壳/登录~~ **已完成**。
+3d. ~~P4 管理/导出/统计~~ **已完成** → 下一步 **P5 工单域** → P6 → P8。
 4. **D5（修订）**: 全程在 `ui-shadcn-rebuild` 开发与调试；**勿合 main**，直至重构完成。
 5. 每天结束更新本文进度；阻塞超过 1 天写入变更记录。
 6. 地图（P6）不要与工单（P5）同一 commit 混改。
@@ -502,6 +494,7 @@ frontend/
 | 2026-07-19 | **D5 修订**: 取消「小步合 main」；改为长驻 `ui-shadcn-rebuild`，全部完成后再合 main；P7/P1 在该分支分 commit 落盘 |
 | 2026-07-19 | **P2 完成**: shadcn-vue 2a～2g；Sidebar JS 适配；Sonner 与旧 Toast 并存；焦点 → P3 |
 | 2026-07-19 | **P3 完成**: App 壳 Sidebar + 登录 Card；测试更新；焦点 → P4 |
+| 2026-07-19 | **P4 完成**: 数据导出/统计 + admin 四页换皮；焦点 → P5 |
 
 ---
 
@@ -554,5 +547,16 @@ frontend/
 - 验证: `npm test` 29 files / 249 tests；`npm run build` 成功
 - 遗留: 业务页（工单/地图/admin）仍为旧样式；旧 Toast 仍在用
 - 下一步: P4 管理与数据轻页换皮
+
+### 摘要 · P4
+- 日期: 2026-07-19
+- 完成任务: P4.1～P4.7
+- 主要改动:
+  - `DataExportView` / `DataStatisticsView` / `AdminDashboardView` / `AdminOperationLogsView` / `AdminUsersView` / `AdminLayersView`
+  - 统一 Card/Table/Button/Dialog/Badge；去掉大块 scoped CSS
+  - 业务逻辑与 data-testid 保持
+- 验证: `npm test` 249 通过；`npm run build` 成功
+- 遗留: 工单域与地图仍为旧 UI
+- 下一步: P5 工单域
 
 <!-- 后续摘要往下追加 -->

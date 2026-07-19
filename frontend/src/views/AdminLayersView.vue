@@ -6,6 +6,11 @@ import { fetchLayers, updateLayers } from "../api/admin.js";
 import { fetchMapFilterOptions } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const { error, info } = useToast();
 const loading = ref(false);
@@ -241,564 +246,156 @@ onMounted(() => {
 });
 </script>
 
+
 <template>
-  <div class="admin-page">
-    <div class="page-header">
-      <div class="page-header-copy">
-        <h1 class="page-title">图层管理</h1>
-        <p class="page-desc">拖拽调整图层显示顺序，编辑别名与启用状态，共 {{ totalCount }} 项</p>
+  <div class="mx-auto w-full max-w-6xl space-y-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="text-2xl font-bold tracking-tight">图层管理</h1>
+        <p class="text-sm text-muted-foreground">
+          拖拽调整图层显示顺序，编辑别名与启用状态，共 {{ totalCount }} 项
+        </p>
       </div>
-      <div class="page-actions">
-        <button type="button" class="btn btn-secondary" :disabled="loading" @click="load">
-          <RefreshCw :size="16" :stroke-width="2" :class="{ 'is-spinning': loading }" />
+      <div class="page-actions flex items-center gap-2">
+        <Button type="button" variant="outline" size="sm" :disabled="loading" @click="load">
+          <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
           <span>{{ loading ? "加载中" : "刷新" }}</span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          class="btn btn-primary"
+          size="sm"
           :disabled="!hasChanges || saving"
           @click="handleSave"
         >
-          <Save :size="16" :stroke-width="2" />
+          <Save class="size-4" />
           <span>{{ saving ? "保存中…" : "保存更改" }}</span>
-        </button>
+        </Button>
       </div>
     </div>
 
     <template v-for="(typeKey, typeIdx) in ['view', 'reference']" :key="typeKey">
-      <div class="section-head" :class="{ 'section-head--first': typeIdx === 0 }">
-        <h2 class="section-title">{{ layerTypeLabel[typeKey] }}</h2>
-        <span class="section-count">{{ listFor(typeKey).length }}</span>
+      <div
+        class="flex items-center gap-2 border-b pb-2"
+        :class="typeIdx === 0 ? '' : 'mt-8'"
+      >
+        <h2 class="text-base font-bold">{{ layerTypeLabel[typeKey] }}</h2>
+        <Badge variant="secondary">{{ listFor(typeKey).length }}</Badge>
       </div>
 
-      <div class="layer-grid">
-        <div
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Card
           v-for="(layer, index) in listFor(typeKey)"
           :key="layer.id"
-          class="layer-card"
-          :class="{
-            'is-disabled': !getEdit(layer).is_enabled,
-            'is-dragging': dragKey === layer.layer_key,
-            'is-drag-over-before':
-              dragOverKey === layer.layer_key && dragOverPos === 'before',
-            'is-drag-over-after':
-              dragOverKey === layer.layer_key && dragOverPos === 'after',
-          }"
+          class="relative transition-opacity"
+          :class="cn(
+            !getEdit(layer).is_enabled && 'opacity-55',
+            dragKey === layer.layer_key && 'opacity-40',
+            dragOverKey === layer.layer_key && dragOverPos === 'before' && 'ring-2 ring-primary ring-offset-2',
+            dragOverKey === layer.layer_key && dragOverPos === 'after' && 'ring-2 ring-primary ring-offset-2',
+          )"
           @dragover="onDragOver($event, layer, typeKey)"
           @drop="onDrop($event, layer, typeKey)"
           @dragend="onDragEnd"
         >
-          <div class="layer-card-head">
-            <div
-              class="layer-handle"
-              draggable="true"
-              title="拖拽排序"
-              @dragstart="onDragStart($event, layer, typeKey)"
-            >
-              <GripVertical :size="16" :stroke-width="2" />
-            </div>
-            <span class="layer-index">{{ index + 1 }}</span>
-            <input
-              v-model="getEdit(layer).display_name"
-              class="name-input"
-              draggable="false"
-              :placeholder="layer.layer_key"
-              @input="markChanged"
-            />
-          </div>
-
-          <code class="layer-key">{{ layer.layer_key }}</code>
-
-          <div class="layer-toggles">
-            <button
-              type="button"
-              class="switch"
-              draggable="false"
-              :class="{ 'is-on': getEdit(layer).is_enabled }"
-              :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
-              @click="toggleEnabled(layer)"
-            >
-              <span class="switch-track"></span>
-              <span class="switch-label">
-                <Eye v-if="getEdit(layer).is_enabled" :size="13" :stroke-width="2" />
-                <EyeOff v-else :size="13" :stroke-width="2" />
-                {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
-              </span>
-            </button>
-
-            <button
-              v-if="layer.layer_type === 'reference'"
-              type="button"
-              class="switch"
-              draggable="false"
-              :class="{ 'is-on': getEdit(layer).default_visible }"
-              title="默认显隐"
-              @click="toggleDefaultVisible(layer)"
-            >
-              <span class="switch-track"></span>
-              <span class="switch-label">
-                {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
-              </span>
-            </button>
-          </div>
-
-          <div
-            v-if="layer.layer_type === 'view' && configurableFieldsFor(layer).length"
-            class="layer-default-filters"
-            data-testid="layer-default-filters"
-          >
-            <span class="layer-default-filters-label">默认筛选</span>
-            <div class="layer-default-filters-fields">
-              <label
-                v-for="field in configurableFieldsFor(layer)"
-                :key="field.key"
-                class="layer-default-filter"
+          <CardContent class="space-y-3 p-3">
+            <div class="flex items-center gap-2">
+              <div
+                class="flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                draggable="true"
+                title="拖拽排序"
+                @dragstart="onDragStart($event, layer, typeKey)"
               >
-                <span class="layer-default-filter-name">{{ field.label }}</span>
-                <select
-                  :value="getFilterValue(layer, field.key)"
-                  :data-testid="`layer-filter-${field.key}`"
-                  @change="setFilterValue(layer, field.key, $event.target.value)"
-                >
-                  <option value="">全部</option>
-                  <option
-                    v-for="option in field.options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                  <option
-                    v-if="isStaleFilterValue(layer, field)"
-                    disabled
-                    :value="getFilterValue(layer, field.key)"
-                  >
-                    {{ getFilterValue(layer, field.key) }}（当前无此值）
-                  </option>
-                </select>
-              </label>
+                <GripVertical class="size-4" />
+              </div>
+              <span class="w-6 text-center text-xs font-semibold text-muted-foreground">
+                {{ index + 1 }}
+              </span>
+              <Input
+                v-model="getEdit(layer).display_name"
+                class="h-8"
+                draggable="false"
+                :placeholder="layer.layer_key"
+                @input="markChanged"
+              />
             </div>
-          </div>
-        </div>
 
-        <div v-if="listFor(typeKey).length === 0 && !loading" class="layer-empty">
+            <code class="block truncate text-xs text-muted-foreground">{{ layer.layer_key }}</code>
+
+            <div class="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                :variant="getEdit(layer).is_enabled ? 'default' : 'outline'"
+                draggable="false"
+                :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
+                @click="toggleEnabled(layer)"
+              >
+                <Eye v-if="getEdit(layer).is_enabled" class="size-3.5" />
+                <EyeOff v-else class="size-3.5" />
+                {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
+              </Button>
+
+              <Button
+                v-if="layer.layer_type === 'reference'"
+                type="button"
+                size="sm"
+                :variant="getEdit(layer).default_visible ? 'secondary' : 'outline'"
+                draggable="false"
+                title="默认显隐"
+                @click="toggleDefaultVisible(layer)"
+              >
+                {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
+              </Button>
+            </div>
+
+            <div
+              v-if="layer.layer_type === 'view' && configurableFieldsFor(layer).length"
+              class="space-y-2 rounded-md border bg-muted/30 p-2"
+              data-testid="layer-default-filters"
+            >
+              <span class="text-xs font-semibold text-muted-foreground">默认筛选</span>
+              <div class="grid gap-2">
+                <label
+                  v-for="field in configurableFieldsFor(layer)"
+                  :key="field.key"
+                  class="grid gap-1 text-xs"
+                >
+                  <span class="text-muted-foreground">{{ field.label }}</span>
+                  <select
+                    class="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                    :value="getFilterValue(layer, field.key)"
+                    :data-testid="`layer-filter-${field.key}`"
+                    @change="setFilterValue(layer, field.key, $event.target.value)"
+                  >
+                    <option value="">全部</option>
+                    <option
+                      v-for="option in field.options"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                    <option
+                      v-if="isStaleFilterValue(layer, field)"
+                      disabled
+                      :value="getFilterValue(layer, field.key)"
+                    >
+                      {{ getFilterValue(layer, field.key) }}（当前无此值）
+                    </option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div
+          v-if="listFor(typeKey).length === 0 && !loading"
+          class="col-span-full py-8 text-center text-sm text-muted-foreground"
+        >
           暂无数据
         </div>
       </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.admin-page {
-  max-width: var(--content-width, 1200px);
-  width: 100%;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-6, 1.5rem);
-  margin-bottom: var(--space-6, 1.5rem);
-}
-
-.page-header-copy {
-  min-width: 0;
-}
-
-.page-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-2xl, 1.5rem);
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.page-desc {
-  margin: var(--space-1, 0.25rem) 0 0;
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--color-text-muted, #666);
-}
-
-.page-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3, 0.75rem);
-  flex-shrink: 0;
-}
-
-/* section */
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3, 0.75rem);
-  margin: 0 0 var(--space-3, 0.75rem);
-  padding-bottom: var(--space-2, 0.5rem);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.section-head--first {
-  margin-top: 0;
-}
-
-.section-head:not(.section-head--first) {
-  margin-top: var(--space-8, 2rem);
-}
-
-.section-title {
-  margin: 0;
-  font-size: var(--text-base, 1rem);
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.section-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--color-surface-container, #eee);
-  color: var(--color-text-muted, #666);
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* layer grid */
-.layer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--space-3, 0.75rem);
-}
-
-.layer-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 0.5rem);
-  padding: var(--space-3, 0.75rem);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-surface);
-  transition: box-shadow var(--motion-fast, 150ms) ease,
-    opacity var(--motion-fast, 150ms) ease,
-    border-color var(--motion-fast, 150ms) ease;
-}
-
-.layer-card:hover {
-  border-color: color-mix(
-    in oklch,
-    var(--color-primary, #2a7a5a) 30%,
-    var(--color-border, #ddd)
-  );
-  box-shadow: var(--shadow-sm, 0 4px 16px rgba(0, 0, 0, 0.06));
-}
-
-.layer-card.is-disabled {
-  opacity: 0.55;
-}
-
-.layer-card.is-dragging {
-  opacity: 0.4;
-  box-shadow: var(--shadow-hover, 0 16px 40px rgba(0, 0, 0, 0.12));
-}
-
-/* 拖拽插入指示线（左右） */
-.layer-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--color-primary, #2a7a5a);
-  border-radius: 3px;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 2;
-  transition: opacity var(--motion-fast, 150ms) ease;
-}
-
-.layer-card.is-drag-over-before::before {
-  opacity: 1;
-  left: -4px;
-}
-
-.layer-card.is-drag-over-after::before {
-  opacity: 1;
-  right: -4px;
-}
-
-.layer-card-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2, 0.5rem);
-}
-
-.layer-handle {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  flex-shrink: 0;
-  color: var(--color-text-muted, #bbb);
-  cursor: grab;
-  transition: color var(--motion-fast, 150ms) ease;
-}
-
-.layer-card:hover .layer-handle {
-  color: var(--color-text-muted, #999);
-}
-
-.layer-handle:active {
-  cursor: grabbing;
-}
-
-.layer-index {
-  flex-shrink: 0;
-  min-width: 1.5em;
-  text-align: center;
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 600;
-  color: var(--color-text-muted, #999);
-  font-variant-numeric: tabular-nums;
-}
-
-.name-input {
-  flex: 1;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-sm, 0.875rem);
-  font-weight: 600;
-  transition: border-color var(--motion-fast, 150ms) ease,
-    box-shadow var(--motion-fast, 150ms) ease;
-}
-
-.name-input:hover {
-  border-color: color-mix(
-    in oklch,
-    var(--color-primary, #2a7a5a) 25%,
-    var(--color-border, #ddd)
-  );
-}
-
-.name-input:focus {
-  outline: none;
-  border-color: var(--color-primary, #2a7a5a);
-  box-shadow: 0 0 0 2px
-    color-mix(in oklch, var(--color-primary, #2a7a5a) 18%, transparent);
-}
-
-.name-input::placeholder {
-  color: var(--color-text-muted, #bbb);
-  font-weight: 400;
-}
-
-.layer-key {
-  display: block;
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--color-text-muted, #999);
-  padding: 0 0.3rem;
-  font-family: var(--font-mono, monospace);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.layer-toggles {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3, 0.75rem);
-  flex-wrap: wrap;
-}
-
-.switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 600;
-  color: var(--color-text-muted, #999);
-  transition: color var(--motion-fast, 150ms) ease;
-}
-
-.switch:hover {
-  color: var(--color-text, #333);
-}
-
-.switch-track {
-  position: relative;
-  width: 34px;
-  height: 20px;
-  border-radius: var(--radius-pill, 999px);
-  background: #d1d5db;
-  transition: background var(--motion-base, 160ms) ease;
-}
-
-.switch-track::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: var(--radius-round, 50%);
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  transition: transform var(--motion-base, 160ms) ease;
-}
-
-.switch.is-on {
-  color: var(--color-text, #333);
-}
-
-.switch.is-on .switch-track {
-  background: var(--color-primary, #2a7a5a);
-}
-
-.switch.is-on .switch-track::after {
-  transform: translateX(14px);
-}
-
-.switch-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
-}
-
-.layer-default-filters {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 0.5rem);
-  padding-top: var(--space-2, 0.5rem);
-  border-top: 1px solid var(--color-border);
-}
-
-.layer-default-filters-label {
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 700;
-  color: var(--color-text-muted, #666);
-  letter-spacing: 0.04em;
-}
-
-.layer-default-filters-fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2, 0.5rem);
-}
-
-.layer-default-filter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-}
-
-.layer-default-filter-name {
-  flex-shrink: 0;
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 600;
-  color: var(--color-text-muted, #666);
-}
-
-.layer-default-filter select {
-  min-width: 0;
-  flex: 1;
-  min-height: 28px;
-  padding: 0 0.4rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.layer-default-filter select:hover {
-  border-color: color-mix(
-    in oklch,
-    var(--color-primary, #2a7a5a) 25%,
-    var(--color-border, #ddd)
-  );
-}
-
-.layer-default-filter select:focus {
-  outline: none;
-  border-color: var(--color-primary, #2a7a5a);
-  box-shadow: 0 0 0 2px
-    color-mix(in oklch, var(--color-primary, #2a7a5a) 18%, transparent);
-}
-
-.layer-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 2rem;
-  color: var(--color-text-muted, #999);
-  font-size: var(--text-sm, 0.875rem);
-}
-
-/* Buttons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2, 0.5rem);
-  min-height: 2.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 8px);
-  font-size: var(--text-sm, 0.875rem);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--motion-fast, 150ms) var(--ease-standard, ease);
-  white-space: nowrap;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--color-surface-container, #f0f0f0);
-}
-
-.btn-primary {
-  background: var(--color-primary, #2a7a5a);
-  color: #fff;
-  border-color: var(--color-primary, #2a7a5a);
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.is-spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-</style>
