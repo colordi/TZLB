@@ -4,7 +4,13 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "./utils.js"
 
-const props = defineProps()
+const props = defineProps({
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
+})
 
 const { toggleSidebar } = useSidebar()
 </script>

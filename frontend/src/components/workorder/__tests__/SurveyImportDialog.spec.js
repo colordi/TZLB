@@ -51,7 +51,6 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
-        pestType: "春尺蠖",
       },
       global: {
         stubs: {
@@ -60,24 +59,28 @@ describe("SurveyImportDialog", () => {
       },
     });
 
-    await wrapper.get("#survey-import-date").setValue("2026-04-01");
+    wrapper.vm.selectedDate = "2026-04-01";
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-04-01&pest_type=%E6%98%A5%E5%B0%BA%E8%A0%96",
+      "/api/survey/candidates?date=2026-04-01&pest_type=%E6%98%A5%E5%B0%BA%E8%A0%96&year=2026",
       expect.objectContaining({
         credentials: "same-origin",
       }),
     );
-    expect(wrapper.text()).toContain("共 2 条记录，已选择 2 条");
+    expect(wrapper.text()).toContain("共 2 条，已选 2 条");
 
     await wrapper.get('[data-testid="survey-import-confirm"]').trigger("click");
 
     const events = wrapper.emitted("import");
     expect(events).toBeTruthy();
-    expect(events[0][0]).toHaveLength(2);
-    expect(events[0][0][1].location_id).toBe("YF0070");
+    expect(events[0][0].records).toHaveLength(2);
+    expect(events[0][0].records[1].location_id).toBe("YF0070");
+    expect(events[0][0].task).toMatchObject({
+      pestType: "春尺蠖",
+    });
   });
 
   it("查询无结果时显示空状态并禁用导入", async () => {
@@ -86,7 +89,6 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
-        pestType: "春尺蠖",
       },
       global: {
         stubs: {
@@ -95,11 +97,12 @@ describe("SurveyImportDialog", () => {
       },
     });
 
-    await wrapper.get("#survey-import-date").setValue("2026-04-02");
+    wrapper.vm.selectedDate = "2026-04-02";
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("未找到可导入的调查记录");
+    expect(wrapper.text()).toContain("未找到记录");
     expect(wrapper.get('[data-testid="survey-import-confirm"]').attributes("disabled")).toBeDefined();
   });
 
@@ -125,7 +128,6 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
-        pestType: "其他害虫",
       },
       global: {
         stubs: {
@@ -134,12 +136,14 @@ describe("SurveyImportDialog", () => {
       },
     });
 
-    await wrapper.get("#survey-import-date").setValue("2026-04-17");
+    await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("其他害虫");
+    wrapper.vm.selectedDate = "2026-04-17";
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-04-17&pest_type=%E5%85%B6%E4%BB%96%E5%AE%B3%E8%99%AB",
+      "/api/survey/candidates?date=2026-04-17&pest_type=%E5%85%B6%E4%BB%96%E5%AE%B3%E8%99%AB&year=2026",
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -171,7 +175,6 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
-        pestType: "国槐尺蠖",
       },
       global: {
         stubs: {
@@ -180,12 +183,14 @@ describe("SurveyImportDialog", () => {
       },
     });
 
-    await wrapper.get("#survey-import-date").setValue("2026-05-02");
+    await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("国槐尺蠖");
+    wrapper.vm.selectedDate = "2026-05-02";
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-05-02&pest_type=%E5%9B%BD%E6%A7%90%E5%B0%BA%E8%A0%96",
+      expect.stringContaining("/api/survey/candidates?date=2026-05-02&pest_type=%E5%9B%BD%E6%A7%90%E5%B0%BA%E8%A0%96&year=2026"),
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -221,7 +226,6 @@ describe("SurveyImportDialog", () => {
     const wrapper = mount(SurveyImportDialog, {
       props: {
         open: true,
-        pestType: "美国白蛾",
       },
       global: {
         stubs: {
@@ -230,12 +234,14 @@ describe("SurveyImportDialog", () => {
       },
     });
 
-    await wrapper.get("#survey-import-date").setValue("2026-05-26");
+    await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("美国白蛾");
+    wrapper.vm.selectedDate = "2026-05-26";
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-05-26&pest_type=%E7%BE%8E%E5%9B%BD%E7%99%BD%E8%9B%BE",
+      expect.stringContaining("/api/survey/candidates?date=2026-05-26&pest_type=%E7%BE%8E%E5%9B%BD%E7%99%BD%E8%9B%BE&year=2026"),
       expect.objectContaining({
         credentials: "same-origin",
       }),

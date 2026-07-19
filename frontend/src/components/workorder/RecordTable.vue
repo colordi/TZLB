@@ -79,12 +79,12 @@ function handleRowClick(uid) {
 </script>
 
 <template>
-  <section class="record-workspace panel-card">
+  <section class="record-workspace">
     <div v-if="busy" class="record-busy-overlay" aria-live="polite" data-testid="record-busy-overlay">
       <div class="record-busy-card">
         <span class="record-busy-spinner" aria-hidden="true"></span>
         <div class="record-busy-copy">
-          <strong>{{ busyLabel || "正在导出…" }}</strong>
+          <strong>{{ busyLabel || "正在生成…" }}</strong>
           <span v-if="busyPercent > 0" data-testid="record-busy-percent">{{ Math.round(busyPercent) }}%</span>
         </div>
         <div
@@ -199,8 +199,8 @@ function handleRowClick(uid) {
     </div>
 
     <div v-if="!hasRows" class="empty-state">
-      <strong>当前单子为空</strong>
-      <p>请点击“导入调查数据”选取记录导入工作单。</p>
+      <strong>暂无点位</strong>
+      <p>请先通过上方导入入口添加点位，再生成工单。</p>
     </div>
   </section>
 </template>
@@ -208,12 +208,8 @@ function handleRowClick(uid) {
 <style scoped>
 .record-workspace {
   position: relative;
+  min-width: 0;
   overflow: hidden;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
 .record-busy-overlay {
@@ -237,7 +233,6 @@ function handleRowClick(uid) {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
   color: var(--color-ink);
   font-size: var(--text-sm);
 }
@@ -299,7 +294,8 @@ function handleRowClick(uid) {
 
 .table-scroll {
   overflow: auto;
-  border: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   background: transparent;
 }
 
@@ -581,14 +577,18 @@ function handleRowClick(uid) {
 
 
 .empty-state {
-  min-height: 15rem;
+  min-height: 12rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--color-muted);
+  background: color-mix(in oklch, var(--color-bg) 50%, transparent);
 }
 
 @media (max-width: 900px) {
@@ -603,14 +603,8 @@ function handleRowClick(uid) {
 }
 
 @media (max-width: 640px) {
-  .record-workspace {
-    border-radius: var(--radius-lg);
-  }
-
   .mobile-card-head {
     flex-direction: column;
   }
-
-
 }
 </style>

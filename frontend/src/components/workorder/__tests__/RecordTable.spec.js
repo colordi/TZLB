@@ -83,7 +83,7 @@ describe("RecordTable", () => {
     expect(wrapper.text()).not.toContain("寄主树种");
   });
 
-  it("空状态提示先导入调查数据", () => {
+  it("空状态提示先导入点位", () => {
     const wrapper = mount(RecordTable, {
       props: {
         records: [],
@@ -91,6 +91,7 @@ describe("RecordTable", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("请点击“导入调查数据”选取记录导入工作单。");
+    expect(wrapper.text()).toContain("暂无点位");
+    expect(wrapper.text()).toContain("请先通过上方导入入口添加点位，再生成工单。");
   });
 });

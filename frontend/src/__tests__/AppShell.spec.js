@@ -73,6 +73,20 @@ async function mountApp(initialPath = "/workorder", options = {}) {
         },
       },
       {
+        path: "/data-import",
+        component: DataExportStub,
+        meta: {
+          section: "调查数据导入",
+        },
+      },
+      {
+        path: "/workorder-assets",
+        component: DataExportStub,
+        meta: {
+          section: "工单素材",
+        },
+      },
+      {
         path: "/data-export",
         component: DataExportStub,
         meta: {
@@ -136,20 +150,18 @@ describe("App 壳层导航", () => {
     document.cookie = "sidebar_state=; path=/; max-age=0";
   });
 
-  it("顶部导航会高亮当前路由，且不再展示当前页面卡片", async () => {
+  it("侧栏导航会高亮当前路由，顶栏仅保留面包屑与账号，且不再展示当前页面卡片", async () => {
     const { wrapper } = await mountApp("/workorder");
 
     expect(wrapper.findAll(".site-header")).toHaveLength(1);
     expect(wrapper.findAll(".app-sidebar")).toHaveLength(1);
+    expect(wrapper.find('[data-testid="header-link-workorder"]').exists()).toBe(false);
 
-    const activeHeader = wrapper.get(
-      '[data-testid="header-link-workorder"].router-link-active',
-    );
-    expect(activeHeader.text()).toContain("工单录入");
     const activeSidebar = wrapper.get(
       '[data-testid="sidebar-link-workorder"].router-link-active',
     );
     expect(activeSidebar.text()).toContain("工单录入");
+    expect(wrapper.get(".site-section-title").text()).toContain("工单录入");
     expect(wrapper.text()).not.toContain("当前页面");
   });
 
@@ -220,11 +232,9 @@ describe("App 壳层导航", () => {
 
     expect(wrapper.find('[data-testid="sidebar-link-workorder"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="sidebar-link-map"]').text()).toContain("调查点位");
-    expect(wrapper.find('[data-testid="header-link-workorder"]').exists()).toBe(false);
-    expect(wrapper.get('[data-testid="header-link-map"]').text()).toContain("调查点位");
   });
 
-  it("管理员账号展示数据导出入口", async () => {
+  it("管理员账号展示数据管理准备入口与导出入口", async () => {
     const { wrapper } = await mountApp("/workorder", {
       user: {
         id: 1,
@@ -236,10 +246,13 @@ describe("App 壳层导航", () => {
       },
     });
 
-    expect(wrapper.get('[data-testid="sidebar-link-data-export"]').text()).toContain(
-      "数据导出",
+    expect(wrapper.get('[data-testid="sidebar-link-data-import"]').text()).toContain(
+      "调查数据导入",
     );
-    expect(wrapper.get('[data-testid="header-link-data-export"]').text()).toContain(
+    expect(wrapper.get('[data-testid="sidebar-link-workorder-assets"]').text()).toContain(
+      "工单素材",
+    );
+    expect(wrapper.get('[data-testid="sidebar-link-data-export"]').text()).toContain(
       "数据导出",
     );
   });
@@ -259,9 +272,6 @@ describe("App 壳层导航", () => {
     expect(wrapper.get('[data-testid="sidebar-link-data-statistics"]').text()).toContain(
       "数据统计",
     );
-    expect(wrapper.get('[data-testid="header-link-data-statistics"]').text()).toContain(
-      "数据统计",
-    );
   });
 
   it("调查员账号不展示数据导出入口", async () => {
@@ -277,7 +287,6 @@ describe("App 壳层导航", () => {
     });
 
     expect(wrapper.find('[data-testid="sidebar-link-data-export"]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="header-link-data-export"]').exists()).toBe(false);
   });
 
   it("调查员账号不展示数据统计入口", async () => {
@@ -293,9 +302,6 @@ describe("App 壳层导航", () => {
     });
 
     expect(wrapper.find('[data-testid="sidebar-link-data-statistics"]').exists()).toBe(
-      false,
-    );
-    expect(wrapper.find('[data-testid="header-link-data-statistics"]').exists()).toBe(
       false,
     );
   });

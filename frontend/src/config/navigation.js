@@ -1,6 +1,8 @@
 import {
   ChartColumn,
   Database,
+  FileSpreadsheet,
+  Images,
   LayoutDashboard,
   Layers,
   MapPin,
@@ -34,6 +36,20 @@ export const NAV_GROUPS = [
   {
     label: "数据管理",
     items: [
+      {
+        to: "/data-import",
+        label: "调查数据导入",
+        icon: FileSpreadsheet,
+        testId: "data-import",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+      {
+        to: "/workorder-assets",
+        label: "工单素材",
+        icon: Images,
+        testId: "workorder-assets",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
       {
         to: "/data-export",
         label: "数据导出",

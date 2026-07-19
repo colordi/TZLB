@@ -2,7 +2,13 @@
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 
-const props = defineProps()
+const props = defineProps({
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
+})
 </script>
 
 <template>

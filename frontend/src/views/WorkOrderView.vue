@@ -1,15 +1,13 @@
 <script setup>
-import { computed, ref, watch } from "vue";
-import { Archive, FileSpreadsheet, FolderUp } from "@lucide/vue";
+import { computed, ref } from "vue";
+import { Database } from "@lucide/vue";
 
 import { useWorkorderTaskConfig } from "../composables/workorder/useWorkorderTaskConfig.js";
 import { useWorkorderRecords } from "../composables/workorder/useWorkorderRecords.js";
 import { useRecordSelection } from "../composables/workorder/useRecordSelection.js";
 import { useWorkorderExport } from "../composables/workorder/useWorkorderExport.js";
-import { useDateFolderUpload } from "../composables/workorder/useDateFolderUpload.js";
 import { useRecordDetailModal } from "../composables/workorder/useRecordDetailModal.js";
 import { useToast } from "../composables/useToast.js";
-import ExcelImportDialog from "../components/workorder/ExcelImportDialog.vue";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
@@ -18,19 +16,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-
 const toast = useToast();
 
 const taskConfig = useWorkorderTaskConfig();
 const {
-  PEST_OPTIONS, pestType, year, taskName,
-  generation, taskOptions, yearOptions, canImportSurvey,
+  pestType, year, taskName,
+  generation, canImportSurvey,
 } = taskConfig;
 
 const recCtrl = useWorkorderRecords(pestType);
 const {
   records, validationErrors,
-  normalizeAll, handleSurveyImport: importRecords,
+  handleSurveyImport: importRecords,
   handleUpdateRecord: updateRecord,
   handleBatchDelete: batchDelete,
 } = recCtrl;
@@ -54,13 +51,10 @@ const {
   exportProgressLabel,
 } = exportCtrl;
 
-const dateFolder = useDateFolderUpload();
-const { dateFolderInput, dateFolderUploading } = dateFolder;
-
 const surveyImportOpen = ref(false);
-const excelImportOpen = ref(false);
 const pendingDelete = ref(null);
 const showConfirmDialog = ref(false);
+const sessionLocked = ref(false);
 
 const detailModal = useRecordDetailModal(records, validationErrors, pestType);
 const {
@@ -68,12 +62,32 @@ const {
   openDetail, closeDetail,
 } = detailModal;
 
-const confirmDialogTitle = computed(() =>
-  pendingDelete.value?.scope === "batch"
-    ? "删除选中记录"
-    : "删除该条记录",
-);
+const hasRecords = computed(() => records.value.length > 0);
+const lockedTask = computed(() => {
+  if (!sessionLocked.value) {
+    return null;
+  }
+  return {
+    pestType: pestType.value,
+    year: year.value,
+    taskName: taskName.value,
+    generation: generation.value,
+  };
+});
+
+const confirmDialogTitle = computed(() => {
+  if (pendingDelete.value?.scope === "reset") {
+    return "清空点位并重新建单";
+  }
+  if (pendingDelete.value?.scope === "batch") {
+    return "删除选中记录";
+  }
+  return "删除该条记录";
+});
 const confirmDialogMessage = computed(() => {
+  if (pendingDelete.value?.scope === "reset") {
+    return "将清空当前点位清单并解锁任务配置，之后可重新从数据库导入。此操作不可撤销。";
+  }
   const count = pendingDelete.value?.uids.length || 0;
   if (pendingDelete.value?.scope === "batch") {
     return `确认删除选中的 ${count} 条记录吗？此操作不可撤销。`;
@@ -81,54 +95,59 @@ const confirmDialogMessage = computed(() => {
   return "确认删除当前记录吗？此操作不可撤销。";
 });
 
-function resetWorkspace() {
-  taskConfig.resetTaskName();
-  surveyImportOpen.value = false;
-  excelImportOpen.value = false;
-  selectedUids.value = [];
-  normalizeAll();
-}
-
-watch(pestType, resetWorkspace);
-
 function openSurveyImportDialog() {
-  if (!canImportSurvey.value || generating.value) {
-    return;
-  }
-  surveyImportOpen.value = true;
-}
-
-function openExcelImportDialog() {
   if (generating.value) {
     return;
   }
-  excelImportOpen.value = true;
-}
-
-function closeExcelImportDialog() {
-  excelImportOpen.value = false;
+  if (!sessionLocked.value && !canImportSurvey.value) {
+    // still allow open; dialog owns pest selection and canImportSurvey
+  }
+  surveyImportOpen.value = true;
 }
 
 function closeSurveyImportDialog() {
   surveyImportOpen.value = false;
 }
 
-function onDateFolderChange(event) {
-  dateFolder.handleDateFolderChange(event, toast);
-}
+function onSurveyImport(payload) {
+  const importedRecords = Array.isArray(payload)
+    ? payload
+    : payload?.records;
+  const task = Array.isArray(payload) ? null : payload?.task;
 
-function onOpenDateFolderPicker() {
-  dateFolder.openDateFolderPicker(generating.value);
-}
-
-function onSurveyImport(importedRecords) {
   if (!Array.isArray(importedRecords) || importedRecords.length === 0) {
     toast.info("请至少选择一条调查记录。", "没有可导入项");
     return;
   }
+
+  if (task) {
+    pestType.value = task.pestType;
+    year.value = task.year;
+    taskName.value = task.taskName;
+  }
+
   const count = importRecords(importedRecords).length;
+  sessionLocked.value = true;
   surveyImportOpen.value = false;
   toast.success(`已导入 ${count} 条调查记录。`, "导入完成");
+}
+
+function requestResetSession() {
+  if (!hasRecords.value && !sessionLocked.value) {
+    return;
+  }
+  pendingDelete.value = { scope: "reset", uids: records.value.map((r) => r.__uid) };
+  showConfirmDialog.value = true;
+}
+
+function resetSession() {
+  batchDelete(records.value.map((record) => record.__uid));
+  selectedUids.value = [];
+  searchQuery.value = "";
+  recordFilter.value = "all";
+  sessionLocked.value = false;
+  taskConfig.resetTaskName();
+  closeDetail();
 }
 
 function handleRowClick(uid) {
@@ -178,6 +197,14 @@ function confirmDelete() {
   if (!pendingDelete.value) {
     return;
   }
+
+  if (pendingDelete.value.scope === "reset") {
+    resetSession();
+    closeConfirmDialog();
+    toast.success("已清空点位，可重新导入建单。", "已重置");
+    return;
+  }
+
   batchDelete(pendingDelete.value.uids);
   selectedUids.value = selectedUids.value.filter(
     (uid) => !pendingDelete.value.uids.includes(uid),
@@ -186,6 +213,10 @@ function confirmDelete() {
   closeConfirmDialog();
   if (wasSingle) {
     handleCloseDetailModal();
+  }
+  if (records.value.length === 0) {
+    sessionLocked.value = false;
+    taskConfig.resetTaskName();
   }
 }
 
@@ -197,134 +228,65 @@ function onGenerate() {
 
 <template>
   <section class="workorder-page mx-auto flex w-full max-w-6xl flex-col gap-4">
-    <header class="workorder-page-head flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight md:text-3xl">调查工单</h1>
-        <p class="max-w-2xl text-sm text-muted-foreground">
-          导入调查记录，检查点位信息并批量生成工单。
-        </p>
-      </div>
-      <div class="workorder-page-actions flex flex-wrap gap-2" aria-label="工单操作">
-        <Button
-          v-if="canImportSurvey"
-          type="button"
-          variant="outline"
-          :disabled="generating"
-          data-testid="survey-import-button"
-          @click="openSurveyImportDialog"
-        >
-          从数据库追加
-        </Button>
-      </div>
+    <header class="workorder-page-head space-y-1">
+      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">工单录入</h1>
+      <p class="max-w-2xl text-sm text-muted-foreground">
+        从数据库选取调查记录，校对点位后批量生成工单。
+      </p>
     </header>
 
-    <Card class="workorder-card workorder-card--accent" aria-label="任务配置">
-      <CardHeader class="pb-3">
-        <CardTitle class="workorder-card-title text-base">任务配置</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="workorder-controls flex flex-wrap gap-3">
-          <label class="workorder-field grid min-w-[8rem] gap-1" for="pest-type">
-            <span class="workorder-sr-only sr-only">害虫类型</span>
-            <select
-              id="pest-type"
-              v-model="pestType"
-              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              :disabled="generating"
-            >
-              <option v-for="option in PEST_OPTIONS" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-
-          <label class="workorder-field grid min-w-[7rem] gap-1" for="workorder-year">
-            <span class="workorder-sr-only sr-only">年份</span>
-            <select
-              id="workorder-year"
-              v-model="year"
-              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              :disabled="generating"
-            >
-              <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-            </select>
-          </label>
-
-          <label class="workorder-field is-task grid min-w-[12rem] flex-1 gap-1" for="task-name">
-            <span class="workorder-sr-only sr-only">统防统治任务</span>
-            <select
-              id="task-name"
-              v-model="taskName"
-              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              :disabled="generating || !taskOptions.length"
-            >
-              <option v-if="!taskOptions.length" value="">暂无预设任务</option>
-              <option v-for="option in taskOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
+    <Card
+      v-if="sessionLocked"
+      class="workorder-session-card"
+      aria-label="本单任务"
+      data-testid="workorder-session-task"
+    >
+      <CardContent class="flex flex-wrap items-center justify-between gap-3 py-4">
+        <div class="space-y-1">
+          <p class="text-xs font-medium text-muted-foreground">本单任务（已锁定）</p>
+          <p class="text-sm font-semibold">
+            {{ pestType }} · {{ year }} · {{ taskName }}
+          </p>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          :disabled="generating"
+          data-testid="workorder-reset-session"
+          @click="requestResetSession"
+        >
+          清空点位并重新建单
+        </Button>
       </CardContent>
     </Card>
 
-    <Card class="workorder-card workorder-card--accent" aria-label="导入调查数据">
-      <CardHeader class="pb-3">
-        <CardTitle class="workorder-card-title text-base">导入调查数据</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="workorder-import-actions flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            class="workorder-import-btn"
-            :disabled="generating"
-            data-testid="survey-excel-import-button"
-            @click="openExcelImportDialog"
-          >
-            <FileSpreadsheet class="size-4" />
-            <span>Excel导入</span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            class="workorder-import-btn"
-            :disabled="generating || dateFolderUploading"
-            data-testid="date-image-folder-button"
-            @click="onOpenDateFolderPicker"
-          >
-            <FolderUp class="size-4" />
-            <span>{{ dateFolderUploading ? "正在上传…" : "图片文件夹导入" }}</span>
-          </Button>
-          <input
-            ref="dateFolderInput"
-            class="workorder-folder-input hidden"
-            type="file"
-            multiple
-            webkitdirectory
-            directory
-            data-testid="date-image-folder-input"
-            @change="onDateFolderChange"
-          />
-          <Button as-child variant="outline" class="workorder-import-btn">
-            <router-link to="/workorder/point-screenshots" data-testid="point-screenshot-entry">
-              <Archive class="size-4" />
-              <span>截图管理</span>
-            </router-link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card class="workorder-card workorder-list-card" aria-label="点位清单">
+    <Card class="workorder-card workorder-list-card flex-1" aria-label="点位清单">
       <CardHeader class="workorder-list-head flex-row items-center justify-between space-y-0 pb-3">
         <CardTitle class="workorder-card-title text-base">点位清单</CardTitle>
-        <span class="workorder-list-count text-sm text-muted-foreground">
-          共 {{ records.length }} 个点位
-        </span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="workorder-list-count text-sm text-muted-foreground">
+            共 {{ records.length }} 个点位
+          </span>
+          <Button
+            v-if="hasRecords"
+            type="button"
+            size="sm"
+            variant="outline"
+            :disabled="generating"
+            data-testid="survey-import-button"
+            @click="openSurveyImportDialog"
+          >
+            <Database class="size-4" />
+            <span>继续导入</span>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent class="space-y-4">
-        <div class="workorder-toolbar flex flex-wrap items-center gap-3">
+        <div
+          v-if="hasRecords"
+          class="workorder-toolbar flex flex-wrap items-center gap-3"
+        >
           <label class="workorder-search relative min-w-[12rem] flex-1">
             <span class="workorder-sr-only sr-only">搜索点位</span>
             <Input
@@ -373,7 +335,32 @@ function onGenerate() {
           </div>
         </div>
 
+        <div
+          v-if="!hasRecords"
+          class="workorder-empty-state flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-muted/20 px-6 py-12 text-center"
+          data-testid="workorder-empty-state"
+        >
+          <div class="space-y-1">
+            <strong class="text-base font-semibold">暂无点位</strong>
+            <p class="max-w-md text-sm text-muted-foreground">
+              请从数据库导入调查记录以建立本单。
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              :disabled="generating"
+              data-testid="survey-import-button"
+              @click="openSurveyImportDialog"
+            >
+              <Database class="size-4" />
+              <span>从数据库导入</span>
+            </Button>
+          </div>
+        </div>
+
         <RecordTable
+          v-else
           class="workorder-record-table"
           v-model:selectedUids="selectedUids"
           :records="pagedRecords"
@@ -387,10 +374,10 @@ function onGenerate() {
         />
 
         <div
-          v-if="records.length > 0 && filteredRecords.length === 0"
+          v-if="hasRecords && filteredRecords.length === 0"
           class="workorder-empty py-6 text-center text-sm text-muted-foreground"
         >
-          当前筛选条件下没有工单记录。
+          当前筛选条件下没有匹配的点位。
         </div>
 
         <div
@@ -453,7 +440,10 @@ function onGenerate() {
           </Button>
         </div>
 
-        <footer class="workorder-list-foot flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+        <footer
+          v-if="hasRecords"
+          class="workorder-list-foot flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+        >
           <div class="workorder-list-foot-meta flex flex-wrap items-center gap-3 text-sm">
             <span>
               已选择 <strong>{{ selectedUids.length }}</strong> 个点位
@@ -506,17 +496,9 @@ function onGenerate() {
     <SurveyImportDialog
       :busy="generating"
       :open="surveyImportOpen"
-      :pest-type="pestType"
-      :year="year"
-      :generation="generation"
+      :locked-task="lockedTask"
       @close="closeSurveyImportDialog"
       @import="onSurveyImport"
-    />
-
-    <ExcelImportDialog
-      :busy="generating"
-      :open="excelImportOpen"
-      @close="closeExcelImportDialog"
     />
 
     <ConfirmDialog

@@ -67,7 +67,7 @@ describe("router", () => {
     expect(router.currentRoute.value.fullPath).toBe("/map");
   });
 
-  it("管理员可以访问点位截图管理页面", async () => {
+  it("管理员可以访问工单素材页面", async () => {
     resetAuthSessionState();
     mockCurrentUser({
       id: 1,
@@ -78,14 +78,14 @@ describe("router", () => {
       last_login_at: null,
     });
 
-    await router.push("/workorder/point-screenshots");
+    await router.push("/workorder-assets");
     await router.isReady();
 
-    expect(router.currentRoute.value.fullPath).toBe("/workorder/point-screenshots");
+    expect(router.currentRoute.value.fullPath).toBe("/workorder-assets");
     expect(router.currentRoute.value.meta.requiredRoles).toEqual(["admin"]);
   });
 
-  it("调查员访问点位截图管理页面时会跳转到地图页", async () => {
+  it("调查员访问工单素材页面时会跳转到地图页", async () => {
     resetAuthSessionState();
     mockCurrentUser({
       id: 2,
@@ -97,7 +97,7 @@ describe("router", () => {
     });
 
     await router.push("/map");
-    await router.push("/workorder/point-screenshots");
+    await router.push("/workorder-assets");
     await router.isReady();
 
     expect(router.currentRoute.value.fullPath).toBe("/map");

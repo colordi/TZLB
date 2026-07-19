@@ -8,11 +8,18 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps(), {
-  as: "button",
-  variant: "default",
-  size: "default",
-  tooltip: undefined,
+const props = defineProps({
+  as: { type: null, required: false, default: "button" },
+  asChild: { type: Boolean, required: false, default: false },
+  variant: { type: String, required: false, default: "default" },
+  size: { type: String, required: false, default: "default" },
+  isActive: { type: Boolean, required: false, default: false },
+  tooltip: { type: [String, Object], required: false, default: undefined },
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
 })
 
 const { isMobile, state } = useSidebar()

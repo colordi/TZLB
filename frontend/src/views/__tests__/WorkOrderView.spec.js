@@ -85,16 +85,8 @@ const SurveyImportDialogStub = defineComponent({
       type: Boolean,
       default: false,
     },
-    pestType: {
-      type: String,
-      default: "春尺蠖",
-    },
-    year: {
-      type: Number,
-      default: null,
-    },
-    generation: {
-      type: [String, null],
+    lockedTask: {
+      type: Object,
       default: null,
     },
   },
@@ -118,18 +110,6 @@ const RecordDetailModalStub = defineComponent({
   template: '<div data-testid="record-detail-modal" :data-open="open ? \'yes\' : \'no\'" />',
 });
 
-const ExcelImportDialogStub = defineComponent({
-  name: "ExcelImportDialog",
-  props: {
-    open: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  emits: ["close"],
-  template: '<div data-testid="excel-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
-});
-
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -140,7 +120,11 @@ function createTestRouter() {
         meta: {},
       },
       {
-        path: "/workorder/point-screenshots",
+        path: "/data-import",
+        component: { template: "<div />" },
+      },
+      {
+        path: "/workorder-assets",
         component: { template: "<div />" },
       },
     ],
@@ -153,7 +137,6 @@ function mountWorkOrderView() {
     global: {
       plugins: [router],
       stubs: {
-        ExcelImportDialog: ExcelImportDialogStub,
         RecordDetailModal: RecordDetailModalStub,
         RecordTable: RecordTableStub,
         SurveyImportDialog: SurveyImportDialogStub,
@@ -175,8 +158,17 @@ function createValidRecord(overrides = {}) {
   };
 }
 
-async function importRecords(wrapper, nextRecords) {
-  wrapper.getComponent(SurveyImportDialogStub).vm.$emit("import", nextRecords);
+async function importRecords(wrapper, nextRecords, task = null) {
+  const payload = {
+    records: nextRecords,
+    task: task || {
+      pestType: "春尺蠖",
+      year: 2026,
+      taskName: "2026春尺蠖防治",
+      generation: null,
+    },
+  };
+  wrapper.getComponent(SurveyImportDialogStub).vm.$emit("import", payload);
   await wrapper.vm.$nextTick();
 }
 
@@ -240,134 +232,63 @@ describe("WorkOrderView", () => {
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("按设计结构渲染页头、任务配置、导入区与点位清单", () => {
+  it("按设计结构渲染页头与点位清单空态", () => {
     const wrapper = mountWorkOrderView();
 
-    expect(wrapper.find(".page-title-row").exists()).toBe(false);
-    expect(wrapper.find(".workspace-intro").exists()).toBe(false);
-    expect(wrapper.text()).toContain("调查工单");
-    expect(wrapper.text()).toContain("导入调查记录，检查点位信息并批量生成工单。");
-    expect(wrapper.text()).toContain("从数据库追加");
-    expect(wrapper.text()).toContain("任务配置");
-    expect(wrapper.text()).toContain("导入调查数据");
-    expect(wrapper.text()).toContain("Excel导入");
-    expect(wrapper.text()).toContain("图片文件夹导入");
-    expect(wrapper.text()).toContain("截图管理");
-    expect(wrapper.text()).not.toContain("拖拽或选择调查 Excel");
+    expect(wrapper.text()).toContain("工单录入");
+    expect(wrapper.text()).toContain("从数据库选取调查记录，校对点位后批量生成工单。");
+    expect(wrapper.text()).toContain("从数据库导入");
     expect(wrapper.text()).toContain("点位清单");
     expect(wrapper.text()).toContain("共 0 个点位");
-    expect(wrapper.text()).toContain("导出工作单");
-    expect(wrapper.text()).not.toContain("占位功能三");
-    expect(wrapper.find(".workorder-controls").exists()).toBe(true);
-    expect(wrapper.find(".workorder-action-grid").exists()).toBe(false);
-    expect(wrapper.find(".workorder-batch-bar").exists()).toBe(false);
-    expect(wrapper.find('[data-testid="workorder-excel-dropzone"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("暂无点位");
+    expect(wrapper.find('[data-testid="workorder-empty-state"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="workorder-link-data-import"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-link-assets"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-search"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-export-button"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="record-table"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-session-task"]').exists()).toBe(false);
     expect(wrapper.find(".workorder-list-card").exists()).toBe(true);
-    expect(wrapper.get('[data-testid="record-table"]').text()).toContain("记录表格");
   });
 
-  it("Excel 导入按钮会打开弹窗，截图管理入口可用", async () => {
+  it("导入后锁定任务，清空后可重新建单", async () => {
     const wrapper = mountWorkOrderView();
 
-    expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(false);
-
-    await wrapper.get('[data-testid="survey-excel-import-button"]').trigger("click");
-    expect(wrapper.getComponent(ExcelImportDialogStub).props("open")).toBe(true);
-
-    expect(wrapper.get('[data-testid="point-screenshot-entry"]').attributes("href"))
-      .toBe("/workorder/point-screenshots");
-  });
-
-  it("日期图片文件夹按钮会触发文件夹选择", async () => {
-    const wrapper = mountWorkOrderView();
-    const input = wrapper.get('[data-testid="date-image-folder-input"]');
-    const clickSpy = vi.spyOn(input.element, "click").mockImplementation(() => {});
-
-    await wrapper.get('[data-testid="date-image-folder-button"]').trigger("click");
-
-    expect(clickSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("选择有效日期图片文件夹后会上传到后端", async () => {
-    const wrapper = mountWorkOrderView();
-    const file = new File(["image"], "MQ001.jpg", { type: "image/jpeg" });
-    Object.defineProperty(file, "webkitRelativePath", {
-      value: "2026-05-26/MQ001.jpg",
-      configurable: true,
-    });
-    const input = wrapper.get('[data-testid="date-image-folder-input"]');
-    Object.defineProperty(input.element, "files", {
-      value: [file],
-      configurable: true,
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
+    ], {
+      pestType: "国槐尺蠖",
+      year: 2026,
+      taskName: "2026国槐尺蠖第一代防治",
+      generation: "第一代",
     });
 
-    await input.trigger("change");
-    await flushPromises();
-
-    expect(apiMocks.uploadDateImageFolder).toHaveBeenCalledWith({
-      folderName: "2026-05-26",
-      files: [file],
-    });
-    expect(apiMocks.success).toHaveBeenCalledWith(
-      "已上传 1 张图片到 2026-05-26。",
-      "日期文件夹已上传",
-    );
-  });
-
-  it("选择非日期文件夹时会拦截并提示错误", async () => {
-    const wrapper = mountWorkOrderView();
-    const file = new File(["image"], "MQ001.jpg", { type: "image/jpeg" });
-    Object.defineProperty(file, "webkitRelativePath", {
-      value: "现场图片/MQ001.jpg",
-      configurable: true,
-    });
-    const input = wrapper.get('[data-testid="date-image-folder-input"]');
-    Object.defineProperty(input.element, "files", {
-      value: [file],
-      configurable: true,
+    expect(wrapper.find('[data-testid="workorder-session-task"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("国槐尺蠖");
+    expect(wrapper.text()).toContain("2026国槐尺蠖第一代防治");
+    expect(wrapper.getComponent(SurveyImportDialogStub).props("lockedTask")).toMatchObject({
+      pestType: "国槐尺蠖",
+      taskName: "2026国槐尺蠖第一代防治",
     });
 
-    await input.trigger("change");
+    await wrapper.get('[data-testid="workorder-reset-session"]').trigger("click");
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
+    await wrapper.vm.$nextTick();
 
-    expect(apiMocks.uploadDateImageFolder).not.toHaveBeenCalled();
-    expect(apiMocks.error).toHaveBeenCalledWith(
-      "文件夹名称必须是 YYYY-MM-DD 格式的有效日期。",
-      "日期文件夹上传失败",
-    );
+    expect(wrapper.find('[data-testid="workorder-session-task"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="workorder-empty-state"]').exists()).toBe(true);
   });
 
-  it("春尺蠖、国槐尺蠖、美国白蛾和其他害虫都显示调查导入入口", async () => {
-    const wrapper = mountWorkOrderView();
 
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.find("#task-type").exists()).toBe(false);
 
-    await wrapper.get("#pest-type").setValue("其他害虫");
 
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-name").element.value).toBe("2026其他害虫防治");
 
-    await wrapper.get("#pest-type").setValue("美国白蛾");
 
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-name").element.value).toBe("2026美国白蛾第一代防治");
 
-    await wrapper.get("#pest-type").setValue("国槐尺蠖");
-
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
-    expect(wrapper.get("#task-name").element.value).toBe("2026国槐尺蠖第一代防治");
-    expect(
-      Array.from(wrapper.get("#task-name").element.options).map((option) => option.value),
-    ).toEqual([
-      "2026国槐尺蠖第一代防治",
-      "2026国槐尺蠖第二代防治",
-      "2026国槐尺蠖第三代防治",
-    ]);
-  });
 
   it("导入调查记录时会保留自动图片，并在已有记录后继续追加", async () => {
     const wrapper = mountWorkOrderView();
-    const recordTable = wrapper.getComponent(RecordTableStub);
     const surveyDialog = wrapper.getComponent(SurveyImportDialogStub);
 
     await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
@@ -387,6 +308,7 @@ describe("WorkOrderView", () => {
       },
     ]);
 
+    let recordTable = wrapper.getComponent(RecordTableStub);
     expect(recordTable.props("records")).toHaveLength(1);
     expect(recordTable.props("records")[0].location_id).toBe("YF0069");
     expect(recordTable.props("records")[0].images).toEqual([
@@ -406,6 +328,7 @@ describe("WorkOrderView", () => {
       },
     ]);
 
+    recordTable = wrapper.getComponent(RecordTableStub);
     expect(recordTable.props("records")).toHaveLength(2);
     expect(recordTable.props("records")[0].location_id).toBe("YF0069");
     expect(recordTable.props("records")[1].location_id).toBe("HX0002");
@@ -542,9 +465,6 @@ describe("WorkOrderView", () => {
   it("其他害虫导入后保留模板字段并支持导出", async () => {
     const wrapper = mountWorkOrderView();
 
-    await wrapper.get("#pest-type").setValue("其他害虫");
-    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
-
     await importRecords(wrapper, [
       {
         survey_date: "2026-04-17",
@@ -559,15 +479,20 @@ describe("WorkOrderView", () => {
         note: "",
         images: [],
       },
-    ]);
+    ], {
+      pestType: "其他害虫",
+      year: 2026,
+      taskName: "2026其他害虫防治",
+      generation: null,
+    });
 
-    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
+    await findButtonByText(wrapper, "生成 1 份工单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
       expect(apiMocks.success).toHaveBeenCalledWith(
-        expect.stringContaining("工作单"),
-        "导出成功",
+        expect.stringContaining("工单"),
+        "生成成功",
       );
     });
 
@@ -592,11 +517,6 @@ describe("WorkOrderView", () => {
   it("国槐尺蠖导入后保留模板字段并支持导出", async () => {
     const wrapper = mountWorkOrderView();
 
-    await wrapper.get("#pest-type").setValue("国槐尺蠖");
-    await wrapper.vm.$nextTick();
-    await wrapper.get("#task-name").setValue("2026国槐尺蠖第三代防治");
-    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
-
     await importRecords(wrapper, [
       {
         survey_date: "2026-05-02",
@@ -609,15 +529,20 @@ describe("WorkOrderView", () => {
         description: "描述1",
         images: [],
       },
-    ]);
+    ], {
+      pestType: "国槐尺蠖",
+      year: 2026,
+      taskName: "2026国槐尺蠖第三代防治",
+      generation: "第三代",
+    });
 
-    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
+    await findButtonByText(wrapper, "生成 1 份工单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
       expect(apiMocks.success).toHaveBeenCalledWith(
-        expect.stringContaining("工作单"),
-        "导出成功",
+        expect.stringContaining("工单"),
+        "生成成功",
       );
     });
 
@@ -646,9 +571,6 @@ describe("WorkOrderView", () => {
   it("美国白蛾导入后保留模板字段并支持导出", async () => {
     const wrapper = mountWorkOrderView();
 
-    await wrapper.get("#pest-type").setValue("美国白蛾");
-    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
-
     await importRecords(wrapper, [
       {
         survey_date: "2026-05-26",
@@ -665,15 +587,20 @@ describe("WorkOrderView", () => {
         note: "需复查",
         images: [],
       },
-    ]);
+    ], {
+      pestType: "美国白蛾",
+      year: 2026,
+      taskName: "2026美国白蛾第一代防治",
+      generation: "第一代",
+    });
 
-    await findButtonByText(wrapper, "导出 1 份工作单").trigger("click");
+    await findButtonByText(wrapper, "生成 1 份工单").trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
       expect(apiMocks.success).toHaveBeenCalledWith(
-        expect.stringContaining("工作单"),
-        "导出成功",
+        expect.stringContaining("工单"),
+        "生成成功",
       );
     });
 
@@ -710,7 +637,7 @@ describe("WorkOrderView", () => {
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
-      expect(apiMocks.success).toHaveBeenCalledWith("工作单已开始下载。", "导出成功");
+      expect(apiMocks.success).toHaveBeenCalledWith("工单已开始下载。", "生成成功");
     });
 
     expect(apiMocks.generateWorkorder).toHaveBeenCalledWith({
@@ -729,7 +656,7 @@ describe("WorkOrderView", () => {
     expect(apiMocks.downloadBlob).toHaveBeenCalledTimes(1);
   });
 
-  it("多条记录会批量导出为一个 zip，并显示批量导出成功提示", async () => {
+  it("多条记录会批量生成一个 zip，并显示批量生成成功提示", async () => {
     const wrapper = mountWorkOrderView();
     await importRecords(wrapper, [
       createValidRecord({ location_id: "YF0069" }),
@@ -737,15 +664,15 @@ describe("WorkOrderView", () => {
     ]);
 
     expect(wrapper.get('[data-testid="workorder-export-button"]').text()).toContain(
-      "导出 2 份工作单",
+      "生成 2 份工单",
     );
     await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.startWorkorderBatchJob).toHaveBeenCalledTimes(1);
       expect(apiMocks.success).toHaveBeenCalledWith(
-        "已批量导出 2 条记录的工作单包。",
-        "导出成功",
+        "已批量生成 2 条记录的工单包。",
+        "生成成功",
       );
     });
 
@@ -775,7 +702,7 @@ describe("WorkOrderView", () => {
     );
   });
 
-  it("批量导出过程中按后端真实进度更新进度条", async () => {
+  it("批量生成过程中按后端真实进度更新进度条", async () => {
     apiMocks.getWorkorderBatchJobStatus
       .mockResolvedValueOnce({
         job_id: "job-1",
@@ -817,8 +744,8 @@ describe("WorkOrderView", () => {
     await vi.waitFor(() => {
       expect(apiMocks.downloadWorkorderBatchJob).toHaveBeenCalledWith("job-1");
       expect(apiMocks.success).toHaveBeenCalledWith(
-        "已批量导出 2 条记录的工作单包。",
-        "导出成功",
+        "已批量生成 2 条记录的工单包。",
+        "生成成功",
       );
       expect(wrapper.find('[data-testid="workorder-export-progress"]').exists()).toBe(false);
     });
@@ -839,15 +766,15 @@ describe("WorkOrderView", () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('[data-testid="workorder-export-button"]').text()).toContain(
-      "导出 1 份工作单",
+      "生成 1 份工单",
     );
     await wrapper.get('[data-testid="workorder-export-button"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.generateWorkorder).toHaveBeenCalledTimes(1);
       expect(apiMocks.success).toHaveBeenCalledWith(
-        expect.stringContaining("工作单"),
-        "导出成功",
+        expect.stringContaining("工单"),
+        "生成成功",
       );
     });
 
@@ -867,7 +794,7 @@ describe("WorkOrderView", () => {
     expect(apiMocks.generateWorkorderBatch).not.toHaveBeenCalled();
   });
 
-  it("多条记录批量导出失败时展示批量导出失败提示", async () => {
+  it("多条记录批量生成失败时展示批量生成失败提示", async () => {
     apiMocks.getWorkorderBatchJobStatus.mockResolvedValue({
       job_id: "job-1",
       status: "failed",
@@ -891,8 +818,8 @@ describe("WorkOrderView", () => {
 
     await vi.waitFor(() => {
       expect(apiMocks.error).toHaveBeenCalledWith(
-        "批量导出失败：网络异常。若提示包含失败记录清单，可查看压缩包内“失败记录.json”。",
-        "批量导出失败",
+        "批量生成失败：网络异常。若提示包含失败记录清单，可查看压缩包内“失败记录.json”。",
+        "批量生成失败",
       );
     });
 
@@ -900,7 +827,7 @@ describe("WorkOrderView", () => {
     expect(apiMocks.downloadWorkorderBatchJob).not.toHaveBeenCalled();
   });
 
-  it("认证失效时批量导出中断", async () => {
+  it("认证失效时批量生成中断", async () => {
     apiMocks.startWorkorderBatchJob.mockRejectedValueOnce(new UnauthorizedError());
 
     const wrapper = mountWorkOrderView();

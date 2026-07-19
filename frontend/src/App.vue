@@ -61,10 +61,6 @@ const visibleNavGroups = computed(() =>
   })).filter((group) => group.items.length > 0),
 );
 
-const visibleNavItems = computed(() =>
-  visibleNavGroups.value.flatMap((group) => group.items),
-);
-
 const pageTitle = computed(() => route.meta?.section || "工作界面");
 
 function isActivePath(to) {
@@ -240,27 +236,7 @@ const DesktopSidebarToggle = {
               </div>
             </div>
 
-            <nav
-              class="site-nav ml-auto hidden max-w-[55%] flex-wrap items-center justify-end gap-1 xl:flex"
-              aria-label="主导航"
-            >
-              <RouterLink
-                v-for="item in visibleNavItems"
-                :key="`header-${item.to}`"
-                :to="item.to"
-                class="site-nav-link inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                :class="{
-                  'router-link-active bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground':
-                    isActivePath(item.to),
-                }"
-                :data-testid="`header-link-${item.testId}`"
-              >
-                <component :is="item.icon" class="size-4 shrink-0" />
-                <span>{{ item.label }}</span>
-              </RouterLink>
-            </nav>
-
-            <div class="site-actions flex items-center gap-2 xl:ml-2">
+            <div class="site-actions ml-auto flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
                   <Button

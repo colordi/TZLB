@@ -2,9 +2,16 @@
 import { Primitive } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = withDefaults(defineProps(), {
-  as: "a",
-  size: "md",
+const props = defineProps({
+  as: { type: null, required: false, default: "a" },
+  asChild: { type: Boolean, required: false, default: false },
+  size: { type: String, required: false, default: "md" },
+  isActive: { type: Boolean, required: false, default: false },
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
 })
 </script>
 

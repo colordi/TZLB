@@ -2,7 +2,13 @@
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 
-const props = defineProps()
+const props = defineProps({
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
+})
 </script>
 
 <template>

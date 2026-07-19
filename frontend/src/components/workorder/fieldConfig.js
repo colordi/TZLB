@@ -80,7 +80,7 @@ export const PEST_REGISTRY = [
     recordDefaults: { plot_type: "平原造林" },
     recordOverrides: { pest_name: "", host_plant: "" },
     surveyImport: {
-      description: "按调查日期查询春尺蠖受害点位，并批量追加到当前工作单。",
+      description: "按调查日期查询春尺蠖受害点位，并批量导入到当前工单。",
       idleHint: "当前支持导入春尺蠖幼虫调查数据。",
       columns: CHI_HUO_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
@@ -101,7 +101,7 @@ export const PEST_REGISTRY = [
     recordDefaults: { plot_type: "平原造林" },
     recordOverrides: { pest_name: "", host_plant: "" },
     surveyImport: {
-      description: "按调查日期查询国槐尺蠖受害点位，并批量追加到当前工作单。",
+      description: "按调查日期查询国槐尺蠖受害点位，并批量导入到当前工单。",
       idleHint: "当前支持导入国槐尺蠖幼虫调查数据。",
       columns: CHI_HUO_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
@@ -128,7 +128,7 @@ export const PEST_REGISTRY = [
     recordDefaults: {},
     recordOverrides: {},
     surveyImport: {
-      description: "按调查日期查询美国白蛾第一代问题点位，并批量追加到当前工作单。",
+      description: "按调查日期查询美国白蛾第一代问题点位，并批量导入到当前工单。",
       idleHint: "当前支持按调查日期导入美国白蛾第一代调查数据。",
       columns: [
         { key: "location_id", label: "编号", fallback: "—" },
@@ -162,7 +162,7 @@ export const PEST_REGISTRY = [
     recordDefaults: {},
     recordOverrides: {},
     surveyImport: {
-      description: "按调查日期查询其他害虫问题点位，并批量追加到当前工作单。",
+      description: "按调查日期查询其他害虫问题点位，并批量导入到当前工单。",
       idleHint: "当前支持按调查日期导入其他害虫调查数据。",
       columns: [
         { key: "location_id", label: "编号", fallback: "—" },

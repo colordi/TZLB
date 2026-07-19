@@ -2,7 +2,15 @@
 import { Primitive } from "reka-ui"
 import { cn } from "@/lib/utils"
 
-const props = defineProps()
+const props = defineProps({
+  as: { type: null, required: false, default: "div" },
+  asChild: { type: Boolean, required: false, default: false },
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
+})
 </script>
 
 <template>

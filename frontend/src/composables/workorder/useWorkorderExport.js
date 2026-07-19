@@ -61,16 +61,16 @@ export function useWorkorderExport(
 
     if (!generating.value) {
       if (total <= 0) {
-        return "导出工作单";
+        return "生成工单";
       }
-      return `导出 ${total} 份工作单`;
+      return `生成 ${total} 份工单`;
     }
 
     if (total > 1) {
-      return "正在批量导出…";
+      return "正在批量生成…";
     }
 
-    return "正在导出工作单…";
+    return "正在生成工单…";
   });
 
   const exportProgressLabel = computed(() => {
@@ -82,9 +82,9 @@ export function useWorkorderExport(
     }
     const total = exportProgress.value.total || exportCount.value || 0;
     if (total > 1) {
-      return `正在批量导出工作单（${exportProgress.value.current || 0}/${total}）`;
+      return `正在批量生成工单（${exportProgress.value.current || 0}/${total}）`;
     }
-    return "正在导出工作单";
+    return "正在生成工单";
   });
 
   function joinDeliveryLabel(label, message) {
@@ -121,7 +121,7 @@ export function useWorkorderExport(
       current: 0,
       total: created.total || recordCount + 1,
       percent: 0,
-      message: `开始批量导出 ${recordCount} 份工作单…`,
+      message: `开始批量生成 ${recordCount} 份工单…`,
     });
 
     while (true) {
@@ -173,7 +173,7 @@ export function useWorkorderExport(
       current: 0,
       total,
       percent: 0,
-      message: total > 1 ? `准备导出 ${total} 份工作单…` : "正在导出工作单…",
+      message: total > 1 ? `准备生成 ${total} 份工单…` : "正在生成工单…",
     });
 
     try {
@@ -194,7 +194,7 @@ export function useWorkorderExport(
           current: 0,
           total: 1,
           percent: 20,
-          message: "正在生成工作单…",
+          message: "正在生成工单…",
         });
         const { blob, filename } = await generateWorkorder({
           ...payload,
@@ -204,10 +204,10 @@ export function useWorkorderExport(
           current: 1,
           total: 1,
           percent: 100,
-          message: "导出完成，正在下载…",
+          message: "生成完成，正在下载…",
         });
         const delivery = await downloadBlob(blob, filename);
-        success(buildDeliveryMessage(delivery, "工作单"), "导出成功");
+        success(buildDeliveryMessage(delivery, "工单"), "生成成功");
         return;
       }
 
@@ -219,7 +219,7 @@ export function useWorkorderExport(
         payloadRecords.length,
       );
       await downloadBlob(blob, filename);
-      success(`已批量导出 ${payloadRecords.length} 条记录的工作单包。`, "导出成功");
+      success(`已批量生成 ${payloadRecords.length} 条记录的工单包。`, "生成成功");
     } catch (generateError) {
       if (isUnauthorizedError(generateError)) {
         return;
@@ -228,13 +228,13 @@ export function useWorkorderExport(
       const message = generateError.message || generateError;
       if (targetRecords.length > 1) {
         error(
-          `批量导出失败：${message}。若提示包含失败记录清单，可查看压缩包内\u201c失败记录.json\u201d。`,
-          "批量导出失败",
+          `批量生成失败：${message}。若提示包含失败记录清单，可查看压缩包内\u201c失败记录.json\u201d。`,
+          "批量生成失败",
         );
         return;
       }
 
-      error(`${message}`, "工作单生成失败");
+      error(`${message}`, "工单生成失败");
     } finally {
       generating.value = false;
       resetExportProgress();

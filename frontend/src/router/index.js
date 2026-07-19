@@ -7,10 +7,11 @@ import {
 } from "../auth/permissions.js";
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
 import DataExportView from "../views/DataExportView.vue";
+import DataImportView from "../views/DataImportView.vue";
 import DataStatisticsView from "../views/DataStatisticsView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
-import PointScreenshotView from "../views/PointScreenshotView.vue";
+import WorkorderAssetsView from "../views/WorkorderAssetsView.vue";
 import WorkOrderView from "../views/WorkOrderView.vue";
 import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminUsersView from "../views/AdminUsersView.vue";
@@ -39,17 +40,31 @@ const routes = [
     component: WorkOrderView,
     meta: {
       section: "工单录入",
-      blurb: "通过调查导入整理工单记录，补充图片后生成 Word 工作单。",
+      blurb: "从数据库选取调查记录，校对点位后批量生成 Word 工单。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },
   {
     path: "/workorder/point-screenshots",
-    name: "point-screenshots",
-    component: PointScreenshotView,
+    redirect: "/workorder-assets",
+  },
+  {
+    path: "/workorder-assets",
+    name: "workorder-assets",
+    component: WorkorderAssetsView,
     meta: {
-      section: "点位截图管理",
-      blurb: "按害虫类型管理点位截图，支持上传、替换、删除。",
+      section: "工单素材",
+      blurb: "管理点位截图与按日期归档的现场图片，供工单生成取用。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/data-import",
+    name: "data-import",
+    component: DataImportView,
+    meta: {
+      section: "调查数据导入",
+      blurb: "通过 Excel 将调查/台账数据写入数据库，供工单录入时从库中选取。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },

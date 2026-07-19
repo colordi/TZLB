@@ -10,10 +10,15 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = withDefaults(defineProps(), {
-  side: "left",
-  variant: "sidebar",
-  collapsible: "offcanvas",
+const props = defineProps({
+  side: { type: String, default: "left" },
+  variant: { type: String, default: "sidebar" },
+  collapsible: { type: String, default: "offcanvas" },
+  class: {
+    type: [Boolean, null, String, Object, Array],
+    required: false,
+    skipCheck: true,
+  },
 })
 
 const { isMobile, state, openMobile, setOpenMobile } = useSidebar()

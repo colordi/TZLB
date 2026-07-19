@@ -1,5 +1,5 @@
 <script setup>
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const props = defineProps({
   class: {
@@ -7,15 +7,14 @@ const props = defineProps({
     required: false,
     skipCheck: true,
   },
-})
+});
 </script>
 
 <template>
-  <li
-    data-slot="sidebar-menu-item"
-    data-sidebar="menu-item"
-    :class="cn('group/menu-item relative', props.class)"
+  <optgroup
+    data-slot="native-select-optgroup"
+    :class="cn('bg-popover text-popover-foreground', props.class)"
   >
     <slot />
-  </li>
+  </optgroup>
 </template>
