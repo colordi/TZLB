@@ -90,6 +90,10 @@ const routes = [
   },
   {
     path: "/data-statistics",
+    redirect: "/data-statistics/white-moth",
+  },
+  {
+    path: "/data-statistics/:pest",
     name: "data-statistics",
     component: DataStatisticsView,
     meta: {

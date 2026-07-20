@@ -151,7 +151,7 @@ describe("router", () => {
     await router.push("/data-statistics");
     await router.isReady();
 
-    expect(router.currentRoute.value.fullPath).toBe("/data-statistics");
+    expect(router.currentRoute.value.fullPath).toBe("/data-statistics/white-moth");
   });
 
   it("调查员访问数据导出时会跳转到地图页", async () => {

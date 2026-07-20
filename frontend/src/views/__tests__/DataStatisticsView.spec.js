@@ -1,4 +1,5 @@
 import { flushPromises, mount } from "@vue/test-utils";
+import { createMemoryHistory, createRouter } from "vue-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DataStatisticsView from "../DataStatisticsView.vue";
@@ -46,10 +47,6 @@ function buildPayload(rowCount = 2) {
   };
 }
 
-function mountView() {
-  return mount(DataStatisticsView);
-}
-
 function buildGenerationSummary() {
   return {
     as_of_date: "2026-07-11",
@@ -84,6 +81,30 @@ function buildGenerationSummary() {
   };
 }
 
+function createTestRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: "/data-statistics", redirect: "/data-statistics/white-moth" },
+      {
+        path: "/data-statistics/:pest",
+        name: "data-statistics",
+        component: DataStatisticsView,
+      },
+    ],
+  });
+}
+
+async function mountView(path = "/data-statistics/white-moth") {
+  const router = createTestRouter();
+  router.push(path);
+  await router.isReady();
+  const wrapper = mount(DataStatisticsView, {
+    global: { plugins: [router] },
+  });
+  return { wrapper, router };
+}
+
 describe("DataStatisticsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -92,7 +113,7 @@ describe("DataStatisticsView", () => {
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
@@ -106,18 +127,21 @@ describe("DataStatisticsView", () => {
   });
 
   it("按世代展示独立的调查、受害和派单汇总", async () => {
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledWith();
     const summary = wrapper.get('[data-testid="data-statistics-summary-第一代"]').text();
-    expect(summary).toContain("完成调查 44 个点位");
-    expect(summary).toContain("城区 18 个、乡镇 26 个");
-    expect(summary).toContain("发现受害点位 17 个");
-    expect(summary).toContain("城区 7 个、乡镇 10 个");
-    expect(summary).toContain("共下发派单 21 次");
-    expect(summary).toContain("1 次派单点位 13 个");
-    expect(summary).toContain("2 次派单点位 4 个");
+    expect(summary).toContain("44");
+    expect(summary).toContain("个点位完成调查");
+    expect(summary).toContain("城区 18 · 乡镇 26");
+    expect(summary).toContain("发现受害点位");
+    expect(summary).toContain("17 个");
+    expect(summary).toContain("城区 7 · 乡镇 10");
+    expect(summary).toContain("共下发派单");
+    expect(summary).toContain("21 次");
+    expect(summary).toContain("1 次派单 13 个");
+    expect(summary).toContain("2 次派单 4 个");
     expect(wrapper.get('[data-testid="data-statistics-summary-第二代"]').text()).toContain("暂无派单");
     expect(wrapper.get('[data-testid="data-statistics-summary-panel"]').text()).toContain(
       "各世代累计情况",
@@ -131,7 +155,7 @@ describe("DataStatisticsView", () => {
   });
 
   it("其它虫种入口为占位不可点击", async () => {
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(wrapper.get('[data-testid="data-statistics-pest-white-moth"]').attributes("disabled")).toBeUndefined();
@@ -140,13 +164,21 @@ describe("DataStatisticsView", () => {
     expect(wrapper.get('[data-testid="data-statistics-pest-other-pests"]').attributes("disabled")).toBeDefined();
   });
 
+  it("非法虫种路径重定向到美国白蛾", async () => {
+    const { wrapper, router } = await mountView("/data-statistics/not-a-pest");
+    await flushPromises();
+
+    expect(router.currentRoute.value.path).toBe("/data-statistics/white-moth");
+    expect(wrapper.text()).toContain("美国白蛾每日信息统计");
+  });
+
   it("没有统计数据时展示空状态", async () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValueOnce({
       columns: [{ key: "date", label: "日期", type: "date" }],
       rows: [],
     });
 
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(wrapper.text()).toContain("暂无美国白蛾每日统计数据。");
@@ -157,14 +189,14 @@ describe("DataStatisticsView", () => {
   it("读取失败时展示错误提示", async () => {
     apiMocks.getWhiteMothDailyStatistics.mockRejectedValueOnce(new Error("连接失败"));
 
-    mountView();
+    await mountView();
     await flushPromises();
 
     expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取数据统计失败");
   });
 
   it("切换年份或世代后自动重新加载统计", async () => {
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
@@ -197,7 +229,7 @@ describe("DataStatisticsView", () => {
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValueOnce(buildPayload(9));
 
-    const wrapper = mountView();
+    const { wrapper } = await mountView();
     await flushPromises();
 
     expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(7);
