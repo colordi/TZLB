@@ -9,6 +9,7 @@ import { downloadBlob } from "../utils/download.js";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -194,7 +195,7 @@ onMounted(loadPestTypes);
       v-else-if="currentPestMeta"
       :data-testid="`pest-panel-${currentPestMeta.pest_type}`"
     >
-      <CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-1">
           <CardTitle>{{ currentPestMeta.pest_type }}</CardTitle>
           <CardDescription>
@@ -211,11 +212,10 @@ onMounted(loadPestTypes);
             class="flex items-center gap-2 text-sm text-muted-foreground"
           >
             <span>年份</span>
-            <select
+            <NativeSelect
               v-model="pestFilters[currentPestMeta.pest_type].year"
-              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
               @focus="initFilters(currentPestMeta)"
-              @change="loadCurrentPestMeta"
+              @update:model-value="loadCurrentPestMeta"
             >
               <option value="">全部年份</option>
               <option
@@ -223,18 +223,17 @@ onMounted(loadPestTypes);
                 :key="y"
                 :value="y"
               >{{ y }}</option>
-            </select>
+            </NativeSelect>
           </label>
           <label
             v-if="currentPestMeta.available_generations?.length"
             class="flex items-center gap-2 text-sm text-muted-foreground"
           >
             <span>世代</span>
-            <select
+            <NativeSelect
               v-model="pestFilters[currentPestMeta.pest_type].generation"
-              class="h-9 rounded-md border border-input bg-background px-2 text-sm"
               @focus="initFilters(currentPestMeta)"
-              @change="loadCurrentPestMeta"
+              @update:model-value="loadCurrentPestMeta"
             >
               <option value="">全部世代</option>
               <option
@@ -242,7 +241,7 @@ onMounted(loadPestTypes);
                 :key="g"
                 :value="g"
               >{{ g }}</option>
-            </select>
+            </NativeSelect>
           </label>
 
           <Button

@@ -173,8 +173,8 @@ onMounted(() => {
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                class="login-password-toggle absolute top-1/2 right-1 size-8 -translate-y-1/2 text-muted-foreground"
+                size="icon-sm"
+                class="login-password-toggle absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
                 :aria-label="showPassword ? '隐藏密码' : '显示密码'"
                 :aria-pressed="showPassword ? 'true' : 'false'"
                 :disabled="submitting"

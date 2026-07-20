@@ -502,7 +502,7 @@ onBeforeUnmount(() => {
             <Input
               :value="searchQuery"
               type="search"
-              class="pl-8"
+              class="h-8 pl-8"
               placeholder="搜索编号、名称、属地…"
               data-testid="point-screenshot-search"
               @input="onSearchInput"

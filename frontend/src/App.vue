@@ -99,8 +99,8 @@ const MobileMenuTrigger = {
     <Button
       type="button"
       variant="outline"
-      size="icon"
-      class="size-8 md:hidden"
+      size="icon-sm"
+      class="md:hidden"
       data-testid="mobile-menu-trigger"
       aria-label="打开导航菜单"
       @click="setOpenMobile(true)"
@@ -120,7 +120,7 @@ const DesktopSidebarToggle = {
   },
   template: `
     <SidebarTrigger
-      class="sidebar-toggle-btn hidden size-7 md:inline-flex"
+      class="sidebar-toggle-btn hidden size-8 md:inline-flex"
       :aria-label="state === 'collapsed' ? '展开侧边栏' : '收起侧边栏'"
     />
   `,

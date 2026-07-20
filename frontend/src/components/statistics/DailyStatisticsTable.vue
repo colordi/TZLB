@@ -124,7 +124,7 @@ function handleGenerationChange(event) {
 
 <template>
   <Card data-testid="data-statistics-daily-panel">
-    <CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-1">
         <CardTitle class="text-base">{{ props.title }}</CardTitle>
         <CardDescription>{{ props.rows.length }} 条每日记录</CardDescription>

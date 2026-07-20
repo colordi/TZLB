@@ -9,6 +9,7 @@ import { useToast } from "../composables/useToast.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -361,9 +362,9 @@ onMounted(() => {
                   class="grid gap-1 text-xs"
                 >
                   <span class="text-muted-foreground">{{ field.label }}</span>
-                  <select
-                    class="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                    :value="getFilterValue(layer, field.key)"
+                  <NativeSelect
+                    class="h-8 py-1"
+                    :model-value="getFilterValue(layer, field.key)"
                     :data-testid="`layer-filter-${field.key}`"
                     @change="setFilterValue(layer, field.key, $event.target.value)"
                   >
@@ -382,7 +383,7 @@ onMounted(() => {
                     >
                       {{ getFilterValue(layer, field.key) }}（当前无此值）
                     </option>
-                  </select>
+                  </NativeSelect>
                 </label>
               </div>
             </div>

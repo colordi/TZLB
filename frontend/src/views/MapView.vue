@@ -1668,14 +1668,14 @@ onMounted(async () => {
 
 .map-search-clear,
 .map-search-submit {
-  min-height: 34px;
+  min-height: 36px;
   border-radius: var(--radius-sm);
   box-shadow: none;
   transform: none;
 }
 
 .map-search-clear {
-  width: 34px;
+  width: 36px;
   padding: 0;
   background: transparent;
   color: var(--color-text-muted);

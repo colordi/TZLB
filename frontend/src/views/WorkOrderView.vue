@@ -299,7 +299,7 @@ function onGenerate() {
           </label>
 
           <div
-            class="workorder-segmented inline-flex rounded-md border p-0.5"
+            class="workorder-segmented inline-flex rounded-md border p-[1px]"
             aria-label="记录筛选"
           >
             <Button

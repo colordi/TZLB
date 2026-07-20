@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -313,14 +314,10 @@ onMounted(() => {
         </div>
         <div class="grid gap-2">
           <Label for="create-role">角色</Label>
-          <select
-            id="create-role"
-            v-model="form.role"
-            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <NativeSelect id="create-role" v-model="form.role">
             <option value="investigator">调查员</option>
             <option value="admin">管理员</option>
-          </select>
+          </NativeSelect>
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" @click="showCreate = false">取消</Button>
@@ -343,14 +340,10 @@ onMounted(() => {
         </div>
         <div class="grid gap-2">
           <Label for="edit-role">角色</Label>
-          <select
-            id="edit-role"
-            v-model="editForm.role"
-            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
+          <NativeSelect id="edit-role" v-model="editForm.role">
             <option value="investigator">调查员</option>
             <option value="admin">管理员</option>
-          </select>
+          </NativeSelect>
         </div>
         <label class="flex items-center gap-2 text-sm">
           <Checkbox v-model="editForm.is_active" />

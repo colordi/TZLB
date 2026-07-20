@@ -562,7 +562,7 @@ function handleImport() {
 
 .sid-select-wrap select {
   width: 100%;
-  height: 1.9rem;
+  height: 2rem;
   padding: 0 1.6rem 0 0.6rem;
   appearance: none;
   border: 1px solid var(--nx-line);

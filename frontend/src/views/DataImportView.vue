@@ -186,15 +186,15 @@ async function handleConfirm() {
             @change="handleFileChange"
           />
           <template v-if="selectedFile">
-            <span class="flex min-w-0 max-w-72 items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1 text-sm">
+            <span class="flex h-8 min-w-0 max-w-72 items-center gap-2 rounded-md border bg-muted/30 px-2.5 text-sm">
               <FileSpreadsheet class="size-4 shrink-0 text-muted-foreground" />
               <span class="truncate">{{ selectedFile.name }}</span>
             </span>
             <Button
               type="button"
               variant="ghost"
-              size="icon"
-              class="size-7 shrink-0"
+              size="icon-sm"
+              class="shrink-0"
               :disabled="loading || committing"
               aria-label="清除已选文件"
               @click="clearSelectedFile"
