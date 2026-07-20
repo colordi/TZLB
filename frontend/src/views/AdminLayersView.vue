@@ -6,11 +6,18 @@ import { fetchLayers, updateLayers } from "../api/admin.js";
 import { fetchMapFilterOptions } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const { error, info } = useToast();
@@ -159,9 +166,9 @@ function onDragOver(e, layer, typeKey) {
     return;
   }
   const rect = e.currentTarget.getBoundingClientRect();
-  const offset = e.clientX - rect.left;
+  const offset = e.clientY - rect.top;
   dragOverKey.value = layer.layer_key;
-  dragOverPos.value = offset < rect.width / 2 ? "before" : "after";
+  dragOverPos.value = offset < rect.height / 2 ? "before" : "after";
 }
 
 function onDrop(e, targetLayer, typeKey) {
@@ -247,7 +254,6 @@ onMounted(() => {
 });
 </script>
 
-
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -276,125 +282,149 @@ onMounted(() => {
 
     <template v-for="(typeKey, typeIdx) in ['view', 'reference']" :key="typeKey">
       <div
-        class="flex items-center gap-2 border-b pb-2"
-        :class="typeIdx === 0 ? '' : 'mt-8'"
+        class="flex items-center gap-2"
+        :class="typeIdx === 0 ? '' : 'mt-2'"
       >
-        <h2 class="text-base font-bold">{{ layerTypeLabel[typeKey] }}</h2>
+        <h2 class="text-base font-semibold">{{ layerTypeLabel[typeKey] }}</h2>
         <Badge variant="secondary">{{ listFor(typeKey).length }}</Badge>
       </div>
 
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Card
-          v-for="(layer, index) in listFor(typeKey)"
-          :key="layer.id"
-          class="relative transition-opacity"
-          :class="cn(
-            !getEdit(layer).is_enabled && 'opacity-55',
-            dragKey === layer.layer_key && 'opacity-40',
-            dragOverKey === layer.layer_key && dragOverPos === 'before' && 'ring-2 ring-primary ring-offset-2',
-            dragOverKey === layer.layer_key && dragOverPos === 'after' && 'ring-2 ring-primary ring-offset-2',
-          )"
-          @dragover="onDragOver($event, layer, typeKey)"
-          @drop="onDrop($event, layer, typeKey)"
-          @dragend="onDragEnd"
-        >
-          <CardContent class="space-y-3 p-3">
-            <div class="flex items-center gap-2">
-              <div
-                class="flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                draggable="true"
-                title="拖拽排序"
-                @dragstart="onDragStart($event, layer, typeKey)"
+      <div class="overflow-hidden rounded-xl border shadow-sm">
+        <div class="overflow-x-auto">
+          <Table class="min-w-[48rem]">
+            <TableHeader>
+              <TableRow class="hover:bg-transparent">
+                <TableHead class="w-10" />
+                <TableHead class="w-14">序号</TableHead>
+                <TableHead>显示名称</TableHead>
+                <TableHead>图层键</TableHead>
+                <TableHead class="w-28">状态</TableHead>
+                <TableHead v-if="typeKey === 'reference'" class="w-32">默认显隐</TableHead>
+                <TableHead v-if="typeKey === 'view'">默认筛选</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow
+                v-for="(layer, index) in listFor(typeKey)"
+                :key="layer.id"
+                :class="cn(
+                  !getEdit(layer).is_enabled && 'opacity-55',
+                  dragKey === layer.layer_key && 'opacity-40',
+                  dragOverKey === layer.layer_key && dragOverPos === 'before' && 'border-t-2 border-t-primary',
+                  dragOverKey === layer.layer_key && dragOverPos === 'after' && 'border-b-2 border-b-primary',
+                )"
+                @dragover="onDragOver($event, layer, typeKey)"
+                @drop="onDrop($event, layer, typeKey)"
+                @dragend="onDragEnd"
               >
-                <GripVertical class="size-4" />
-              </div>
-              <span class="w-6 text-center text-xs font-semibold text-muted-foreground">
-                {{ index + 1 }}
-              </span>
-              <Input
-                v-model="getEdit(layer).display_name"
-                class="h-8"
-                draggable="false"
-                :placeholder="layer.layer_key"
-                @input="markChanged"
-              />
-            </div>
-
-            <code class="block truncate text-xs text-muted-foreground">{{ layer.layer_key }}</code>
-
-            <div class="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                :variant="getEdit(layer).is_enabled ? 'default' : 'outline'"
-                draggable="false"
-                :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
-                @click="toggleEnabled(layer)"
-              >
-                <Eye v-if="getEdit(layer).is_enabled" class="size-3.5" />
-                <EyeOff v-else class="size-3.5" />
-                {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
-              </Button>
-
-              <Button
-                v-if="layer.layer_type === 'reference'"
-                type="button"
-                size="sm"
-                :variant="getEdit(layer).default_visible ? 'secondary' : 'outline'"
-                draggable="false"
-                title="默认显隐"
-                @click="toggleDefaultVisible(layer)"
-              >
-                {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
-              </Button>
-            </div>
-
-            <div
-              v-if="layer.layer_type === 'view' && configurableFieldsFor(layer).length"
-              class="space-y-2 rounded-md border bg-muted/30 p-2"
-              data-testid="layer-default-filters"
-            >
-              <span class="text-xs font-semibold text-muted-foreground">默认筛选</span>
-              <div class="grid gap-2">
-                <label
-                  v-for="field in configurableFieldsFor(layer)"
-                  :key="field.key"
-                  class="grid gap-1 text-xs"
-                >
-                  <span class="text-muted-foreground">{{ field.label }}</span>
-                  <NativeSelect
-                    class="h-8 py-1"
-                    :model-value="getFilterValue(layer, field.key)"
-                    :data-testid="`layer-filter-${field.key}`"
-                    @change="setFilterValue(layer, field.key, $event.target.value)"
+                <TableCell class="w-10 px-2">
+                  <div
+                    class="flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                    draggable="true"
+                    title="拖拽排序"
+                    @dragstart="onDragStart($event, layer, typeKey)"
                   >
-                    <option value="">全部</option>
-                    <option
-                      v-for="option in field.options"
-                      :key="option.value"
-                      :value="option.value"
+                    <GripVertical class="size-4" />
+                  </div>
+                </TableCell>
+                <TableCell class="text-muted-foreground tabular-nums">
+                  {{ index + 1 }}
+                </TableCell>
+                <TableCell>
+                  <Input
+                    v-model="getEdit(layer).display_name"
+                    class="h-8 min-w-[10rem] max-w-xs"
+                    draggable="false"
+                    :placeholder="layer.layer_key"
+                    @input="markChanged"
+                  />
+                </TableCell>
+                <TableCell>
+                  <code class="text-xs text-muted-foreground">{{ layer.layer_key }}</code>
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    size="sm"
+                    :variant="getEdit(layer).is_enabled ? 'default' : 'outline'"
+                    draggable="false"
+                    :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
+                    @click="toggleEnabled(layer)"
+                  >
+                    <Eye v-if="getEdit(layer).is_enabled" class="size-3.5" />
+                    <EyeOff v-else class="size-3.5" />
+                    {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
+                  </Button>
+                </TableCell>
+                <TableCell v-if="typeKey === 'reference'">
+                  <Button
+                    type="button"
+                    size="sm"
+                    :variant="getEdit(layer).default_visible ? 'secondary' : 'outline'"
+                    draggable="false"
+                    title="默认显隐"
+                    @click="toggleDefaultVisible(layer)"
+                  >
+                    {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
+                  </Button>
+                </TableCell>
+                <TableCell v-if="typeKey === 'view'">
+                  <div
+                    v-if="configurableFieldsFor(layer).length"
+                    class="flex flex-wrap items-center gap-2"
+                    data-testid="layer-default-filters"
+                  >
+                    <label
+                      v-for="field in configurableFieldsFor(layer)"
+                      :key="field.key"
+                      class="flex items-center gap-1.5 text-xs text-muted-foreground"
                     >
-                      {{ option.label }}
-                    </option>
-                    <option
-                      v-if="isStaleFilterValue(layer, field)"
-                      disabled
-                      :value="getFilterValue(layer, field.key)"
-                    >
-                      {{ getFilterValue(layer, field.key) }}（当前无此值）
-                    </option>
-                  </NativeSelect>
-                </label>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div
-          v-if="listFor(typeKey).length === 0 && !loading"
-          class="col-span-full py-8 text-center text-sm text-muted-foreground"
-        >
-          暂无数据
+                      <span class="whitespace-nowrap">{{ field.label }}</span>
+                      <NativeSelect
+                        class="h-8 py-1"
+                        :model-value="getFilterValue(layer, field.key)"
+                        :data-testid="`layer-filter-${field.key}`"
+                        @change="setFilterValue(layer, field.key, $event.target.value)"
+                      >
+                        <option value="">全部</option>
+                        <option
+                          v-for="option in field.options"
+                          :key="option.value"
+                          :value="option.value"
+                        >
+                          {{ option.label }}
+                        </option>
+                        <option
+                          v-if="isStaleFilterValue(layer, field)"
+                          disabled
+                          :value="getFilterValue(layer, field.key)"
+                        >
+                          {{ getFilterValue(layer, field.key) }}（当前无此值）
+                        </option>
+                      </NativeSelect>
+                    </label>
+                  </div>
+                  <span v-else class="text-xs text-muted-foreground">—</span>
+                </TableCell>
+              </TableRow>
+              <TableRow v-if="listFor(typeKey).length === 0 && !loading">
+                <TableCell
+                  :colspan="typeKey === 'view' ? 6 : 6"
+                  class="h-24 text-center text-muted-foreground"
+                >
+                  暂无数据
+                </TableCell>
+              </TableRow>
+              <TableRow v-if="loading && listFor(typeKey).length === 0">
+                <TableCell
+                  :colspan="typeKey === 'view' ? 6 : 6"
+                  class="h-24 text-center text-muted-foreground"
+                >
+                  加载中…
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </template>

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { RefreshCw, ShieldCheck, Shield } from "@lucide/vue";
+import { ChevronLeft, ChevronRight, RefreshCw, ShieldCheck, Shield } from "@lucide/vue";
 
 import { fetchOperationLogs } from "../api/admin.js";
 import { isUnauthorizedError } from "../api/http.js";
@@ -33,8 +33,6 @@ const totalPages = computed(() =>
 );
 const canPrev = computed(() => currentPage.value > 1);
 const canNext = computed(() => currentPage.value < totalPages.value);
-
-const logPageRange = computed(() => `第 ${currentPage.value} / ${totalPages.value} 页`);
 
 async function load() {
   if (loading.value) return;
@@ -96,8 +94,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="overflow-x-auto rounded-md border">
-      <Table class="data-table min-w-[56rem]">
+    <div class="overflow-hidden rounded-xl border shadow-sm">
+      <div class="overflow-x-auto">
+        <Table class="data-table min-w-[56rem]">
         <TableHeader>
           <TableRow>
             <TableHead>时间</TableHead>
@@ -152,32 +151,37 @@ onMounted(() => {
           </TableRow>
         </TableBody>
       </Table>
-    </div>
+      </div>
 
-    <div class="pager flex items-center justify-center gap-3">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        class="pager-btn"
-        :disabled="!canPrev || loading"
-        @click="goPrev"
-      >
-        上一页
-      </Button>
-      <span class="pager-info text-sm text-muted-foreground">
-        {{ logPageRange }} · 共 {{ total }} 条
-      </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        class="pager-btn"
-        :disabled="!canNext || loading"
-        @click="goNext"
-      >
-        下一页
-      </Button>
+      <div class="flex items-center justify-between border-t px-4 py-3">
+        <p class="text-sm text-muted-foreground">
+          第 {{ Math.min((currentPage - 1) * pageSize + 1, total) }}–{{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
+        </p>
+        <div class="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            class="pager-btn"
+            :disabled="!canPrev || loading"
+            aria-label="上一页"
+            @click="goPrev"
+          >
+            <ChevronLeft class="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            class="pager-btn"
+            :disabled="!canNext || loading"
+            aria-label="下一页"
+            @click="goNext"
+          >
+            <ChevronRight class="size-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

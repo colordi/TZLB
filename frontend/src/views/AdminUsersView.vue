@@ -206,8 +206,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="overflow-x-auto rounded-md border">
-      <Table class="data-table min-w-[48rem]">
+    <div class="overflow-hidden rounded-xl border shadow-sm">
+      <div class="overflow-x-auto">
+        <Table class="data-table min-w-[48rem]">
         <TableHeader>
           <TableRow>
             <TableHead>用户名</TableHead>
@@ -283,7 +284,8 @@ onMounted(() => {
             </TableCell>
           </TableRow>
         </TableBody>
-      </Table>
+        </Table>
+      </div>
     </div>
   </div>
 

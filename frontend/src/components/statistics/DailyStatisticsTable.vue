@@ -163,15 +163,14 @@ function handleGenerationChange(event) {
         <p>{{ props.emptyText }}</p>
       </div>
 
-      <div v-else class="rounded-md border">
+      <div v-else class="overflow-hidden rounded-xl border shadow-sm">
         <Table class="min-w-[48rem]">
           <TableHeader>
-            <TableRow class="bg-muted/50 hover:bg-muted/50">
+            <TableRow class="hover:bg-transparent">
               <template v-for="group in groupedColumns" :key="group.label">
                 <TableHead
                   v-if="group.count === 1"
                   rowspan="2"
-                  class="font-semibold text-muted-foreground"
                   :class="[cellClass(group.columns[0]), group.start > 0 ? 'border-l' : '']"
                 >
                   {{ group.label }}
@@ -179,18 +178,17 @@ function handleGenerationChange(event) {
                 <TableHead
                   v-else
                   :colspan="group.count"
-                  class="text-center font-semibold text-muted-foreground"
+                  class="text-center"
                   :class="group.start > 0 ? 'border-l' : ''"
                 >
                   {{ group.label }}
                 </TableHead>
               </template>
             </TableRow>
-            <TableRow class="bg-muted/30 hover:bg-muted/30">
+            <TableRow class="hover:bg-transparent">
               <template v-for="(column, index) in props.columns" :key="column.key">
                 <TableHead
                   v-if="multiColumnGroupLabels.has(resolveColumnGroup(column.key))"
-                  class="text-muted-foreground"
                   :class="[cellClass(column), groupStartIndices.has(index) ? 'border-l' : '']"
                 >
                   {{ subColumnLabel(column) }}
@@ -219,39 +217,41 @@ function handleGenerationChange(event) {
             </TableRow>
           </TableBody>
         </Table>
-      </div>
 
-      <nav
-        v-if="totalPages > 1"
-        class="flex items-center justify-end gap-3"
-        aria-label="分页导航"
-      >
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          :disabled="currentPage === 1"
-          data-testid="data-statistics-prev-page"
-          @click="currentPage -= 1"
+        <div
+          v-if="totalPages > 1"
+          class="flex items-center justify-between border-t px-4 py-3"
+          aria-label="分页导航"
         >
-          <ChevronLeft class="size-4" />
-          <span>上一页</span>
-        </Button>
-        <span class="text-sm text-muted-foreground">
-          第 {{ currentPage }} / {{ totalPages }} 页
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          :disabled="currentPage === totalPages"
-          data-testid="data-statistics-next-page"
-          @click="currentPage += 1"
-        >
-          <span>下一页</span>
-          <ChevronRight class="size-4" />
-        </Button>
-      </nav>
+          <p class="text-sm text-muted-foreground">
+            第 {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, props.rows.length) }} 条，共 {{ props.rows.length }} 条
+          </p>
+          <div class="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              :disabled="currentPage === 1"
+              aria-label="上一页"
+              data-testid="data-statistics-prev-page"
+              @click="currentPage -= 1"
+            >
+              <ChevronLeft class="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              :disabled="currentPage === totalPages"
+              aria-label="下一页"
+              data-testid="data-statistics-next-page"
+              @click="currentPage += 1"
+            >
+              <ChevronRight class="size-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </CardContent>
   </Card>
 </template>

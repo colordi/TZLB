@@ -263,40 +263,42 @@ onMounted(loadPestTypes);
       </CardHeader>
 
       <CardContent>
-        <div class="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>对象名称</TableHead>
-                <TableHead>类型</TableHead>
-                <TableHead class="text-right">记录数</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow
-                v-for="table in currentPestMeta.tables"
-                :key="`${table.schema_name}.${table.table_name}`"
-              >
-                <TableCell>
-                  <span class="inline-flex items-center gap-2 font-medium">
-                    <Layers class="size-4 text-muted-foreground" />
-                    {{ table.table_name }}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    :variant="table.object_type === 'view' ? 'secondary' : 'outline'"
-                    :class="cn(table.object_type === 'view' && 'text-primary')"
-                  >
-                    {{ tableLabel(table.object_type) }}
-                  </Badge>
-                </TableCell>
-                <TableCell class="text-right font-medium text-muted-foreground">
-                  {{ formatNumber(table.row_count) }}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+        <div class="overflow-hidden rounded-xl border shadow-sm">
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>对象名称</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead class="text-right">记录数</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow
+                  v-for="table in currentPestMeta.tables"
+                  :key="`${table.schema_name}.${table.table_name}`"
+                >
+                  <TableCell>
+                    <span class="inline-flex items-center gap-2 font-medium">
+                      <Layers class="size-4 text-muted-foreground" />
+                      {{ table.table_name }}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      :variant="table.object_type === 'view' ? 'secondary' : 'outline'"
+                      :class="cn(table.object_type === 'view' && 'text-primary')"
+                    >
+                      {{ tableLabel(table.object_type) }}
+                    </Badge>
+                  </TableCell>
+                  <TableCell class="text-right font-medium text-muted-foreground">
+                    {{ formatNumber(table.row_count) }}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </CardContent>
     </Card>

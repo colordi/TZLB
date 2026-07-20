@@ -247,19 +247,19 @@ describe("DataStatisticsView", () => {
     await flushPromises();
 
     expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(7);
-    expect(wrapper.text()).toContain("第 1 / 2 页");
+    expect(wrapper.text()).toContain("第 1–7 条，共 9 条");
     expect(wrapper.find('[data-testid="data-statistics-prev-page"]').attributes("disabled")).toBeDefined();
 
     await wrapper.get('[data-testid="data-statistics-next-page"]').trigger("click");
     await flushPromises();
 
     expect(wrapper.findAll('[data-testid^="data-statistics-row-"]').length).toBe(2);
-    expect(wrapper.text()).toContain("第 2 / 2 页");
+    expect(wrapper.text()).toContain("第 8–9 条，共 9 条");
     expect(wrapper.find('[data-testid="data-statistics-next-page"]').attributes("disabled")).toBeDefined();
 
     await wrapper.get('[data-testid="data-statistics-prev-page"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.text()).toContain("第 1 / 2 页");
+    expect(wrapper.text()).toContain("第 1–7 条，共 9 条");
   });
 });
