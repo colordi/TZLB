@@ -25,8 +25,10 @@ async def get_white_moth_daily(
 
 
 @router.get("/white-moth/generation-summary", summary="读取美国白蛾各世代汇总")
-async def get_white_moth_generation_statistics() -> dict[str, Any]:
+async def get_white_moth_generation_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
     try:
-        return await get_white_moth_generation_summary()
+        return await get_white_moth_generation_summary(year=year)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取美国白蛾世代汇总失败：{exc}") from exc

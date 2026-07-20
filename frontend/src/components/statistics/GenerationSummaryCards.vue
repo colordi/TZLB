@@ -1,4 +1,6 @@
 <script setup>
+import { Calendar } from "@lucide/vue";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,19 +21,22 @@ function formatNumber(value) {
   }
   return Number(value || 0).toLocaleString("zh-CN");
 }
+
+function formatShortDate(value) {
+  if (!value) {
+    return "";
+  }
+  const text = String(value);
+  return text.length >= 10 ? text.slice(5, 10) : text;
+}
 </script>
 
 <template>
   <Card data-testid="data-statistics-summary-panel">
     <CardHeader class="pb-3">
-      <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <CardTitle class="text-base">
-          {{ props.summary.year || props.fallbackYear }} 年各世代累计情况
-        </CardTitle>
-        <span v-if="props.summary.as_of_date" class="text-xs text-muted-foreground">
-          截至 {{ props.summary.as_of_date }}
-        </span>
-      </div>
+      <CardTitle class="text-base">
+        {{ props.summary.year || props.fallbackYear }} 年各世代累计情况
+      </CardTitle>
     </CardHeader>
     <CardContent>
       <div class="grid gap-3 md:grid-cols-3" data-testid="data-statistics-generation-summary">
@@ -41,7 +46,16 @@ function formatNumber(value) {
           class="rounded-lg border p-4"
           :data-testid="`data-statistics-summary-${item.generation}`"
         >
-          <h4 class="text-sm font-medium text-muted-foreground">{{ item.generation }}</h4>
+          <div class="flex items-baseline justify-between gap-2">
+            <h4 class="text-sm font-medium text-muted-foreground">{{ item.generation }}</h4>
+            <p class="flex items-center gap-1 text-xs text-muted-foreground/80 tabular-nums">
+              <Calendar class="size-3" />
+              <span v-if="item.start_date && item.end_date">
+                {{ formatShortDate(item.start_date) }} ~ {{ formatShortDate(item.end_date) }}
+              </span>
+              <span v-else>暂无调查日期</span>
+            </p>
+          </div>
 
           <div class="mt-2">
             <div class="flex items-baseline gap-1.5">

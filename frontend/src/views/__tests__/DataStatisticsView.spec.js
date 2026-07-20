@@ -54,6 +54,8 @@ function buildGenerationSummary() {
     generations: [
       {
         generation: "第一代",
+        start_date: "2026-05-01",
+        end_date: "2026-06-20",
         surveyed_points: 44,
         urban_surveyed_points: 18,
         town_surveyed_points: 26,
@@ -68,6 +70,8 @@ function buildGenerationSummary() {
       },
       {
         generation: "第二代",
+        start_date: null,
+        end_date: null,
         surveyed_points: 0,
         urban_surveyed_points: 0,
         town_surveyed_points: 0,
@@ -130,8 +134,11 @@ describe("DataStatisticsView", () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
-    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledWith();
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
     const summary = wrapper.get('[data-testid="data-statistics-summary-第一代"]').text();
+    expect(summary).toContain("05-01 ~ 06-20");
     expect(summary).toContain("44");
     expect(summary).toContain("个点位完成调查");
     expect(summary).toContain("城区 18 · 乡镇 26");
@@ -143,6 +150,7 @@ describe("DataStatisticsView", () => {
     expect(summary).toContain("1 次派单 13 个");
     expect(summary).toContain("2 次派单 4 个");
     expect(wrapper.get('[data-testid="data-statistics-summary-第二代"]').text()).toContain("暂无派单");
+    expect(wrapper.get('[data-testid="data-statistics-summary-第二代"]').text()).toContain("暂无调查日期");
     expect(wrapper.get('[data-testid="data-statistics-summary-panel"]').text()).toContain(
       "各世代累计情况",
     );
@@ -215,6 +223,10 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear() - 1,
       generation: undefined,
     });
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+    });
 
     await wrapper.get('[data-testid="data-statistics-generation-filter"]').setValue("第一代");
     await flushPromises();
@@ -224,6 +236,8 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear() - 1,
       generation: "第一代",
     });
+    // 世代筛选不触发世代汇总重载
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
   });
 
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {

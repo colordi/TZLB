@@ -14,8 +14,15 @@ export async function getWhiteMothDailyStatistics({ year, generation } = {}) {
   return response.json();
 }
 
-export async function getWhiteMothGenerationSummary() {
-  const response = await apiFetch("/api/statistics/white-moth/generation-summary");
+export async function getWhiteMothGenerationSummary({ year } = {}) {
+  const params = new URLSearchParams();
+  if (year !== undefined && year !== null && year !== "") {
+    params.set("year", String(year));
+  }
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/statistics/white-moth/generation-summary${query ? `?${query}` : ""}`,
+  );
   await ensureApiSuccess(response);
   return response.json();
 }

@@ -204,7 +204,7 @@ point_stats AS (
         COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)::integer AS dispatch_count
     FROM survey."美国白蛾调查表"
     WHERE
-        "年份" = EXTRACT(YEAR FROM CURRENT_DATE)::integer
+        "年份" = $1
         AND "调查日期" <= CURRENT_DATE
         AND BTRIM(COALESCE("编号", '')) <> ''
     GROUP BY "世代", BTRIM("编号")
@@ -221,11 +221,24 @@ generation_stats AS (
         COALESCE(SUM(dispatch_count), 0)::integer AS dispatch_count
     FROM point_stats
     GROUP BY "世代"
+),
+generation_dates AS (
+    SELECT
+        "世代",
+        MIN("调查日期") AS start_date,
+        MAX("调查日期") AS end_date
+    FROM survey."美国白蛾调查表"
+    WHERE
+        "年份" = $1
+        AND "调查日期" <= CURRENT_DATE
+    GROUP BY "世代"
 )
 SELECT
     CURRENT_DATE AS as_of_date,
-    EXTRACT(YEAR FROM CURRENT_DATE)::integer AS year,
+    $1 AS year,
     g."世代",
+    d.start_date,
+    d.end_date,
     COALESCE(s.surveyed_points, 0)::integer AS surveyed_points,
     COALESCE(s.urban_surveyed_points, 0)::integer AS urban_surveyed_points,
     COALESCE(s.town_surveyed_points, 0)::integer AS town_surveyed_points,
@@ -235,6 +248,7 @@ SELECT
     COALESCE(s.dispatch_count, 0)::integer AS dispatch_count
 FROM generations g
 LEFT JOIN generation_stats s ON s."世代" = g."世代"
+LEFT JOIN generation_dates d ON d."世代" = g."世代"
 ORDER BY g.sort_order;
 """
 
@@ -246,7 +260,7 @@ WITH point_dispatch AS (
         COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)::integer AS dispatch_times
     FROM survey."美国白蛾调查表"
     WHERE
-        "年份" = EXTRACT(YEAR FROM CURRENT_DATE)::integer
+        "年份" = $1
         AND "调查日期" <= CURRENT_DATE
         AND BTRIM(COALESCE("编号", '')) <> ''
     GROUP BY "世代", BTRIM("编号")
@@ -289,11 +303,12 @@ async def get_white_moth_daily_statistics(
     }
 
 
-async def get_white_moth_generation_summary() -> dict[str, Any]:
+async def get_white_moth_generation_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
     pool = await ensure_pool()
     async with pool.acquire() as connection:
-        summary_rows = await connection.fetch(WHITE_MOTH_GENERATION_SUMMARY_SQL)
-        frequency_rows = await connection.fetch(WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
+        summary_rows = await connection.fetch(WHITE_MOTH_GENERATION_SUMMARY_SQL, effective_year)
+        frequency_rows = await connection.fetch(WHITE_MOTH_DISPATCH_FREQUENCY_SQL, effective_year)
 
     frequencies: dict[str, list[dict[str, int]]] = {}
     for row in frequency_rows:
@@ -307,6 +322,8 @@ async def get_white_moth_generation_summary() -> dict[str, Any]:
     generations = [
         {
             "generation": row["世代"],
+            "start_date": serialize_daily_value(row["start_date"]),
+            "end_date": serialize_daily_value(row["end_date"]),
             "surveyed_points": row["surveyed_points"],
             "urban_surveyed_points": row["urban_surveyed_points"],
             "town_surveyed_points": row["town_surveyed_points"],
@@ -321,6 +338,6 @@ async def get_white_moth_generation_summary() -> dict[str, Any]:
 
     return {
         "as_of_date": serialize_daily_value(summary_rows[0]["as_of_date"]) if summary_rows else None,
-        "year": summary_rows[0]["year"] if summary_rows else date.today().year,
+        "year": summary_rows[0]["year"] if summary_rows else effective_year,
         "generations": generations,
     }

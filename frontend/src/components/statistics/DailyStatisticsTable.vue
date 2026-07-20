@@ -20,13 +20,11 @@ const props = defineProps({
   columns: { type: Array, default: () => [] },
   rows: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
-  year: { type: Number, default: null },
   generation: { type: String, default: "" },
-  yearOptions: { type: Array, default: () => [] },
   generationOptions: { type: Array, default: () => [] },
 });
 
-const emit = defineEmits(["update:year", "update:generation"]);
+const emit = defineEmits(["update:generation"]);
 
 const currentPage = ref(1);
 const PAGE_SIZE = 7;
@@ -110,8 +108,13 @@ function cellClass(column) {
   };
 }
 
-function handleYearChange(event) {
-  emit("update:year", Number(event.target.value));
+// 二级表头省略与分组名重复的前缀，如“城区当日受害点位数”→“当日受害点位数”
+function subColumnLabel(column) {
+  const group = resolveColumnGroup(column.key);
+  if (group && column.label.startsWith(group)) {
+    return column.label.slice(group.length);
+  }
+  return column.label;
 }
 
 function handleGenerationChange(event) {
@@ -128,23 +131,10 @@ function handleGenerationChange(event) {
       </div>
       <div class="flex flex-wrap items-center gap-2" aria-label="筛选条件">
         <label class="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>年份</span>
-          <NativeSelect
-            :model-value="String(props.year)"
-            class="h-8"
-            data-testid="data-statistics-year-filter"
-            @change="handleYearChange"
-          >
-            <option v-for="yearOption in props.yearOptions" :key="yearOption" :value="yearOption">
-              {{ yearOption }}
-            </option>
-          </NativeSelect>
-        </label>
-        <label class="flex items-center gap-2 text-sm text-muted-foreground">
           <span>世代</span>
           <NativeSelect
             :model-value="props.generation"
-            class="h-8"
+            class="h-8 py-1"
             data-testid="data-statistics-generation-filter"
             @change="handleGenerationChange"
           >
@@ -203,7 +193,7 @@ function handleGenerationChange(event) {
                   class="text-muted-foreground"
                   :class="[cellClass(column), groupStartIndices.has(index) ? 'border-l' : '']"
                 >
-                  {{ column.label }}
+                  {{ subColumnLabel(column) }}
                 </TableHead>
               </template>
             </TableRow>

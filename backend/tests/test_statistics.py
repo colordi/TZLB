@@ -158,6 +158,8 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
                             "as_of_date": date(2026, 7, 11),
                             "year": 2026,
                             "世代": "第一代",
+                            "start_date": date(2026, 5, 1),
+                            "end_date": date(2026, 6, 20),
                             "surveyed_points": 44,
                             "urban_surveyed_points": 18,
                             "town_surveyed_points": 26,
@@ -183,6 +185,8 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["as_of_date"], "2026-07-11")
         self.assertEqual(result["year"], 2026)
+        self.assertEqual(result["generations"][0]["start_date"], "2026-05-01")
+        self.assertEqual(result["generations"][0]["end_date"], "2026-06-20")
         self.assertEqual(result["generations"][0]["surveyed_points"], 44)
         self.assertEqual(result["generations"][0]["damaged_points"], 17)
         self.assertEqual(result["generations"][0]["dispatch_count"], 21)
@@ -194,6 +198,44 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertEqual(len(connection.fetch_calls), 2)
+        self.assertEqual(connection.fetch_calls[0][1], (date.today().year,))
+        self.assertEqual(connection.fetch_calls[1][1], (date.today().year,))
+
+    async def test_generation_summary_passes_year_to_sql(self) -> None:
+        connection = SequentialFakeConnection(
+            [
+                [
+                    FakeRow(
+                        {
+                            "as_of_date": date(2025, 7, 11),
+                            "year": 2025,
+                            "世代": "第一代",
+                            "start_date": None,
+                            "end_date": None,
+                            "surveyed_points": 10,
+                            "urban_surveyed_points": 4,
+                            "town_surveyed_points": 6,
+                            "damaged_points": 3,
+                            "urban_damaged_points": 1,
+                            "town_damaged_points": 2,
+                            "dispatch_count": 5,
+                        }
+                    )
+                ],
+                [],
+            ]
+        )
+
+        with patch(
+            "backend.services.statistics.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            result = await get_white_moth_generation_summary(year=2025)
+
+        self.assertEqual(result["year"], 2025)
+        self.assertIsNone(result["generations"][0]["start_date"])
+        self.assertEqual(connection.fetch_calls[0][1], (2025,))
+        self.assertEqual(connection.fetch_calls[1][1], (2025,))
 
     def test_generation_summary_sql_groups_by_generation_and_point_code(self) -> None:
         self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_GENERATION_SUMMARY_SQL)
@@ -231,10 +273,11 @@ class StatisticsRouterTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.routers.statistics.get_white_moth_generation_summary",
             new=AsyncMock(return_value=payload),
-        ):
-            result = await get_white_moth_generation_statistics()
+        ) as service_mock:
+            result = await get_white_moth_generation_statistics(year=2025)
 
         self.assertEqual(result, payload)
+        service_mock.assert_awaited_once_with(year=2025)
 
     async def test_white_moth_generation_router_wraps_errors(self) -> None:
         with patch(
