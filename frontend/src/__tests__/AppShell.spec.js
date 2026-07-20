@@ -76,7 +76,7 @@ async function mountApp(initialPath = "/workorder", options = {}) {
         path: "/data-import",
         component: DataExportStub,
         meta: {
-          section: "调查数据导入",
+          section: "数据导入",
         },
       },
       {
@@ -165,18 +165,12 @@ describe("App 壳层导航", () => {
     expect(wrapper.text()).not.toContain("当前页面");
   });
 
-  it("侧边栏折叠按钮位于品牌行并能切换折叠状态", async () => {
+  it("桌面端侧边栏不再提供折叠按钮与边缘拉伸条", async () => {
     const { wrapper } = await mountApp("/workorder");
 
-    const brandRow = wrapper.get(".app-sidebar-brand-row");
-    const toggleButton = brandRow.get(".sidebar-toggle-btn");
-    const initialLabel = toggleButton.attributes("aria-label");
-    expect(["收起侧边栏", "展开侧边栏"]).toContain(initialLabel);
-
-    await toggleButton.trigger("click");
-    await flushPromises();
-
-    expect(toggleButton.attributes("aria-label")).not.toBe(initialLabel);
+    expect(wrapper.find(".sidebar-toggle-btn").exists()).toBe(false);
+    expect(wrapper.find('[data-sidebar="rail"]').exists()).toBe(false);
+    expect(wrapper.find(".app-sidebar-brand-row").exists()).toBe(true);
   });
 
   it("普通页账号入口使用统一下拉菜单", async () => {
@@ -199,7 +193,7 @@ describe("App 壳层导航", () => {
     expect(wrapper.text()).toContain("退出登录");
   });
 
-  it("移动端提供打开导航的入口", async () => {
+  it("移动端提供打开导航的入口并能展开侧栏", async () => {
     window.matchMedia = vi.fn().mockImplementation((query) => ({
       matches: String(query).includes("max-width"),
       media: query,
@@ -216,6 +210,14 @@ describe("App 壳层导航", () => {
     const trigger = wrapper.find('[data-testid="mobile-menu-trigger"]');
     expect(trigger.exists()).toBe(true);
     expect(trigger.attributes("aria-label")).toBe("打开导航菜单");
+
+    await trigger.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-mobile="true"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="sidebar-link-workorder"]').text()).toContain(
+      "工单录入",
+    );
   });
 
   it("调查员账号不展示工单录入入口", async () => {
@@ -247,7 +249,7 @@ describe("App 壳层导航", () => {
     });
 
     expect(wrapper.get('[data-testid="sidebar-link-data-import"]').text()).toContain(
-      "调查数据导入",
+      "数据导入",
     );
     expect(wrapper.get('[data-testid="sidebar-link-workorder-assets"]').text()).toContain(
       "工单素材",

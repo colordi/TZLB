@@ -63,7 +63,7 @@ const routes = [
     name: "data-import",
     component: DataImportView,
     meta: {
-      section: "调查数据导入",
+      section: "数据导入",
       blurb: "通过 Excel 将调查/台账数据写入数据库，供工单录入时从库中选取。",
       requiredRoles: [USER_ROLES.ADMIN],
     },

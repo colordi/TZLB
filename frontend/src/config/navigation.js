@@ -38,7 +38,7 @@ export const NAV_GROUPS = [
     items: [
       {
         to: "/data-import",
-        label: "调查数据导入",
+        label: "数据导入",
         icon: FileSpreadsheet,
         testId: "data-import",
         requiredRoles: [USER_ROLES.ADMIN],

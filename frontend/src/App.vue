@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, h, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { LogOut, Menu, TreePine } from "@lucide/vue";
 
@@ -27,8 +27,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import ToastViewport from "./components/ui/ToastViewport.vue";
@@ -87,43 +85,47 @@ async function handleLogout() {
   }
 }
 
-/** 仅在 SidebarProvider 内使用 */
+/**
+ * 必须用 render function：生产构建不含运行时模板编译器，
+ * 字符串 template 会导致移动端菜单按钮不渲染。
+ */
 const MobileMenuTrigger = {
   name: "MobileMenuTrigger",
-  components: { Button, Menu },
   setup() {
     const { setOpenMobile } = useSidebar();
-    return { setOpenMobile };
+    return () =>
+      h(
+        Button,
+        {
+          type: "button",
+          variant: "outline",
+          size: "icon-sm",
+          class: "shrink-0 md:hidden",
+          "data-testid": "mobile-menu-trigger",
+          "aria-label": "打开导航菜单",
+          onClick: () => setOpenMobile(true),
+        },
+        () => [
+          h(Menu, { class: "size-4" }),
+          h("span", { class: "sr-only" }, "打开菜单"),
+        ],
+      );
   },
-  template: `
-    <Button
-      type="button"
-      variant="outline"
-      size="icon-sm"
-      class="md:hidden"
-      data-testid="mobile-menu-trigger"
-      aria-label="打开导航菜单"
-      @click="setOpenMobile(true)"
-    >
-      <Menu class="size-4" />
-      <span class="sr-only">打开菜单</span>
-    </Button>
-  `,
 };
 
-const DesktopSidebarToggle = {
-  name: "DesktopSidebarToggle",
-  components: { SidebarTrigger },
+/** 路由切换时关闭移动端抽屉 */
+const MobileNavCloser = {
+  name: "MobileNavCloser",
   setup() {
-    const { state } = useSidebar();
-    return { state };
+    const { setOpenMobile } = useSidebar();
+    watch(
+      () => route.fullPath,
+      () => {
+        setOpenMobile(false);
+      },
+    );
+    return () => null;
   },
-  template: `
-    <SidebarTrigger
-      class="sidebar-toggle-btn hidden size-8 md:inline-flex"
-      :aria-label="state === 'collapsed' ? '展开侧边栏' : '收起侧边栏'"
-    />
-  `,
 };
 </script>
 
@@ -137,7 +139,8 @@ const DesktopSidebarToggle = {
     </template>
 
     <SidebarProvider v-else :default-open="true" class="min-h-svh">
-      <Sidebar collapsible="icon" class="app-sidebar border-sidebar-border">
+      <MobileNavCloser />
+      <Sidebar collapsible="none" class="app-sidebar border-sidebar-border">
         <SidebarHeader class="app-sidebar-brand-row gap-1 border-b border-sidebar-border p-2">
           <RouterLink
             :to="homePath"
@@ -149,7 +152,7 @@ const DesktopSidebarToggle = {
             >
               <TreePine class="size-4" :stroke-width="2" />
             </span>
-            <span class="min-w-0 group-data-[collapsible=icon]:hidden">
+            <span class="min-w-0">
               <strong class="block truncate text-sm font-semibold leading-tight">
                 林业调查工作台
               </strong>
@@ -158,7 +161,6 @@ const DesktopSidebarToggle = {
               </span>
             </span>
           </RouterLink>
-          <DesktopSidebarToggle />
         </SidebarHeader>
 
         <SidebarContent>
@@ -173,7 +175,6 @@ const DesktopSidebarToggle = {
                     <SidebarMenuButton
                       as-child
                       :is-active="isActivePath(item.to)"
-                      :tooltip="item.label"
                     >
                       <RouterLink
                         :to="item.to"
@@ -200,13 +201,12 @@ const DesktopSidebarToggle = {
             >
               {{ (currentUserName || "账").slice(0, 1) }}
             </span>
-            <span class="min-w-0 group-data-[collapsible=icon]:hidden">
+            <span class="min-w-0">
               <strong class="block truncate text-sm">{{ currentUserName || "账号" }}</strong>
               <span class="block text-[10px] text-sidebar-foreground/60">当前登录用户</span>
             </span>
           </div>
         </SidebarFooter>
-        <SidebarRail />
       </Sidebar>
 
       <SidebarInset class="min-w-0">

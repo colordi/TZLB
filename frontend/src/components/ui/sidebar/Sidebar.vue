@@ -25,16 +25,8 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 </script>
 
 <template>
-  <div
-    v-if="collapsible === 'none'"
-    data-slot="sidebar"
-    :class="cn('bg-sidebar text-sidebar-foreground flex w-(--sidebar-width) flex-col', props.class)"
-    v-bind="$attrs"
-  >
-    <slot />
-  </div>
-
-  <Sheet v-else-if="isMobile" :open="openMobile" v-bind="$attrs" @update:open="setOpenMobile">
+  <!-- 移动端始终使用抽屉，与 collapsible 模式无关 -->
+  <Sheet v-if="isMobile" :open="openMobile" v-bind="$attrs" @update:open="setOpenMobile">
     <SheetContent
       data-sidebar="sidebar"
       data-slot="sidebar"
@@ -46,14 +38,44 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
       }"
     >
       <SheetHeader class="sr-only">
-        <SheetTitle>Sidebar</SheetTitle>
-        <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+        <SheetTitle>导航菜单</SheetTitle>
+        <SheetDescription>移动端侧边导航</SheetDescription>
       </SheetHeader>
       <div class="flex h-full w-full flex-col">
         <slot />
       </div>
     </SheetContent>
   </Sheet>
+
+  <div
+    v-else-if="collapsible === 'none'"
+    data-slot="sidebar"
+    class="group peer text-sidebar-foreground hidden md:block"
+    data-state="expanded"
+    data-collapsible=""
+    :data-variant="variant"
+    :data-side="side"
+  >
+    <div class="relative w-(--sidebar-width) bg-transparent" />
+    <div
+      :class="cn(
+        'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) md:flex',
+        side === 'left' ? 'left-0' : 'right-0',
+        variant === 'floating' || variant === 'inset'
+          ? 'p-2'
+          : 'group-data-[side=left]:border-r group-data-[side=right]:border-l',
+        props.class,
+      )"
+      v-bind="$attrs"
+    >
+      <div
+        data-sidebar="sidebar"
+        class="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+      >
+        <slot />
+      </div>
+    </div>
+  </div>
 
   <div
     v-else

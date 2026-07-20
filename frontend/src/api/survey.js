@@ -45,7 +45,7 @@ export async function downloadImportTemplate() {
     blob: await response.blob(),
     filename: extractFilename(
       response.headers.get("content-disposition"),
-      "林业调查数据导入模板.xlsx",
+      "林业数据导入模板.xlsx",
     ),
   };
 }

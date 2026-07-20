@@ -450,7 +450,7 @@ class SurveyExcelImportTest(unittest.TestCase):
 
         plan = build_import_plan(content, self.metadata)
 
-        self.assertEqual(plan[0].warnings, ["id 是自动生成字段，导入时已忽略"])
+        self.assertEqual(plan[0].warnings, [])
         self.assertEqual(plan[0].valid_rows, 1)
         self.assertEqual(plan[0].rows[0].values["编号"], "MQ001")
         self.assertEqual(plan[0].rows[0].values["调查日期"], date(2026, 4, 16))
@@ -516,7 +516,7 @@ class SurveyExcelImportTest(unittest.TestCase):
 
         self.assertEqual(plan[0].schema_name, "ledger")
         self.assertEqual(plan[0].table_name, "其他害虫问题点位事件流水表")
-        self.assertEqual(plan[0].warnings, ["id 是自动生成字段，导入时已忽略"])
+        self.assertEqual(plan[0].warnings, [])
         self.assertEqual(plan[0].valid_rows, 1)
         self.assertNotIn("id", plan[0].rows[0].values)
         self.assertEqual(
@@ -610,6 +610,20 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["totals"]["sheet_count"], 2)
         self.assertEqual(result["totals"]["inserted_rows"], 2)
+        self.assertEqual(result["totals"]["importable_rows"], 2)
+        survey_sheet = result["sheets"][0]
+        self.assertEqual(
+            survey_sheet["stats"]["by_locality"],
+            [{"name": "马驹桥镇", "count": 1}],
+        )
+        self.assertEqual(survey_sheet["stats"]["damaged_count"], 1)
+        self.assertEqual(survey_sheet["stats"]["undamaged_count"], 0)
+        ledger_sheet = result["sheets"][1]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "调查下派", "count": 1}],
+        )
+        self.assertEqual(ledger_sheet["stats"]["damaged_count"], 1)
         self.assertEqual(len(connection.insert_calls), 2)
         self.assertEqual(len(connection.execute_calls), 1)
         self.assertIn("LOCK TABLE", connection.execute_calls[0])
@@ -623,6 +637,53 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("发现网幕", ledger_args)
         self.assertTrue(connection.transaction_entered)
         self.assertTrue(connection.transaction_exited)
+
+    async def test_preview_summary_aggregates_locality_damage_and_event_type(self) -> None:
+        content = make_workbook(
+            {
+                "美国白蛾调查表": [
+                    ["编号", "调查日期", "属地", "点位名称", "受害株数", "网幕数量", "详细描述", "备注"],
+                    ["MQ001", "2026-05-26", "马驹桥镇", "九周路", 3, 2, "发现网幕", ""],
+                    ["MQ002", "2026-05-26", "马驹桥镇", "小杜社", 0, 0, "未见受害", ""],
+                    ["TY001", "2026-05-26", "通运街道", "滨河", 1, 1, "发现网幕", ""],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="美国白蛾调查.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        self.assertEqual(result["totals"]["importable_rows"], 6)
+        survey_sheet = next(
+            sheet for sheet in result["sheets"] if sheet["table_name"] == "美国白蛾调查表"
+        )
+        ledger_sheet = next(
+            sheet
+            for sheet in result["sheets"]
+            if sheet["table_name"] == "美国白蛾问题点位事件流水表"
+        )
+        self.assertEqual(
+            survey_sheet["stats"]["by_locality"],
+            [
+                {"name": "马驹桥镇", "count": 2},
+                {"name": "通运街道", "count": 1},
+            ],
+        )
+        self.assertEqual(survey_sheet["stats"]["damaged_count"], 2)
+        self.assertEqual(survey_sheet["stats"]["undamaged_count"], 1)
+        self.assertEqual(survey_sheet["stats"]["by_event_type"], [])
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "调查下派", "count": 3}],
+        )
+        self.assertEqual(ledger_sheet["stats"]["damaged_count"], 2)
+        self.assertEqual(ledger_sheet["stats"]["undamaged_count"], 1)
+        self.assertEqual(connection.insert_calls, [])
 
     async def test_existing_mgb1_ledger_sheet_is_imported_without_backend_generation(self) -> None:
         content = make_workbook(

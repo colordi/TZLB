@@ -68,7 +68,7 @@ async def import_survey_excel_file(
         raise BusinessError(str(exc)) from exc
 
 
-@router.get("/import-template", summary="下载调查数据导入模板")
+@router.get("/import-template", summary="下载数据导入模板")
 async def download_survey_import_template() -> Response:
     try:
         content = await generate_import_template_bytes()
@@ -76,7 +76,7 @@ async def download_survey_import_template() -> Response:
         raise BusinessError(str(exc)) from exc
 
     exported_at = date_cls.today().strftime("%Y%m%d")
-    filename = f"林业调查数据导入模板_{exported_at}.xlsx"
+    filename = f"林业数据导入模板_{exported_at}.xlsx"
     encoded_name = quote(filename)
     return Response(
         content=content,

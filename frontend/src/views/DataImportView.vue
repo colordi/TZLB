@@ -31,11 +31,15 @@ const downloadingTemplate = ref(false);
 
 const totals = computed(() => previewResult.value?.totals || {});
 const hasErrors = computed(() => Number(totals.value.error_count || 0) > 0);
-const importableRows = computed(
-  () =>
+const importableRows = computed(() => {
+  if (totals.value.importable_rows != null) {
+    return Number(totals.value.importable_rows || 0);
+  }
+  return (
     Number(totals.value.valid_rows || 0) -
-    Number(totals.value.skipped_duplicate_rows || 0),
-);
+    Number(totals.value.skipped_duplicate_rows || 0)
+  );
+});
 const canConfirm = computed(
   () =>
     !loading.value &&
@@ -72,6 +76,36 @@ function formatSheetTarget(sheet) {
     return "未匹配可写表";
   }
   return `${sheet.schema_name}.${sheet.table_name}`;
+}
+
+function formatNamedCounts(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "";
+  }
+  return items.map((item) => `${item.name} ${item.count}`).join(" · ");
+}
+
+function sheetStats(sheet) {
+  return sheet?.stats || {};
+}
+
+function hasLocalityStats(sheet) {
+  return Boolean(sheetStats(sheet).by_locality?.length);
+}
+
+function hasDamageStats(sheet) {
+  const stats = sheetStats(sheet);
+  return stats.damaged_count != null || stats.undamaged_count != null;
+}
+
+function hasEventTypeStats(sheet) {
+  return Boolean(sheetStats(sheet).by_event_type?.length);
+}
+
+function hasBusinessStats(sheet) {
+  return (
+    hasLocalityStats(sheet) || hasDamageStats(sheet) || hasEventTypeStats(sheet)
+  );
 }
 
 async function handleDownloadTemplate() {
@@ -156,7 +190,7 @@ async function handleConfirm() {
 <template>
   <section class="data-import-page mx-auto flex w-full max-w-6xl flex-col gap-4">
     <header class="space-y-1">
-      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">调查数据导入</h1>
+      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">数据导入</h1>
       <p class="max-w-3xl text-sm text-muted-foreground">
         将 Excel 写入数据库；入库后请到
         <RouterLink class="font-medium text-primary underline-offset-4 hover:underline" to="/workorder">
@@ -239,16 +273,7 @@ async function handleConfirm() {
 
         <!-- 校验结果 -->
         <div v-if="previewResult" class="space-y-2" data-testid="excel-import-result">
-          <div class="flex flex-wrap items-center gap-2">
-            <p class="text-sm font-medium">校验结果</p>
-            <Badge variant="secondary">sheet {{ totals.sheet_count || 0 }}</Badge>
-            <Badge variant="secondary">总行数 {{ totals.row_count || 0 }}</Badge>
-            <Badge variant="secondary">可导入 {{ importableRows }}</Badge>
-            <Badge variant="secondary">跳过重复 {{ totals.skipped_duplicate_rows || 0 }}</Badge>
-            <Badge :variant="hasErrors ? 'destructive' : 'secondary'">
-              错误 {{ totals.error_count || 0 }}
-            </Badge>
-          </div>
+          <p class="text-sm font-medium">校验结果</p>
 
           <div class="divide-y rounded-lg border">
             <div
@@ -266,14 +291,27 @@ async function handleConfirm() {
                   <CheckCircle2 v-else class="size-4 text-emerald-600" />
                   <strong class="text-sm font-medium">{{ sheet.sheet_name }}</strong>
                 </span>
-                <span class="text-xs text-muted-foreground">
-                  总行数 {{ sheet.row_count }} / 有效 {{ sheet.valid_rows }} / 已导入
-                  {{ sheet.inserted_rows }} / 跳过 {{ sheet.skipped_duplicate_rows }}
-                </span>
                 <Badge variant="outline" class="ml-auto font-mono font-normal">
                   {{ formatSheetTarget(sheet) }}
                 </Badge>
               </div>
+
+              <div
+                v-if="hasBusinessStats(sheet)"
+                class="mt-1.5 space-y-0.5 text-xs text-muted-foreground"
+              >
+                <p v-if="hasLocalityStats(sheet)">
+                  属地：{{ formatNamedCounts(sheetStats(sheet).by_locality) }}
+                </p>
+                <p v-if="hasDamageStats(sheet)">
+                  受害点位 {{ sheetStats(sheet).damaged_count ?? 0 }} · 无受害点位
+                  {{ sheetStats(sheet).undamaged_count ?? 0 }}
+                </p>
+                <p v-if="hasEventTypeStats(sheet)">
+                  事件类型：{{ formatNamedCounts(sheetStats(sheet).by_event_type) }}
+                </p>
+              </div>
+
               <ul v-if="sheet.warnings?.length" class="mt-1 list-disc pl-5 text-xs text-muted-foreground">
                 <li v-for="warning in sheet.warnings" :key="warning">{{ warning }}</li>
               </ul>

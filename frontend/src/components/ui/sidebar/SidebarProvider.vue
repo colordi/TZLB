@@ -42,13 +42,20 @@ function setOpenMobile(value) {
   openMobile.value = value
 }
 
-// Helper to toggle the sidebar.
+// Helper to toggle the sidebar. Desktop collapse is disabled; only mobile drawer toggles.
 function toggleSidebar() {
-  return isMobile.value ? setOpenMobile(!openMobile.value) : setOpen(!open.value)
+  if (isMobile.value) {
+    setOpenMobile(!openMobile.value)
+  }
 }
 
 useEventListener("keydown", (event) => {
-  if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+  // 仅移动端响应快捷键，避免桌面误触折叠
+  if (
+    isMobile.value
+    && event.key === SIDEBAR_KEYBOARD_SHORTCUT
+    && (event.metaKey || event.ctrlKey)
+  ) {
     event.preventDefault()
     toggleSidebar()
   }
