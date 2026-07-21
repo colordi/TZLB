@@ -51,6 +51,8 @@ const selectedView = ref("");
 const basemapMode = ref("satellite");
 const showPointLabels = ref(true);
 const geojson = ref(createEmptyFeatureCollection());
+const searchIndexByView = shallowRef({});
+const loadingSearchIndex = ref(false);
 const mapFilterOptions = ref({ filter_fields: [] });
 const referenceLayers = ref([]);
 const activeReferenceLayerNames = ref([]);
@@ -86,6 +88,7 @@ const deleteCheckLoading = ref(false);
 const pendingDeleteSite = ref(null);
 let geojsonRequestToken = 0;
 let filterOptionsRequestToken = 0;
+let searchIndexRequestToken = 0;
 let whiteMothSiteCodeHintRequestToken = 0;
 let shouldAutoFitOnNextViewChange = true;
 let mapFocusRequestToken = 0;
@@ -231,9 +234,9 @@ function getFirstFeatureValue(properties = {}, keys = []) {
   return "";
 }
 
-function getSearchResultTitle(feature) {
+function getSearchResultTitle(feature, columns = []) {
   return (
-    resolveFeatureHoverLabel(currentView.value.columns, feature?.properties || {}, {
+    resolveFeatureHoverLabel(columns, feature?.properties || {}, {
       preferIdentifier: false,
     }) ||
     getFirstFeatureValue(feature?.properties || {}, SEARCH_FIELD_KEYS) ||
@@ -261,7 +264,42 @@ function getSearchResultMeta(feature) {
   return [identifier, district].filter(Boolean).join(" · ");
 }
 
-const searchableFeatures = computed(() => geojson.value?.features || []);
+async function ensureSearchIndex() {
+  const viewName = selectedView.value;
+  if (!viewName || searchIndexByView.value[viewName]) {
+    return;
+  }
+
+  const requestToken = ++searchIndexRequestToken;
+  loadingSearchIndex.value = true;
+
+  try {
+    // 拉取当前视图全量点位（不带筛选和视口 bbox），保证搜索覆盖全部点位
+    const payload = await fetchMapView(viewName);
+    if (requestToken !== searchIndexRequestToken || viewName !== selectedView.value) {
+      return;
+    }
+    searchIndexByView.value = { ...searchIndexByView.value, [viewName]: payload };
+  } catch (loadError) {
+    if (!isUnauthorizedError(loadError)) {
+      info(`${loadError.message || loadError}`, "点位搜索数据加载失败");
+    }
+  } finally {
+    if (requestToken === searchIndexRequestToken) {
+      loadingSearchIndex.value = false;
+    }
+  }
+}
+
+function resetSearchIndex() {
+  searchIndexRequestToken += 1;
+  searchIndexByView.value = {};
+  loadingSearchIndex.value = false;
+}
+
+const searchableFeatures = computed(
+  () => searchIndexByView.value[selectedView.value]?.features || [],
+);
 const searchResults = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
   if (!keyword) {
@@ -279,7 +317,7 @@ const searchResults = computed(() => {
       )
         .map((key) => normalizeSearchValue(properties[key]))
         .filter(Boolean);
-      const title = getSearchResultTitle(feature);
+      const title = getSearchResultTitle(feature, currentView.value.columns);
       const meta = getSearchResultMeta(feature);
       const haystack = [title, meta, ...searchableValues].join(" ").toLowerCase();
       return {
@@ -381,6 +419,7 @@ async function toggleSearchPanel() {
   }
 
   isSurveyStatusFilterOpen.value = false;
+  ensureSearchIndex();
   await nextTick();
   searchInputRef.value?.focus?.({ preventScroll: true });
 }
@@ -393,17 +432,18 @@ function toggleSurveyStatusFilterPanel() {
   }
 }
 
-function submitSearch() {
+async function submitSearch() {
   if (!searchQuery.value.trim()) {
     return;
   }
 
+  await ensureSearchIndex();
   if (searchResults.value.length > 0) {
     selectSearchResult(searchResults.value[0]);
     return;
   }
 
-  info("当前视图没有匹配点位。", "搜索无结果");
+  info("未找到匹配点位。", "搜索无结果");
 }
 
 function clearSearch() {
@@ -462,7 +502,7 @@ async function selectDynamicFilter(key, value) {
   dynamicFilterValues.value = { ...dynamicFilterValues.value, [key]: value };
   selectedFeature.value = null;
   mapFocusRequest.value = null;
-  await loadGeoJson({ autoFit: false });
+  await Promise.all([loadGeoJson({ autoFit: false }), loadFilterOptions()]);
 }
 
 function normalizeBbox(bbox) {
@@ -616,6 +656,7 @@ async function loadViews() {
   try {
     const payload = await listMapViews();
     views.value = payload;
+    resetSearchIndex();
     if (!payload.length) {
       selectedView.value = "";
       geojsonRequestToken += 1;
@@ -672,7 +713,7 @@ async function loadFilterOptions(viewName = selectedView.value) {
   loadingFilterOptions.value = true;
 
   try {
-    const payload = await fetchMapFilterOptions(viewName);
+    const payload = await fetchMapFilterOptions(viewName, dynamicFilterValues.value);
     if (requestToken !== filterOptionsRequestToken || viewName !== selectedView.value) {
       return false;
     }
@@ -1055,6 +1096,7 @@ watch(selectedView, async () => {
   isSearchPanelOpen.value = false;
   resetSurveyStatusFilter();
   resetDynamicFilters();
+  resetSearchIndex();
   mapFocusRequest.value = null;
   geojsonRequestToken += 1;
   geojson.value = createEmptyFeatureCollection();
@@ -1063,6 +1105,10 @@ watch(selectedView, async () => {
   const optionsLoaded = await loadFilterOptions();
   if (optionsLoaded && selectedView.value) {
     dynamicFilterValues.value = resolveDefaultDynamicFilters();
+    if (Object.keys(dynamicFilterValues.value).length) {
+      // 应用默认筛选后再取一次，让调查状态计数跟随默认筛选（如年份、世代）
+      await loadFilterOptions();
+    }
   }
   await loadGeoJson({ autoFit: shouldAutoFit });
 });
@@ -1075,6 +1121,12 @@ watch(matchedWhiteMothSitePrefix, (prefix) => {
     return;
   }
   loadWhiteMothSiteCodeHint(prefix);
+});
+
+watch(searchQuery, (keyword) => {
+  if (keyword.trim()) {
+    ensureSearchIndex();
+  }
 });
 
 onMounted(async () => {
@@ -1097,7 +1149,7 @@ onMounted(async () => {
             aria-label="搜索点位"
             aria-controls="map-search-popover"
             :aria-expanded="isSearchPanelOpen"
-            :disabled="loadingViews || pointCount === 0"
+            :disabled="loadingViews || !selectedView"
             @click="toggleSearchPanel"
           >
             <Search :size="17" :stroke-width="1.7" aria-hidden="true" />
@@ -1149,7 +1201,7 @@ onMounted(async () => {
                   autocomplete="off"
                   enterkeyhint="search"
                   placeholder="搜索编号、点位名称、属地"
-                  :disabled="loadingViews || pointCount === 0"
+                  :disabled="loadingViews || !selectedView"
                   @focus="searchFocused = true"
                 />
               </label>
@@ -1183,7 +1235,16 @@ onMounted(async () => {
                 <strong>{{ result.title }}</strong>
                 <span>{{ result.meta || "当前视图点位" }}</span>
               </button>
-              <div v-if="searchResults.length === 0" class="map-search-empty">
+              <div
+                v-if="searchResults.length === 0 && loadingSearchIndex"
+                class="map-search-empty"
+              >
+                正在加载点位…
+              </div>
+              <div
+                v-else-if="searchResults.length === 0"
+                class="map-search-empty"
+              >
                 未找到匹配点位
               </div>
             </div>

@@ -765,8 +765,15 @@ async def delete_white_moth_site(*, code: str, operator: dict[str, Any]) -> dict
             }
 
 
-async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
-    """读取指定视图的筛选选项。"""
+async def fetch_map_filter_options(
+    view_name: str,
+    filters: dict[str, str | list[str]] | None = None,
+) -> dict[str, Any]:
+    """读取指定视图的筛选选项。
+
+    filters 为当前生效的筛选条件（如年份、世代），调查状态计数会在该
+    条件下统计；调查状态本身不作为统计条件，保证计数体现可筛选的全量。
+    """
 
     view = await get_map_view(view_name)
     if view is None:
@@ -796,7 +803,16 @@ async def fetch_map_filter_options(view_name: str) -> dict[str, Any]:
                 options=SURVEY_STATUS_FILTER_OPTIONS,
             )
         )
-        survey_status_counts = await fetch_survey_status_counts(view_name, view)
+        count_filters = {
+            key: value
+            for key, value in (filters or {}).items()
+            if key != SURVEY_STATUS_FILTER_KEY
+        }
+        survey_status_counts = await fetch_survey_status_counts(
+            view_name,
+            view,
+            count_filters,
+        )
 
     for column, label in MAP_DYNAMIC_FILTER_COLUMNS.items():
         if column not in columns:
@@ -860,11 +876,18 @@ def build_map_view_filter_clauses(
     return where_clauses
 
 
-async def fetch_deduped_view_feature_count(
+async def fetch_survey_status_counts(
     view_name: str,
     view: dict[str, Any],
     filters: dict[str, str | list[str]] | None = None,
-) -> int:
+) -> dict[str, int]:
+    """按去重后的点位统计调查状态。
+
+    先在 filters（如年份、世代）条件下取出记录，按点位去重（与地图
+    展示逻辑一致，每个点位只保留最优记录），再根据去重后记录的调查
+    日期分类，保证 all = completed + pending。
+    """
+
     allowed_columns = set(view["columns"])
     args: list[Any] = []
     where_clauses = build_map_view_filter_clauses(allowed_columns, filters, args)
@@ -883,27 +906,18 @@ async def fetch_deduped_view_feature_count(
         """,
         *args,
     )
-    return len(
+    features = (
         records_to_feature_collection(rows, dedupe_features=True).get("features") or []
     )
-
-
-async def fetch_survey_status_counts(
-    view_name: str,
-    view: dict[str, Any],
-) -> dict[str, int]:
+    completed = sum(
+        1
+        for feature in features
+        if resolve_map_feature_survey_date(feature.get("properties") or {})
+    )
     return {
-        "all": await fetch_deduped_view_feature_count(view_name, view),
-        "completed": await fetch_deduped_view_feature_count(
-            view_name,
-            view,
-            {SURVEY_STATUS_FILTER_KEY: ["调查"]},
-        ),
-        "pending": await fetch_deduped_view_feature_count(
-            view_name,
-            view,
-            {SURVEY_STATUS_FILTER_KEY: ["未调查"]},
-        ),
+        "all": len(features),
+        "completed": completed,
+        "pending": len(features) - completed,
     }
 
 

@@ -38,9 +38,11 @@ export async function fetchWhiteMothSiteCodeHint(prefix) {
   return response.json();
 }
 
-export async function fetchMapFilterOptions(name) {
+export async function fetchMapFilterOptions(name, filters = {}) {
+  const search = buildMapQueryParams(filters);
+  const query = search.toString();
   const response = await apiFetch(
-    `/api/map/views/${encodeURIComponent(name)}/filter-options`,
+    `/api/map/views/${encodeURIComponent(name)}/filter-options${query ? `?${query}` : ""}`,
   );
   await ensureApiSuccess(response);
   return response.json();

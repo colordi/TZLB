@@ -698,14 +698,53 @@ describe("MapView", () => {
     await wrapper.get('[data-testid="map-search-toggle"]').trigger("click");
     await wrapper.get('[data-testid="map-search-input"]').setValue("马驹桥");
 
-    const results = wrapper.get('[data-testid="map-search-results"]');
-    expect(results.text()).toContain("马大路与230国道交叉口");
-    expect(results.text()).toContain("MQ001 · 马驹桥镇");
+    await vi.waitFor(() => {
+      const results = wrapper.get('[data-testid="map-search-results"]');
+      expect(results.text()).toContain("马大路与230国道交叉口");
+      expect(results.text()).toContain("MQ001 · 马驹桥镇");
+    });
 
     await wrapper.get(".map-search-result").trigger("mousedown");
 
     expect(wrapper.get(".detail-drawer").text()).toContain("马大路与230国道交叉口");
     expect(getLeafletMapStub(wrapper).props("mapFocusRequest").feature).toStrictEqual(targetFeature);
+  });
+
+  it("搜索覆盖当前视图全部点位（含未加载到地图上的点位）", async () => {
+    const offscreenFeature = {
+      type: "Feature",
+      properties: {
+        编号: "TY002",
+        总虫口数: 12,
+      },
+      geometry: { type: "Point", coordinates: [116.7, 39.9] },
+    };
+    // 地图加载走 bbox/筛选参数，返回空；搜索拉取全量数据，返回全部点位
+    apiMocks.fetchMapView.mockImplementation(async (viewName, filters, options) =>
+      options && "bbox" in options
+        ? createFeatureCollection([])
+        : createFeatureCollection([offscreenFeature]),
+    );
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("虫情总览");
+    });
+    expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(0);
+
+    await wrapper.get('[data-testid="map-search-toggle"]').trigger("click");
+    await wrapper.get('[data-testid="map-search-input"]').setValue("TY002");
+
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="map-search-results"]').text()).toContain("TY002");
+    });
+
+    await wrapper.get(".map-search-result").trigger("mousedown");
+
+    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("虫情总览");
+    expect(wrapper.get(".detail-drawer").text()).toContain("TY002");
+    expect(getLeafletMapStub(wrapper).props("mapFocusRequest").feature).toStrictEqual(offscreenFeature);
   });
 
   it("点位详情打开后点击地图空白处会关闭详情", async () => {
@@ -1282,6 +1321,73 @@ describe("MapView", () => {
         { 年份: ["2026"] },
         DEFAULT_MAP_OPTIONS,
       );
+    });
+  });
+
+  it("切换世代筛选后调查状态计数按筛选条件刷新", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾调查",
+        columns: ["编号", "属地", "调查日期", "年份", "世代"],
+      },
+    ]);
+    apiMocks.fetchMapFilterOptions.mockImplementation(async (viewName, filters = {}) => ({
+      localities: [],
+      supports_locality_filter: true,
+      supports_survey_status_filter: true,
+      filter_fields: [
+        {
+          key: "调查状态",
+          label: "调查状态",
+          type: "select",
+          options: [
+            { value: "调查", label: "调查" },
+            { value: "未调查", label: "未调查" },
+          ],
+          default_value: "",
+        },
+        {
+          key: "世代",
+          label: "世代",
+          type: "select",
+          options: [
+            { value: "第一代", label: "第一代" },
+            { value: "第二代", label: "第二代" },
+            { value: "第三代", label: "第三代" },
+          ],
+          default_value: "",
+        },
+      ],
+      survey_status_counts: (filters["世代"] || []).includes("第二代")
+        ? { all: 471, completed: 388, pending: 83 }
+        : { all: 1413, completed: 859, pending: 554 },
+    }));
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([]));
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="map-survey-status-toggle"]').exists()).toBe(true);
+    });
+
+    await wrapper.get('[data-testid="map-survey-status-toggle"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="map-filter-世代"]').exists()).toBe(true);
+    });
+    expect(wrapper.get('[data-testid="map-survey-status-completed"]').text()).toContain("859");
+
+    await wrapper.get('[data-testid="map-filter-世代"]').setValue("第二代");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchMapFilterOptions).toHaveBeenCalledWith(
+        "美国白蛾调查",
+        { 世代: "第二代" },
+      );
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get('[data-testid="map-survey-status-completed"]').text()).toContain("388");
+      expect(wrapper.get('[data-testid="map-survey-status-pending"]').text()).toContain("83");
     });
   });
 

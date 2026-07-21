@@ -172,6 +172,102 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_survey_status_counts_dedupe_before_counting(self) -> None:
+        def make_row(code: str, survey_date: str | None) -> dict:
+            return {
+                "geom_json": None,
+                "properties": {
+                    "编号": code,
+                    "调查日期": survey_date,
+                },
+            }
+
+        async def fake_fetch(query: str, *args):
+            # MQ001 同时存在已调查和未调查记录，去重后应只计入已调查
+            return [
+                make_row("MQ001", "2026-06-01"),
+                make_row("MQ001", None),
+                make_row("MQ002", None),
+                make_row("MQ003", "2026-06-03"),
+            ]
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "虫情总览",
+                        "columns": ["编号", "调查日期"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            payload = await fetch_map_filter_options("虫情总览")
+
+        self.assertEqual(
+            payload["survey_status_counts"],
+            {
+                "all": 3,
+                "completed": 2,
+                "pending": 1,
+            },
+        )
+
+    async def test_survey_status_counts_respect_filters(self) -> None:
+        def make_row(code: str, survey_date: str | None) -> dict:
+            return {
+                "geom_json": None,
+                "properties": {
+                    "编号": code,
+                    "调查日期": survey_date,
+                },
+            }
+
+        calls: list[tuple[str, tuple]] = []
+
+        async def fake_fetch(query: str, *args):
+            calls.append((query, args))
+            if "ST_AsGeoJSON" in query:
+                return [
+                    make_row("MQ001", "2026-06-01"),
+                    make_row("MQ002", None),
+                ]
+            return [{"value": "2026"}]
+
+        with (
+            patch(
+                "backend.db.postgres.get_map_view",
+                new=AsyncMock(
+                    return_value={
+                        "name": "虫情总览",
+                        "columns": ["编号", "调查日期", "年份", "世代"],
+                    }
+                ),
+            ),
+            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            payload = await fetch_map_filter_options(
+                "虫情总览",
+                {"年份": ["2026"], "调查状态": ["调查"]},
+            )
+
+        counts_query, counts_args = next(
+            (query, args) for query, args in calls if "ST_AsGeoJSON" in query
+        )
+        # 计数应应用年份等筛选条件，但忽略调查状态本身
+        self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', counts_query)
+        self.assertNotIn("IS NOT NULL", counts_query)
+        self.assertEqual(counts_args, (["2026"],))
+        self.assertEqual(
+            payload["survey_status_counts"],
+            {
+                "all": 2,
+                "completed": 1,
+                "pending": 1,
+            },
+        )
+
     def test_filter_values_are_sorted_by_business_order(self) -> None:
         self.assertEqual(sort_filter_values("年份", ["2025", "2024"]), ["2024", "2025"])
         self.assertEqual(
@@ -411,13 +507,14 @@ class MapRouterLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_filter_options_rejects_disabled_view_before_fetching(self) -> None:
         fetch_mock = AsyncMock()
+        request = type("Request", (), {"query_params": {}})()
 
         with (
             patch("backend.routers.map.get_enabled_map_view", new=AsyncMock(return_value=None)),
             patch("backend.routers.map.fetch_map_filter_options", new=fetch_mock),
         ):
             with self.assertRaises(HTTPException) as context:
-                await get_view_filter_options("国槐参考点位")
+                await get_view_filter_options("国槐参考点位", request)
 
         self.assertEqual(context.exception.status_code, 404)
         self.assertEqual(context.exception.detail, "视图不存在或已停用：国槐参考点位")

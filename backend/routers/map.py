@@ -211,12 +211,17 @@ async def get_view_geojson(view_name: str, request: Request) -> dict:
 
 
 @router.get("/views/{view_name}/filter-options", summary="读取指定地图视图的筛选选项")
-async def get_view_filter_options(view_name: str) -> dict:
+async def get_view_filter_options(view_name: str, request: Request) -> dict:
     try:
         view = await get_enabled_map_view(view_name)
         if view is None:
             raise ValueError(f"视图不存在或已停用：{view_name}")
-        return await fetch_map_filter_options(view_name)
+        filters: dict[str, list[str]] = {}
+        for key, value in request.query_params.multi_items():
+            if key in RESERVED_VIEW_QUERY_PARAMS:
+                continue
+            filters.setdefault(key, []).append(value)
+        return await fetch_map_filter_options(view_name, filters)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
