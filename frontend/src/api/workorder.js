@@ -107,3 +107,10 @@ export async function deletePointDateImage({ surveyDate, pointCode, fileName }) 
 export function buildPointDateImageUrl({ surveyDate, fileName }) {
   return `/api/workorder/point-date-images/${encodeURIComponent(surveyDate)}/${encodeURIComponent(fileName)}`;
 }
+
+/** 通过 apiFetch 拉取图片并返回 Object URL（本地免登场景 <img> 无法携带 bypass 头） */
+export async function fetchPointDateImageBlob({ surveyDate, fileName }) {
+  const response = await apiFetch(buildPointDateImageUrl({ surveyDate, fileName }));
+  await ensureApiSuccess(response);
+  return URL.createObjectURL(await response.blob());
+}

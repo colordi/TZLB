@@ -20,7 +20,7 @@ export function useDatePointImages() {
   const loading = ref(false);
   const imagesLoading = ref(false);
   const uploadingCode = ref("");
-  const deletingFile = ref("");
+  const deletingCode = ref("");
 
   const totalCount = computed(() => points.value.length);
 
@@ -158,28 +158,38 @@ export function useDatePointImages() {
     }
   }
 
-  async function removeImage(candidate, fileName, toast) {
+  async function removePointImages(candidate, toast) {
     const code = normalizeCode(candidate);
-    if (!code || deletingFile.value) {
+    const fileNames = imagesForPoint(candidate).map((image) => image.file_name);
+    if (!code || deletingCode.value || fileNames.length === 0) {
       return;
     }
 
-    deletingFile.value = fileName;
+    deletingCode.value = code;
+    let deletedCount = 0;
     try {
-      await deletePointDateImage({
-        surveyDate: selectedDate.value,
-        pointCode: code,
-        fileName,
-      });
-      toast?.success(`已删除 ${fileName}。`, "图片已删除");
-      await loadImages(toast);
+      for (const fileName of fileNames) {
+        await deletePointDateImage({
+          surveyDate: selectedDate.value,
+          pointCode: code,
+          fileName,
+        });
+        deletedCount += 1;
+      }
+      toast?.success(`已删除 ${code} 的 ${deletedCount} 张现场照片。`, "现场照片已删除");
     } catch (deleteError) {
       if (isUnauthorizedError(deleteError)) {
         return;
       }
-      toast?.error(`${deleteError.message || deleteError}`, "图片删除失败");
+      const progress = deletedCount
+        ? `（已删除 ${deletedCount} 张，剩余 ${fileNames.length - deletedCount} 张）`
+        : "";
+      toast?.error(`${deleteError.message || deleteError}${progress}`, "现场照片删除失败");
     } finally {
-      deletingFile.value = "";
+      if (deletedCount > 0) {
+        await loadImages(toast);
+      }
+      deletingCode.value = "";
     }
   }
 
@@ -191,12 +201,12 @@ export function useDatePointImages() {
     loading,
     imagesLoading,
     uploadingCode,
-    deletingFile,
+    deletingCode,
     totalCount,
     imagesForPoint,
     resetResults,
     queryPoints,
     uploadToPoint,
-    removeImage,
+    removePointImages,
   };
 }

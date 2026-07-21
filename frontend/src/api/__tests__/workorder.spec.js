@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   deletePointDateImage,
+  fetchPointDateImageBlob,
   fetchPointDateImages,
   generateWorkorderBatch,
   getWorkorderBatchJobStatus,
@@ -96,6 +97,31 @@ describe("workorder api", () => {
     const [url, init] = global.fetch.mock.calls[0];
     expect(url).toBe("/api/workorder/point-date-images/2026-05-26/MQ001-1.jpg?point_code=MQ001");
     expect(init.method).toBe("DELETE");
+  });
+
+  it("fetchPointDateImageBlob 通过 apiFetch 拉取图片并创建 Object URL", async () => {
+    const blob = new Blob(["jpeg"], { type: "image/jpeg" });
+    global.fetch.mockResolvedValue({
+      ok: true,
+      async blob() {
+        return blob;
+      },
+    });
+    const originalCreateObjectURL = URL.createObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:mock-thumb");
+    try {
+      const url = await fetchPointDateImageBlob({
+        surveyDate: "2026-05-26",
+        fileName: "MQ001-1.jpg",
+      });
+
+      expect(global.fetch.mock.calls[0][0]).toBe(
+        "/api/workorder/point-date-images/2026-05-26/MQ001-1.jpg",
+      );
+      expect(url).toBe("blob:mock-thumb");
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+    }
   });
 
   it("generateWorkorderBatch 向批量导出接口 POST JSON 并返回 blob", async () => {

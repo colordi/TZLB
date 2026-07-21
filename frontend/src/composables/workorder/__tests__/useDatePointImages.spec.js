@@ -152,25 +152,33 @@ describe("useDatePointImages", () => {
     );
   });
 
-  it("removeImage 调用删除接口并刷新列表", async () => {
+  it("removePointImages 删除点位全部图片并只刷新一次列表", async () => {
     fetchSurveyCandidates.mockResolvedValue([buildPoint("MQ001")]);
     fetchPointDateImages
-      .mockResolvedValueOnce({ images: [{ file_name: "MQ001-1.jpg" }] })
+      .mockResolvedValueOnce({
+        images: [{ file_name: "MQ001-1.jpg" }, { file_name: "MQ001-2.jpg" }],
+      })
       .mockResolvedValueOnce({ images: [] });
-    deletePointDateImage.mockResolvedValue({ deleted: "MQ001-1.jpg" });
+    deletePointDateImage.mockResolvedValue({ deleted: true });
 
     const toast = buildToast();
     const store = useDatePointImages();
     store.selectedDate.value = "2026-05-26";
     await store.queryPoints({ pestType: "美国白蛾" }, toast);
 
-    await store.removeImage(store.points.value[0], "MQ001-1.jpg", toast);
+    await store.removePointImages(store.points.value[0], toast);
 
-    expect(deletePointDateImage).toHaveBeenCalledWith({
+    expect(deletePointDateImage).toHaveBeenNthCalledWith(1, {
       surveyDate: "2026-05-26",
       pointCode: "MQ001",
       fileName: "MQ001-1.jpg",
     });
+    expect(deletePointDateImage).toHaveBeenNthCalledWith(2, {
+      surveyDate: "2026-05-26",
+      pointCode: "MQ001",
+      fileName: "MQ001-2.jpg",
+    });
+    expect(fetchPointDateImages).toHaveBeenCalledTimes(2);
     expect(toast.success).toHaveBeenCalled();
     expect(store.imagesForPoint(store.points.value[0])).toEqual([]);
   });
