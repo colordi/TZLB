@@ -133,6 +133,10 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('ledger."美国白蛾问题点位台账"', WHITE_MOTH_DAILY_SQL)
         self.assertNotIn('views."2026_美国白蛾第 1 代调查"', WHITE_MOTH_DAILY_SQL)
         self.assertIn("COALESCE(\"区域\", '乡镇')", WHITE_MOTH_DAILY_SQL)
+        self.assertIn("first_damage AS", WHITE_MOTH_DAILY_SQL)
+        self.assertIn("DISTINCT ON", WHITE_MOTH_DAILY_SQL)
+        self.assertIn('BTRIM("编号")', WHITE_MOTH_DAILY_SQL)
+        self.assertIn("first_damage_daily", WHITE_MOTH_DAILY_SQL)
         self.assertIn('WHEN l."剪网彻底" = \'是\'', WHITE_MOTH_DAILY_SQL)
         self.assertNotIn('COALESCE(l."防治次数", 0) = 0\n            AND l."剪网彻底" = \'是\'', WHITE_MOTH_DAILY_SQL)
         self.assertIn('lc."完成日期" <= d."日期"', WHITE_MOTH_DAILY_SQL)
@@ -238,9 +242,13 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.fetch_calls[1][1], (2025,))
 
     def test_generation_summary_sql_groups_by_generation_and_point_code(self) -> None:
-        self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn("first_survey AS", WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn("first_damage AS", WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn("point_dispatch AS", WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('DISTINCT ON ("世代", BTRIM("编号"))', WHITE_MOTH_GENERATION_SUMMARY_SQL)
         self.assertIn('"调查日期" <= CURRENT_DATE', WHITE_MOTH_GENERATION_SUMMARY_SQL)
-        self.assertIn('COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('COALESCE("受害株数", 0) > 0', WHITE_MOTH_GENERATION_SUMMARY_SQL)
+        self.assertIn('COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)', WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
         self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
 
 

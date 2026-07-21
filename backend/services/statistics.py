@@ -56,6 +56,52 @@ dates AS (
         ledger_dates
 ),
 
+-- 同年同世代同点位只认首次受害记录（对齐台账「一点一行 / 首次下派」口径）
+first_damage AS (
+    SELECT DISTINCT ON (
+        "年份",
+        "世代",
+        BTRIM("编号")
+    )
+        "调查日期" AS "日期",
+        COALESCE("区域", '乡镇') AS "区域",
+        COALESCE("受害株数", 0) AS "受害株数"
+    FROM
+        survey."美国白蛾调查表"
+    WHERE
+        BTRIM(COALESCE("编号", '')) <> ''
+        AND COALESCE("受害株数", 0) > 0
+        AND ($1::integer IS NULL OR "年份" = $1::integer)
+        AND ($2::text IS NULL OR "世代" = $2::text)
+    ORDER BY
+        "年份",
+        "世代",
+        BTRIM("编号"),
+        "调查日期"
+),
+
+first_damage_daily AS (
+    SELECT
+        "日期",
+        COUNT(*) FILTER (
+            WHERE "区域" = '城区'
+        ) :: INTEGER AS "城区当日受害点位数",
+        COALESCE(SUM("受害株数") FILTER (
+            WHERE "区域" = '城区'
+        ), 0) :: INTEGER AS "城区当日受害株数",
+        COUNT(*) FILTER (
+            WHERE "区域" = '乡镇'
+        ) :: INTEGER AS "乡镇当日受害点位数",
+        COALESCE(SUM("受害株数") FILTER (
+            WHERE "区域" = '乡镇'
+        ), 0) :: INTEGER AS "乡镇当日受害株数"
+    FROM
+        first_damage
+    GROUP BY
+        "日期"
+),
+
+-- 巡查含无受害；派单按当日全部受害行计（含复查）；除治量仍按当日调查行汇总
 survey_daily AS (
     SELECT
         "调查日期" AS "日期",
@@ -66,25 +112,7 @@ survey_daily AS (
 
         COUNT(*) FILTER (
             WHERE COALESCE("区域", '乡镇') = '城区'
-              AND COALESCE("受害株数", 0) > 0
-        ) :: INTEGER AS "城区当日受害点位数",
-
-        COALESCE(SUM(COALESCE("受害株数", 0)) FILTER (
-            WHERE COALESCE("区域", '乡镇') = '城区'
-        ), 0) :: INTEGER AS "城区当日受害株数",
-
-        COUNT(*) FILTER (
-            WHERE COALESCE("区域", '乡镇') = '城区'
         ) :: INTEGER AS "城区当日巡查点位数",
-
-        COALESCE(SUM(COALESCE("受害株数", 0)) FILTER (
-            WHERE COALESCE("区域", '乡镇') = '乡镇'
-        ), 0) :: INTEGER AS "乡镇当日受害株数",
-
-        COUNT(*) FILTER (
-            WHERE COALESCE("区域", '乡镇') = '乡镇'
-              AND COALESCE("受害株数", 0) > 0
-        ) :: INTEGER AS "乡镇当日受害点位数",
 
         COUNT(*) FILTER (
             WHERE COALESCE("区域", '乡镇') = '乡镇'
@@ -159,17 +187,19 @@ SELECT
     d."日期",
     COALESCE(sd."当日除治量（株）", 0) :: INTEGER AS "当日除治量（株）",
     COALESCE(cd."累积防治完成点数", 0) :: INTEGER AS "累积防治完成点数",
-    COALESCE(sd."城区当日受害点位数", 0) :: INTEGER AS "城区当日受害点位数",
-    COALESCE(sd."城区当日受害株数", 0) :: INTEGER AS "城区当日受害株数",
+    COALESCE(fd."城区当日受害点位数", 0) :: INTEGER AS "城区当日受害点位数",
+    COALESCE(fd."城区当日受害株数", 0) :: INTEGER AS "城区当日受害株数",
     COALESCE(sd."城区当日巡查点位数", 0) :: INTEGER AS "城区当日巡查点位数",
-    COALESCE(sd."乡镇当日受害株数", 0) :: INTEGER AS "乡镇当日受害株数",
-    COALESCE(sd."乡镇当日受害点位数", 0) :: INTEGER AS "乡镇当日受害点位数",
+    COALESCE(fd."乡镇当日受害株数", 0) :: INTEGER AS "乡镇当日受害株数",
+    COALESCE(fd."乡镇当日受害点位数", 0) :: INTEGER AS "乡镇当日受害点位数",
     COALESCE(sd."乡镇当日巡查点位数", 0) :: INTEGER AS "乡镇当日巡查点位数",
     COALESCE(sd."当日派单数", 0) :: INTEGER AS "当日派单数"
 FROM
     dates d
     LEFT JOIN survey_daily sd
         ON sd."日期" = d."日期"
+    LEFT JOIN first_damage_daily fd
+        ON fd."日期" = d."日期"
     LEFT JOIN completed_daily cd
         ON cd."日期" = d."日期"
 ORDER BY
@@ -193,14 +223,36 @@ WHITE_MOTH_GENERATION_SUMMARY_SQL = """
 WITH generations("世代", sort_order) AS (
     VALUES ('第一代'::text, 1), ('第二代'::text, 2), ('第三代'::text, 3)
 ),
-point_stats AS (
+first_survey AS (
+    SELECT DISTINCT ON ("世代", BTRIM("编号"))
+        "世代",
+        BTRIM("编号") AS "编号",
+        COALESCE("区域", '乡镇') AS "区域"
+    FROM survey."美国白蛾调查表"
+    WHERE
+        "年份" = $1
+        AND "调查日期" <= CURRENT_DATE
+        AND BTRIM(COALESCE("编号", '')) <> ''
+    ORDER BY "世代", BTRIM("编号"), "调查日期"
+),
+first_damage AS (
+    SELECT DISTINCT ON ("世代", BTRIM("编号"))
+        "世代",
+        BTRIM("编号") AS "编号",
+        COALESCE("区域", '乡镇') AS "区域"
+    FROM survey."美国白蛾调查表"
+    WHERE
+        "年份" = $1
+        AND "调查日期" <= CURRENT_DATE
+        AND BTRIM(COALESCE("编号", '')) <> ''
+        AND COALESCE("受害株数", 0) > 0
+    ORDER BY "世代", BTRIM("编号"), "调查日期"
+),
+-- 派单次数按实际受害上报次数累计（含复查），与受害点位「只计首次」区分
+point_dispatch AS (
     SELECT
         "世代",
         BTRIM("编号") AS "编号",
-        CASE
-            WHEN BOOL_OR(COALESCE("区域", '乡镇') = '城区') THEN '城区'
-            ELSE '乡镇'
-        END AS "区域",
         COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)::integer AS dispatch_count
     FROM survey."美国白蛾调查表"
     WHERE
@@ -211,16 +263,22 @@ point_stats AS (
 ),
 generation_stats AS (
     SELECT
-        "世代",
+        fs."世代",
         COUNT(*)::integer AS surveyed_points,
-        COUNT(*) FILTER (WHERE "区域" = '城区')::integer AS urban_surveyed_points,
-        COUNT(*) FILTER (WHERE "区域" = '乡镇')::integer AS town_surveyed_points,
-        COUNT(*) FILTER (WHERE dispatch_count > 0)::integer AS damaged_points,
-        COUNT(*) FILTER (WHERE dispatch_count > 0 AND "区域" = '城区')::integer AS urban_damaged_points,
-        COUNT(*) FILTER (WHERE dispatch_count > 0 AND "区域" = '乡镇')::integer AS town_damaged_points,
-        COALESCE(SUM(dispatch_count), 0)::integer AS dispatch_count
-    FROM point_stats
-    GROUP BY "世代"
+        COUNT(*) FILTER (WHERE fs."区域" = '城区')::integer AS urban_surveyed_points,
+        COUNT(*) FILTER (WHERE fs."区域" = '乡镇')::integer AS town_surveyed_points,
+        COUNT(fd."编号")::integer AS damaged_points,
+        COUNT(fd."编号") FILTER (WHERE fd."区域" = '城区')::integer AS urban_damaged_points,
+        COUNT(fd."编号") FILTER (WHERE fd."区域" = '乡镇')::integer AS town_damaged_points,
+        COALESCE(SUM(pd.dispatch_count), 0)::integer AS dispatch_count
+    FROM first_survey fs
+    LEFT JOIN first_damage fd
+        ON fd."世代" = fs."世代"
+        AND fd."编号" = fs."编号"
+    LEFT JOIN point_dispatch pd
+        ON pd."世代" = fs."世代"
+        AND pd."编号" = fs."编号"
+    GROUP BY fs."世代"
 ),
 generation_dates AS (
     SELECT
