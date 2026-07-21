@@ -2133,7 +2133,8 @@ onMounted(async () => {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-ink);
-  font: inherit;
+  /* iOS Safari 会对 font-size < 16px 的 input 在 focus 时整页缩放且常不回退 */
+  font-size: 1rem;
   font-weight: 650;
   outline: none;
   transition:
