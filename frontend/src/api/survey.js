@@ -1,7 +1,7 @@
 import { apiFetch, ensureApiSuccess } from "./http.js";
 import { extractFilename } from "./filename.js";
 
-export async function fetchSurveyCandidates({ date, pestType, year, generation }) {
+export async function fetchSurveyCandidates({ date, pestType, year, generation, includeImages }) {
   const search = new URLSearchParams();
   if (date && `${date}`.trim() !== "") {
     search.set("date", date);
@@ -14,6 +14,9 @@ export async function fetchSurveyCandidates({ date, pestType, year, generation }
   }
   if (generation) {
     search.set("generation", generation);
+  }
+  if (includeImages === false) {
+    search.set("include_images", "false");
   }
 
   const query = search.toString();

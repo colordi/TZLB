@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deletePointDateImage,
+  fetchPointDateImages,
   generateWorkorderBatch,
   getWorkorderBatchJobStatus,
   startWorkorderBatchJob,
-  uploadDateImageFolder,
+  uploadPointDateImages,
 } from "../workorder.js";
 
 function buildResponse(payload, ok = true) {
@@ -43,31 +45,57 @@ describe("workorder api", () => {
     vi.restoreAllMocks();
   });
 
-  it("uploadDateImageFolder 使用 multipart 表单上传日期文件夹", async () => {
-    global.fetch.mockResolvedValue(buildResponse({ saved_count: 1 }));
-    const file = new File(["image"], "MQ001.jpg", { type: "image/jpeg" });
-    Object.defineProperty(file, "webkitRelativePath", {
-      value: "2026-05-26/MQ001.jpg",
-      configurable: true,
-    });
+  it("fetchPointDateImages 按日期与点位编号查询图片列表", async () => {
+    global.fetch.mockResolvedValue(buildResponse({ images: [] }));
 
-    await uploadDateImageFolder({
-      folderName: "2026-05-26",
+    await fetchPointDateImages({ surveyDate: "2026-05-26", pointCode: "MQ001" });
+
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "/api/workorder/point-date-images?survey_date=2026-05-26&point_code=MQ001",
+    );
+  });
+
+  it("fetchPointDateImages 不传点位编号时查询当日全部图片", async () => {
+    global.fetch.mockResolvedValue(buildResponse({ images: [] }));
+
+    await fetchPointDateImages({ surveyDate: "2026-05-26" });
+
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "/api/workorder/point-date-images?survey_date=2026-05-26",
+    );
+  });
+
+  it("uploadPointDateImages 使用 multipart 表单上传点位图片", async () => {
+    global.fetch.mockResolvedValue(buildResponse({ saved_count: 1 }));
+    const file = new File(["image"], "现场.jpg", { type: "image/jpeg" });
+
+    await uploadPointDateImages({
+      surveyDate: "2026-05-26",
+      pointCode: "MQ001",
       files: [file],
     });
 
     const [, init] = global.fetch.mock.calls[0];
-    expect(global.fetch.mock.calls[0][0]).toBe("/api/workorder/date-image-folder");
-    expect(init).toEqual(
-      expect.objectContaining({
-        method: "POST",
-        credentials: "same-origin",
-      }),
-    );
+    expect(global.fetch.mock.calls[0][0]).toBe("/api/workorder/point-date-images");
+    expect(init.method).toBe("POST");
     expect(init.body).toBeInstanceOf(FormData);
-    expect(init.body.get("folder_name")).toBe("2026-05-26");
+    expect(init.body.get("survey_date")).toBe("2026-05-26");
+    expect(init.body.get("point_code")).toBe("MQ001");
     expect(init.body.get("files")).toBe(file);
-    expect(init.body.get("relative_paths")).toBe("2026-05-26/MQ001.jpg");
+  });
+
+  it("deletePointDateImage 调用 DELETE 并携带点位编号", async () => {
+    global.fetch.mockResolvedValue(buildResponse({ deleted: "MQ001-1.jpg" }));
+
+    await deletePointDateImage({
+      surveyDate: "2026-05-26",
+      pointCode: "MQ001",
+      fileName: "MQ001-1.jpg",
+    });
+
+    const [url, init] = global.fetch.mock.calls[0];
+    expect(url).toBe("/api/workorder/point-date-images/2026-05-26/MQ001-1.jpg?point_code=MQ001");
+    expect(init.method).toBe("DELETE");
   });
 
   it("generateWorkorderBatch 向批量导出接口 POST JSON 并返回 blob", async () => {

@@ -13,7 +13,6 @@ const apiMocks = vi.hoisted(() => ({
   startWorkorderBatchJob: vi.fn(),
   getWorkorderBatchJobStatus: vi.fn(),
   downloadWorkorderBatchJob: vi.fn(),
-  uploadDateImageFolder: vi.fn(),
   downloadBlob: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
@@ -26,7 +25,6 @@ vi.mock("../../api/workorder.js", () => ({
   startWorkorderBatchJob: apiMocks.startWorkorderBatchJob,
   getWorkorderBatchJobStatus: apiMocks.getWorkorderBatchJobStatus,
   downloadWorkorderBatchJob: apiMocks.downloadWorkorderBatchJob,
-  uploadDateImageFolder: apiMocks.uploadDateImageFolder,
 }));
 
 vi.mock("../../utils/download.js", () => ({
@@ -220,14 +218,6 @@ describe("WorkOrderView", () => {
     apiMocks.downloadWorkorderBatchJob.mockResolvedValue({
       blob: new Blob(["zip-content"]),
       filename: "批量导出_2份.zip",
-    });
-    apiMocks.uploadDateImageFolder.mockResolvedValue({
-      folder_name: "2026-05-26",
-      saved_count: 1,
-      skipped_existing_count: 0,
-      skipped_non_image_count: 0,
-      skipped_nested_count: 0,
-      files: [],
     });
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });

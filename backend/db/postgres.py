@@ -1109,6 +1109,7 @@ async def fetch_survey_candidates(
     pest_type: str = "春尺蠖",
     year: int | None = None,
     generation: str | None = None,
+    include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """读取指定日期可导入为工作单的调查记录。"""
 
@@ -1117,6 +1118,7 @@ async def fetch_survey_candidates(
         pest_type=pest_type,
         year=year,
         generation=generation,
+        include_images=include_images,
     )
 
 
@@ -1167,6 +1169,7 @@ async def fetch_survey_candidates_by_type(
     pest_type: str,
     year: int | None = None,
     generation: str | None = None,
+    include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """按害虫类型读取指定日期的工作单导入候选记录。"""
 
@@ -1180,11 +1183,12 @@ async def fetch_survey_candidates_by_type(
     handler = strategy_handlers.get(config.survey_import_strategy or "")
     if handler is None:
         raise ValueError(f"暂不支持 {config.key} 的调查导入")
-    return await handler(survey_date)
+    return await handler(survey_date, include_images=include_images)
 
 
 async def fetch_spring_inchworm_survey_candidates(
     survey_date: date_cls,
+    include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """读取指定日期的春尺蠖调查导入候选记录。"""
 
@@ -1216,7 +1220,11 @@ async def fetch_spring_inchworm_survey_candidates(
         survey_date,
     )
 
-    screenshot_index = build_point_screenshot_index(get_settings().point_screenshot_dir)
+    screenshot_index = (
+        build_point_screenshot_index(get_settings().point_screenshot_dir)
+        if include_images
+        else {}
+    )
     candidates: list[dict[str, Any]] = []
     for row in rows:
         location_id = str(row["location_id"] or "").strip()
@@ -1252,6 +1260,7 @@ async def fetch_spring_inchworm_survey_candidates(
 
 async def fetch_guo_huai_inchworm_survey_candidates(
     survey_date: date_cls,
+    include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """读取指定日期的国槐尺蠖调查导入候选记录。"""
 
@@ -1285,8 +1294,10 @@ async def fetch_guo_huai_inchworm_survey_candidates(
         survey_date,
     )
 
-    screenshot_index = build_point_screenshot_index(
-        get_settings().sophora_point_screenshot_dir
+    screenshot_index = (
+        build_point_screenshot_index(get_settings().sophora_point_screenshot_dir)
+        if include_images
+        else {}
     )
     candidates: list[dict[str, Any]] = []
     for row in rows:
@@ -1321,7 +1332,10 @@ async def fetch_guo_huai_inchworm_survey_candidates(
     return candidates
 
 
-async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict[str, Any]]:
+async def fetch_other_pest_survey_candidates(
+    survey_date: date_cls,
+    include_images: bool = True,
+) -> list[dict[str, Any]]:
     """读取指定日期的其他害虫调查导入候选记录。"""
 
     qualified_survey_table = (
@@ -1376,6 +1390,7 @@ async def fetch_other_pest_survey_candidates(survey_date: date_cls) -> list[dict
 
 async def fetch_meiguobaie_survey_candidates(
     survey_date: date_cls,
+    include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """读取指定日期的美国白蛾调查导入候选记录。"""
 
@@ -1412,8 +1427,10 @@ async def fetch_meiguobaie_survey_candidates(
         survey_date,
     )
 
-    screenshot_index = build_point_screenshot_index(
-        get_settings().meiguobaie_point_screenshot_dir
+    screenshot_index = (
+        build_point_screenshot_index(get_settings().meiguobaie_point_screenshot_dir)
+        if include_images
+        else {}
     )
     candidates: list[dict[str, Any]] = []
     for row in rows:

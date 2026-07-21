@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, Response
 
 from backend.exceptions import BusinessError, ConfigurationError
 from backend.schemas import (
@@ -13,7 +13,13 @@ from backend.schemas import (
     WorkOrderBatchJobStatusResponse,
     WorkOrderGenerateRequest,
 )
-from backend.services.date_image_folder_upload import upload_date_image_folder
+from backend.services.point_date_image_service import (
+    delete_point_date_image,
+    list_date_images,
+    list_point_date_images,
+    resolve_point_date_image_path,
+    save_point_date_images,
+)
 from backend.services.docgen import generate_workorder_artifact, generate_workorder_batch_artifact
 from backend.services.workorder_batch_jobs import batch_job_store, run_batch_export_job
 
@@ -117,17 +123,70 @@ async def download_workorder_batch_job(job_id: str) -> Response:
     )
 
 
-@router.post("/date-image-folder", summary="上传日期图片文件夹")
-async def upload_workorder_date_image_folder(
-    folder_name: str = Form(..., description="日期文件夹名称，格式 YYYY-MM-DD"),
-    files: list[UploadFile] = File(..., description="日期文件夹下的文件"),
-    relative_paths: list[str] = Form(..., description="浏览器提供的相对路径"),
+@router.get("/point-date-images", summary="列出指定日期的图片，可按点位编号过滤")
+async def list_workorder_point_date_images(
+    survey_date: str = Query(..., description="调查日期，格式 YYYY-MM-DD"),
+    point_code: str | None = Query(default=None, description="点位编号，缺省时返回当日全部图片"),
 ) -> dict:
     try:
-        return await upload_date_image_folder(
-            folder_name=folder_name,
+        images = (
+            list_point_date_images(survey_date=survey_date, point_code=point_code)
+            if point_code
+            else list_date_images(survey_date=survey_date)
+        )
+        return {
+            "survey_date": survey_date,
+            "point_code": point_code or "",
+            "images": images,
+        }
+    except ValueError as exc:
+        raise BusinessError(str(exc)) from exc
+
+
+@router.post("/point-date-images", summary="上传点位日期图片（自动按编号命名）")
+async def upload_workorder_point_date_images(
+    survey_date: str = Form(..., description="调查日期，格式 YYYY-MM-DD"),
+    point_code: str = Form(..., description="点位编号"),
+    files: list[UploadFile] = File(..., description="图片文件"),
+) -> dict:
+    try:
+        return await save_point_date_images(
+            survey_date=survey_date,
+            point_code=point_code,
             files=files,
-            relative_paths=relative_paths,
         )
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
+
+
+@router.get("/point-date-images/{survey_date}/{file_name}", summary="读取点位日期图片")
+async def read_workorder_point_date_image(survey_date: str, file_name: str) -> FileResponse:
+    try:
+        image_path = resolve_point_date_image_path(
+            survey_date=survey_date,
+            file_name=file_name,
+        )
+    except ValueError as exc:
+        raise BusinessError(str(exc)) from exc
+    if image_path is None:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return FileResponse(image_path)
+
+
+@router.delete("/point-date-images/{survey_date}/{file_name}", summary="删除点位日期图片")
+async def delete_workorder_point_date_image(
+    survey_date: str,
+    file_name: str,
+    point_code: str = Query(..., description="点位编号"),
+) -> dict:
+    try:
+        delete_point_date_image(
+            survey_date=survey_date,
+            point_code=point_code,
+            file_name=file_name,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise BusinessError(str(exc)) from exc
+    return {"deleted": file_name}

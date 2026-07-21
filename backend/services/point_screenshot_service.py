@@ -11,7 +11,6 @@ from PIL import Image, UnidentifiedImageError
 
 from backend.config import get_settings
 from backend.db import postgres
-from backend.services.date_image_folder_upload import ensure_inside_directory
 from backend.services.docgen import (
     SUPPORTED_IMAGE_FORMATS,
     SUPPORTED_IMAGE_FORMAT_LABEL,
@@ -47,6 +46,15 @@ def validate_point_code(code: str) -> str:
     if not normalized or POINT_CODE_PATTERN.fullmatch(normalized) is None:
         raise ValueError("点位编号只能包含中文、英文字母、数字、下划线和连字符")
     return normalized
+
+
+def ensure_inside_directory(root: Path, candidate: Path) -> None:
+    """确保 candidate 位于 root 目录之内，防止路径穿越。"""
+
+    root_resolved = root.resolve()
+    candidate_resolved = candidate.resolve()
+    if candidate_resolved != root_resolved and root_resolved not in candidate_resolved.parents:
+        raise ValueError("保存路径不合法")
 
 
 def require_screenshot_dir(pest_type: str) -> Path:

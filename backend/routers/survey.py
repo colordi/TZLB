@@ -24,6 +24,7 @@ async def get_survey_candidates(
     pest_type: PestType = Query(default="春尺蠖", description="害虫类型"),
     year: int | None = Query(default=None, description="年份，默认取调查日期年份"),
     generation: str | None = Query(default=None, description="世代，如第一代、第二代"),
+    include_images: bool = Query(default=True, description="是否附带点位截图 Data URL"),
 ) -> list[dict[str, Any]]:
     target_date = date or date_cls.today()
 
@@ -38,6 +39,7 @@ async def get_survey_candidates(
             pest_type=pest_type,
             year=year,
             generation=resolved_generation,
+            include_images=include_images,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

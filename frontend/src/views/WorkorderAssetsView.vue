@@ -1,26 +1,12 @@
 <script setup>
 import { ref } from "vue";
 import { RouterLink } from "vue-router";
-import { FolderUp } from "@lucide/vue";
 
+import DatePointImagePanel from "../components/workorder/DatePointImagePanel.vue";
 import PointScreenshotPanel from "../components/workorder/PointScreenshotPanel.vue";
-import { useDateFolderUpload } from "../composables/workorder/useDateFolderUpload.js";
-import { useToast } from "../composables/useToast.js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const toast = useToast();
-const dateFolder = useDateFolderUpload();
-const { dateFolderInput, dateFolderUploading } = dateFolder;
 const activeTab = ref("screenshots");
-
-function onDateFolderChange(event) {
-  dateFolder.handleDateFolderChange(event, toast);
-}
-
-function onOpenDateFolderPicker() {
-  dateFolder.openDateFolderPicker(false);
-}
 </script>
 
 <template>
@@ -53,50 +39,11 @@ function onOpenDateFolderPicker() {
         data-testid="workorder-assets-tab-date-folder"
         @click="activeTab = 'date-folder'"
       >
-        日期图片文件夹
+        日期现场照片
       </Button>
     </div>
 
     <PointScreenshotPanel v-if="activeTab === 'screenshots'" />
-
-    <Card v-else aria-label="日期图片文件夹">
-      <CardHeader class="pb-3">
-        <CardTitle class="text-base">日期图片文件夹</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-4">
-        <div class="space-y-2 text-sm text-muted-foreground">
-          <p>
-            选择名为 <code class="rounded bg-muted px-1 py-0.5 text-xs">YYYY-MM-DD</code>
-            的文件夹上传到
-            <code class="rounded bg-muted px-1 py-0.5 text-xs">images/日期/</code>。
-          </p>
-          <p>
-            文件名建议以点位编号开头。美国白蛾生成工单时会自动从对应日期目录拼装现场图；其他害虫主要使用点位截图或清单内图片。
-          </p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            :disabled="dateFolderUploading"
-            data-testid="date-image-folder-button"
-            @click="onOpenDateFolderPicker"
-          >
-            <FolderUp class="size-4" />
-            <span>{{ dateFolderUploading ? "正在上传…" : "选择日期文件夹上传" }}</span>
-          </Button>
-          <input
-            ref="dateFolderInput"
-            class="hidden"
-            type="file"
-            multiple
-            webkitdirectory
-            directory
-            data-testid="date-image-folder-input"
-            @change="onDateFolderChange"
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <DatePointImagePanel v-else />
   </section>
 </template>

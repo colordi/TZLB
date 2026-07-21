@@ -66,19 +66,44 @@ export async function downloadWorkorderBatchJob(jobId) {
   };
 }
 
-export async function uploadDateImageFolder({ folderName, files }) {
-  const formData = new FormData();
-  formData.append("folder_name", folderName);
+/** 列出指定日期目录下的图片；传 pointCode 时只返回该点位的图片 */
+export async function fetchPointDateImages({ surveyDate, pointCode }) {
+  const search = new URLSearchParams({ survey_date: surveyDate });
+  if (pointCode) {
+    search.set("point_code", pointCode);
+  }
+  const response = await apiFetch(`/api/workorder/point-date-images?${search.toString()}`);
+  await ensureApiSuccess(response);
+  return response.json();
+}
 
+/** 上传图片到指定点位的日期目录，后端自动按“编号-序号”重命名 */
+export async function uploadPointDateImages({ surveyDate, pointCode, files }) {
+  const formData = new FormData();
+  formData.append("survey_date", surveyDate);
+  formData.append("point_code", pointCode);
   for (const file of files) {
     formData.append("files", file);
-    formData.append("relative_paths", file.webkitRelativePath || `${folderName}/${file.name}`);
   }
 
-  const response = await apiFetch("/api/workorder/date-image-folder", {
+  const response = await apiFetch("/api/workorder/point-date-images", {
     method: "POST",
     body: formData,
   });
   await ensureApiSuccess(response);
   return response.json();
+}
+
+export async function deletePointDateImage({ surveyDate, pointCode, fileName }) {
+  const search = new URLSearchParams({ point_code: pointCode });
+  const response = await apiFetch(
+    `${buildPointDateImageUrl({ surveyDate, fileName })}?${search.toString()}`,
+    { method: "DELETE" },
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export function buildPointDateImageUrl({ surveyDate, fileName }) {
+  return `/api/workorder/point-date-images/${encodeURIComponent(surveyDate)}/${encodeURIComponent(fileName)}`;
 }
