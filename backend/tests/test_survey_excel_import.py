@@ -9,9 +9,16 @@ from openpyxl import Workbook
 
 from backend.services.survey_excel_import import (
     build_import_plan,
+    mark_file_duplicates,
     resolve_table_conflict_columns,
     run_survey_excel_import,
 )
+
+
+MEI_GUO_BAI_E_LEDGER = "美国白蛾问题点位事件流水表"
+GUO_HUAI_LEDGER = "国槐尺蠖问题点位事件流水表"
+CHUN_CHI_HUO_LEDGER = "春尺蠖问题点位事件流水表"
+OTHER_PEST_LEDGER = "其他害虫问题点位事件流水表"
 
 
 def make_workbook(sheets: dict[str, list[list[object]]]) -> bytes:
@@ -30,6 +37,7 @@ def make_workbook(sheets: dict[str, list[list[object]]]) -> bytes:
 
 
 def build_metadata_rows() -> tuple[
+    list[dict[str, object]],
     list[dict[str, object]],
     list[dict[str, object]],
     list[dict[str, object]],
@@ -85,6 +93,28 @@ def build_metadata_rows() -> tuple[
             "columns": columns,
         }
 
+    def ledger_column(
+        table_name: str,
+        ordinal_position: int,
+        column_name: str,
+        data_type: str,
+        udt_name: str,
+        is_nullable: str,
+        column_default: str = "",
+        is_identity: str = "NO",
+    ) -> dict[str, object]:
+        return column(
+            table_name,
+            ordinal_position,
+            column_name,
+            data_type,
+            udt_name,
+            is_nullable,
+            column_default,
+            table_schema="ledger",
+            is_identity=is_identity,
+        )
+
     column_rows = [
         column("春尺蠖幼虫调查表", 1, "编号", "character varying", "varchar", "NO"),
         column("春尺蠖幼虫调查表", 2, "调查日期", "date", "date", "NO"),
@@ -128,163 +158,63 @@ def build_metadata_rows() -> tuple[
         column("其他害虫调查表", 3, "调查日期", "date", "date", "NO"),
         column("其他害虫调查表", 4, "调查结论", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 5, "详细描述", "text", "text", "NO"),
-        column(
-            "美国白蛾问题点位事件流水表",
-            1,
-            "id",
-            "integer",
-            "int4",
-            "NO",
-            table_schema="ledger",
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 1, "id", "integer", "int4", "NO"),
+        ledger_column(
+            MEI_GUO_BAI_E_LEDGER, 2, "事件时间", "timestamp without time zone", "timestamp", "NO"
         ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            2,
-            "事件时间",
-            "timestamp without time zone",
-            "timestamp",
-            "NO",
-            table_schema="ledger",
+        ledger_column(
+            MEI_GUO_BAI_E_LEDGER, 3, "事件类型", "USER-DEFINED", "meiguobaie_event_type", "NO"
         ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            3,
-            "事件类型",
-            "USER-DEFINED",
-            "meiguobaie_event_type",
-            "NO",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            4,
-            "属地",
-            "character varying",
-            "varchar",
-            "YES",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            5,
-            "编号",
-            "character varying",
-            "varchar",
-            "NO",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            6,
-            "点位名称",
-            "character varying",
-            "varchar",
-            "YES",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            7,
-            "受害株数",
-            "integer",
-            "int4",
-            "NO",
-            "0",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            8,
-            "网幕数量",
-            "integer",
-            "int4",
-            "NO",
-            "0",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            9,
-            "本次详细情况",
-            "text",
-            "text",
-            "NO",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
-            10,
-            "备注",
-            "text",
-            "text",
-            "YES",
-            table_schema="ledger",
-        ),
-        column(
-            "美国白蛾问题点位事件流水表",
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 4, "属地", "character varying", "varchar", "YES"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 5, "编号", "character varying", "varchar", "NO"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 6, "点位名称", "character varying", "varchar", "YES"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 7, "受害株数", "integer", "int4", "NO", "0"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 8, "网幕数量", "integer", "int4", "NO", "0"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 9, "本次详细情况", "text", "text", "NO"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 10, "备注", "text", "text", "YES"),
+        ledger_column(
+            MEI_GUO_BAI_E_LEDGER,
             11,
             "区域",
             "character varying",
             "varchar",
             "NO",
             "'乡镇'::character varying",
-            table_schema="ledger",
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            1,
-            "id",
-            "integer",
-            "int4",
-            "NO",
-            table_schema="ledger",
-            is_identity="YES",
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 12, "年份", "integer", "int4", "NO", "2026"),
+        ledger_column(MEI_GUO_BAI_E_LEDGER, 13, "世代", "text", "text", "NO", "'第一代'::text"),
+        ledger_column(GUO_HUAI_LEDGER, 1, "id", "integer", "int4", "NO"),
+        ledger_column(
+            GUO_HUAI_LEDGER, 2, "事件时间", "timestamp without time zone", "timestamp", "YES"
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            2,
-            "编号",
-            "character varying",
-            "varchar",
-            "NO",
-            table_schema="ledger",
+        ledger_column(
+            GUO_HUAI_LEDGER, 3, "事件类型", "USER-DEFINED", "guo_huai_chi_huo_event_type", "YES"
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            3,
-            "虫害类型",
-            "character varying",
-            "varchar",
-            "NO",
-            table_schema="ledger",
+        ledger_column(GUO_HUAI_LEDGER, 4, "编号", "character varying", "varchar", "YES"),
+        ledger_column(GUO_HUAI_LEDGER, 5, "本次详细情况", "text", "text", "YES"),
+        ledger_column(GUO_HUAI_LEDGER, 6, "年份", "integer", "int4", "NO", "2026"),
+        ledger_column(GUO_HUAI_LEDGER, 7, "世代", "text", "text", "NO", "'第一代'::text"),
+        ledger_column(CHUN_CHI_HUO_LEDGER, 1, "id", "integer", "int4", "NO", is_identity="YES"),
+        ledger_column(
+            CHUN_CHI_HUO_LEDGER, 2, "事件时间", "timestamp without time zone", "timestamp", "YES"
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            4,
-            "事件类型",
-            "USER-DEFINED",
-            "inspection_event_type",
-            "NO",
-            table_schema="ledger",
+        ledger_column(
+            CHUN_CHI_HUO_LEDGER, 3, "事件类型", "USER-DEFINED", "chun_chi_huo_event_type", "YES"
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            5,
-            "事件时间",
-            "timestamp without time zone",
-            "timestamp",
-            "NO",
-            table_schema="ledger",
+        ledger_column(CHUN_CHI_HUO_LEDGER, 4, "编号", "character varying", "varchar", "YES"),
+        ledger_column(CHUN_CHI_HUO_LEDGER, 5, "本次详细情况", "text", "text", "YES"),
+        ledger_column(CHUN_CHI_HUO_LEDGER, 6, "年份", "integer", "int4", "NO", "2026"),
+        ledger_column(OTHER_PEST_LEDGER, 1, "id", "integer", "int4", "NO", is_identity="YES"),
+        ledger_column(OTHER_PEST_LEDGER, 2, "编号", "character varying", "varchar", "NO"),
+        ledger_column(OTHER_PEST_LEDGER, 3, "虫害类型", "character varying", "varchar", "NO"),
+        ledger_column(
+            OTHER_PEST_LEDGER, 4, "事件类型", "USER-DEFINED", "inspection_event_type", "NO"
         ),
-        column(
-            "其他害虫问题点位事件流水表",
-            6,
-            "本次详细情况",
-            "text",
-            "text",
-            "NO",
-            table_schema="ledger",
+        ledger_column(
+            OTHER_PEST_LEDGER, 5, "事件时间", "timestamp without time zone", "timestamp", "NO"
         ),
+        ledger_column(OTHER_PEST_LEDGER, 6, "本次详细情况", "text", "text", "NO"),
+        ledger_column(OTHER_PEST_LEDGER, 7, "年份", "integer", "int4", "NO", "2026"),
     ]
     constraint_rows = [
         key("春尺蠖幼虫调查表", "chun_chi_huo_larva_pkey", "PRIMARY KEY", ["编号", "调查日期"]),
@@ -301,8 +231,22 @@ def build_metadata_rows() -> tuple[
             ["编号", "调查日期"],
         ),
         key(
-            "美国白蛾问题点位事件流水表",
+            MEI_GUO_BAI_E_LEDGER,
             "mgb1_ledger_pkey",
+            "PRIMARY KEY",
+            ["id"],
+            table_schema="ledger",
+        ),
+        key(
+            GUO_HUAI_LEDGER,
+            "guo_huai_ledger_pkey",
+            "PRIMARY KEY",
+            ["id"],
+            table_schema="ledger",
+        ),
+        key(
+            CHUN_CHI_HUO_LEDGER,
+            "chun_chi_huo_ledger_pkey",
             "PRIMARY KEY",
             ["id"],
             table_schema="ledger",
@@ -314,7 +258,7 @@ def build_metadata_rows() -> tuple[
             ["编号", "虫害类型", "调查日期"],
         ),
         key(
-            "其他害虫问题点位事件流水表",
+            OTHER_PEST_LEDGER,
             "other_pest_event_pkey",
             "PRIMARY KEY",
             ["id"],
@@ -324,13 +268,26 @@ def build_metadata_rows() -> tuple[
     unique_index_rows = [
         index("春尺蠖幼虫调查表", "chun_chi_huo_larva_pkey", ["编号", "调查日期"]),
         index(
-            "其他害虫问题点位事件流水表",
+            OTHER_PEST_LEDGER,
             "other_pest_event_dedup_idx",
             ["编号", "虫害类型", "事件类型", "事件时间"],
             table_schema="ledger",
         ),
     ]
-    return column_rows, constraint_rows, unique_index_rows
+    enum_rows = [
+        {"typname": "meiguobaie_event_type", "enumlabel": label}
+        for label in ["调查下派", "防治", "复查异常", "复查合格"]
+    ] + [
+        {"typname": "inspection_event_type", "enumlabel": label}
+        for label in ["调查下派", "防治", "复查异常", "复查合格"]
+    ] + [
+        {"typname": "guo_huai_chi_huo_event_type", "enumlabel": label}
+        for label in ["历史预警下派", "幼虫调查下派", "防治", "复查异常", "复查合格"]
+    ] + [
+        {"typname": "chun_chi_huo_event_type", "enumlabel": label}
+        for label in ["历史预警下派", "成虫调查下派", "幼虫调查下派", "防治", "复查异常", "复查合格"]
+    ]
+    return column_rows, constraint_rows, unique_index_rows, enum_rows
 
 
 class FakeTransaction:
@@ -345,9 +302,19 @@ class FakeTransaction:
 
 
 class FakeConnection:
-    def __init__(self, existing_keys: set[tuple[object, ...]] | None = None) -> None:
-        self.column_rows, self.constraint_rows, self.unique_index_rows = build_metadata_rows()
+    def __init__(
+        self,
+        existing_keys: set[tuple[object, ...]] | None = None,
+        history_rows: dict[str, list[dict[str, object]]] | None = None,
+    ) -> None:
+        (
+            self.column_rows,
+            self.constraint_rows,
+            self.unique_index_rows,
+            self.enum_rows,
+        ) = build_metadata_rows()
         self.existing_keys = existing_keys or set()
+        self.history_rows = history_rows or {}
         self.insert_calls: list[tuple[str, tuple[object, ...]]] = []
         self.execute_calls: list[str] = []
         self.fetchval_calls: list[str] = []
@@ -361,6 +328,13 @@ class FakeConnection:
             return self.constraint_rows
         if "pg_index" in query:
             return self.unique_index_rows
+        if "pg_enum" in query:
+            return self.enum_rows
+        if "= ANY(" in query:
+            for table_name, rows in self.history_rows.items():
+                if f'"ledger"."{table_name}"' in query:
+                    return rows
+            return []
         raise AssertionError(f"unexpected fetch query: {query}")
 
     async def fetchrow(self, query: str, *args):
@@ -388,7 +362,7 @@ class FakeConnection:
 
 class SurveyExcelImportTest(unittest.TestCase):
     def setUp(self) -> None:
-        column_rows, constraint_rows, unique_index_rows = build_metadata_rows()
+        column_rows, constraint_rows, unique_index_rows, _ = build_metadata_rows()
         columns_by_table = {}
         for row in column_rows:
             columns_by_table.setdefault(
@@ -497,6 +471,7 @@ class SurveyExcelImportTest(unittest.TestCase):
         )
 
         plan = build_import_plan(content, self.metadata)
+        mark_file_duplicates(plan[0])
 
         self.assertEqual(plan[0].valid_rows, 2)
         self.assertEqual(plan[0].skipped_duplicate_rows, 1)
@@ -505,7 +480,7 @@ class SurveyExcelImportTest(unittest.TestCase):
     def test_ledger_sheet_uses_schema_and_unique_index_for_conflict(self) -> None:
         content = make_workbook(
             {
-                "其他害虫问题点位事件流水表": [
+                OTHER_PEST_LEDGER: [
                     ["id", "编号", "虫害类型", "事件类型", "事件时间", "本次详细情况"],
                     [100, "QT0001", "蚜虫", "新增", 46128.3541666667, "  首次发现  "],
                 ]
@@ -515,12 +490,12 @@ class SurveyExcelImportTest(unittest.TestCase):
         plan = build_import_plan(content, self.metadata)
 
         self.assertEqual(plan[0].schema_name, "ledger")
-        self.assertEqual(plan[0].table_name, "其他害虫问题点位事件流水表")
+        self.assertEqual(plan[0].table_name, OTHER_PEST_LEDGER)
         self.assertEqual(plan[0].warnings, [])
         self.assertEqual(plan[0].valid_rows, 1)
         self.assertNotIn("id", plan[0].rows[0].values)
         self.assertEqual(
-            self.metadata["其他害虫问题点位事件流水表"].conflict_columns,
+            self.metadata[OTHER_PEST_LEDGER].conflict_columns,
             ("编号", "虫害类型", "事件类型", "事件时间"),
         )
         self.assertEqual(
@@ -528,6 +503,38 @@ class SurveyExcelImportTest(unittest.TestCase):
             ("QT0001", "蚜虫", "新增", datetime(2026, 4, 16, 8, 30)),
         )
         self.assertEqual(plan[0].rows[0].values["本次详细情况"], "首次发现")
+
+    def test_ledger_without_unique_key_uses_hardcoded_conflict_columns(self) -> None:
+        self.assertEqual(
+            self.metadata[MEI_GUO_BAI_E_LEDGER].conflict_columns,
+            ("编号", "事件类型", "事件时间"),
+        )
+        self.assertFalse(self.metadata[MEI_GUO_BAI_E_LEDGER].supports_on_conflict)
+        self.assertEqual(
+            self.metadata[GUO_HUAI_LEDGER].conflict_columns,
+            ("编号", "事件类型", "事件时间"),
+        )
+        self.assertFalse(self.metadata[GUO_HUAI_LEDGER].supports_on_conflict)
+        self.assertEqual(
+            self.metadata[CHUN_CHI_HUO_LEDGER].conflict_columns,
+            ("编号", "事件类型", "事件时间"),
+        )
+        self.assertFalse(self.metadata[CHUN_CHI_HUO_LEDGER].supports_on_conflict)
+
+    def test_blank_nullable_conflict_column_reports_error(self) -> None:
+        content = make_workbook(
+            {
+                GUO_HUAI_LEDGER: [
+                    ["编号", "事件类型", "本次详细情况"],
+                    ["GH001", "幼虫调查下派", "发现幼虫"],
+                ]
+            }
+        )
+
+        plan = build_import_plan(content, self.metadata)
+
+        self.assertEqual(plan[0].valid_rows, 0)
+        self.assertIn("冲突键字段不能为空：事件时间", plan[0].errors[0])
 
     def test_ledger_view_sheet_is_not_importable(self) -> None:
         content = make_workbook(
@@ -590,7 +597,7 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(connection.transaction_entered)
         self.assertTrue(connection.transaction_exited)
 
-    async def test_formal_import_generates_mgb1_ledger_rows_in_backend(self) -> None:
+    async def test_survey_only_import_no_longer_generates_ledger_rows(self) -> None:
         content = make_workbook(
             {
                 "美国白蛾调查表": [
@@ -608,37 +615,22 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
             connection=connection,
         )
 
-        self.assertEqual(result["totals"]["sheet_count"], 2)
-        self.assertEqual(result["totals"]["inserted_rows"], 2)
-        self.assertEqual(result["totals"]["importable_rows"], 2)
+        self.assertEqual(result["totals"]["sheet_count"], 1)
+        self.assertEqual(result["totals"]["inserted_rows"], 1)
         survey_sheet = result["sheets"][0]
+        self.assertEqual(survey_sheet["table_name"], "美国白蛾调查表")
         self.assertEqual(
             survey_sheet["stats"]["by_locality"],
             [{"name": "马驹桥镇", "count": 1}],
         )
         self.assertEqual(survey_sheet["stats"]["damaged_count"], 1)
-        self.assertEqual(survey_sheet["stats"]["undamaged_count"], 0)
-        ledger_sheet = result["sheets"][1]
-        self.assertEqual(
-            ledger_sheet["stats"]["by_event_type"],
-            [{"name": "调查下派", "count": 1}],
-        )
-        self.assertEqual(ledger_sheet["stats"]["damaged_count"], 1)
-        self.assertEqual(len(connection.insert_calls), 2)
-        self.assertEqual(len(connection.execute_calls), 1)
-        self.assertIn("LOCK TABLE", connection.execute_calls[0])
-        self.assertEqual(len(connection.fetchval_calls), 1)
-        ledger_query, ledger_args = connection.insert_calls[1]
-        self.assertIn('"ledger"."美国白蛾问题点位事件流水表"', ledger_query)
-        self.assertIn("WHERE NOT EXISTS", ledger_query)
-        self.assertEqual(ledger_args[0], 328)
-        self.assertIn("调查下派", ledger_args)
-        self.assertIn("MQ001", ledger_args)
-        self.assertIn("发现网幕", ledger_args)
-        self.assertTrue(connection.transaction_entered)
-        self.assertTrue(connection.transaction_exited)
+        self.assertEqual(len(connection.insert_calls), 1)
+        survey_query, _ = connection.insert_calls[0]
+        self.assertIn('"survey"."美国白蛾调查表"', survey_query)
+        self.assertEqual(connection.execute_calls, [])
+        self.assertEqual(connection.fetchval_calls, [])
 
-    async def test_preview_summary_aggregates_locality_damage_and_event_type(self) -> None:
+    async def test_preview_summary_aggregates_survey_stats_only(self) -> None:
         content = make_workbook(
             {
                 "美国白蛾调查表": [
@@ -658,15 +650,9 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
             connection=connection,
         )
 
-        self.assertEqual(result["totals"]["importable_rows"], 6)
-        survey_sheet = next(
-            sheet for sheet in result["sheets"] if sheet["table_name"] == "美国白蛾调查表"
-        )
-        ledger_sheet = next(
-            sheet
-            for sheet in result["sheets"]
-            if sheet["table_name"] == "美国白蛾问题点位事件流水表"
-        )
+        self.assertEqual(result["totals"]["sheet_count"], 1)
+        self.assertEqual(result["totals"]["importable_rows"], 3)
+        survey_sheet = result["sheets"][0]
         self.assertEqual(
             survey_sheet["stats"]["by_locality"],
             [
@@ -676,13 +662,6 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(survey_sheet["stats"]["damaged_count"], 2)
         self.assertEqual(survey_sheet["stats"]["undamaged_count"], 1)
-        self.assertEqual(survey_sheet["stats"]["by_event_type"], [])
-        self.assertEqual(
-            ledger_sheet["stats"]["by_event_type"],
-            [{"name": "调查下派", "count": 3}],
-        )
-        self.assertEqual(ledger_sheet["stats"]["damaged_count"], 2)
-        self.assertEqual(ledger_sheet["stats"]["undamaged_count"], 1)
         self.assertEqual(connection.insert_calls, [])
 
     async def test_existing_mgb1_ledger_sheet_is_imported_without_backend_generation(self) -> None:
@@ -692,7 +671,7 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
                     ["编号", "调查日期", "属地", "点位名称", "详细描述"],
                     ["MQ001", "2026-05-26", "马驹桥镇", "九周路", "发现网幕"],
                 ],
-                "美国白蛾问题点位事件流水表": [
+                MEI_GUO_BAI_E_LEDGER: [
                     ["编号", "事件类型", "事件时间", "本次详细情况"],
                     ["MQ001", "调查下派", "2026-05-26", "按 ledger sheet 写入"],
                 ],
@@ -737,22 +716,298 @@ class RunSurveyExcelImportTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.insert_calls, [])
         self.assertFalse(connection.transaction_entered)
 
+    async def test_dispatch_event_corrected_with_database_history(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派", "2026-07-20", "复查仍发现网幕"],
+                ]
+            }
+        )
+        connection = FakeConnection(
+            history_rows={
+                MEI_GUO_BAI_E_LEDGER: [
+                    {
+                        "编号": "MQ001",
+                        "年份": 2026,
+                        "世代": "第一代",
+                        "事件类型": "调查下派",
+                        "事件时间": datetime(2026, 7, 10),
+                    }
+                ]
+            }
+        )
 
-class OtherPestTriggerMigrationTest(unittest.TestCase):
-    def test_trigger_migration_uses_current_chinese_table_and_locality_names(self) -> None:
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=False,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "复查异常", "count": 1}],
+        )
+        self.assertTrue(
+            any("纠正为「复查异常」" in warning for warning in ledger_sheet["warnings"])
+        )
+        self.assertEqual(result["totals"]["inserted_rows"], 1)
+        self.assertEqual(len(connection.execute_calls), 1)
+        self.assertIn("LOCK TABLE", connection.execute_calls[0])
+        ledger_query, ledger_args = connection.insert_calls[0]
+        self.assertIn(f'"ledger"."{MEI_GUO_BAI_E_LEDGER}"', ledger_query)
+        self.assertIn("WHERE NOT EXISTS", ledger_query)
+        self.assertEqual(ledger_args[0], 328)
+        self.assertIn("复查异常", ledger_args)
+        self.assertNotIn("调查下派", ledger_args)
+
+    async def test_dispatch_event_kept_without_history(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派", "2026-07-20", "首次发现网幕"],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "调查下派", "count": 1}],
+        )
+        self.assertEqual(ledger_sheet["warnings"], [])
+
+    async def test_treatment_and_recheck_events_are_not_corrected(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "防治", "2026-07-20", "喷药防治"],
+                    ["MQ001", "复查合格", "2026-07-25", "复查未发现网幕"],
+                ]
+            }
+        )
+        connection = FakeConnection(
+            history_rows={
+                MEI_GUO_BAI_E_LEDGER: [
+                    {
+                        "编号": "MQ001",
+                        "年份": 2026,
+                        "世代": "第一代",
+                        "事件类型": "调查下派",
+                        "事件时间": datetime(2026, 7, 10),
+                    }
+                ]
+            }
+        )
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(ledger_sheet["warnings"], [])
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [
+                {"name": "复查合格", "count": 1},
+                {"name": "防治", "count": 1},
+            ],
+        )
+
+    async def test_history_scoped_by_year_and_generation(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派", "2026-07-20", "第二代首次发现"],
+                ]
+            }
+        )
+        connection = FakeConnection(
+            history_rows={
+                MEI_GUO_BAI_E_LEDGER: [
+                    {
+                        "编号": "MQ001",
+                        "年份": 2026,
+                        "世代": "第二代",
+                        "事件类型": "调查下派",
+                        "事件时间": datetime(2026, 7, 10),
+                    }
+                ]
+            }
+        )
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "调查下派", "count": 1}],
+        )
+        self.assertEqual(ledger_sheet["warnings"], [])
+
+    async def test_earlier_file_row_counts_as_history(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派", "2026-07-20", "复查仍发现网幕"],
+                    ["MQ001", "防治", "2026-07-15", "喷药防治"],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [
+                {"name": "复查异常", "count": 1},
+                {"name": "防治", "count": 1},
+            ],
+        )
+        self.assertTrue(
+            any("纠正为「复查异常」" in warning for warning in ledger_sheet["warnings"])
+        )
+
+    async def test_chunchihuo_stage_dispatch_is_not_corrected(self) -> None:
+        content = make_workbook(
+            {
+                CHUN_CHI_HUO_LEDGER: [
+                    ["编号", "事件类型", "事件时间"],
+                    ["CC001", "幼虫调查下派", "2026-07-20"],
+                ]
+            }
+        )
+        connection = FakeConnection(
+            history_rows={
+                CHUN_CHI_HUO_LEDGER: [
+                    {
+                        "编号": "CC001",
+                        "年份": 2026,
+                        "事件类型": "成虫调查下派",
+                        "事件时间": datetime(2026, 4, 10),
+                    }
+                ]
+            }
+        )
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=False,
+            connection=connection,
+        )
+
+        ledger_sheet = result["sheets"][0]
+        self.assertEqual(
+            ledger_sheet["stats"]["by_event_type"],
+            [{"name": "幼虫调查下派", "count": 1}],
+        )
+        self.assertEqual(ledger_sheet["warnings"], [])
+        self.assertEqual(result["totals"]["inserted_rows"], 1)
+        ledger_query, _ = connection.insert_calls[0]
+        self.assertIn("WHERE NOT EXISTS", ledger_query)
+        # id 是 identity 列，后端不分配
+        self.assertEqual(connection.fetchval_calls, [])
+
+    async def test_guo_huai_ledger_import_assigns_backend_id(self) -> None:
+        content = make_workbook(
+            {
+                GUO_HUAI_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["GH001", "幼虫调查下派", "2026-07-20", "发现幼虫"],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=False,
+            connection=connection,
+        )
+
+        self.assertEqual(result["totals"]["inserted_rows"], 1)
+        self.assertEqual(len(connection.execute_calls), 1)
+        self.assertIn("LOCK TABLE", connection.execute_calls[0])
+        ledger_query, ledger_args = connection.insert_calls[0]
+        self.assertIn(f'"ledger"."{GUO_HUAI_LEDGER}"', ledger_query)
+        self.assertIn("WHERE NOT EXISTS", ledger_query)
+        self.assertEqual(ledger_args[0], 328)
+        self.assertIn("幼虫调查下派", ledger_args)
+
+    async def test_invalid_event_type_reports_row_error(self) -> None:
+        content = make_workbook(
+            {
+                MEI_GUO_BAI_E_LEDGER: [
+                    ["编号", "事件类型", "事件时间", "本次详细情况"],
+                    ["MQ001", "调查下派错", "2026-07-20", "发现网幕"],
+                ]
+            }
+        )
+        connection = FakeConnection()
+
+        result = await run_survey_excel_import(
+            content=content,
+            file_name="流水.xlsx",
+            dry_run=True,
+            connection=connection,
+        )
+
+        self.assertEqual(result["totals"]["error_count"], 1)
+        self.assertIn("事件类型：取值必须是", result["sheets"][0]["errors"][0])
+        self.assertEqual(connection.insert_calls, [])
+
+
+class DropOtherPestTriggerMigrationTest(unittest.TestCase):
+    def test_drop_trigger_migration_removes_trigger_and_function(self) -> None:
         migration_path = (
             Path(__file__).resolve().parents[1]
             / "db"
             / "migrations"
-            / "20260606_fix_other_pest_trigger_chinese_names.sql"
+            / "20260722_01_drop_other_pest_trigger.sql"
         )
 
         migration_sql = migration_path.read_text(encoding="utf-8")
 
-        self.assertIn('sites."其他害虫点位基础表"', migration_sql)
-        self.assertIn('"属地"', migration_sql)
-        self.assertNotIn("sites.other_pest_sites", migration_sql)
-        self.assertNotIn('"乡镇"', migration_sql)
+        self.assertIn(
+            "DROP TRIGGER IF EXISTS trg_sync_other_pest_event_on_inspection",
+            migration_sql,
+        )
+        self.assertIn(
+            "DROP FUNCTION IF EXISTS survey.sync_other_pest_event_from_inspection",
+            migration_sql,
+        )
 
 
 if __name__ == "__main__":

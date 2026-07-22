@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -19,10 +20,34 @@ ALLOWED_SCHEMAS = ("survey", "ledger")
 AUTO_DEFAULT_MARKERS = ("nextval(", "generated")
 EXCEL_EPOCH = date(1899, 12, 30)
 EXCEL_DATETIME_EPOCH = datetime.combine(EXCEL_EPOCH, datetime.min.time())
-MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾调查表"
-MEI_GUO_BAI_E_LEDGER_TABLE = "美国白蛾问题点位事件流水表"
-MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS = ("编号", "事件类型", "事件时间")
-BACKEND_GENERATED_ID_TABLES = {("ledger", MEI_GUO_BAI_E_LEDGER_TABLE)}
+RECHECK_ABNORMAL_EVENT_TYPE = "复查异常"
+
+# 没有业务唯一键的流水表，冲突键统一硬编码为 (编号, 事件类型, 事件时间)，
+# 插入时走 INSERT ... WHERE NOT EXISTS（不支持 ON CONFLICT）。
+LEDGER_CONFLICT_COLUMNS = {
+    ("ledger", "美国白蛾问题点位事件流水表"): ("编号", "事件类型", "事件时间"),
+    ("ledger", "国槐尺蠖问题点位事件流水表"): ("编号", "事件类型", "事件时间"),
+    ("ledger", "春尺蠖问题点位事件流水表"): ("编号", "事件类型", "事件时间"),
+}
+# id 既非 identity 也无默认值的流水表，由后端按 MAX(id)+1 分配。
+BACKEND_GENERATED_ID_TABLES = {
+    ("ledger", "美国白蛾问题点位事件流水表"),
+    ("ledger", "国槐尺蠖问题点位事件流水表"),
+}
+# 历史对比纠正规则：(schema, 表名) -> (历史分组键, 下派类事件类型集合)。
+# 用户录入下派类事件但同组已存在历史事件时，纠正为"复查异常"。
+LEDGER_HISTORY_RULES = {
+    ("ledger", "美国白蛾问题点位事件流水表"): (("编号", "年份", "世代"), {"调查下派"}),
+    ("ledger", "国槐尺蠖问题点位事件流水表"): (
+        ("编号", "年份", "世代"),
+        {"历史预警下派", "幼虫调查下派"},
+    ),
+    ("ledger", "春尺蠖问题点位事件流水表"): (
+        ("编号", "年份"),
+        {"历史预警下派", "成虫调查下派", "幼虫调查下派"},
+    ),
+    ("ledger", "其他害虫问题点位事件流水表"): (("编号", "虫害类型", "年份"), {"调查下派"}),
+}
 LOCALITY_FIELD = "属地"
 EVENT_TYPE_FIELD = "事件类型"
 DAMAGED_PLANT_COUNT_FIELD = "受害株数"
@@ -40,6 +65,7 @@ class ColumnMeta:
     default: str
     ordinal_position: int
     is_identity: bool = False
+    enum_labels: tuple[str, ...] = ()
 
     @property
     def is_auto_generated(self) -> bool:
@@ -184,7 +210,10 @@ def parse_cell_value(column: ColumnMeta, value: Any) -> Any:
         return parse_excel_datetime(value)
     if column.data_type in {"integer", "bigint", "smallint"}:
         return parse_integer(value)
-    return parse_text(value)
+    text = parse_text(value)
+    if text is not None and column.enum_labels and text not in column.enum_labels:
+        raise ValueError(f"取值必须是：{'、'.join(column.enum_labels)}")
+    return text
 
 
 async def fetch_survey_table_metadata(connection: asyncpg.Connection) -> dict[str, TableMeta]:
@@ -268,6 +297,20 @@ async def fetch_survey_table_metadata(connection: asyncpg.Connection) -> dict[st
         list(ALLOWED_SCHEMAS),
     )
 
+    enum_rows = await connection.fetch(
+        """
+        SELECT t.typname, e.enumlabel
+        FROM pg_type AS t
+        JOIN pg_enum AS e
+          ON e.enumtypid = t.oid
+        ORDER BY t.typname, e.enumsortorder
+        """
+    )
+
+    enum_labels_by_type: dict[str, list[str]] = {}
+    for row in enum_rows:
+        enum_labels_by_type.setdefault(row["typname"], []).append(row["enumlabel"])
+
     columns_by_table: dict[tuple[str, str], dict[str, ColumnMeta]] = {}
     for row in column_rows:
         table_key = (row["table_schema"], row["table_name"])
@@ -279,6 +322,7 @@ async def fetch_survey_table_metadata(connection: asyncpg.Connection) -> dict[st
             default=row["column_default"] or "",
             ordinal_position=row["ordinal_position"],
             is_identity=row["is_identity"] == "YES",
+            enum_labels=tuple(enum_labels_by_type.get(row["udt_name"], ())),
         )
 
     conflict_candidates: dict[tuple[str, str], list[tuple[str, ...]]] = {}
@@ -345,12 +389,9 @@ def resolve_table_conflict_columns(
     candidates: list[tuple[str, ...]],
     columns: dict[str, ColumnMeta],
 ) -> tuple[tuple[str, ...], bool]:
-    if (
-        schema_name == "ledger"
-        and table_name == MEI_GUO_BAI_E_LEDGER_TABLE
-        and all(column in columns for column in MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS)
-    ):
-        return MEI_GUO_BAI_E_LEDGER_CONFLICT_COLUMNS, False
+    hardcoded = LEDGER_CONFLICT_COLUMNS.get((schema_name, table_name))
+    if hardcoded and all(column in columns for column in hardcoded):
+        return hardcoded, False
     return choose_conflict_columns(candidates, columns), True
 
 
@@ -426,122 +467,9 @@ def build_import_plan(content: bytes, metadata: dict[str, TableMeta]) -> list[Pr
             continue
 
         parse_rows(worksheet, table_meta, header_indexes, ignored_auto_columns, sheet_result)
-        mark_file_duplicates(sheet_result)
         sheets.append(sheet_result)
 
     return sheets
-
-
-def append_backend_generated_ledger_sheets(
-    sheets: list[PreparedSheet],
-    metadata: dict[str, TableMeta],
-) -> None:
-    if any(sheet.table_name == MEI_GUO_BAI_E_LEDGER_TABLE for sheet in sheets):
-        return
-
-    survey_sheet = next(
-        (
-            sheet
-            for sheet in sheets
-            if sheet.schema_name == "survey"
-            and sheet.table_name == MEI_GUO_BAI_E_SURVEY_TABLE
-            and sheet.rows
-        ),
-        None,
-    )
-    if survey_sheet is None:
-        return
-
-    ledger_meta = metadata.get(MEI_GUO_BAI_E_LEDGER_TABLE)
-    generated_sheet = PreparedSheet(
-        sheet_name=MEI_GUO_BAI_E_LEDGER_TABLE,
-        schema_name="ledger",
-        table_name=MEI_GUO_BAI_E_LEDGER_TABLE,
-        warnings=['根据 survey."美国白蛾调查表" 在后端生成事件流水'],
-    )
-    if ledger_meta is None:
-        generated_sheet.errors.append("缺少美国白蛾问题点位事件流水表，不能写入 ledger")
-        sheets.append(generated_sheet)
-        return
-
-    skipped_blank_detail = 0
-    for survey_row in survey_sheet.rows:
-        ledger_values = build_mei_guo_bai_e_ledger_values(survey_row.values)
-        if ledger_values is None:
-            skipped_blank_detail += 1
-            continue
-
-        ledger_values = {
-            column: value
-            for column, value in ledger_values.items()
-            if column in ledger_meta.columns and not is_backend_generated_column(ledger_meta, column)
-        }
-        missing_conflict_columns = [
-            column
-            for column in ledger_meta.conflict_columns
-            if is_blank(ledger_values.get(column))
-        ]
-        if missing_conflict_columns:
-            generated_sheet.errors.append(
-                f"第 {survey_row.row_number} 行：事件流水冲突键字段不能为空："
-                f"{', '.join(missing_conflict_columns)}"
-            )
-            continue
-
-        generated_sheet.rows.append(
-            PreparedRow(
-                row_number=survey_row.row_number,
-                values=ledger_values,
-                conflict_values=tuple(
-                    ledger_values[column] for column in ledger_meta.conflict_columns
-                ),
-            )
-        )
-        generated_sheet.row_count += 1
-        generated_sheet.valid_rows += 1
-
-    if skipped_blank_detail:
-        generated_sheet.warnings.append(
-            f"{skipped_blank_detail} 行详细描述为空，未生成事件流水"
-        )
-    if generated_sheet.rows or generated_sheet.errors:
-        mark_file_duplicates(generated_sheet)
-        sheets.append(generated_sheet)
-
-
-def build_mei_guo_bai_e_ledger_values(row_values: dict[str, Any]) -> dict[str, Any] | None:
-    detail = row_values.get("详细描述")
-    if is_blank(detail):
-        return None
-
-    survey_date = row_values["调查日期"]
-    if isinstance(survey_date, datetime):
-        event_time = survey_date.replace(tzinfo=None)
-    else:
-        event_time = datetime.combine(survey_date, datetime.min.time())
-
-    source_note = f'来源=survey."美国白蛾调查表"；调查日期={survey_date}'
-    note = row_values.get("备注")
-    if not is_blank(note):
-        source_note = f"{source_note}；原备注={note}"
-
-    return {
-        "事件时间": event_time,
-        "事件类型": "调查下派",
-        "区域": row_values.get("区域", "乡镇"),
-        "属地": row_values.get("属地"),
-        "编号": row_values.get("编号"),
-        "点位名称": row_values.get("点位名称"),
-        "发生位置": row_values.get("发生位置"),
-        "绿地性质": row_values.get("绿地性质"),
-        "危害寄主": row_values.get("危害寄主"),
-        "受害株数": row_values.get("受害株数", 0),
-        "网幕数量": row_values.get("网幕数量", 0),
-        "是否剪网": row_values.get("是否剪网", "否"),
-        "剪网彻底": row_values.get("剪网彻底", "不涉及"),
-        "本次详细情况": detail,
-        "备注": source_note,
-    }
 
 
 def validate_headers(
@@ -625,7 +553,9 @@ def parse_rows(
             row_values[header] = parsed_value
 
         missing_conflict_columns = [
-            column for column in table_meta.conflict_columns if column not in row_values
+            column
+            for column in table_meta.conflict_columns
+            if is_blank(row_values.get(column))
         ]
         if missing_conflict_columns:
             row_errors.append(f"冲突键字段不能为空：{', '.join(missing_conflict_columns)}")
@@ -656,6 +586,145 @@ def mark_file_duplicates(sheet_result: PreparedSheet) -> None:
             )
             continue
         seen_keys.add(row.conflict_values)
+
+
+def parse_column_default_value(column: ColumnMeta) -> Any:
+    """从列默认值表达式中提取字面量（如 2026、'第一代'::text），提取不到返回 None。"""
+    text = column.default.strip()
+    if not text:
+        return None
+    match = re.match(r"^'(.*)'::", text)
+    if match:
+        return match.group(1)
+    if text.isdigit():
+        return int(text)
+    return None
+
+
+def normalize_history_key_value(value: Any) -> Any:
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    return str(value).strip()
+
+
+def event_time_of(values: dict[str, Any]) -> datetime | None:
+    value = values.get("事件时间")
+    return value if isinstance(value, datetime) else None
+
+
+async def correct_dispatch_event_types(
+    connection: asyncpg.Connection,
+    sheets: list[PreparedSheet],
+    metadata: dict[str, TableMeta],
+) -> None:
+    """用户录入下派类事件但同组已存在历史事件时，把事件类型纠正为"复查异常"。
+
+    历史 = 数据库已有事件 + 本文件中事件时间更早的行；分组键由
+    LEDGER_HISTORY_RULES 定义（编号 + 年份/世代/虫害类型）。
+    用户填写的防治、复查异常、复查合格一律信任，不做纠正。
+    """
+    for sheet in sheets:
+        if sheet.table_name is None or sheet.table_name not in metadata:
+            continue
+        if sheet.errors:
+            continue
+        table_meta = metadata[sheet.table_name]
+        rule = LEDGER_HISTORY_RULES.get((table_meta.schema_name, table_meta.name))
+        if rule is None or not sheet.rows:
+            continue
+        group_columns, dispatch_types = rule
+
+        codes = sorted(
+            {
+                str(row.values["编号"]).strip()
+                for row in sheet.rows
+                if not is_blank(row.values.get("编号"))
+            }
+        )
+        if not codes:
+            continue
+
+        select_columns = list(dict.fromkeys([*group_columns, "事件类型", "事件时间"]))
+        qualified_table = (
+            f"{quote_identifier(table_meta.schema_name)}.{quote_identifier(table_meta.name)}"
+        )
+        history_rows = await connection.fetch(
+            f"""
+            SELECT {', '.join(quote_identifier(column) for column in select_columns)}
+            FROM {qualified_table}
+            WHERE {quote_identifier("编号")} = ANY($1::text[])
+            """,
+            codes,
+        )
+
+        def effective_group_key(values: dict[str, Any]) -> tuple[Any, ...] | None:
+            key: list[Any] = []
+            for column in group_columns:
+                value = values.get(column)
+                if is_blank(value):
+                    value = parse_column_default_value(table_meta.columns[column])
+                if is_blank(value) and column == "年份":
+                    event_time = event_time_of(values)
+                    if event_time is not None:
+                        value = event_time.year
+                if is_blank(value):
+                    return None
+                key.append(normalize_history_key_value(value))
+            return tuple(key)
+
+        histories: dict[tuple[Any, ...], list[tuple[str, Any]]] = {}
+        for history_row in history_rows:
+            event_type = history_row["事件类型"]
+            if is_blank(event_type) or any(
+                is_blank(history_row[column]) for column in group_columns
+            ):
+                continue
+            key = tuple(
+                normalize_history_key_value(history_row[column])
+                for column in group_columns
+            )
+            histories.setdefault(key, []).append(
+                (str(event_type).strip(), history_row["事件时间"])
+            )
+
+        ordered_rows = sorted(
+            sheet.rows,
+            key=lambda row: (
+                event_time_of(row.values) is None,
+                event_time_of(row.values) or datetime.min,
+            ),
+        )
+        for row in ordered_rows:
+            event_type = row.values.get("事件类型")
+            key = effective_group_key(row.values)
+            if key is None:
+                continue
+            current_time = event_time_of(row.values)
+            if not is_blank(event_type) and str(event_type).strip() in dispatch_types:
+                original = str(event_type).strip()
+                qualifies = any(
+                    h_type == original or h_type not in dispatch_types
+                    for h_type, h_time in histories.get(key, [])
+                    if h_time is None
+                    or current_time is None
+                    or h_time < current_time
+                )
+                if qualifies:
+                    row.values["事件类型"] = RECHECK_ABNORMAL_EVENT_TYPE
+                    row.conflict_values = tuple(
+                        row.values[column] for column in table_meta.conflict_columns
+                    )
+                    sheet.warnings.append(
+                        f"第 {row.row_number} 行：编号 {row.values.get('编号')} "
+                        f"存在历史事件，事件类型由「{original}」纠正为"
+                        f"「{RECHECK_ABNORMAL_EVENT_TYPE}」"
+                    )
+            if not is_blank(row.values.get("事件类型")):
+                histories.setdefault(key, []).append(
+                    (str(row.values["事件类型"]).strip(), current_time)
+                )
 
 
 def has_errors(sheets: list[PreparedSheet]) -> bool:
@@ -953,7 +1022,6 @@ async def run_survey_excel_import(
     logger.info("开始 Excel 导入: file=%s size=%d bytes dry_run=%s", file_name, len(content), dry_run)
     metadata = await fetch_survey_table_metadata(connection)
     sheets = build_import_plan(content, metadata)
-    append_backend_generated_ledger_sheets(sheets, metadata)
 
     sheet_summaries = [
         f"{sheet.sheet_name}(rows={sheet.row_count},valid={sheet.valid_rows},errors={len(sheet.errors)})"
@@ -965,6 +1033,9 @@ async def run_survey_excel_import(
         return summarize_import(file_name=file_name, dry_run=dry_run, sheets=[])
 
     if not has_errors(sheets):
+        await correct_dispatch_event_types(connection, sheets, metadata)
+        for sheet in sheets:
+            mark_file_duplicates(sheet)
         await mark_database_duplicates(connection, sheets, metadata)
 
     if dry_run or has_errors(sheets):
