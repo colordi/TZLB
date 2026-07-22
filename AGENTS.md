@@ -120,7 +120,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `/api/map`：需要登录
 
-- `/api/workorder`、`/api/survey`、`/api/data-export`、`/api/statistics`：需要 `admin`
+- `/api/workorder`、`/api/survey`、`/api/data-export`、`/api/statistics`、`/api/data-manager`：需要 `admin`
 
 前端路由守卫在 `frontend/src/router/index.js` 中实现，权限逻辑在 `frontend/src/auth/permissions.js` 中。
 
@@ -157,6 +157,8 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 应用运行依赖以下核心 schema 和对象（详见 README.md）：
 
 - `app_auth.users`：认证用户表
+
+- `app_admin.data_change_logs`：数据管理模块的变更审计日志，后端启动时自动建表
 
 - `survey.*`：调查表（春尺蠖、国槐尺蠖、美国白蛾、其他害虫），均含 `年份` 列；美国白蛾和国槐尺蠖含 `世代` 列
 

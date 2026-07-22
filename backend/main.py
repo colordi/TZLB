@@ -13,6 +13,7 @@ from backend.auth.dependencies import require_authenticated_user, require_user_r
 from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
 from backend.config import get_settings
 from backend.db.admin import ensure_operation_log_storage
+from backend.db.data_manager import ensure_data_change_log_storage
 from backend.db.postgres import close_pool
 from backend.exceptions import (
     BusinessError,
@@ -23,6 +24,7 @@ from backend.logging_config import configure_logging, get_logger
 from backend.routers import auth as auth_router
 from backend.routers import admin as admin_router
 from backend.routers import data_export as data_export_router
+from backend.routers import data_manager as data_manager_router
 from backend.routers import map as map_router
 from backend.routers import point_screenshot as point_screenshot_router
 from backend.routers import statistics as statistics_router
@@ -40,6 +42,7 @@ async def lifespan(_: FastAPI):
     configure_logging(settings.log_level)
     await ensure_auth_storage()
     await ensure_operation_log_storage()
+    await ensure_data_change_log_storage()
     yield
     await close_pool()
 
@@ -200,6 +203,12 @@ app.include_router(
     admin_router.router,
     prefix="/api/admin",
     tags=["管理后台"],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+)
+app.include_router(
+    data_manager_router.router,
+    prefix="/api/data-manager",
+    tags=["数据管理"],
     dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(

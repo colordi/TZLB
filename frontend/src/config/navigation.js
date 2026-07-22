@@ -7,6 +7,7 @@ import {
   Layers,
   MapPin,
   ScrollText,
+  Table2,
   Upload,
   Users,
 } from "@lucide/vue";
@@ -55,6 +56,13 @@ export const NAV_GROUPS = [
         label: "数据导出",
         icon: Database,
         testId: "data-export",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+      {
+        to: "/data-manager",
+        label: "数据管理",
+        icon: Table2,
+        testId: "data-manager",
         requiredRoles: [USER_ROLES.ADMIN],
       },
       {

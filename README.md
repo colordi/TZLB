@@ -9,6 +9,7 @@ Web 应用。项目采用 FastAPI + Vue 3 + Leaflet 的前后端分离架构，�
 - 调查导入：按调查日期从本机 PostgreSQL/PostGIS 读取春尺蠖、国槐尺蠖、美国白蛾和其他害虫问题点位。
 - 工作单生成：导入记录后补充字段与现场图片，逐条生成 Word 工作单。
 - 地图监测：自动读取 `views` schema 下带 `geom` 的视图，展示点位、行政区边界和筛选器。
+- 数据管理：管理员在网页上直接浏览 `survey` / `ledger` / `sites` 下的业务表，逐条新增、编辑、删除记录，所有变更写入 `app_admin.data_change_logs` 审计日志。
 - 登录保护：后端维护 `app_auth.users`，除登录和健康检查外的业务接口均需登录。
 - 静态托管：生产构建后由 FastAPI 直接托管 `frontend/dist`。
 
@@ -205,6 +206,19 @@ WGS84 GeoJSON。除 `views."通州区监测点位分布"` 外，地图视图默�
 `危害程度`、`严重程度`、`等级`、`级别` 等字段推断轻中重等级；弹窗内容来自当前视图
 除 `geom` 外的字段。
 
+### 数据管理
+
+进入 `/data-manager` 后，管理员可以：
+
+1. 在左侧按 schema 分组选择 `survey` / `ledger` / `sites` 下的业务表。
+2. 在表格中分页浏览行数据，按常用列（编号、属地、调查日期、年份等）模糊过滤。
+3. 点击“新增记录”或行内“编辑”打开表单，按列类型自动渲染输入控件并做必填校验。
+4. 行内“删除”需二次确认；没有主键的表仅支持浏览，不允许编辑。
+5. 在“变更记录”页签查看该表的新增/修改/删除历史（操作人、时间、修改前后字段值）。
+
+所有写操作在同一事务内写入 `app_admin.data_change_logs` 审计日志（含变更前后快照），
+几何列（`geom`）和自增列只读，不在网页表单中编辑。
+
 ## API 概览
 
 无需登录：
@@ -225,6 +239,13 @@ WGS84 GeoJSON。除 `views."通州区监测点位分布"` 外，地图视图默�
 
 - `GET /api/survey/candidates?date=YYYY-MM-DD&pest_type=春尺蠖`
   （`pest_type` 也可为 `国槐尺蠖`、`美国白蛾`、`其他害虫`）
+- `GET /api/data-manager/tables`：列出 `survey` / `ledger` / `sites` 下可管理的业务表
+- `GET /api/data-manager/tables/{schema_name}/{table_name}/columns`：读取表列元数据
+- `GET /api/data-manager/tables/{schema_name}/{table_name}/rows`：分页浏览行数据（支持排序和按列模糊过滤）
+- `POST /api/data-manager/tables/{schema_name}/{table_name}/rows`：新增一条记录
+- `PUT /api/data-manager/tables/{schema_name}/{table_name}/rows`：按主键更新记录
+- `DELETE /api/data-manager/tables/{schema_name}/{table_name}/rows`：按主键删除记录
+- `GET /api/data-manager/change-logs`：分页查看数据变更审计日志
 - `GET /api/data-export/tables`：列出 `survey` / `ledger` 下可导出的表和视图
 - `GET /api/data-export/download`：导出 `survey` / `ledger` 下全部表和视图
 - `GET /api/data-export/tables/{schema_name}/{table_name}/download`：导出单个表或视图

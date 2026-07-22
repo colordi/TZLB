@@ -8,6 +8,7 @@ import {
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
 import DataExportView from "../views/DataExportView.vue";
 import DataImportView from "../views/DataImportView.vue";
+import DataManagerView from "../views/DataManagerView.vue";
 import DataStatisticsView from "../views/DataStatisticsView.vue";
 import LoginView from "../views/LoginView.vue";
 import MapView from "../views/MapView.vue";
@@ -85,6 +86,16 @@ const routes = [
     meta: {
       section: "数据导出",
       blurb: "导出 survey 和 ledger 下的最新数据表。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/data-manager",
+    name: "data-manager",
+    component: DataManagerView,
+    meta: {
+      section: "数据管理",
+      blurb: "在线浏览与维护调查、台账和点位数据。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },
