@@ -110,7 +110,7 @@ async function mountApp(initialPath = "/workorder", options = {}) {
     global: {
       plugins: [router],
       stubs: {
-        ToastViewport: true,
+        Toaster: true,
         // 将 Teleport 就地渲染，避免 jsdom 卸载问题，同时保留下拉/Sheet 内容
         Teleport: {
           template: "<div class='teleport-stub'><slot /></div>",

@@ -5,6 +5,7 @@ import { Users, Layers, Database, RefreshCw } from "@lucide/vue";
 import { fetchDashboardStats } from "../api/admin.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,16 +77,14 @@ onMounted(() => {
 
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight">管理概览</h1>
-        <p class="text-sm text-muted-foreground">用户、图层及系统运行聚合信息</p>
-      </div>
-      <Button type="button" variant="outline" size="sm" :disabled="loading" @click="loadStats">
-        <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
-        <span>{{ loading ? "加载中" : "刷新" }}</span>
-      </Button>
-    </div>
+    <PageHeader title="管理概览" description="用户、图层及系统运行聚合信息">
+      <template #actions>
+        <Button type="button" variant="outline" size="sm" :disabled="loading" @click="loadStats">
+          <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
+          <span>{{ loading ? "加载中" : "刷新" }}</span>
+        </Button>
+      </template>
+    </PageHeader>
 
     <div v-if="loading && !stats" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Skeleton v-for="i in 3" :key="i" class="h-40 rounded-xl" />

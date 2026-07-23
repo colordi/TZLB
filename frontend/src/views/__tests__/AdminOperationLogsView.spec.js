@@ -77,7 +77,7 @@ describe("AdminOperationLogsView", () => {
     await flushPromises();
 
     apiMocks.fetchOperationLogs.mockClear();
-    await wrapper.get(".pager-btn:last-child").trigger("click");
+    await wrapper.get('[data-testid="logs-next-page"]').trigger("click");
     await flushPromises();
 
     expect(apiMocks.fetchOperationLogs).toHaveBeenCalledWith({ limit: 50, offset: 50 });
@@ -91,7 +91,7 @@ describe("AdminOperationLogsView", () => {
     const wrapper = mount(AdminOperationLogsView);
     await flushPromises();
 
-    const nextBtn = wrapper.get(".pager-btn:last-child");
+    const nextBtn = wrapper.get('[data-testid="logs-next-page"]');
     expect(nextBtn.attributes("disabled")).toBe("");
   });
 });

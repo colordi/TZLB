@@ -134,6 +134,8 @@ function mountWorkOrderView() {
   return mount(WorkOrderView, {
     global: {
       plugins: [router],
+      // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
+      renderStubDefaultSlot: true,
       stubs: {
         RecordDetailModal: RecordDetailModalStub,
         RecordTable: RecordTableStub,

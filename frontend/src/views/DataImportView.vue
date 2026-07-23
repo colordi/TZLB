@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref } from "vue";
-import { RouterLink } from "vue-router";
 import {
   CheckCircle2,
   Download,
@@ -16,6 +15,7 @@ import { isUnauthorizedError } from "../api/http.js";
 import { downloadImportTemplate, uploadSurveyExcel } from "../api/survey.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -188,17 +188,11 @@ async function handleConfirm() {
 </script>
 
 <template>
-  <section class="data-import-page mx-auto flex w-full max-w-6xl flex-col gap-4">
-    <header class="space-y-1">
-      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">数据导入</h1>
-      <p class="max-w-3xl text-sm text-muted-foreground">
-        将 Excel 写入数据库；入库后请到
-        <RouterLink class="font-medium text-primary underline-offset-4 hover:underline" to="/workorder">
-          工单录入
-        </RouterLink>
-        中生成工单。
-      </p>
-    </header>
+  <div class="mx-auto w-full max-w-6xl space-y-6">
+    <PageHeader
+      title="数据导入"
+      description="将 Excel 写入数据库；入库后请到「工单录入」中生成工单。"
+    />
 
     <Card>
       <CardContent class="space-y-4">
@@ -288,7 +282,7 @@ async function handleConfirm() {
                     v-if="sheetHasErrors(sheet)"
                     class="size-4 text-destructive"
                   />
-                  <CheckCircle2 v-else class="size-4 text-emerald-600" />
+                  <CheckCircle2 v-else class="size-4 text-success" />
                   <strong class="text-sm font-medium">{{ sheet.sheet_name }}</strong>
                 </span>
                 <Badge variant="outline" class="ml-auto font-mono font-normal">
@@ -347,5 +341,5 @@ async function handleConfirm() {
         </div>
       </CardContent>
     </Card>
-  </section>
+  </div>
 </template>

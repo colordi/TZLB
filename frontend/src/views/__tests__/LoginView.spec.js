@@ -81,7 +81,7 @@ describe("LoginView", () => {
   it("密码显示切换只更新本地输入框类型", async () => {
     const { wrapper } = await mountLogin();
     const passwordInput = wrapper.get("#login-password");
-    const toggleButton = wrapper.get(".login-password-toggle");
+    const toggleButton = wrapper.get('[data-testid="login-password-toggle"]');
 
     expect(passwordInput.attributes("type")).toBe("password");
     expect(toggleButton.attributes("aria-pressed")).toBe("false");

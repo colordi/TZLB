@@ -1,6 +1,15 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { Image, ImageOff, Search, Trash2, Upload } from "@lucide/vue";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Image,
+  ImageOff,
+  Search,
+  SearchX,
+  Trash2,
+  Upload,
+} from "@lucide/vue";
 
 import {
   deletePointScreenshot,
@@ -9,14 +18,28 @@ import {
   uploadPointScreenshot,
 } from "../../api/pointScreenshot.js";
 import { isUnauthorizedError } from "../../api/http.js";
-import BaseDialog from "./BaseDialog.vue";
-import ConfirmDialog from "./ConfirmDialog.vue";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import EmptyState from "@/components/common/EmptyState.vue";
 import { useToast } from "../../composables/useToast.js";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const PEST_TABS = Object.freeze([
   { pestType: "春尺蠖", label: "杨树点位截图" },
@@ -332,6 +355,10 @@ function selectPest(nextPestType) {
   if (operationBusy.value) {
     return;
   }
+  // ui/tabs 在 mousedown 时已切换；点击已激活 tab（或同一次点击的 click 阶段）不重复加载
+  if (nextPestType === pestType.value) {
+    return;
+  }
   closeLightbox();
   statusFilter.value = "all";
   searchQuery.value = "";
@@ -435,6 +462,12 @@ async function confirmDelete() {
   }
 }
 
+function handleLightboxOpenChange(value) {
+  if (!value) {
+    closeLightbox();
+  }
+}
+
 onMounted(() => {
   componentActive = true;
   void loadPoints();
@@ -451,29 +484,32 @@ onBeforeUnmount(() => {
 
 
 <template>
-  <section class="point-screenshot-panel-root flex w-full flex-col gap-4">
-    <Card class="point-screenshot-panel" aria-label="点位截图筛选">
+  <section class="flex w-full flex-col gap-4">
+    <Card aria-label="点位截图筛选">
       <CardContent class="space-y-4 p-4">
-        <div class="point-screenshot-tabs flex flex-wrap gap-2" role="group" aria-label="害虫类型">
-          <Button
-            v-for="tab in PEST_TABS"
-            :key="tab.pestType"
-            type="button"
-            size="sm"
-            :variant="pestType === tab.pestType ? 'default' : 'outline'"
-            :aria-pressed="pestType === tab.pestType"
-            :class="{ 'is-active': pestType === tab.pestType }"
-            :disabled="operationBusy"
-            :data-testid="`point-screenshot-tab-${tab.pestType}`"
-            @click="selectPest(tab.pestType)"
-          >
-            {{ tab.label }}
-          </Button>
-        </div>
+        <Tabs
+          :model-value="pestType"
+          class="point-screenshot-tabs w-fit"
+          aria-label="害虫类型"
+          @update:model-value="selectPest"
+        >
+          <TabsList>
+            <TabsTrigger
+              v-for="tab in PEST_TABS"
+              :key="tab.pestType"
+              :value="tab.pestType"
+              :disabled="operationBusy"
+              :data-testid="`point-screenshot-tab-${tab.pestType}`"
+              @click="selectPest(tab.pestType)"
+            >
+              {{ tab.label }}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <div class="point-screenshot-tools flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div
-            class="point-screenshot-stats flex flex-wrap gap-2"
+            class="flex flex-wrap gap-2"
             role="group"
             aria-label="按截图状态筛选"
             aria-live="polite"
@@ -483,9 +519,9 @@ onBeforeUnmount(() => {
               :key="item.value"
               type="button"
               size="sm"
-              variant="outline"
-              class="point-screenshot-stat gap-2"
-              :class="{ 'is-active border-primary bg-primary/10': statusFilter === item.value }"
+              :variant="statusFilter === item.value ? 'default' : 'outline'"
+              class="gap-2"
+              :class="{ 'is-active': statusFilter === item.value }"
               :aria-pressed="statusFilter === item.value"
               :disabled="operationBusy"
               :data-testid="item.testId"
@@ -496,8 +532,8 @@ onBeforeUnmount(() => {
             </Button>
           </div>
 
-          <label class="point-screenshot-search relative min-w-[14rem] max-w-sm flex-1">
-            <span class="point-screenshot-sr-only sr-only">搜索点位</span>
+          <label class="relative min-w-[14rem] max-w-sm flex-1">
+            <span class="sr-only">搜索点位</span>
             <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               :value="searchQuery"
@@ -512,31 +548,36 @@ onBeforeUnmount(() => {
       </CardContent>
     </Card>
 
-    <div v-if="loading" class="point-screenshot-state py-12 text-center text-muted-foreground" data-testid="point-screenshot-loading">
+    <div v-if="loading" class="py-12 text-center text-sm text-muted-foreground" data-testid="point-screenshot-loading">
       正在加载点位…
     </div>
-    <div v-else-if="loadFailed" class="point-screenshot-state is-error py-12 text-center text-destructive">
+    <div v-else-if="loadFailed" class="py-12 text-center text-sm text-destructive">
       点位加载失败，请重新选择当前害虫类型后重试。
     </div>
-    <div v-else-if="points.length === 0" class="point-screenshot-state py-12 text-center text-muted-foreground">
-      当前害虫类型暂无点位。
-    </div>
-    <div v-else-if="filteredPoints.length === 0" class="point-screenshot-state py-12 text-center text-muted-foreground">
-      {{ emptyFilterMessage }}
-    </div>
+    <EmptyState
+      v-else-if="points.length === 0"
+      :icon="ImageOff"
+      title="当前害虫类型暂无点位。"
+    />
+    <EmptyState
+      v-else-if="filteredPoints.length === 0"
+      :icon="SearchX"
+      :title="emptyFilterMessage"
+    />
 
-    <div v-else class="point-screenshot-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-live="polite">
+    <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-live="polite">
       <article
         v-for="point in paginatedPoints"
         :key="point.code"
         class="point-screenshot-card overflow-hidden rounded-lg border bg-card"
         :data-testid="`point-screenshot-card-${point.code}`"
       >
-        <div class="point-screenshot-preview relative aspect-[4/3] bg-muted">
+        <div class="relative aspect-[4/3] bg-muted">
           <button
             v-if="point.has_screenshot"
+            data-slot="screenshot-preview"
             type="button"
-            class="point-screenshot-preview-trigger absolute inset-0"
+            class="absolute inset-0 cursor-pointer focus-visible:ring-3 focus-visible:ring-ring/50"
             :disabled="operationBusy"
             :data-testid="`point-screenshot-preview-${point.code}`"
             :aria-label="`查看 ${point.code} 大图`"
@@ -550,7 +591,7 @@ onBeforeUnmount(() => {
             />
             <div
               v-else
-              class="point-screenshot-placeholder has-file flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
+              class="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
             >
               <Image class="size-6" />
               <span v-if="thumbnailStates.get(pointKey(point)) === 'loading'" class="text-xs">加载中…</span>
@@ -559,33 +600,31 @@ onBeforeUnmount(() => {
           </button>
           <div
             v-else
-            class="point-screenshot-placeholder flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
+            class="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
           >
             <ImageOff class="size-6" />
             <span class="text-xs">缺失</span>
           </div>
           <Badge
-            class="point-screenshot-status absolute top-2 right-2"
-            :class="point.has_screenshot ? 'is-ready' : 'is-missing'"
+            class="absolute top-2 right-2"
             :variant="point.has_screenshot ? 'default' : 'secondary'"
           >
             {{ point.has_screenshot ? "已有截图" : "缺失" }}
           </Badge>
         </div>
 
-        <div class="point-screenshot-card-body space-y-3 p-3">
-          <div class="point-screenshot-card-copy space-y-0.5">
+        <div class="space-y-3 p-3">
+          <div class="space-y-0.5">
             <strong class="block text-sm">{{ point.code }}</strong>
             <span class="block text-sm text-muted-foreground">{{ point.name || "未命名点位" }}</span>
             <small class="block text-xs text-muted-foreground">{{ point.locality || "属地未填写" }}</small>
           </div>
 
-          <div class="point-screenshot-card-actions flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
               variant="outline"
-              class="point-screenshot-action is-upload"
               :disabled="operationBusy"
               :data-testid="point.has_screenshot
                 ? `point-screenshot-replace-${point.code}`
@@ -601,8 +640,8 @@ onBeforeUnmount(() => {
               v-if="point.has_screenshot"
               type="button"
               size="sm"
-              variant="destructive"
-              class="point-screenshot-action is-delete"
+              variant="ghost"
+              class="text-destructive hover:bg-destructive/10 hover:text-destructive"
               :disabled="operationBusy"
               :data-testid="`point-screenshot-delete-${point.code}`"
               @click="requestDelete(point)"
@@ -615,40 +654,50 @@ onBeforeUnmount(() => {
       </article>
     </div>
 
-    <nav
+    <div
       v-if="!loading && !loadFailed && filteredPoints.length > 0 && totalPages > 1"
-      class="point-screenshot-pagination flex items-center justify-center gap-3"
+      class="flex flex-wrap items-center justify-center gap-3"
       aria-label="点位分页"
     >
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        :disabled="currentPage <= 1 || operationBusy"
-        data-testid="point-screenshot-prev-page"
-        @click="goToPage(currentPage - 1)"
-      >
-        上一页
-      </Button>
       <span class="text-sm text-muted-foreground">
         第 {{ currentPage }} / {{ totalPages }} 页 · 共 {{ filteredPoints.length }} 条
       </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        :disabled="currentPage >= totalPages || operationBusy"
-        data-testid="point-screenshot-next-page"
-        @click="goToPage(currentPage + 1)"
+      <Pagination
+        :page="currentPage"
+        :items-per-page="PAGE_SIZE"
+        :total="filteredPoints.length"
+        :sibling-count="1"
+        :disabled="operationBusy"
+        show-edges
+        class="mx-0 w-auto"
+        @update:page="goToPage"
       >
-        下一页
-      </Button>
-    </nav>
+        <PaginationContent v-slot="{ items }">
+          <PaginationPrevious data-testid="point-screenshot-prev-page">
+            <ChevronLeft class="size-4" />
+            <span class="hidden sm:block">上一页</span>
+          </PaginationPrevious>
+          <template v-for="(item, index) in items" :key="index">
+            <PaginationItem
+              v-if="item.type === 'page'"
+              :value="item.value"
+              :is-active="item.value === currentPage"
+            >
+              {{ item.value }}
+            </PaginationItem>
+            <PaginationEllipsis v-else />
+          </template>
+          <PaginationNext data-testid="point-screenshot-next-page">
+            <span class="hidden sm:block">下一页</span>
+            <ChevronRight class="size-4" />
+          </PaginationNext>
+        </PaginationContent>
+      </Pagination>
+    </div>
 
     <input
       ref="fileInput"
       hidden
-      class="point-screenshot-file-input"
       type="file"
       accept="image/jpeg,image/png,image/webp"
       data-testid="point-screenshot-file-input"
@@ -667,53 +716,46 @@ onBeforeUnmount(() => {
       @confirm="confirmDelete"
     />
 
-    <BaseDialog
-      :open="Boolean(lightbox)"
-      :aria-label="lightbox ? `${lightbox.code} 点位截图大图` : '点位截图大图'"
-      mask-class="point-screenshot-lightbox-mask"
-      dialog-class="point-screenshot-lightbox-dialog max-w-4xl"
-      @close="closeLightbox"
-    >
-      <header
-        v-if="lightbox"
-        class="point-screenshot-lightbox-head flex items-start justify-between gap-3 border-b px-4 py-3"
-      >
-        <div>
-          <h3 class="font-semibold">{{ lightbox.code }}</h3>
-          <p class="text-sm text-muted-foreground">{{ lightbox.name || "未命名点位" }}</p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          data-testid="point-screenshot-lightbox-close"
-          @click="closeLightbox"
-        >
-          关闭
-        </Button>
-      </header>
-      <div
-        v-if="lightbox"
-        class="point-screenshot-lightbox-body min-h-[16rem] p-4"
-        data-testid="point-screenshot-lightbox"
-      >
-        <div v-if="lightbox.loading" class="point-screenshot-lightbox-state py-16 text-center text-muted-foreground">
-          正在加载大图…
+    <Dialog :open="Boolean(lightbox)" @update:open="handleLightboxOpenChange">
+      <DialogContent class="sm:max-w-4xl" :show-close-button="false">
+        <div v-if="lightbox" class="flex items-start justify-between gap-3">
+          <div class="space-y-1">
+            <DialogTitle class="text-base">{{ lightbox.code }}</DialogTitle>
+            <DialogDescription>{{ lightbox.name || "未命名点位" }}</DialogDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="point-screenshot-lightbox-close"
+            @click="closeLightbox"
+          >
+            关闭
+          </Button>
         </div>
         <div
-          v-else-if="lightbox.error"
-          class="point-screenshot-lightbox-state is-error py-16 text-center text-destructive"
+          v-if="lightbox"
+          class="min-h-64"
+          data-testid="point-screenshot-lightbox"
         >
-          大图加载失败，请稍后重试。
+          <div v-if="lightbox.loading" class="py-16 text-center text-sm text-muted-foreground">
+            正在加载大图…
+          </div>
+          <div
+            v-else-if="lightbox.error"
+            class="py-16 text-center text-sm text-destructive"
+          >
+            大图加载失败，请稍后重试。
+          </div>
+          <img
+            v-else-if="lightbox.url"
+            class="mx-auto max-h-[70vh] w-auto max-w-full rounded-md"
+            :src="lightbox.url"
+            :alt="`${lightbox.code} 点位截图`"
+            data-testid="point-screenshot-lightbox-image"
+          />
         </div>
-        <img
-          v-else-if="lightbox.url"
-          class="mx-auto max-h-[70vh] w-auto max-w-full rounded-md"
-          :src="lightbox.url"
-          :alt="`${lightbox.code} 点位截图`"
-          data-testid="point-screenshot-lightbox-image"
-        />
-      </div>
-    </BaseDialog>
+      </DialogContent>
+    </Dialog>
   </section>
 </template>

@@ -59,7 +59,7 @@ function formatShortDate(value) {
 
           <div class="mt-2">
             <div class="flex items-baseline gap-1.5">
-              <span class="text-2xl font-semibold tabular-nums">
+              <span class="text-2xl font-bold tracking-tight tabular-nums">
                 {{ formatNumber(item.surveyed_points) }}
               </span>
               <span class="text-sm text-muted-foreground">个点位完成调查</span>

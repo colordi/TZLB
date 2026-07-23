@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { ImagePlus, LoaderCircle, Search, Trash2 } from "@lucide/vue";
+import { CalendarDays, ImagePlus, LoaderCircle, Search, SearchX, Trash2 } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../../api/http.js";
 import { fetchPointDateImageBlob } from "../../api/workorder.js";
@@ -8,7 +8,8 @@ import { useToast } from "../../composables/useToast.js";
 import { useDatePointImages } from "../../composables/workorder/useDatePointImages.js";
 import { useWorkorderTaskConfig } from "../../composables/workorder/useWorkorderTaskConfig.js";
 import { getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
-import ConfirmDialog from "./ConfirmDialog.vue";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import EmptyState from "@/components/common/EmptyState.vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -291,26 +292,29 @@ function onFileChange(event) {
       </CardContent>
     </Card>
 
-    <div v-if="!queried" class="py-8 text-center text-sm text-muted-foreground">
-      选择条件后点击「查询需派单点位」。
-    </div>
-    <div
+    <EmptyState
+      v-if="!queried"
+      :icon="CalendarDays"
+      title="尚未查询"
+      description="选择条件后点击「查询需派单点位」。"
+    />
+    <EmptyState
       v-else-if="queried && points.length === 0"
-      class="py-8 text-center text-sm text-muted-foreground"
+      :icon="SearchX"
+      title="没有需派单的点位"
+      description="所选日期没有需派单的点位，请先在数据导入中导入当日调查数据。"
       data-testid="date-point-empty"
-    >
-      所选日期没有需派单的点位，请先在数据导入中导入当日调查数据。
-    </div>
+    />
 
     <template v-else>
       <p class="text-sm text-muted-foreground" aria-live="polite">
         共 {{ totalCount }} 个需派单点位<template v-if="imagesLoading">，正在读取已上传图片…</template>
       </p>
 
-      <div class="rounded-lg border bg-card">
+      <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow class="hover:bg-transparent">
               <TableHead class="w-28">编号</TableHead>
               <TableHead v-for="column in candidateColumns" :key="column.key">
                 {{ column.label }}
@@ -379,9 +383,9 @@ function onFileChange(event) {
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    class="w-28 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    class="w-28 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     :disabled="Boolean(uploadingCode) || Boolean(deletingCode) || pointImageCount(point) === 0"
                     :data-testid="`date-point-delete-all-${pointCode(point)}`"
                     @click="requestRemoveAll(point)"

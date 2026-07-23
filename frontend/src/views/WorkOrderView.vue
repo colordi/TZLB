@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from "vue";
-import { Database } from "@lucide/vue";
+import { ChevronLeft, ChevronRight, Database } from "@lucide/vue";
 
 import { useWorkorderTaskConfig } from "../composables/workorder/useWorkorderTaskConfig.js";
 import { useWorkorderRecords } from "../composables/workorder/useWorkorderRecords.js";
@@ -11,10 +11,20 @@ import { useToast } from "../composables/useToast.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
 import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
-import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import EmptyState from "@/components/common/EmptyState.vue";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 const toast = useToast();
 
@@ -35,9 +45,9 @@ const {
 const selection = useRecordSelection(records, validationErrors);
 const {
   selectedUids, searchQuery, recordFilter,
-  currentPage, totalPages, serialOffset,
+  currentPage, pageSize, totalPages, serialOffset,
   filteredRecords, pagedRecords, pagedValidationErrors,
-  clearSelection, goToPrevPage, goToNextPage,
+  clearSelection,
 } = selection;
 
 const exportCtrl = useWorkorderExport(
@@ -227,17 +237,14 @@ function onGenerate() {
 
 
 <template>
-  <section class="workorder-page mx-auto flex w-full max-w-6xl flex-col gap-4">
-    <header class="workorder-page-head space-y-1">
-      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">工单录入</h1>
-      <p class="max-w-2xl text-sm text-muted-foreground">
-        从数据库选取调查记录，校对点位后批量生成工单。
-      </p>
-    </header>
+  <section class="mx-auto w-full max-w-6xl space-y-6">
+    <PageHeader
+      title="工单录入"
+      description="从数据库选取调查记录，校对点位后批量生成工单。"
+    />
 
     <Card
       v-if="sessionLocked"
-      class="workorder-session-card"
       aria-label="本单任务"
       data-testid="workorder-session-task"
     >
@@ -261,11 +268,11 @@ function onGenerate() {
       </CardContent>
     </Card>
 
-    <Card class="workorder-card workorder-list-card flex-1" aria-label="点位清单">
-      <CardHeader class="workorder-list-head flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle class="workorder-card-title text-base">点位清单</CardTitle>
+    <Card class="workorder-list-card flex-1" aria-label="点位清单">
+      <CardHeader class="flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle class="text-base">点位清单</CardTitle>
         <div class="flex flex-wrap items-center gap-2">
-          <span class="workorder-list-count text-sm text-muted-foreground">
+          <span class="text-sm text-muted-foreground">
             共 {{ records.length }} 个点位
           </span>
           <Button
@@ -285,10 +292,10 @@ function onGenerate() {
       <CardContent class="space-y-4">
         <div
           v-if="hasRecords"
-          class="workorder-toolbar flex flex-wrap items-center gap-3"
+          class="flex flex-wrap items-center gap-3"
         >
-          <label class="workorder-search relative min-w-[12rem] flex-1">
-            <span class="workorder-sr-only sr-only">搜索点位</span>
+          <label class="relative min-w-[12rem] flex-1">
+            <span class="sr-only">搜索点位</span>
             <Input
               v-model="searchQuery"
               type="search"
@@ -298,15 +305,11 @@ function onGenerate() {
             />
           </label>
 
-          <div
-            class="workorder-segmented inline-flex rounded-md border p-[1px]"
-            aria-label="记录筛选"
-          >
+          <div class="flex flex-wrap gap-2" aria-label="记录筛选">
             <Button
               type="button"
               size="sm"
-              :variant="recordFilter === 'all' ? 'default' : 'ghost'"
-              :class="{ 'is-active': recordFilter === 'all' }"
+              :variant="recordFilter === 'all' ? 'default' : 'outline'"
               data-testid="workorder-filter-all"
               @click="recordFilter = 'all'"
             >
@@ -315,8 +318,7 @@ function onGenerate() {
             <Button
               type="button"
               size="sm"
-              :variant="recordFilter === 'errors' ? 'default' : 'ghost'"
-              :class="{ 'is-active': recordFilter === 'errors' }"
+              :variant="recordFilter === 'errors' ? 'default' : 'outline'"
               data-testid="workorder-filter-errors"
               @click="recordFilter = 'errors'"
             >
@@ -325,8 +327,7 @@ function onGenerate() {
             <Button
               type="button"
               size="sm"
-              :variant="recordFilter === 'selected' ? 'default' : 'ghost'"
-              :class="{ 'is-active': recordFilter === 'selected' }"
+              :variant="recordFilter === 'selected' ? 'default' : 'outline'"
               data-testid="workorder-filter-selected"
               @click="recordFilter = 'selected'"
             >
@@ -335,33 +336,26 @@ function onGenerate() {
           </div>
         </div>
 
-        <div
+        <EmptyState
           v-if="!hasRecords"
-          class="workorder-empty-state flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-muted/20 px-6 py-12 text-center"
+          :icon="Database"
+          title="暂无点位"
+          description="请从数据库导入调查记录以建立本单。"
           data-testid="workorder-empty-state"
         >
-          <div class="space-y-1">
-            <strong class="text-base font-semibold">暂无点位</strong>
-            <p class="max-w-md text-sm text-muted-foreground">
-              请从数据库导入调查记录以建立本单。
-            </p>
-          </div>
-          <div class="flex flex-wrap items-center justify-center gap-2">
-            <Button
-              type="button"
-              :disabled="generating"
-              data-testid="survey-import-button"
-              @click="openSurveyImportDialog"
-            >
-              <Database class="size-4" />
-              <span>从数据库导入</span>
-            </Button>
-          </div>
-        </div>
+          <Button
+            type="button"
+            :disabled="generating"
+            data-testid="survey-import-button"
+            @click="openSurveyImportDialog"
+          >
+            <Database class="size-4" />
+            <span>从数据库导入</span>
+          </Button>
+        </EmptyState>
 
         <RecordTable
           v-else
-          class="workorder-record-table"
           v-model:selectedUids="selectedUids"
           :records="pagedRecords"
           :pest-type="pestType"
@@ -375,23 +369,23 @@ function onGenerate() {
 
         <div
           v-if="hasRecords && filteredRecords.length === 0"
-          class="workorder-empty py-6 text-center text-sm text-muted-foreground"
+          class="py-6 text-center text-sm text-muted-foreground"
         >
           当前筛选条件下没有匹配的点位。
         </div>
 
         <div
           v-if="generating"
-          class="workorder-export-progress space-y-2 rounded-md border bg-muted/30 p-3"
+          class="space-y-2 rounded-md border bg-muted/30 p-3"
           data-testid="workorder-export-progress"
           aria-live="polite"
         >
-          <div class="workorder-export-progress-head flex items-center justify-between text-sm">
+          <div class="flex items-center justify-between text-sm">
             <strong>{{ exportProgressLabel }}</strong>
             <span data-testid="workorder-export-progress-percent">{{ exportProgressPercent }}%</span>
           </div>
           <div
-            class="workorder-export-progress-track h-2 overflow-hidden rounded-full bg-muted"
+            class="h-2 overflow-hidden rounded-full bg-muted"
             role="progressbar"
             :aria-valuenow="exportProgressPercent"
             aria-valuemin="0"
@@ -399,52 +393,60 @@ function onGenerate() {
             :aria-label="exportProgressLabel"
           >
             <div
-              class="workorder-export-progress-fill h-full bg-primary transition-[width]"
+              class="h-full bg-primary transition-[width]"
               :style="{ width: `${exportProgressPercent}%` }"
             />
           </div>
-          <p v-if="exportProgress.total > 0" class="workorder-export-progress-meta text-xs text-muted-foreground">
+          <p v-if="exportProgress.total > 0" class="text-xs text-muted-foreground">
             进度 {{ Math.min(exportProgress.current, exportProgress.total) }} / {{ exportProgress.total }}
           </p>
         </div>
 
         <div
           v-if="filteredRecords.length > 0"
-          class="workorder-pagination flex items-center justify-center gap-3"
+          class="flex flex-wrap items-center justify-center gap-3"
           data-testid="workorder-pagination"
         >
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="workorder-page-btn"
-            :disabled="currentPage <= 1 || generating"
-            data-testid="workorder-page-prev"
-            @click="goToPrevPage"
-          >
-            上一页
-          </Button>
-          <span class="workorder-page-status text-sm text-muted-foreground" data-testid="workorder-page-status">
+          <span class="text-sm text-muted-foreground" data-testid="workorder-page-status">
             第 {{ currentPage }} / {{ totalPages }} 页
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="workorder-page-btn"
-            :disabled="currentPage >= totalPages || generating"
-            data-testid="workorder-page-next"
-            @click="goToNextPage"
+          <Pagination
+            v-model:page="currentPage"
+            :items-per-page="pageSize"
+            :total="filteredRecords.length"
+            :sibling-count="1"
+            :disabled="generating"
+            show-edges
+            class="mx-0 w-auto"
           >
-            下一页
-          </Button>
+            <PaginationContent v-slot="{ items }">
+              <PaginationPrevious data-testid="workorder-page-prev">
+                <ChevronLeft class="size-4" />
+                <span class="hidden sm:block">上一页</span>
+              </PaginationPrevious>
+              <template v-for="(item, index) in items" :key="index">
+                <PaginationItem
+                  v-if="item.type === 'page'"
+                  :value="item.value"
+                  :is-active="item.value === currentPage"
+                >
+                  {{ item.value }}
+                </PaginationItem>
+                <PaginationEllipsis v-else />
+              </template>
+              <PaginationNext data-testid="workorder-page-next">
+                <span class="hidden sm:block">下一页</span>
+                <ChevronRight class="size-4" />
+              </PaginationNext>
+            </PaginationContent>
+          </Pagination>
         </div>
 
         <footer
           v-if="hasRecords"
           class="workorder-list-foot flex flex-wrap items-center justify-between gap-3 border-t pt-4"
         >
-          <div class="workorder-list-foot-meta flex flex-wrap items-center gap-3 text-sm">
+          <div class="flex flex-wrap items-center gap-3 text-sm">
             <span>
               已选择 <strong>{{ selectedUids.length }}</strong> 个点位
             </span>
@@ -452,7 +454,7 @@ function onGenerate() {
               <Button
                 type="button"
                 variant="link"
-                class="workorder-text-btn h-auto px-0"
+                class="h-auto px-0"
                 :disabled="generating"
                 @click="clearSelection"
               >
@@ -461,7 +463,7 @@ function onGenerate() {
               <Button
                 type="button"
                 variant="link"
-                class="workorder-text-btn is-danger h-auto px-0 text-destructive"
+                class="h-auto px-0 text-destructive"
                 :disabled="generating"
                 @click="onBatchDelete"
               >
@@ -471,7 +473,6 @@ function onGenerate() {
           </div>
           <Button
             type="button"
-            class="workorder-export-btn"
             :disabled="generating || records.length === 0"
             data-testid="workorder-export-button"
             @click="onGenerate"

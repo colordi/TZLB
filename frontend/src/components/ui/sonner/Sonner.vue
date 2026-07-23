@@ -8,6 +8,7 @@ import {
   XIcon,
 } from "@lucide/vue";
 import { Toaster as Sonner } from "vue-sonner";
+import "vue-sonner/style.css";
 import { cn } from "@/lib/utils";
 
 const props = defineProps({
@@ -68,3 +69,22 @@ const props = defineProps({
     </template>
   </Sonner>
 </template>
+
+<!-- toasts 渲染在组件外层 DOM，类型图标着色需非 scoped；颜色一律用语义 token -->
+<style>
+.toaster [data-sonner-toast][data-type="success"] [data-icon] {
+  color: var(--success);
+}
+
+.toaster [data-sonner-toast][data-type="error"] [data-icon] {
+  color: var(--destructive);
+}
+
+.toaster [data-sonner-toast][data-type="info"] [data-icon] {
+  color: var(--info);
+}
+
+.toaster [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: var(--warning);
+}
+</style>

@@ -1,12 +1,21 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { ChevronLeft, ChevronRight, RefreshCw, ShieldCheck, Shield } from "@lucide/vue";
+import { RefreshCw, ShieldCheck, Shield } from "@lucide/vue";
 
 import { fetchOperationLogs } from "../api/admin.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -31,8 +40,6 @@ const roleLabel = {
 const totalPages = computed(() =>
   total.value > 0 ? Math.max(1, Math.ceil(total.value / pageSize)) : 1,
 );
-const canPrev = computed(() => currentPage.value > 1);
-const canNext = computed(() => currentPage.value < totalPages.value);
 
 async function load() {
   if (loading.value) return;
@@ -55,15 +62,9 @@ async function load() {
   }
 }
 
-function goPrev() {
-  if (!canPrev.value) return;
-  currentPage.value -= 1;
-  load();
-}
-
-function goNext() {
-  if (!canNext.value) return;
-  currentPage.value += 1;
+function goToPage(value) {
+  if (value === currentPage.value) return;
+  currentPage.value = value;
   load();
 }
 
@@ -81,24 +82,20 @@ onMounted(() => {
 
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight">操作日志</h1>
-        <p class="text-sm text-muted-foreground">点位删除操作记录，共 {{ total }} 条</p>
-      </div>
-      <div class="page-actions flex items-center gap-2">
+    <PageHeader title="操作日志" :description="`点位删除操作记录，共 ${total} 条`">
+      <template #actions>
         <Button type="button" variant="outline" size="sm" :disabled="loading" @click="load">
           <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
           <span>刷新</span>
         </Button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
-    <div class="overflow-hidden rounded-xl border shadow-sm">
+    <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
       <div class="overflow-x-auto">
-        <Table class="data-table min-w-[56rem]">
+        <Table class="min-w-[56rem]">
         <TableHeader>
-          <TableRow>
+          <TableRow class="hover:bg-transparent">
             <TableHead>时间</TableHead>
             <TableHead>操作人</TableHead>
             <TableHead>角色</TableHead>
@@ -153,34 +150,35 @@ onMounted(() => {
       </Table>
       </div>
 
-      <div class="flex items-center justify-between border-t px-4 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
         <p class="text-sm text-muted-foreground">
           第 {{ Math.min((currentPage - 1) * pageSize + 1, total) }}–{{ Math.min(currentPage * pageSize, total) }} 条，共 {{ total }} 条
         </p>
-        <div class="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            class="pager-btn"
-            :disabled="!canPrev || loading"
-            aria-label="上一页"
-            @click="goPrev"
-          >
-            <ChevronLeft class="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            class="pager-btn"
-            :disabled="!canNext || loading"
-            aria-label="下一页"
-            @click="goNext"
-          >
-            <ChevronRight class="size-4" />
-          </Button>
-        </div>
+        <Pagination
+          :page="currentPage"
+          :items-per-page="pageSize"
+          :total="total"
+          :sibling-count="1"
+          :disabled="loading"
+          show-edges
+          class="mx-0 w-auto justify-end"
+          @update:page="goToPage"
+        >
+          <PaginationContent v-slot="{ items }">
+            <PaginationPrevious data-testid="logs-prev-page" />
+            <template v-for="(item, index) in items" :key="index">
+              <PaginationItem
+                v-if="item.type === 'page'"
+                :value="item.value"
+                :is-active="item.value === currentPage"
+              >
+                {{ item.value }}
+              </PaginationItem>
+              <PaginationEllipsis v-else />
+            </template>
+            <PaginationNext data-testid="logs-next-page" />
+          </PaginationContent>
+        </Pagination>
       </div>
     </div>
   </div>

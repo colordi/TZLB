@@ -6,6 +6,7 @@ import { fetchLayers, updateLayers } from "../api/admin.js";
 import { fetchMapFilterOptions } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,14 +257,11 @@ onMounted(() => {
 
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight">图层管理</h1>
-        <p class="text-sm text-muted-foreground">
-          拖拽调整图层显示顺序，编辑别名与启用状态，共 {{ totalCount }} 项
-        </p>
-      </div>
-      <div class="page-actions flex items-center gap-2">
+    <PageHeader
+      title="图层管理"
+      :description="`拖拽调整图层显示顺序，编辑别名与启用状态，共 ${totalCount} 项`"
+    >
+      <template #actions>
         <Button type="button" variant="outline" size="sm" :disabled="loading" @click="load">
           <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
           <span>{{ loading ? "加载中" : "刷新" }}</span>
@@ -277,8 +275,8 @@ onMounted(() => {
           <Save class="size-4" />
           <span>{{ saving ? "保存中…" : "保存更改" }}</span>
         </Button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <template v-for="(typeKey, typeIdx) in ['view', 'reference']" :key="typeKey">
       <div
@@ -289,7 +287,7 @@ onMounted(() => {
         <Badge variant="secondary">{{ listFor(typeKey).length }}</Badge>
       </div>
 
-      <div class="overflow-hidden rounded-xl border shadow-sm">
+      <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
         <div class="overflow-x-auto">
           <Table class="min-w-[48rem]">
             <TableHeader>
@@ -308,7 +306,7 @@ onMounted(() => {
                 v-for="(layer, index) in listFor(typeKey)"
                 :key="layer.id"
                 :class="cn(
-                  !getEdit(layer).is_enabled && 'opacity-55',
+                  !getEdit(layer).is_enabled && 'opacity-50',
                   dragKey === layer.layer_key && 'opacity-40',
                   dragOverKey === layer.layer_key && dragOverPos === 'before' && 'border-t-2 border-t-primary',
                   dragOverKey === layer.layer_key && dragOverPos === 'after' && 'border-b-2 border-b-primary',
@@ -408,18 +406,12 @@ onMounted(() => {
                 </TableCell>
               </TableRow>
               <TableRow v-if="listFor(typeKey).length === 0 && !loading">
-                <TableCell
-                  :colspan="typeKey === 'view' ? 6 : 6"
-                  class="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colspan="6" class="h-24 text-center text-muted-foreground">
                   暂无数据
                 </TableCell>
               </TableRow>
               <TableRow v-if="loading && listFor(typeKey).length === 0">
-                <TableCell
-                  :colspan="typeKey === 'view' ? 6 : 6"
-                  class="h-24 text-center text-muted-foreground"
-                >
+                <TableCell colspan="6" class="h-24 text-center text-muted-foreground">
                   加载中…
                 </TableCell>
               </TableRow>

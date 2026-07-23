@@ -2,8 +2,6 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   Bug,
-  ChevronLeft,
-  ChevronRight,
   Database,
   Pencil,
   Plus,
@@ -23,6 +21,8 @@ import {
 } from "../api/dataManager.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import EmptyState from "@/components/common/EmptyState.vue";
+import PageHeader from "@/components/common/PageHeader.vue";
 import {
   editableColumns,
   gridColumns,
@@ -52,6 +52,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -447,15 +448,9 @@ async function loadLogs() {
   }
 }
 
-function goLogsPrev() {
-  if (logsPage.value <= 1) return;
-  logsPage.value -= 1;
-  loadLogs();
-}
-
-function goLogsNext() {
-  if (logsPage.value >= logsTotalPages.value) return;
-  logsPage.value += 1;
+function goLogsPage(value) {
+  if (value === logsPage.value) return;
+  logsPage.value = value;
   loadLogs();
 }
 
@@ -465,15 +460,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-[90rem] space-y-4">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight">数据管理</h1>
-        <p class="text-sm text-muted-foreground">
-          在线浏览与维护调查、台账和点位数据，支持逐行新增、编辑、删除并查看变更记录。
-        </p>
-      </div>
-      <div class="page-actions flex items-center gap-2">
+  <div class="mx-auto w-full max-w-[90rem] space-y-6">
+    <PageHeader
+      title="数据管理"
+      description="在线浏览与维护调查、台账和点位数据，支持逐行新增、编辑、删除并查看变更记录。"
+    >
+      <template #actions>
         <Button
           type="button"
           variant="outline"
@@ -484,19 +476,17 @@ onMounted(() => {
           <RefreshCw class="size-4" :class="{ 'animate-spin': tablesLoading }" />
           <span>刷新</span>
         </Button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <div v-if="tablesLoading" class="flex flex-wrap gap-2">
       <Skeleton v-for="i in 5" :key="i" class="h-9 w-24" />
     </div>
-    <div
+    <EmptyState
       v-else-if="pestGroups.length === 0"
-      class="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-muted-foreground"
-    >
-      <Database class="size-7" />
-      <p class="text-sm">暂无可管理的表</p>
-    </div>
+      :icon="Database"
+      title="暂无可管理的表"
+    />
 
     <template v-else>
       <!-- 一级 Tab：虫种 -->
@@ -580,7 +570,7 @@ onMounted(() => {
 
         <div
           v-if="!hasPrimaryKey"
-          class="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-800"
+          class="rounded-xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground"
           data-testid="no-pk-banner"
         >
           该表无主键，仅支持浏览，不能新增、编辑或删除记录。
@@ -594,11 +584,11 @@ onMounted(() => {
 
           <!-- 数据表格 -->
           <TabsContent value="rows">
-            <div class="overflow-hidden rounded-xl border shadow-sm">
+            <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
               <div class="overflow-x-auto">
-                <Table class="data-table min-w-[56rem]">
+                <Table class="min-w-[56rem]">
                   <TableHeader>
-                    <TableRow>
+                    <TableRow class="hover:bg-transparent">
                       <TableHead v-for="col in tableColumns" :key="col.name">
                         {{ col.name }}
                       </TableHead>
@@ -693,11 +683,11 @@ onMounted(() => {
 
           <!-- 变更记录 -->
           <TabsContent value="logs">
-            <div class="overflow-hidden rounded-xl border shadow-sm">
+            <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
               <div class="overflow-x-auto">
-                <Table class="data-table min-w-[48rem]">
+                <Table class="min-w-[48rem]">
                   <TableHeader>
-                    <TableRow>
+                    <TableRow class="hover:bg-transparent">
                       <TableHead>时间</TableHead>
                       <TableHead>操作人</TableHead>
                       <TableHead>动作</TableHead>
@@ -750,32 +740,35 @@ onMounted(() => {
                 </Table>
               </div>
 
-              <div class="flex items-center justify-between border-t px-4 py-3">
+              <div class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
                 <p class="text-sm text-muted-foreground">
                   第 {{ logsPage }} / {{ logsTotalPages }} 页，共 {{ logsTotal }} 条
                 </p>
-                <div class="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    :disabled="logsPage <= 1 || logsLoading"
-                    aria-label="上一页"
-                    @click="goLogsPrev"
-                  >
-                    <ChevronLeft class="size-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-sm"
-                    :disabled="logsPage >= logsTotalPages || logsLoading"
-                    aria-label="下一页"
-                    @click="goLogsNext"
-                  >
-                    <ChevronRight class="size-4" />
-                  </Button>
-                </div>
+                <Pagination
+                  :page="logsPage"
+                  :items-per-page="logsPageSize"
+                  :total="logsTotal"
+                  :sibling-count="1"
+                  :disabled="logsLoading"
+                  show-edges
+                  class="mx-0 w-auto justify-end"
+                  @update:page="goLogsPage"
+                >
+                  <PaginationContent v-slot="{ items }">
+                    <PaginationPrevious />
+                    <template v-for="(item, index) in items" :key="index">
+                      <PaginationItem
+                        v-if="item.type === 'page'"
+                        :value="item.value"
+                        :is-active="item.value === logsPage"
+                      >
+                        {{ item.value }}
+                      </PaginationItem>
+                      <PaginationEllipsis v-else />
+                    </template>
+                    <PaginationNext />
+                  </PaginationContent>
+                </Pagination>
               </div>
             </div>
           </TabsContent>
@@ -790,9 +783,9 @@ onMounted(() => {
           <DialogTitle>
             {{ formMode === "create" ? "新增记录" : "编辑记录" }}
           </DialogTitle>
-          <p class="text-sm text-muted-foreground">
+          <DialogDescription>
             {{ selectedTable?.schema_name }}.{{ selectedTable?.table_name }}
-          </p>
+          </DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="submitForm">
           <div v-for="col in formColumns" :key="col.name" class="grid gap-2">
@@ -886,7 +879,7 @@ onMounted(() => {
         <AlertDialogFooter>
           <AlertDialogCancel :disabled="deleting">取消</AlertDialogCancel>
           <AlertDialogAction
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
             :disabled="deleting"
             @click="confirmDelete"
           >

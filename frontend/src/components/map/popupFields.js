@@ -1,3 +1,5 @@
+import { PARCEL_STATUS_COLORS, SEVERITY_COLORS } from "../../config/map-palette.js";
+
 const HOVER_NAME_KEYS = [
   "点位名称",
   "位置名称",
@@ -92,7 +94,7 @@ export function resolveFeatureSeverity(properties = {}) {
   ) {
     return {
       key: "level0",
-      color: "#ffffff",
+      color: SEVERITY_COLORS.none,
       radius: 7,
       label: "无",
     };
@@ -101,7 +103,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("轻")) {
     return {
       key: "level1",
-      color: "#0033ff",
+      color: SEVERITY_COLORS.light,
       radius: 7,
       label: "轻",
     };
@@ -110,7 +112,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("中")) {
     return {
       key: "level2",
-      color: "#fbff05",
+      color: SEVERITY_COLORS.medium,
       radius: 9,
       label: "中",
     };
@@ -119,7 +121,7 @@ export function resolveFeatureSeverity(properties = {}) {
   if (normalized.includes("重")) {
     return {
       key: "level3",
-      color: "#ff0000",
+      color: SEVERITY_COLORS.high,
       radius: 11,
       label: "重",
     };
@@ -127,7 +129,7 @@ export function resolveFeatureSeverity(properties = {}) {
 
   return {
     key: "level0",
-    color: "#ffffff",
+    color: SEVERITY_COLORS.none,
     radius: 7,
     label: "无",
   };
@@ -144,7 +146,7 @@ export function resolveFeatureParcelStatus(properties = {}) {
   if (normalized === "调查") {
     return {
       key: "parcel-surveyed",
-      color: "#ff0000",
+      color: PARCEL_STATUS_COLORS.surveyed,
       radius: 8,
       label: "调查",
     };
@@ -153,7 +155,7 @@ export function resolveFeatureParcelStatus(properties = {}) {
   if (normalized === "伐除") {
     return {
       key: "parcel-removed",
-      color: "#000000",
+      color: PARCEL_STATUS_COLORS.removed,
       radius: 8,
       label: "伐除",
     };
@@ -161,7 +163,7 @@ export function resolveFeatureParcelStatus(properties = {}) {
 
   return {
     key: "parcel-default",
-    color: "#ffffff",
+    color: PARCEL_STATUS_COLORS.other,
     radius: 8,
     label: "其他",
   };

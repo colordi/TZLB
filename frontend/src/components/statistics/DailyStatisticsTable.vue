@@ -1,10 +1,16 @@
 <script setup>
 import { computed, ref, watch } from "vue";
-import { ChevronLeft, ChevronRight, Inbox, LoaderCircle } from "@lucide/vue";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -148,22 +154,7 @@ function handleGenerationChange(event) {
     </CardHeader>
 
     <CardContent class="space-y-4">
-      <div
-        v-if="props.loading"
-        class="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-sm text-muted-foreground"
-      >
-        <LoaderCircle class="size-4 animate-spin text-muted-foreground/60" />
-        <p>正在读取每日统计…</p>
-      </div>
-      <div
-        v-else-if="props.rows.length === 0"
-        class="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-10 text-sm text-muted-foreground"
-      >
-        <Inbox class="size-4 text-muted-foreground/50" />
-        <p>{{ props.emptyText }}</p>
-      </div>
-
-      <div v-else class="overflow-hidden rounded-xl border shadow-sm">
+      <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table class="min-w-[48rem]">
           <TableHeader>
             <TableRow class="hover:bg-transparent">
@@ -197,6 +188,22 @@ function handleGenerationChange(event) {
             </TableRow>
           </TableHeader>
           <TableBody>
+            <TableRow v-if="props.loading">
+              <TableCell
+                :colspan="Math.max(props.columns.length, 1)"
+                class="h-24 text-center text-muted-foreground"
+              >
+                正在读取每日统计…
+              </TableCell>
+            </TableRow>
+            <TableRow v-else-if="props.rows.length === 0">
+              <TableCell
+                :colspan="Math.max(props.columns.length, 1)"
+                class="h-24 text-center text-muted-foreground"
+              >
+                {{ props.emptyText }}
+              </TableCell>
+            </TableRow>
             <TableRow
               v-for="(row, rowIndex) in paginatedRows"
               :key="row.date"
@@ -220,36 +227,35 @@ function handleGenerationChange(event) {
 
         <div
           v-if="totalPages > 1"
-          class="flex items-center justify-between border-t px-4 py-3"
+          class="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3"
           aria-label="分页导航"
         >
           <p class="text-sm text-muted-foreground">
             第 {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, props.rows.length) }} 条，共 {{ props.rows.length }} 条
           </p>
-          <div class="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              :disabled="currentPage === 1"
-              aria-label="上一页"
-              data-testid="data-statistics-prev-page"
-              @click="currentPage -= 1"
-            >
-              <ChevronLeft class="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              :disabled="currentPage === totalPages"
-              aria-label="下一页"
-              data-testid="data-statistics-next-page"
-              @click="currentPage += 1"
-            >
-              <ChevronRight class="size-4" />
-            </Button>
-          </div>
+          <Pagination
+            v-model:page="currentPage"
+            :items-per-page="PAGE_SIZE"
+            :total="props.rows.length"
+            :sibling-count="1"
+            show-edges
+            class="mx-0 w-auto justify-end"
+          >
+            <PaginationContent v-slot="{ items }">
+              <PaginationPrevious data-testid="data-statistics-prev-page" />
+              <template v-for="(item, index) in items" :key="index">
+                <PaginationItem
+                  v-if="item.type === 'page'"
+                  :value="item.value"
+                  :is-active="item.value === currentPage"
+                >
+                  {{ item.value }}
+                </PaginationItem>
+                <PaginationEllipsis v-else />
+              </template>
+              <PaginationNext data-testid="data-statistics-next-page" />
+            </PaginationContent>
+          </Pagination>
         </div>
       </div>
     </CardContent>

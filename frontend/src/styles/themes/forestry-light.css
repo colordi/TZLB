@@ -1,0 +1,134 @@
+/* 林业调查工作台 · 主题 token（light only）
+ * 规范文档：docs/specs/frontend-design-system.md（§2 色彩系统）
+ * 主色：深林绿；中性色：微绿调暖灰。destructive 为真红（历史 bug：曾为近黑色）。
+ * 领域色（severity 四色、行政边界）属行业判读约定，值锁定勿改；
+ * Leaflet JS 侧色值见 frontend/src/config/map-palette.js，两侧须保持一致。
+ */
+
+:root {
+  /* 核心语义 */
+  --background: oklch(0.982 0.004 150);
+  --foreground: oklch(0.28 0.02 155);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.28 0.02 155);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.28 0.02 155);
+  --primary: oklch(0.52 0.09 155);
+  --primary-foreground: oklch(0.985 0.004 150);
+  --secondary: oklch(0.94 0.012 150);
+  --secondary-foreground: oklch(0.36 0.03 155);
+  --muted: oklch(0.955 0.008 150);
+  --muted-foreground: oklch(0.52 0.015 155);
+  --accent: oklch(0.93 0.018 150);
+  --accent-foreground: oklch(0.32 0.03 155);
+  --destructive: oklch(0.577 0.215 27.3);
+  --destructive-foreground: oklch(0.985 0.004 150);
+  --border: oklch(0.905 0.008 150);
+  --input: oklch(0.86 0.01 150);
+  --ring: oklch(0.52 0.09 155);
+  --radius: 0.5rem;
+
+  /* 反馈语义 */
+  --success: oklch(0.55 0.11 150);
+  --success-foreground: oklch(0.985 0.004 150);
+  --warning: oklch(0.75 0.14 85);
+  --warning-foreground: oklch(0.32 0.04 80);
+  --info: oklch(0.55 0.11 250);
+  --info-foreground: oklch(0.985 0.004 150);
+
+  /* 图表 */
+  --chart-1: oklch(0.52 0.09 155);
+  --chart-2: oklch(0.65 0.12 130);
+  --chart-3: oklch(0.72 0.13 90);
+  --chart-4: oklch(0.55 0.11 250);
+  --chart-5: oklch(0.6 0.13 30);
+
+  /* 侧边栏（浅绿白） */
+  --sidebar: oklch(0.97 0.006 150);
+  --sidebar-foreground: oklch(0.3 0.02 155);
+  --sidebar-primary: oklch(0.52 0.09 155);
+  --sidebar-primary-foreground: oklch(0.985 0.004 150);
+  --sidebar-accent: oklch(0.93 0.018 150);
+  --sidebar-accent-foreground: oklch(0.32 0.03 155);
+  --sidebar-border: oklch(0.915 0.008 150);
+  --sidebar-ring: oklch(0.52 0.09 155);
+
+  /* 领域色：行业判读约定，值锁定（见规范 §2.5） */
+  --severity-none: #ffffff;
+  --severity-light: #0033ff;
+  --severity-medium: #fbff05;
+  --severity-high: #ff0000;
+  --map-boundary: #d97706;
+  --map-boundary-soft: rgba(217, 119, 6, 0.46);
+
+  /* 字族 */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --tracking-normal: 0em;
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-severity-none: var(--severity-none);
+  --color-severity-light: var(--severity-light);
+  --color-severity-medium: var(--severity-medium);
+  --color-severity-high: var(--severity-high);
+  --color-map-boundary: var(--map-boundary);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+}

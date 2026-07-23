@@ -4,7 +4,7 @@
 
 - 后端：`backend/` 目录，FastAPI + asyncpg + Pydantic Settings
 
-- 前端：`frontend/` 目录，Vue 3 + Vue Router + Vite + Vitest + Leaflet + Tailwind CSS v4 + shadcn-vue（Claude light 主题）
+- 前端：`frontend/` 目录，Vue 3 + Vue Router + Vite + Vitest + Leaflet + Tailwind CSS v4 + shadcn-vue（forestry light 主题，设计规范见 `docs/specs/frontend-design-system.md`）
 
 - 数据库：本机 PostgreSQL/PostGIS，连接串由 `.env` 中的 `DATABASE_URL` 指定
 
@@ -79,6 +79,13 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## 架构与约定
+
+### 前端 UI 约定
+
+- 现行设计规范：`docs/specs/frontend-design-system.md`（色彩 token、布局、组件唯一实现、地图域规范），修改前端 UI 前必读。
+- 主题 token 在 `frontend/src/styles/themes/forestry-light.css`；业务代码禁止裸 hex/rgb 与 Tailwind 调色板直色，一律用语义 token。
+- 组件唯一来源：`@/components/ui/*`（shadcn-vue）+ `@/components/common/*`（PageHeader、EmptyState、ConfirmDialog）；弹窗用 ui/dialog、确认用 ui/alert-dialog，toast 用 `useToast()`（vue-sonner）。
+- Leaflet 运行时色值的唯一来源是 `frontend/src/config/map-palette.js`（危害程度等行业色值锁定，见规范 §2.5）。
 
 ### 后端结构
 

@@ -20,8 +20,11 @@ import {
   buildPopupRows,
   resolveFeatureHoverLabel,
 } from "../components/map/popupFields.js";
-import ConfirmDialog from "../components/workorder/ConfirmDialog.vue";
+import ConfirmDialog from "../components/common/ConfirmDialog.vue";
 import LeafletMap from "../components/map/LeafletMap.vue";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 
 function createEmptyFeatureCollection() {
   return {
@@ -421,7 +424,9 @@ async function toggleSearchPanel() {
   isSurveyStatusFilterOpen.value = false;
   ensureSearchIndex();
   await nextTick();
-  searchInputRef.value?.focus?.({ preventScroll: true });
+  // ui/input 组件 ref 取组件实例，需取 $el 才能调原生 focus
+  const searchInputEl = searchInputRef.value?.$el ?? searchInputRef.value;
+  searchInputEl?.focus?.({ preventScroll: true });
 }
 
 function toggleSurveyStatusFilterPanel() {
@@ -1035,8 +1040,8 @@ function onMapClick(location) {
   selectedFeature.value = null;
 }
 
-function onWhiteMothSiteCodeInput(event) {
-  whiteMothSiteForm.value.code = event.target.value.toUpperCase();
+function onWhiteMothSiteCodeInput(value) {
+  whiteMothSiteForm.value.code = `${value ?? ""}`.toUpperCase();
 }
 
 function normalizeWhiteMothSiteCodeInput() {
@@ -1135,14 +1140,19 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="page-shell map-page">
+  <section class="map-page">
     <div class="map-workspace">
       <!-- MapToolbar removed: view/layer tools live inside LeafletMap. -->
 
       <section class="map-search-panel" aria-label="地图点位搜索">
-        <div class="map-control-stack" aria-label="地图快捷工具">
-          <button
+        <div
+          class="map-control-stack rounded-xl border bg-card/95 shadow-md backdrop-blur"
+          aria-label="地图快捷工具"
+        >
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             class="map-control-icon-button"
             :class="{ 'is-active': isSearchPanelOpen || searchQuery }"
             data-testid="map-search-toggle"
@@ -1152,16 +1162,18 @@ onMounted(async () => {
             :disabled="loadingViews || !selectedView"
             @click="toggleSearchPanel"
           >
-            <Search :size="17" :stroke-width="1.7" aria-hidden="true" />
+            <Search aria-hidden="true" />
             <span
               v-if="searchQuery"
               class="map-control-icon-dot"
               aria-hidden="true"
             ></span>
-          </button>
-          <button
+          </Button>
+          <Button
             v-if="supportsSurveyStatusFilter"
             type="button"
+            variant="ghost"
+            size="icon"
             class="map-control-icon-button"
             :class="{
               'is-active': isSurveyStatusFilterOpen || surveyStatusFilter !== 'all',
@@ -1173,13 +1185,13 @@ onMounted(async () => {
             :disabled="loadingViews || loadingFilterOptions"
             @click="toggleSurveyStatusFilterPanel"
           >
-            <Filter :size="17" :stroke-width="1.7" aria-hidden="true" />
+            <Filter aria-hidden="true" />
             <span
               v-if="surveyStatusFilter !== 'all'"
               class="map-control-icon-dot"
               aria-hidden="true"
             ></span>
-          </button>
+          </Button>
         </div>
 
         <div class="map-panel-popovers">
@@ -1189,61 +1201,69 @@ onMounted(async () => {
             class="map-search-popover"
             data-testid="map-search-popover"
           >
-            <form class="map-search-form" @submit.prevent="submitSearch">
-              <label class="map-search-input-wrap">
-                <span class="map-search-sr-only">搜索编号、点位名称、属地</span>
-                <Search :size="17" :stroke-width="2" aria-hidden="true" />
-                <input
-                  ref="searchInputRef"
-                  v-model="searchQuery"
-                  data-testid="map-search-input"
-                  type="text"
-                  autocomplete="off"
-                  enterkeyhint="search"
-                  placeholder="搜索编号、点位名称、属地"
-                  :disabled="loadingViews || !selectedView"
-                  @focus="searchFocused = true"
-                />
-              </label>
-              <button
+            <form
+              class="map-search-form rounded-xl border bg-card/95 shadow-md backdrop-blur"
+              @submit.prevent="submitSearch"
+            >
+              <Search :size="16" class="ml-1 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <Input
+                ref="searchInputRef"
+                v-model="searchQuery"
+                data-testid="map-search-input"
+                type="text"
+                autocomplete="off"
+                enterkeyhint="search"
+                aria-label="搜索编号、点位名称、属地"
+                placeholder="搜索编号、点位名称、属地"
+                :disabled="loadingViews || !selectedView"
+                @focus="searchFocused = true"
+              />
+              <Button
                 v-if="searchQuery"
                 type="button"
-                class="map-search-clear"
+                variant="ghost"
+                size="icon-sm"
                 aria-label="清空搜索"
                 @click="clearSearch"
               >
-                <X :size="17" :stroke-width="2" aria-hidden="true" />
-              </button>
-              <button type="submit" class="map-search-submit" :disabled="!searchQuery.trim()">
+                <X aria-hidden="true" />
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                class="map-search-submit"
+                :disabled="!searchQuery.trim()"
+              >
                 搜索
-              </button>
+              </Button>
             </form>
 
             <div
               v-if="showSearchResults"
-              class="map-search-results"
+              class="map-search-results rounded-xl border bg-card/95 shadow-md backdrop-blur"
               data-testid="map-search-results"
             >
-              <button
+              <Button
                 v-for="result in searchResults"
                 :key="result.key"
                 type="button"
+                variant="ghost"
                 class="map-search-result"
                 :data-testid="`map-search-result-${result.key}`"
                 @mousedown.prevent="selectSearchResult(result)"
               >
                 <strong>{{ result.title }}</strong>
                 <span>{{ result.meta || "当前视图点位" }}</span>
-              </button>
+              </Button>
               <div
                 v-if="searchResults.length === 0 && loadingSearchIndex"
-                class="map-search-empty"
+                class="px-3 py-4 text-center text-xs text-muted-foreground"
               >
                 正在加载点位…
               </div>
               <div
                 v-else-if="searchResults.length === 0"
-                class="map-search-empty"
+                class="px-3 py-4 text-center text-xs text-muted-foreground"
               >
                 未找到匹配点位
               </div>
@@ -1252,15 +1272,17 @@ onMounted(async () => {
 
           <div
             v-if="supportsSurveyStatusFilter && isSurveyStatusFilterOpen"
-            class="map-survey-status-filter"
+            class="map-survey-status-filter rounded-xl border bg-card/95 shadow-md backdrop-blur"
             data-testid="map-survey-status-filter"
             aria-label="调查状态筛选"
           >
             <div class="map-survey-status-segments" role="group" aria-label="调查状态">
-              <button
+              <Button
                 v-for="option in visibleSurveyStatusOptions"
                 :key="option.key"
                 type="button"
+                :variant="surveyStatusFilter === option.key ? 'default' : 'ghost'"
+                size="sm"
                 class="map-survey-status-option"
                 :class="{ 'is-active': surveyStatusFilter === option.key }"
                 :data-testid="`map-survey-status-${option.key}`"
@@ -1272,7 +1294,7 @@ onMounted(async () => {
                 <span class="map-survey-status-option-count">
                   {{ getSurveyStatusCount(option.key) }}
                 </span>
-              </button>
+              </Button>
             </div>
 
             <div
@@ -1286,11 +1308,12 @@ onMounted(async () => {
                 class="map-dynamic-filter"
               >
                 <span class="map-dynamic-filter-label">{{ field.label }}</span>
-                <select
-                  :value="dynamicFilterValues[field.key] || ''"
+                <NativeSelect
+                  :model-value="dynamicFilterValues[field.key] || ''"
                   :data-testid="`map-filter-${field.key}`"
                   :disabled="loading || loadingFilterOptions"
-                  @change="selectDynamicFilter(field.key, $event.target.value)"
+                  class="h-8 text-xs"
+                  @update:model-value="selectDynamicFilter(field.key, $event)"
                 >
                   <option value="">全部</option>
                   <option
@@ -1300,7 +1323,7 @@ onMounted(async () => {
                   >
                     {{ option.label }}
                   </option>
-                </select>
+                </NativeSelect>
               </label>
             </div>
           </div>
@@ -1311,20 +1334,19 @@ onMounted(async () => {
         v-if="selectedFeature"
         class="detail-drawer"
       >
-        <article class="panel-card detail-card">
+        <article class="detail-card">
           <header class="detail-header">
             <span class="detail-title">{{ featureTitle || '点位详情' }}</span>
-            <button
+            <Button
               type="button"
-              class="detail-close-btn"
+              variant="ghost"
+              size="icon-sm"
+              class="shrink-0 text-muted-foreground"
               aria-label="关闭详情"
               @click="closeDetail"
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+              <X aria-hidden="true" />
+            </Button>
           </header>
           <div class="detail-divider"></div>
           <div class="detail-body">
@@ -1334,15 +1356,16 @@ onMounted(async () => {
             </div>
           </div>
           <footer v-if="canDeleteSelectedSite" class="detail-footer">
-            <button
+            <Button
               type="button"
-              class="delete-site-btn"
+              variant="destructive"
+              class="w-full"
               data-testid="white-moth-site-delete-btn"
               :disabled="deleteCheckLoading"
               @click="requestDeleteWhiteMothSite"
             >
               {{ deleteCheckLoading ? "检查中…" : "删除点位" }}
-            </button>
+            </Button>
           </footer>
         </article>
       </aside>
@@ -1352,21 +1375,20 @@ onMounted(async () => {
         class="site-add-drawer"
         aria-label="新增美国白蛾点位"
       >
-        <article class="panel-card site-add-card">
+        <article class="site-add-card">
           <header class="detail-header">
             <span class="detail-title">新增美国白蛾点位</span>
-            <button
+            <Button
               type="button"
-              class="detail-close-btn"
+              variant="ghost"
+              size="icon-sm"
+              class="shrink-0 text-muted-foreground"
               aria-label="关闭新增点位"
               :disabled="isSavingWhiteMothSite"
               @click="cancelWhiteMothSiteAdd"
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
+              <X aria-hidden="true" />
+            </Button>
           </header>
           <div class="detail-divider"></div>
 
@@ -1380,19 +1402,19 @@ onMounted(async () => {
 
             <label class="site-add-field">
               <span>编号</span>
-              <input
-                :value="whiteMothSiteForm.code"
+              <Input
+                :model-value="whiteMothSiteForm.code"
                 data-testid="white-moth-site-code"
                 inputmode="text"
                 autocomplete="off"
                 :placeholder="whiteMothSiteCodeExample"
                 :disabled="isSavingWhiteMothSite"
                 @blur="normalizeWhiteMothSiteCodeInput"
-                @input="onWhiteMothSiteCodeInput"
+                @update:model-value="onWhiteMothSiteCodeInput"
               />
               <small
                 v-if="whiteMothSiteCodeError"
-                class="site-add-error"
+                class="text-xs text-destructive"
                 data-testid="white-moth-site-code-error"
               >
                 {{ whiteMothSiteCodeError }}
@@ -1415,21 +1437,23 @@ onMounted(async () => {
               <strong data-testid="white-moth-site-code-hint-text">
                 {{ whiteMothSiteCodeHintText }}
               </strong>
-              <button
+              <Button
                 v-if="whiteMothSiteCodeHint?.suggested_next_code && !loadingWhiteMothSiteCodeHint"
                 type="button"
-                class="site-add-hint-fill-btn"
+                variant="outline"
+                size="xs"
+                class="self-start"
                 data-testid="white-moth-site-fill-suggested-code"
                 :disabled="isSavingWhiteMothSite"
                 @click="applySuggestedWhiteMothSiteCode"
               >
                 填入建议编号
-              </button>
+              </Button>
             </div>
 
             <label class="site-add-field">
               <span>点位名称</span>
-              <input
+              <Input
                 v-model="whiteMothSiteForm.siteName"
                 data-testid="white-moth-site-name"
                 autocomplete="off"
@@ -1439,21 +1463,21 @@ onMounted(async () => {
             </label>
 
             <div class="site-add-actions">
-              <button
+              <Button
                 type="submit"
                 data-testid="white-moth-site-submit"
                 :disabled="!canSubmitWhiteMothSite"
               >
                 {{ isSavingWhiteMothSite ? '保存中' : '保存点位' }}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                class="button-secondary"
+                variant="outline"
                 :disabled="isSavingWhiteMothSite"
                 @click="cancelWhiteMothSiteAdd"
               >
                 取消
-              </button>
+              </Button>
             </div>
           </form>
         </article>
@@ -1501,34 +1525,9 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* Claude 色桥：地图子树内把旧 --color-* 映射到 shadcn/Claude token */
+/* 颜色一律 var(--*) 语义 token；浮层视觉（bg-card/95、backdrop-blur、圆角、边框、阴影）
+ * 走模板 Tailwind 类（规范 §7），此处保留布局结构与移动端媒体查询。 */
 .map-page {
-  /* shadcn semantic */
-  --color-primary: var(--primary);
-  --color-primary-strong: var(--primary);
-  --color-primary-soft: color-mix(in oklch, var(--primary) 12%, white);
-  --color-accent: var(--primary);
-  --color-accent-on: var(--primary-foreground);
-  --color-accent-hover: color-mix(in oklch, var(--primary) 88%, black);
-  --color-surface: var(--card);
-  --color-surface-container: var(--muted);
-  --color-surface-container-low: var(--muted);
-  --color-surface-container-lowest: var(--card);
-  --color-border: var(--border);
-  --color-line: var(--border);
-  --color-line-strong: var(--border);
-  --color-text: var(--foreground);
-  --color-text-muted: var(--muted-foreground);
-  --color-muted: var(--muted-foreground);
-  --color-ink: var(--foreground);
-  --color-ink-soft: var(--muted-foreground);
-  --color-nav: var(--sidebar);
-  --color-bg: var(--background);
-  --color-map-land: var(--background);
-  --color-danger: var(--destructive);
-  --color-warning: var(--chart-1);
-  --shadow-card: var(--shadow-sm, 0 1px 3px hsl(0 0% 0% / 0.1));
-
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1559,8 +1558,12 @@ onMounted(async () => {
   z-index: 1;
   opacity: 0.24;
   background-image:
-    linear-gradient(color-mix(in oklch, var(--color-text) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklch, var(--color-text) 6%, transparent) 1px, transparent 1px);
+    linear-gradient(color-mix(in oklch, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--foreground) 6%, transparent) 1px,
+      transparent 1px
+    );
   background-size: 52px 52px;
   content: "";
   pointer-events: none;
@@ -1571,8 +1574,16 @@ onMounted(async () => {
   inset: 0;
   z-index: 2;
   background:
-    linear-gradient(to bottom, color-mix(in oklch, var(--color-surface) 22%, transparent), transparent 24%),
-    radial-gradient(circle at 50% 110%, color-mix(in oklch, var(--color-text) 10%, transparent), transparent 42%);
+    linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--card) 22%, transparent),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 50% 110%,
+      color-mix(in oklch, var(--foreground) 10%, transparent),
+      transparent 42%
+    );
   content: "";
   pointer-events: none;
 }
@@ -1608,49 +1619,24 @@ onMounted(async () => {
 .map-control-stack {
   display: grid;
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
 }
 
 .map-control-icon-button {
   position: relative;
-  min-height: 0;
   width: 2.75rem;
   height: 2.75rem;
   padding: 0;
-  border: 0;
   border-radius: 0;
-  background: transparent;
-  color: var(--color-primary-strong);
-  transition: all 0.2s ease;
-  transform: none;
+  color: var(--primary);
 }
 
 .map-control-icon-button + .map-control-icon-button {
-  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-}
-
-.map-control-icon-button:hover:not(:disabled) {
-  background: color-mix(in oklch, var(--color-primary) 8%, white);
-  color: var(--color-primary-strong);
-  transform: none;
+  border-top: 1px solid var(--border);
 }
 
 .map-control-icon-button.is-active {
-  background: color-mix(in oklch, var(--color-primary) 12%, white);
-  color: var(--color-primary);
-}
-
-.map-control-icon-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.map-control-icon-button svg {
-  width: 17px;
-  height: 17px;
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+  color: var(--primary);
 }
 
 .map-control-icon-dot {
@@ -1659,8 +1645,8 @@ onMounted(async () => {
   right: 8px;
   width: 5px;
   height: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--color-danger);
+  border-radius: 999px;
+  background: var(--destructive);
 }
 
 .map-panel-popovers {
@@ -1674,127 +1660,64 @@ onMounted(async () => {
 
 .map-search-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
+  gap: 0.5rem;
+  padding: 0.5rem;
 }
 
-.map-search-input-wrap {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
+.map-search-results {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
 }
 
-.map-search-input-wrap > svg {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.map-search-result {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  padding: 0.75rem;
+  color: var(--foreground);
+  text-align: left;
+  white-space: normal;
 }
 
-.map-search-input-wrap input {
-  appearance: none;
-  -webkit-appearance: none;
-  min-width: 0;
-  min-height: 36px;
-  padding: 0 var(--space-2);
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 650;
+.map-search-result strong,
+.map-search-result span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.map-search-input-wrap input:focus {
-  box-shadow: none;
+.map-search-result strong {
+  font-size: 0.875rem;
 }
 
-.map-search-input-wrap input:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.map-search-clear,
-.map-search-submit {
-  min-height: 36px;
-  border-radius: var(--radius-sm);
-  box-shadow: none;
-  transform: none;
-}
-
-.map-search-clear {
-  width: 36px;
-  padding: 0;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 20px;
-  line-height: 1;
-}
-
-.map-search-clear:hover {
-  background: var(--color-surface-container);
-  box-shadow: none;
-  transform: none;
-}
-
-.map-search-submit {
-  padding: 0 var(--space-4);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-
-.map-search-submit:disabled {
-  opacity: 0.45;
+.map-search-result span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .map-survey-status-filter {
   width: 100%;
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-1);
-  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--color-surface) 94%, transparent);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
+  gap: 0.25rem;
+  padding: 0.25rem;
 }
 
 .map-survey-status-segments {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1);
+  gap: 0.25rem;
 }
 
 .map-survey-status-option {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
   min-width: 0;
-  min-height: 34px;
-  padding: 0 var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  line-height: 1;
-  transform: none;
 }
 
 .map-survey-status-option-text,
@@ -1807,34 +1730,16 @@ onMounted(async () => {
 .map-survey-status-option-count {
   color: color-mix(in oklch, currentColor 76%, transparent);
   font-size: 0.72rem;
-  font-weight: 850;
-}
-
-.map-survey-status-option:hover:not(:disabled) {
-  background: var(--color-primary-soft);
-  box-shadow: none;
-  color: var(--color-text);
-  transform: none;
-}
-
-.map-survey-status-option.is-active {
-  border-color: color-mix(in oklch, var(--color-primary) 68%, transparent);
-  background: var(--color-primary);
-  color: var(--color-surface);
-}
-
-.map-survey-status-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.58;
+  font-weight: 700;
 }
 
 .map-dynamic-filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid color-mix(in oklch, var(--color-border) 80%, transparent);
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
 }
 
 .map-dynamic-filter {
@@ -1844,92 +1749,13 @@ onMounted(async () => {
 }
 
 .map-dynamic-filter-label {
-  color: var(--color-text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-.map-dynamic-filter select {
+.map-dynamic-filter :deep([data-slot="native-select-wrapper"]) {
   width: 100%;
-  min-height: 30px;
-  padding: 0 var(--space-2);
-  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.map-dynamic-filter select:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-
-.map-search-results {
-  margin-top: var(--space-2);
-  padding: var(--space-2);
-  border: 1px solid color-mix(in oklch, var(--color-border) 88%, transparent);
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--color-surface) 96%, transparent);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(12px);
-}
-
-.map-search-result {
-  width: 100%;
-  min-height: 52px;
-  justify-content: flex-start;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  box-shadow: none;
-  color: var(--color-text);
-  text-align: left;
-}
-
-.map-search-result:hover {
-  background: var(--color-primary-soft);
-  box-shadow: none;
-  transform: none;
-}
-
-.map-search-result strong,
-.map-search-result span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.map-search-result strong {
-  font-size: var(--text-sm);
-}
-
-.map-search-result span,
-.map-search-empty {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 650;
-}
-
-.map-search-empty {
-  padding: var(--space-4);
-  text-align: center;
-}
-
-.map-search-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
 }
 
 .detail-drawer,
@@ -1949,14 +1775,13 @@ onMounted(async () => {
   flex-direction: column;
   height: 100%;
   padding: 0;
-  border: 0;
-  border-left: 1px solid var(--color-border);
-  border-radius: 0;
-  background: color-mix(in oklch, var(--color-surface) 96%, transparent);
-  box-shadow: -18px 0 42px color-mix(in oklch, var(--color-text) 14%, transparent);
+  border-left: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 96%, transparent);
+  box-shadow: -18px 0 42px color-mix(in oklch, var(--foreground) 14%, transparent);
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   pointer-events: auto;
-  animation: detail-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: detail-slide-in 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 @keyframes detail-slide-in {
@@ -1964,6 +1789,7 @@ onMounted(async () => {
     opacity: 0;
     transform: translateX(12px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -1975,47 +1801,25 @@ onMounted(async () => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: var(--space-6);
+  padding: 1.5rem;
 }
 
 .detail-title {
   min-width: 0;
   flex: 1;
-  font-size: var(--text-xl);
-  line-height: 1.25;
-  font-family: var(--font-display);
+  color: var(--foreground);
+  font-size: 1.25rem;
   font-weight: 700;
-  color: var(--color-text);
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.detail-close-btn {
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--motion-fast) var(--ease-standard);
-}
-
-.detail-close-btn:hover {
-  background: var(--color-surface-container);
-  color: var(--color-ink);
-}
-
 .detail-divider {
   height: 1px;
-  background: linear-gradient(to right, var(--color-line-strong), transparent);
-  margin: 0 var(--space-6);
+  margin: 0 1.5rem;
+  background: linear-gradient(to right, var(--border), transparent);
 }
 
 .detail-body {
@@ -2024,66 +1828,41 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
-  gap: var(--space-3);
-  padding: var(--space-6);
+  gap: 0.75rem;
+  padding: 1.5rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
 .detail-footer {
-  padding: var(--space-4) var(--space-6) var(--space-6);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.delete-site-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: var(--space-3) 1.2rem;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-danger);
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid var(--color-danger);
-  box-shadow: none;
-}
-
-.delete-site-btn:hover:not(:disabled) {
-  background: rgba(229, 72, 77, 0.08);
-}
-
-.delete-site-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
 }
 
 .detail-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 0.5rem;
   min-height: 74px;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-container-lowest);
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
 }
 
 .detail-label {
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
   letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .detail-value {
-  color: var(--color-text);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -2104,15 +1883,15 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-container-lowest);
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
 }
 
 .site-add-location strong {
-  color: var(--color-ink);
-  font-size: 0.92rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 
@@ -2120,70 +1899,13 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.38rem;
-  color: var(--color-ink);
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.site-add-field input {
-  min-width: 0;
-  width: 100%;
-  padding: 0.72rem 0.82rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  /* iOS Safari 会对 font-size < 16px 的 input 在 focus 时整页缩放且常不回退 */
-  font-size: 1rem;
-  font-weight: 650;
-  outline: none;
-  transition:
-    border-color var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard);
-}
-
-.site-add-field input:focus {
-  border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
-}
-
-.site-add-field input:disabled {
-  cursor: not-allowed;
-  opacity: 0.68;
-}
-
-.site-add-error {
-  color: var(--color-danger);
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1.35;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .site-add-code-hint {
   gap: 0.45rem;
-}
-
-.site-add-hint-fill-btn {
-  align-self: flex-start;
-  margin-top: 0.1rem;
-  padding: 0.42rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface));
-  color: var(--color-primary);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.site-add-hint-fill-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
-}
-
-.site-add-hint-fill-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.68;
 }
 
 .site-add-actions {
@@ -2195,8 +1917,8 @@ onMounted(async () => {
 
 @media (max-width: 760px) {
   .map-workspace {
-    min-height: calc(100vh - var(--app-mobile-header-height) - 0.65rem);
-    border-radius: var(--radius-lg);
+    min-height: calc(100vh - 4.25rem - 0.65rem);
+    border-radius: var(--radius);
   }
 
   .map-search-panel {
@@ -2208,10 +1930,6 @@ onMounted(async () => {
 
   .map-panel-popovers {
     width: min(286px, calc(100vw - 9.5rem));
-  }
-
-  .map-search-form {
-    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .map-search-submit {
@@ -2230,20 +1948,19 @@ onMounted(async () => {
 
   .detail-card,
   .site-add-card {
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--border);
     border-left: 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    box-shadow: 0 -18px 42px color-mix(in oklch, var(--color-text) 14%, transparent);
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -18px 42px color-mix(in oklch, var(--foreground) 14%, transparent);
   }
 
   .detail-body {
     grid-template-columns: 1fr;
-    padding: var(--space-5);
+    padding: 1.25rem;
   }
 
   .site-add-actions {
     grid-template-columns: 1fr;
   }
-
 }
 </style>

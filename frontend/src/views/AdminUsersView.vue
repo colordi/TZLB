@@ -21,12 +21,15 @@ import {
 } from "../api/admin.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -167,16 +170,38 @@ async function handleResetPwd() {
   }
 }
 
-async function handleDelete(user) {
-  if (!confirm(`确认删除用户「${user.display_name || user.username}」？此操作不可撤销。`)) {
-    return;
-  }
+const headerDescription = computed(
+  () => `管理系统账号，共 ${users.value.length} 人（活跃 ${activeUsers.value.length} 人）`,
+);
+
+/* ── 删除确认 ───────────────────────────── */
+const showDelete = ref(false);
+const deletingUser = ref(null);
+const deleting = ref(false);
+
+const deleteMessage = computed(
+  () =>
+    `确认删除用户「${deletingUser.value?.display_name || deletingUser.value?.username}」？此操作不可撤销。`,
+);
+
+function openDelete(user) {
+  deletingUser.value = user;
+  showDelete.value = true;
+}
+
+async function handleDelete() {
+  if (!deletingUser.value) return;
+  deleting.value = true;
   try {
-    await deleteUser(user.id);
-    info(`用户 ${user.username} 已删除`, "删除成功");
+    await deleteUser(deletingUser.value.id);
+    info(`用户 ${deletingUser.value.username} 已删除`, "删除成功");
+    showDelete.value = false;
+    deletingUser.value = null;
     await load();
   } catch (err) {
     error(`删除用户失败：${err.message || err}`, "删除失败");
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -187,14 +212,8 @@ onMounted(() => {
 
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold tracking-tight">用户管理</h1>
-        <p class="text-sm text-muted-foreground">
-          管理系统账号，共 {{ users.length }} 人（活跃 {{ activeUsers.length }} 人）
-        </p>
-      </div>
-      <div class="page-actions flex items-center gap-2">
+    <PageHeader title="用户管理" :description="headerDescription">
+      <template #actions>
         <Button type="button" variant="outline" size="sm" :disabled="loading" @click="load">
           <RefreshCw class="size-4" :class="{ 'animate-spin': loading }" />
           <span>刷新</span>
@@ -203,14 +222,14 @@ onMounted(() => {
           <Plus class="size-4" />
           <span>新建用户</span>
         </Button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
-    <div class="overflow-hidden rounded-xl border shadow-sm">
+    <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
       <div class="overflow-x-auto">
-        <Table class="data-table min-w-[48rem]">
+        <Table class="min-w-[48rem]">
         <TableHeader>
-          <TableRow>
+          <TableRow class="hover:bg-transparent">
             <TableHead>用户名</TableHead>
             <TableHead>显示名称</TableHead>
             <TableHead>角色</TableHead>
@@ -235,7 +254,7 @@ onMounted(() => {
               <span class="inline-flex items-center gap-1.5 text-sm">
                 <span
                   class="size-2 rounded-full"
-                  :class="user.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/40'"
+                  :class="user.is_active ? 'bg-success' : 'bg-muted-foreground/40'"
                 />
                 {{ user.is_active ? "活跃" : "停用" }}
               </span>
@@ -266,7 +285,7 @@ onMounted(() => {
                   size="icon"
                   class="text-destructive hover:text-destructive"
                   title="删除"
-                  @click="handleDelete(user)"
+                  @click="openDelete(user)"
                 >
                   <Trash2 class="size-4" />
                 </Button>
@@ -333,7 +352,7 @@ onMounted(() => {
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
         <DialogTitle>编辑用户</DialogTitle>
-        <p class="text-sm text-muted-foreground">{{ editingUser?.username }}</p>
+        <DialogDescription>{{ editingUser?.username }}</DialogDescription>
       </DialogHeader>
       <form class="grid gap-4" @submit.prevent="handleEdit">
         <div class="grid gap-2">
@@ -385,4 +404,14 @@ onMounted(() => {
       </form>
     </DialogContent>
   </Dialog>
+
+  <ConfirmDialog
+    :open="showDelete"
+    title="确认删除用户？"
+    :message="deleteMessage"
+    confirm-text="确认删除"
+    :busy="deleting"
+    @confirm="handleDelete"
+    @close="showDelete = false"
+  />
 </template>

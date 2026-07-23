@@ -106,7 +106,7 @@ onMounted(() => {
 
 <template>
   <section
-    class="login-page relative flex min-h-svh items-center justify-center bg-background px-4 py-10"
+    class="relative flex min-h-svh items-center justify-center bg-background px-4 py-10"
     data-testid="login-page"
   >
     <div
@@ -130,9 +130,6 @@ onMounted(() => {
           <TreePine class="size-6" :stroke-width="2" />
         </div>
         <div class="space-y-1.5">
-          <p class="text-[10px] font-semibold tracking-[0.16em] text-primary">
-            FORESTRY SURVEY
-          </p>
           <CardTitle class="text-2xl font-bold tracking-tight">
             林业调查工作台
           </CardTitle>
@@ -174,7 +171,8 @@ onMounted(() => {
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                class="login-password-toggle absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+                data-testid="login-password-toggle"
                 :aria-label="showPassword ? '隐藏密码' : '显示密码'"
                 :aria-pressed="showPassword ? 'true' : 'false'"
                 :disabled="submitting"

@@ -147,6 +147,8 @@ function createDeferred() {
 function mountMapView() {
   return mount(MapView, {
     global: {
+      // reka-ui 弹窗经 Teleport 渲染，需让 teleport 桩内联渲染默认插槽内容
+      renderStubDefaultSlot: true,
       stubs: {
         LeafletMap: LeafletMapStub,
         teleport: true,
@@ -1501,9 +1503,11 @@ describe("MapView", () => {
       expect(apiMocks.deleteWhiteMothSiteCheck).toHaveBeenCalledWith("MQ001");
     });
 
-    const message = wrapper.get(".confirm-message").text();
-    expect(message).toContain("MQ001");
-    expect(message).toContain("2 条调查记录");
+    await vi.waitFor(() => {
+      const message = wrapper.get('[data-slot="alert-dialog-description"]').text();
+      expect(message).toContain("MQ001");
+      expect(message).toContain("2 条调查记录");
+    });
 
     await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
 
@@ -1553,6 +1557,6 @@ describe("MapView", () => {
     });
 
     expect(apiMocks.deleteWhiteMothSite).not.toHaveBeenCalled();
-    expect(wrapper.find(".confirm-message").exists()).toBe(false);
+    expect(wrapper.find('[data-slot="alert-dialog-description"]').exists()).toBe(false);
   });
 });

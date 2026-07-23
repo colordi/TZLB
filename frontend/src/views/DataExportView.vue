@@ -1,15 +1,18 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import { Download, RefreshCw, Bug, Database, Layers } from "@lucide/vue";
+import { Download, Bug, Database, Layers } from "@lucide/vue";
 
 import { listPestExportTypes, getPestExportMeta, downloadPestTypeExport } from "../api/dataExport.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
+import EmptyState from "@/components/common/EmptyState.vue";
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -148,14 +151,11 @@ onMounted(loadPestTypes);
 </script>
 
 <template>
-  <section class="mx-auto flex w-full max-w-6xl flex-col gap-4">
-    <header class="space-y-1">
-      <p class="text-[10px] font-bold tracking-[0.12em] text-primary">DATA EXPORT</p>
-      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">数据导出</h1>
-      <p class="text-sm text-muted-foreground">
-        按虫种导出调查数据和台账数据，选择虫种后可按年份/世代筛选并下载。
-      </p>
-    </header>
+  <div class="mx-auto w-full max-w-6xl space-y-6">
+    <PageHeader
+      title="数据导出"
+      description="按虫种导出调查数据和台账数据，选择虫种后可按年份/世代筛选并下载。"
+    />
 
     <section
       v-if="!loading && pestTypes.length > 0"
@@ -176,20 +176,17 @@ onMounted(loadPestTypes);
       </Button>
     </section>
 
-    <div
-      v-if="loading"
-      class="flex flex-col items-center gap-2 py-12 text-muted-foreground"
-    >
-      <RefreshCw class="size-7 animate-spin" />
-      <p>正在读取虫种信息…</p>
+    <div v-if="loading" class="space-y-4">
+      <div class="flex flex-wrap gap-2">
+        <Skeleton v-for="i in 4" :key="i" class="h-9 w-24" />
+      </div>
+      <Skeleton class="h-64 rounded-xl" />
     </div>
-    <div
+    <EmptyState
       v-else-if="pestTypes.length === 0"
-      class="flex flex-col items-center gap-2 py-12 text-muted-foreground"
-    >
-      <Database class="size-7" />
-      <p>暂无可导出的虫种数据。</p>
-    </div>
+      :icon="Database"
+      title="暂无可导出的虫种数据"
+    />
 
     <Card
       v-else-if="currentPestMeta"
@@ -263,11 +260,11 @@ onMounted(loadPestTypes);
       </CardHeader>
 
       <CardContent>
-        <div class="overflow-hidden rounded-xl border shadow-sm">
+        <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
           <div class="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow class="hover:bg-transparent">
                   <TableHead>对象名称</TableHead>
                   <TableHead>类型</TableHead>
                   <TableHead class="text-right">记录数</TableHead>
@@ -302,5 +299,5 @@ onMounted(loadPestTypes);
         </div>
       </CardContent>
     </Card>
-  </section>
+  </div>
 </template>

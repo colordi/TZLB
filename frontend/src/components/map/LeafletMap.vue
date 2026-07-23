@@ -1,9 +1,25 @@
 <script setup>
 import L from "leaflet";
+import { Layers, List, LocateFixed, MapPinPlus, Minus, Plus } from "@lucide/vue";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import "leaflet/dist/leaflet.css";
 
 import { useToast } from "../../composables/useToast.js";
+import {
+  ADMIN_BOUNDARY_COLOR,
+  HAZARD_POINT_COLOR,
+  LOCATE_MARKER_COLOR,
+  LOCATE_MARKER_GLOW,
+  LOCATE_MARKER_HALO,
+  LOCATE_MARKER_PULSE,
+  LOCATE_MARKER_RING,
+  POINT_LAYER_COLORS,
+  POINT_OUTLINE_COLOR,
+  REFERENCE_LAYER_COLORS,
+  SURVEY_COMPLETION_COLOR,
+} from "../../config/map-palette.js";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   hasFeatureParcelStatusField,
   hasFeatureSeverityField,
@@ -110,16 +126,12 @@ const fitPending = ref(false);
 let suppressNextMapClick = false;
 let suppressMapClickResetTimer = null;
 
-const HAZARD_POINT_COLOR = "#ff0000";
-const POINT_OUTLINE_COLOR = "#1F2933";
 const HAZARD_POINT_STYLE = {
   key: "hazard-point",
   color: HAZARD_POINT_COLOR,
   radius: 8,
   label: "危害点位",
 };
-const POINT_LAYER_COLORS = ["#16A34A", "#2563EB", "#9333EA", "#0891B2", "#DC2626", "#D97706"];
-const REFERENCE_LAYER_COLORS = ["#D97706", "#2563EB", "#16A34A", "#9333EA", "#0891B2", "#64748B"];
 const ADMIN_BOUNDARY_LAYER_NAME = "通州区行政区边界";
 const SURVEY_DATE_FIELD_KEYS = ["调查日期", "survey_date", "report_time"];
 
@@ -230,7 +242,12 @@ const LOCATE_MARKER_HTML = `
   <div class="locate-user-marker">
     <span class="locate-user-marker__shadow"></span>
     <span class="locate-user-marker__body">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="${LOCATE_MARKER_COLOR}"
+        style="filter: drop-shadow(0 8px 12px ${LOCATE_MARKER_GLOW}) drop-shadow(0 0 0.5px ${LOCATE_MARKER_HALO});"
+        aria-hidden="true"
+      >
         <path
           d="M20.28 3.72a1 1 0 0 0-1.04-.24L5.58 8.03a1 1 0 0 0-.13 1.84l5.53 2.51 2.51 5.53a1 1 0 0 0 1.84-.13l4.55-13.66a1 1 0 0 0-.24-1.04Z"
         />
@@ -241,7 +258,14 @@ const LOCATE_MARKER_HTML = `
 
 const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
   <div class="white-moth-site-draft-marker">
-    <span></span>
+    <span
+      class="white-moth-site-draft-marker__pulse"
+      style="background: ${LOCATE_MARKER_PULSE};"
+    ></span>
+    <span
+      class="white-moth-site-draft-marker__dot"
+      style="background: ${LOCATE_MARKER_COLOR}; box-shadow: 0 8px 16px ${LOCATE_MARKER_RING};"
+    ></span>
   </div>
 `;
 
@@ -262,7 +286,7 @@ function escapeHtml(value) {
 
 function resolveBoundaryStyle() {
   return {
-    color: "#D97706",
+    color: ADMIN_BOUNDARY_COLOR,
     weight: 3,
     opacity: 0.72,
     fillOpacity: 0,
@@ -456,7 +480,7 @@ function buildSurveyCompletionMarker(latlng) {
     keyboard: false,
     icon: L.divIcon({
       className: "map-survey-completion-marker",
-      html: `<span class="map-survey-completion-check" aria-hidden="true">✓</span>`,
+      html: `<span class="map-survey-completion-check" style="background: ${SURVEY_COMPLETION_COLOR};" aria-hidden="true">✓</span>`,
       iconSize: [16, 16],
       iconAnchor: [8, 8],
     }),
@@ -1170,27 +1194,22 @@ onBeforeUnmount(() => {
       <div class="map-legend-container">
         <div
           v-if="showLegend"
-          class="map-integrated-panel"
+          class="map-integrated-panel rounded-xl border bg-card/95 shadow-md backdrop-blur"
           data-testid="map-legend-panel"
         >
           <div class="panel-header">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               class="panel-header-title-group"
               data-testid="map-legend-collapse-button"
               aria-label="收起图例"
               @click="showLegend = false"
             >
-              <svg class="legend-title-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 7h14" />
-                <path d="M5 12h14" />
-                <path d="M5 17h14" />
-                <circle cx="4" cy="7" r="1" />
-                <circle cx="4" cy="12" r="1" />
-                <circle cx="4" cy="17" r="1" />
-              </svg>
+              <List aria-hidden="true" />
               <strong>图例</strong>
-            </button>
+            </Button>
           </div>
           <div class="panel-divider"></div>
           <div class="map-legend">
@@ -1200,31 +1219,31 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <div v-else class="legend-restore-group">
-          <button
+        <div
+          v-else
+          class="legend-restore-group rounded-xl border bg-card/95 shadow-md backdrop-blur"
+        >
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             class="legend-restore-btn"
             data-testid="map-legend-expand-button"
             aria-label="展开图例"
             @click="showLegend = true"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 7h14" />
-              <path d="M5 12h14" />
-              <path d="M5 17h14" />
-              <circle cx="4" cy="7" r="1" />
-              <circle cx="4" cy="12" r="1" />
-              <circle cx="4" cy="17" r="1" />
-            </svg>
-          </button>
+            <List aria-hidden="true" />
+          </Button>
         </div>
       </div>
     </div>
 
     <div class="map-overlay map-tool-stack" aria-label="地图工具">
-      <div class="map-tool-group">
-        <button
+      <div class="map-tool-group rounded-xl border bg-card/95 shadow-md backdrop-blur">
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           class="map-tool-btn"
           :class="{ 'is-active': showLayerMenu }"
           data-testid="map-layer-button"
@@ -1233,14 +1252,12 @@ onBeforeUnmount(() => {
           :aria-expanded="showLayerMenu"
           @click="toggleLayerMenu"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m12 3 8 4-8 4-8-4 8-4Z" />
-            <path d="m4 12 8 4 8-4" />
-            <path d="m4 17 8 4 8-4" />
-          </svg>
-        </button>
-        <button
+          <Layers aria-hidden="true" />
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           class="map-tool-btn"
           :class="{ 'is-active': isRealtimeLocating, 'is-loading': isLocatePending }"
           data-testid="map-locate-button"
@@ -1248,42 +1265,40 @@ onBeforeUnmount(() => {
           :aria-pressed="isRealtimeLocating"
           @click="locateToUser"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="6" />
-            <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-            <circle cx="12" cy="12" r="2" />
-          </svg>
-        </button>
+          <LocateFixed aria-hidden="true" />
+        </Button>
       </div>
 
-      <div class="map-tool-group">
-        <button
+      <div class="map-tool-group rounded-xl border bg-card/95 shadow-md backdrop-blur">
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           class="map-tool-btn"
           data-testid="map-zoom-in-button"
           aria-label="放大地图"
           @click="zoomInMap"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-        <button
+          <Plus aria-hidden="true" />
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           class="map-tool-btn"
           data-testid="map-zoom-out-button"
           aria-label="缩小地图"
           @click="zoomOutMap"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h14" />
-          </svg>
-        </button>
+          <Minus aria-hidden="true" />
+        </Button>
       </div>
 
-      <div class="map-tool-group">
-        <button
+      <div class="map-tool-group rounded-xl border bg-card/95 shadow-md backdrop-blur">
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           class="map-tool-btn"
           :class="{ 'is-active': whiteMothSiteAddMode, 'is-loading': whiteMothSiteSaving }"
           data-testid="map-add-white-moth-site-button"
@@ -1292,75 +1307,106 @@ onBeforeUnmount(() => {
           :disabled="whiteMothSiteSaving"
           @click="emit('toggle-white-moth-site-add')"
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 0 1 14 0Z" />
-            <path d="M12 7v6M9 10h6" />
-          </svg>
-        </button>
+          <MapPinPlus aria-hidden="true" />
+        </Button>
       </div>
     </div>
 
     <aside
       v-if="showLayerMenu"
       id="map-layer-panel"
-      class="map-layer-panel"
+      class="map-layer-panel rounded-xl border bg-card/95 shadow-md backdrop-blur"
       aria-label="地图图层"
     >
       <h2>地图图层</h2>
       <section class="map-layer-panel-group">
         <h3>基础图层</h3>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           class="map-base-layer-option"
           :class="{ 'is-active': basemapMode === 'standard' }"
           data-testid="map-layer-standard"
           @click="selectBasemapMode('standard')"
         >
-          <span class="map-layer-check" aria-hidden="true"></span>
+          <Checkbox
+            :model-value="basemapMode === 'standard'"
+            as="span"
+            tabindex="-1"
+            aria-hidden="true"
+            class="pointer-events-none"
+          />
           <span>标准地图</span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           class="map-base-layer-option"
           :class="{ 'is-active': basemapMode === 'satellite' }"
           data-testid="map-layer-satellite"
           @click="selectBasemapMode('satellite')"
         >
-          <span class="map-layer-check" aria-hidden="true"></span>
+          <Checkbox
+            :model-value="basemapMode === 'satellite'"
+            as="span"
+            tabindex="-1"
+            aria-hidden="true"
+            class="pointer-events-none"
+          />
           <span>卫星地图</span>
-        </button>
-        <button
+        </Button>
+        <Button
           v-for="layer in referenceLayerEntries"
           :key="layer.key"
           type="button"
+          variant="ghost"
+          size="sm"
           class="map-base-layer-option"
           :class="{ 'is-active': layer.active, 'is-loading': layer.loading }"
           :data-testid="`map-reference-layer-${layer.key}`"
           :aria-pressed="layer.active"
           @click="toggleReferenceLayer(layer.key)"
         >
-          <span class="map-layer-check" aria-hidden="true"></span>
+          <Checkbox
+            :model-value="layer.active"
+            as="span"
+            tabindex="-1"
+            aria-hidden="true"
+            class="pointer-events-none"
+          />
           <span>{{ layer.label }}</span>
           <span v-if="layer.loading" class="map-layer-count">加载中</span>
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           class="map-base-layer-option"
           :class="{ 'is-active': showPointLabels }"
           data-testid="map-layer-labels"
           :aria-pressed="showPointLabels"
           @click="togglePointLabels"
         >
-          <span class="map-layer-check" aria-hidden="true"></span>
+          <Checkbox
+            :model-value="showPointLabels"
+            as="span"
+            tabindex="-1"
+            aria-hidden="true"
+            class="pointer-events-none"
+          />
           <span>编号标签</span>
-        </button>
+        </Button>
       </section>
       <section class="map-layer-panel-group">
         <h3>点位图层</h3>
-        <button
+        <Button
           v-for="layer in pointLayerEntries"
           :key="layer.key"
           type="button"
+          variant="ghost"
+          size="sm"
           class="map-point-layer"
           :class="{ 'is-active': layer.active }"
           :data-testid="`map-point-layer-${layer.key}`"
@@ -1369,43 +1415,22 @@ onBeforeUnmount(() => {
           <span class="map-point-layer-dot" :style="{ background: layer.color }"></span>
           <span>{{ layer.label }}</span>
           <span class="map-layer-count">{{ layer.countLabel }}</span>
-        </button>
+        </Button>
       </section>
     </aside>
   </section>
 </template>
 
 <style scoped>
-/* Claude 色桥（地图控件） */
-.map-shell,
-.map-toolbar {
-  --color-primary: var(--primary);
-  --color-primary-strong: var(--primary);
-  --color-primary-soft: color-mix(in oklch, var(--primary) 12%, white);
-  --color-accent: var(--primary);
-  --color-accent-on: var(--primary-foreground);
-  --color-surface: var(--card);
-  --color-surface-container: var(--muted);
-  --color-surface-container-low: var(--muted);
-  --color-surface-container-lowest: var(--card);
-  --color-border: var(--border);
-  --color-line: var(--border);
-  --color-line-strong: var(--border);
-  --color-text: var(--foreground);
-  --color-text-muted: var(--muted-foreground);
-  --color-muted: var(--muted-foreground);
-  --color-ink: var(--foreground);
-  --color-ink-soft: var(--muted-foreground);
-  --color-danger: var(--destructive);
-}
-
+/* 浮层视觉（bg-card/95、backdrop-blur、圆角、边框、阴影）走模板 Tailwind 类（规范 §7），
+ * 此处只保留布局结构与 Leaflet 自有 DOM 的 :deep() 定制，颜色一律 var(--*) token。 */
 .map-shell {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 100%;
   overflow: hidden;
-  background: rgba(229, 244, 230, 0.54);
+  background: var(--muted);
 }
 
 .map-canvas {
@@ -1418,16 +1443,6 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 1001;
   pointer-events: none;
-}
-
-.top-left {
-  top: 1.25rem;
-  left: 1.25rem;
-}
-
-.top-right {
-  top: 1.25rem;
-  right: 1.25rem;
 }
 
 .bottom-left {
@@ -1448,62 +1463,11 @@ onBeforeUnmount(() => {
   margin-bottom: 1.5rem;
 }
 
-.map-loading {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 0.18rem;
-  padding: 0.78rem 0.95rem;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  color: var(--color-ink);
-  box-shadow: 0 8px 30px hsl(0 0% 0% / 0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-}
-
-.map-interactive-controls {
-  pointer-events: auto;
-}
-
-.control-row {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.map-overlay-select {
-  padding: 0.55rem 2.2rem 0.55rem 1.05rem;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.75);
-  color: var(--color-primary-strong);
-  font-weight: 700;
-  font-size: 0.92rem;
-  box-shadow: 0 12px 30px hsl(0 0% 0% / 0.08);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23183223' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 0.75rem center;
-  background-size: 1.1rem;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.2s ease;
-}
-
 .map-integrated-panel {
   position: relative;
   display: flex;
   flex-direction: column;
   padding: 0.85rem 1.05rem;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 12px 36px hsl(0 0% 0% / 0.1);
-  border-radius: 18px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
 }
 
 .map-integrated-panel .panel-header {
@@ -1511,47 +1475,19 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.6rem;
-  color: var(--color-primary-strong);
+  color: var(--primary);
 }
 
 .panel-header-title-group {
-  display: flex;
-  align-items: center;
-  gap: 0.48rem;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--color-primary-strong);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.panel-header-title-group:hover {
-  color: var(--color-primary);
+  gap: 0.5rem;
+  padding: 0 0.25rem;
+  color: var(--primary);
 }
 
 .map-integrated-panel .panel-header strong {
   font-size: 0.98rem;
   font-weight: 800;
   line-height: 1;
-}
-
-.legend-title-icon {
-  width: 1.15rem;
-  height: 1.15rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.legend-title-icon circle {
-  fill: currentColor;
-  stroke: none;
 }
 
 .map-legend-container {
@@ -1561,51 +1497,24 @@ onBeforeUnmount(() => {
 .legend-restore-group {
   display: grid;
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
   pointer-events: auto;
 }
 
 .legend-restore-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
   width: 2.75rem;
   height: 2.75rem;
   padding: 0;
-  border: 0;
   border-radius: 0;
-  background: transparent;
-  color: var(--color-primary-strong);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.legend-restore-btn:hover {
-  background: color-mix(in oklch, var(--color-primary) 8%, white);
-}
-
-.legend-restore-btn svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.legend-restore-btn svg circle {
-  fill: currentColor;
-  stroke: none;
+  color: var(--primary);
 }
 
 .map-integrated-panel .panel-divider {
   height: 1px;
-  background: linear-gradient(to right, rgba(46, 125, 50, 0.15), transparent);
+  background: linear-gradient(
+    to right,
+    color-mix(in oklch, var(--primary) 20%, transparent),
+    transparent
+  );
   margin-bottom: 0.65rem;
 }
 
@@ -1619,8 +1528,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  color: var(--color-ink);
-  font-size: 0.85rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1629,15 +1538,9 @@ onBeforeUnmount(() => {
   width: 0.85rem;
   height: 0.85rem;
   box-sizing: border-box;
-  border: 1px solid rgba(0, 0, 0, 0.85);
+  border: 1px solid color-mix(in oklch, var(--foreground) 85%, transparent);
   border-radius: 999px;
-  box-shadow: inset 0 0 0 1px hsl(0 0% 0% / 0.12);
-}
-
-.map-loading {
-  color: var(--color-muted);
-  font-size: 0.82rem;
-  margin-top: 0.65rem;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--foreground) 12%, transparent);
 }
 
 .map-tool-stack {
@@ -1651,49 +1554,27 @@ onBeforeUnmount(() => {
 .map-tool-group {
   display: grid;
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: 0 8px 22px hsl(0 0% 0% / 0.1);
 }
 
 .map-tool-btn {
-  min-height: 0;
   width: 2.75rem;
   height: 2.75rem;
   padding: 0;
-  border: 0;
   border-radius: 0;
-  background: transparent;
-  color: var(--color-primary-strong);
-  transition: all 0.2s ease;
+  color: var(--primary);
 }
 
 .map-tool-btn + .map-tool-btn {
-  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
-}
-
-.map-tool-btn:hover {
-  background: color-mix(in oklch, var(--color-primary) 8%, white);
+  border-top: 1px solid var(--border);
 }
 
 .map-tool-btn.is-active {
-  background: color-mix(in oklch, var(--color-primary) 12%, white);
-  color: var(--color-primary);
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+  color: var(--primary);
 }
 
 .map-tool-btn.is-loading svg {
   animation: locate-pulse 1.1s ease-in-out infinite;
-}
-
-.map-tool-btn svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .map-layer-panel {
@@ -1705,28 +1586,19 @@ onBeforeUnmount(() => {
   max-height: calc(100% - 3rem);
   overflow: auto;
   padding: 1.15rem;
-  border: 1px solid color-mix(in oklch, var(--color-border) 86%, transparent);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: 0 18px 38px hsl(0 0% 0% / 0.14);
-}
-
-.map-layer-panel h2,
-.map-layer-panel h3 {
-  margin: 0;
 }
 
 .map-layer-panel h2 {
-  margin-bottom: 1rem;
-  color: var(--color-primary-strong);
-  font-size: 1.05rem;
-  font-weight: 800;
+  margin: 0 0 1rem;
+  color: var(--primary);
+  font-size: 1.125rem;
+  font-weight: 700;
 }
 
 .map-layer-panel h3 {
-  margin-bottom: 0.75rem;
-  color: var(--color-muted);
-  font-size: 0.72rem;
+  margin: 0 0 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
@@ -1734,100 +1606,27 @@ onBeforeUnmount(() => {
 .map-layer-panel-group + .map-layer-panel-group {
   margin-top: 1.15rem;
   padding-top: 1.15rem;
-  border-top: 1px solid color-mix(in oklch, var(--color-border) 82%, transparent);
+  border-top: 1px solid var(--border);
 }
 
-.map-base-layer-option {
-  display: flex;
-  align-items: center;
+.map-base-layer-option,
+.map-point-layer {
   justify-content: flex-start;
   gap: 0.75rem;
   width: 100%;
   min-height: 34px;
   padding: 0 0.75rem;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-ink);
-  font-size: 0.88rem;
-  font-weight: 650;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
   text-align: left;
-  transition: all 0.16s ease;
 }
 
 .map-base-layer-option:hover {
-  color: var(--color-primary-strong);
+  color: var(--primary);
 }
 
-.map-base-layer-option span:nth-child(2) {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.map-layer-check {
-  position: relative;
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  border: 1px solid color-mix(in oklch, var(--color-border) 90%, var(--color-primary));
-  border-radius: 3px;
-  background: var(--color-surface);
-}
-
-.map-base-layer-option.is-active .map-layer-check {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-}
-
-.map-base-layer-option.is-active .map-layer-check::after {
-  position: absolute;
-  top: 1px;
-  left: 4px;
-  width: 4px;
-  height: 8px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  content: "";
-  transform: rotate(45deg);
-}
-
-.map-point-layer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.75rem;
-  width: 100%;
-  min-height: 34px;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-ink);
-  font-size: 0.88rem;
-  text-align: left;
-  transition: all 0.16s ease;
-}
-
-.map-point-layer:hover,
-.map-point-layer.is-active {
-  background: color-mix(in oklch, var(--color-primary) 10%, white);
-}
-
-.map-point-layer-dot {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: var(--color-primary);
-}
-
-.map-point-layer-dot.is-muted {
-  background: color-mix(in oklch, var(--color-muted) 55%, white);
-}
-
+.map-base-layer-option span:nth-child(2),
 .map-point-layer span:nth-child(2) {
   min-width: 0;
   flex: 1;
@@ -1836,9 +1635,22 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.map-point-layer:hover,
+.map-point-layer.is-active {
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+
+.map-point-layer-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
 .map-layer-count {
   min-width: 1.6rem;
-  color: var(--color-muted);
+  color: var(--muted-foreground);
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
@@ -1857,16 +1669,16 @@ onBeforeUnmount(() => {
 }
 
 :deep(.leaflet-bar) {
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 12px 26px hsl(0 0% 0% / 0.08);
+  box-shadow: 0 12px 26px color-mix(in oklch, var(--foreground) 8%, transparent);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
 
 :deep(.leaflet-bar a:hover) {
-  background: rgba(244, 250, 244, 0.96);
+  background: var(--accent);
 }
 
 :deep(.locate-user-marker-wrapper) {
@@ -1884,7 +1696,7 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 8px 9px 3px 9px;
   border-radius: 999px;
-  background: rgba(19, 50, 33, 0.18);
+  background: color-mix(in oklch, var(--foreground) 18%, transparent);
   filter: blur(5px);
 }
 
@@ -1900,10 +1712,7 @@ onBeforeUnmount(() => {
 :deep(.locate-user-marker__body svg) {
   width: 26px;
   height: 26px;
-  fill: #2f80ed;
-  filter:
-    drop-shadow(0 8px 12px rgba(47, 128, 237, 0.3))
-    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.9));
+  /* 填充色与投影为内联样式，取自 config/map-palette.js */
 }
 
 :deep(.white-moth-site-draft-marker-wrapper) {
@@ -1917,22 +1726,20 @@ onBeforeUnmount(() => {
   height: 30px;
 }
 
-:deep(.white-moth-site-draft-marker::before) {
-  content: "";
+:deep(.white-moth-site-draft-marker__pulse) {
   position: absolute;
   inset: 1px;
   border-radius: 999px;
-  background: rgba(47, 128, 237, 0.18);
   animation: draft-marker-pulse 1.3s ease-in-out infinite;
+  /* 背景色为内联样式，取自 config/map-palette.js */
 }
 
-:deep(.white-moth-site-draft-marker span) {
+:deep(.white-moth-site-draft-marker__dot) {
   position: absolute;
   inset: 8px;
+  border: 2px solid var(--card);
   border-radius: 999px;
-  background: #2f80ed;
-  border: 2px solid #fff;
-  box-shadow: 0 8px 16px rgba(47, 128, 237, 0.34);
+  /* 背景色与阴影为内联样式，取自 config/map-palette.js */
 }
 
 @keyframes draft-marker-pulse {
@@ -1952,13 +1759,13 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 999px;
   padding: 0.38rem 0.65rem;
-  background: rgba(21, 47, 31, 0.86);
-  color: #fff;
-  box-shadow: 0 10px 26px hsl(0 0% 0% / 0.22);
+  background: color-mix(in oklch, var(--foreground) 88%, transparent);
+  color: var(--primary-foreground);
+  box-shadow: 0 10px 26px color-mix(in oklch, var(--foreground) 22%, transparent);
 }
 
 :deep(.leaflet-tooltip-top:before) {
-  border-top-color: rgba(21, 47, 31, 0.86);
+  border-top-color: color-mix(in oklch, var(--foreground) 88%, transparent);
 }
 
 :deep(.map-survey-completion-marker) {
@@ -1975,17 +1782,17 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 14px;
   height: 14px;
-  border: 1.5px solid #fff;
+  border: 1.5px solid var(--card);
   border-radius: 999px;
-  background: #16a34a;
-  color: #fff;
+  color: var(--card);
   font-size: 10px;
   font-weight: 900;
   line-height: 1;
   box-shadow:
-    0 1px 3px rgba(15, 23, 42, 0.24),
-    0 0 0 1px rgba(22, 101, 52, 0.18);
+    0 1px 3px color-mix(in oklch, var(--foreground) 24%, transparent),
+    0 0 0 1px color-mix(in oklch, var(--success) 25%, transparent);
   pointer-events: none;
+  /* 背景色为内联样式，取自 config/map-palette.js */
 }
 
 :deep(.map-point-label-marker) {
@@ -2000,34 +1807,24 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 8px;
   top: -0.45rem;
-  color: var(--color-primary-strong);
+  color: var(--primary);
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;
   text-shadow:
-    0 1px 0 #fff,
-    1px 0 0 #fff,
-    0 -1px 0 #fff,
-    -1px 0 0 #fff,
-    0 2px 4px hsl(0 0% 0% / 0.18);
+    0 1px 0 var(--card),
+    1px 0 0 var(--card),
+    0 -1px 0 var(--card),
+    -1px 0 0 var(--card),
+    0 2px 4px color-mix(in oklch, var(--foreground) 18%, transparent);
 }
 
 @media (max-width: 760px) {
   .map-shell,
   .map-canvas {
     min-height: 100%;
-  }
-
-  .top-left {
-    top: 0.75rem;
-    left: 0.75rem;
-  }
-
-  .top-right {
-    top: 0.75rem;
-    right: 1rem;
   }
 
   .bottom-left {
@@ -2050,14 +1847,9 @@ onBeforeUnmount(() => {
   :deep(.leaflet-right .leaflet-control) {
     margin-right: 1rem;
   }
-  
+
   :deep(.leaflet-bottom .leaflet-control) {
     margin-bottom: 1rem;
-  }
-
-  .map-chip,
-  .map-loading {
-    padding: 0.62rem 0.78rem;
   }
 }
 </style>

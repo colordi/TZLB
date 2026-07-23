@@ -89,7 +89,7 @@ onMounted(loadStatistics);
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <div class="flex flex-col gap-6">
     <div class="flex items-center justify-end" aria-label="统计年份">
       <label class="flex items-center gap-2 text-sm text-muted-foreground">
         <span>统计年份</span>

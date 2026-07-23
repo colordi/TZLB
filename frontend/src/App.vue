@@ -29,7 +29,7 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@/components/ui/sidebar";
-import ToastViewport from "./components/ui/ToastViewport.vue";
+import { Toaster } from "@/components/ui/sonner";
 import { useAuthSession } from "./composables/useAuthSession.js";
 import { useToast } from "./composables/useToast.js";
 import { NAV_GROUPS } from "./config/navigation.js";
@@ -135,7 +135,7 @@ const MobileNavCloser = {
       <main class="site-main is-standalone min-h-svh">
         <RouterView />
       </main>
-      <ToastViewport />
+      <Toaster position="top-right" close-button />
     </template>
 
     <SidebarProvider v-else :default-open="true" class="min-h-svh">
@@ -270,7 +270,7 @@ const MobileNavCloser = {
           <RouterView />
         </main>
       </SidebarInset>
-      <ToastViewport />
+      <Toaster position="top-right" close-button />
     </SidebarProvider>
   </div>
 </template>

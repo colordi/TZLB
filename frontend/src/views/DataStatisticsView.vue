@@ -3,6 +3,7 @@ import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ChartColumn } from "@lucide/vue";
 
+import PageHeader from "@/components/common/PageHeader.vue";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DEFAULT_STATISTICS_MODULE,
@@ -34,11 +35,8 @@ function handleTabChange(value) {
 </script>
 
 <template>
-  <section class="data-statistics-page mx-auto flex w-full max-w-6xl flex-col gap-4">
-    <header class="space-y-1">
-      <h1 class="text-2xl font-bold tracking-tight md:text-3xl">数据统计</h1>
-      <p class="max-w-3xl text-sm text-muted-foreground">查看各虫种的核心统计指标。</p>
-    </header>
+  <div class="mx-auto w-full max-w-6xl space-y-6">
+    <PageHeader title="数据统计" description="查看各虫种的核心统计指标。" />
 
     <Tabs :model-value="activePest" @update:model-value="handleTabChange">
       <TabsList aria-label="虫种统计">
@@ -56,5 +54,5 @@ function handleTabChange(value) {
     </Tabs>
 
     <component :is="activeModule.component" v-if="activeModule?.component" />
-  </section>
+  </div>
 </template>
