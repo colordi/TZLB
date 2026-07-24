@@ -48,4 +48,23 @@ describe("api/statistics", () => {
       "/api/statistics/white-moth/generation-summary",
     );
   });
+
+  it("读取美国白蛾属地受害汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ localities: [], totals: {} }),
+    });
+    const { getWhiteMothLocalitySummary } = await import("../statistics.js");
+
+    const result = await getWhiteMothLocalitySummary({
+      year: 2026,
+      generation: "第一代",
+      asOfDate: "2026-06-15",
+      severePlantThreshold: 15,
+    });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/white-moth/locality-summary?year=2026&generation=%E7%AC%AC%E4%B8%80%E4%BB%A3&as_of_date=2026-06-15&severe_plant_threshold=15",
+    );
+    expect(result).toEqual({ localities: [], totals: {} });
+  });
 });

@@ -7,12 +7,14 @@ import DataStatisticsView from "../DataStatisticsView.vue";
 const apiMocks = vi.hoisted(() => ({
   getWhiteMothDailyStatistics: vi.fn(),
   getWhiteMothGenerationSummary: vi.fn(),
+  getWhiteMothLocalitySummary: vi.fn(),
   error: vi.fn(),
 }));
 
 vi.mock("../../api/statistics.js", () => ({
   getWhiteMothDailyStatistics: apiMocks.getWhiteMothDailyStatistics,
   getWhiteMothGenerationSummary: apiMocks.getWhiteMothGenerationSummary,
+  getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
 }));
 
 vi.mock("../../composables/useToast.js", () => ({
@@ -85,6 +87,58 @@ function buildGenerationSummary() {
   };
 }
 
+function buildLocalitySummary() {
+  return {
+    year: 2026,
+    generation: null,
+    as_of_date: "2026-06-15",
+    severe_plant_threshold: 10,
+    totals: {
+      damaged_points: 15,
+      damaged_plants: 120,
+      completed_points: 9,
+      completion_rate: 60,
+      severe_points: 4,
+      collab_points: 2,
+    },
+    localities: [
+      {
+        locality: "宋庄镇",
+        damaged_points: 5,
+        damaged_plants: 40,
+        completed_points: 3,
+        completion_rate: 60,
+        severe_points: 1,
+        collab_points: 1,
+        severe_sites: [{ code: "SZ001", name: "村口绿地", damaged_plants: 15 }],
+      },
+      {
+        locality: "永顺镇",
+        damaged_points: 0,
+        damaged_plants: 0,
+        completed_points: 0,
+        completion_rate: 0,
+        severe_points: 0,
+        collab_points: 0,
+        severe_sites: [],
+      },
+      {
+        locality: "张家湾镇",
+        damaged_points: 10,
+        damaged_plants: 80,
+        completed_points: 6,
+        completion_rate: 60,
+        severe_points: 2,
+        collab_points: 1,
+        severe_sites: [
+          { code: "ZW001", name: "示范点", damaged_plants: 20 },
+          { code: "ZW002", name: "公园", damaged_plants: 12 },
+        ],
+      },
+    ],
+  };
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -114,6 +168,7 @@ describe("DataStatisticsView", () => {
     vi.clearAllMocks();
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
     apiMocks.getWhiteMothGenerationSummary.mockResolvedValue(buildGenerationSummary());
+    apiMocks.getWhiteMothLocalitySummary.mockResolvedValue(buildLocalitySummary());
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -128,6 +183,46 @@ describe("DataStatisticsView", () => {
     expect(wrapper.get('[data-testid="data-statistics-row-2026-06-01"]').text()).toContain(
       "101",
     );
+  });
+
+  it("展示各属地受害情况 KPI 与榜单", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+      generation: undefined,
+      asOfDate: todayIso,
+      severePlantThreshold: 10,
+    });
+    expect(wrapper.text()).toContain("各属地受害情况");
+    expect(wrapper.get('[data-testid="data-statistics-locality-as-of-date"]').element.value).toBe(
+      todayIso,
+    );
+    expect(
+      wrapper.get('[data-testid="data-statistics-locality-severe-threshold"]').element.value,
+    ).toBe("10");
+    expect(wrapper.get('[data-testid="data-statistics-locality-kpi-damaged_points"]').text()).toContain(
+      "15",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-locality-kpi-completion_rate"]').text()).toContain(
+      "60",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-locality-row-张家湾镇"]').text()).toContain(
+      "张家湾镇",
+    );
+    const severeText = wrapper.get('[data-testid="data-statistics-locality-severe-张家湾镇"]').text();
+    expect(severeText).toContain("ZW001");
+    expect(severeText).toContain("示范点");
+    expect(severeText).toContain("ZW002");
+    expect(wrapper.get('[data-testid="data-statistics-locality-rate-宋庄镇"]').text()).toContain(
+      "60%",
+    );
+    // 固定 Excel 顺序：宋庄镇在张家湾镇之前
+    const listText = wrapper.get('[data-testid="data-statistics-locality-list"]').text();
+    expect(listText.indexOf("宋庄镇")).toBeLessThan(listText.indexOf("张家湾镇"));
   });
 
   it("按世代展示独立的调查、受害和派单汇总", async () => {
@@ -212,6 +307,9 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear(),
       generation: undefined,
     });
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     await wrapper.get('[data-testid="data-statistics-year-filter"]').setValue(
       String(new Date().getFullYear() - 1),
@@ -227,6 +325,13 @@ describe("DataStatisticsView", () => {
     expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenLastCalledWith({
       year: new Date().getFullYear() - 1,
     });
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: undefined,
+      asOfDate: todayIso,
+      severePlantThreshold: 10,
+    });
 
     await wrapper.get('[data-testid="data-statistics-generation-filter"]').setValue("第一代");
     await flushPromises();
@@ -236,7 +341,40 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear() - 1,
       generation: "第一代",
     });
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(3);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: "第一代",
+      asOfDate: todayIso,
+      severePlantThreshold: 10,
+    });
     // 世代筛选不触发世代汇总重载
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
+
+    await wrapper.get('[data-testid="data-statistics-locality-as-of-date"]').setValue("2026-06-01");
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(4);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: "第一代",
+      asOfDate: "2026-06-01",
+      severePlantThreshold: 10,
+    });
+
+    await wrapper.get('[data-testid="data-statistics-locality-severe-threshold"]').setValue("20");
+    await wrapper.get('[data-testid="data-statistics-locality-severe-threshold"]').trigger("change");
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(5);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: "第一代",
+      asOfDate: "2026-06-01",
+      severePlantThreshold: 20,
+    });
+    // 截止日期/阈值只影响属地汇总
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(3);
     expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
   });
 

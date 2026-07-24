@@ -6,13 +6,23 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi import HTTPException
 
-from backend.routers.statistics import get_white_moth_daily, get_white_moth_generation_statistics
+from backend.routers.statistics import (
+    get_white_moth_daily,
+    get_white_moth_generation_statistics,
+    get_white_moth_locality_statistics,
+)
 from backend.services.statistics import (
     WHITE_MOTH_DAILY_SQL,
     WHITE_MOTH_DISPATCH_FREQUENCY_SQL,
     WHITE_MOTH_GENERATION_SUMMARY_SQL,
+    WHITE_MOTH_LOCALITY_ORDER,
+    WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
+    WHITE_MOTH_LOCALITY_SUMMARY_SQL,
+    WHITE_MOTH_SEVERE_PLANT_THRESHOLD,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
+    get_white_moth_locality_summary,
+    merge_locality_summary_rows,
     serialize_white_moth_daily_row,
 )
 
@@ -251,6 +261,174 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn('COUNT(*) FILTER (WHERE COALESCE("受害株数", 0) > 0)', WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
         self.assertIn('GROUP BY "世代", BTRIM("编号")', WHITE_MOTH_DISPATCH_FREQUENCY_SQL)
 
+    def test_locality_summary_sql_uses_ledger_and_metric_rules(self) -> None:
+        self.assertIn('ledger."美国白蛾问题点位台账"', WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn('WHEN BTRIM(COALESCE("属地", \'\')) = \'宋庄镇\' THEN \'宋庄镇\'', WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("ELSE '其他单位'", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("first_known_date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("completion_date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("<= $4::date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("damaged_plants >= $3", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("is_collab", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("调查日期列表", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("下派日期列表", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn("code <> ''", WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL)
+        self.assertEqual(WHITE_MOTH_SEVERE_PLANT_THRESHOLD, 10)
+        self.assertEqual(len(WHITE_MOTH_LOCALITY_ORDER), 23)
+        self.assertEqual(WHITE_MOTH_LOCALITY_ORDER[-1], "其他单位")
+
+    def test_merge_locality_summary_rows_fills_missing_and_rates(self) -> None:
+        rows = [
+            FakeRow(
+                {
+                    "locality": "张家湾镇",
+                    "damaged_points": 10,
+                    "damaged_plants": 80,
+                    "completed_points": 5,
+                    "severe_points": 3,
+                    "collab_points": 1,
+                }
+            ),
+            FakeRow(
+                {
+                    "locality": "其他单位",
+                    "damaged_points": 2,
+                    "damaged_plants": 4,
+                    "completed_points": 0,
+                    "severe_points": 0,
+                    "collab_points": 2,
+                }
+            ),
+        ]
+        severe_sites = [
+            FakeRow(
+                {
+                    "locality": "张家湾镇",
+                    "code": "ZW001",
+                    "name": "示范点",
+                    "damaged_plants": 20,
+                }
+            ),
+            FakeRow(
+                {
+                    "locality": "张家湾镇",
+                    "code": "ZW002",
+                    "name": "公园",
+                    "damaged_plants": 12,
+                }
+            ),
+        ]
+
+        localities = merge_locality_summary_rows(rows, severe_sites)
+
+        self.assertEqual(len(localities), 23)
+        zw = next(item for item in localities if item["locality"] == "张家湾镇")
+        self.assertEqual(zw["damaged_points"], 10)
+        self.assertEqual(zw["completion_rate"], 50.0)
+        self.assertEqual(zw["severe_points"], 2)
+        self.assertEqual(
+            zw["severe_sites"],
+            [
+                {"code": "ZW001", "name": "示范点", "damaged_plants": 20},
+                {"code": "ZW002", "name": "公园", "damaged_plants": 12},
+            ],
+        )
+        other = next(item for item in localities if item["locality"] == "其他单位")
+        self.assertEqual(other["collab_points"], 2)
+        self.assertEqual(other["severe_sites"], [])
+        empty = next(item for item in localities if item["locality"] == "宋庄镇")
+        self.assertEqual(empty["damaged_points"], 0)
+        self.assertEqual(empty["completion_rate"], 0.0)
+
+    async def test_locality_summary_returns_totals_and_fixed_localities(self) -> None:
+        connection = SequentialFakeConnection(
+            [
+                [
+                    FakeRow(
+                        {
+                            "locality": "宋庄镇",
+                            "damaged_points": 4,
+                            "damaged_plants": 20,
+                            "completed_points": 2,
+                            "severe_points": 1,
+                            "collab_points": 0,
+                        }
+                    ),
+                    FakeRow(
+                        {
+                            "locality": "其他单位",
+                            "damaged_points": 1,
+                            "damaged_plants": 5,
+                            "completed_points": 1,
+                            "severe_points": 0,
+                            "collab_points": 1,
+                        }
+                    ),
+                ],
+                [
+                    FakeRow(
+                        {
+                            "locality": "宋庄镇",
+                            "code": "SZ001",
+                            "name": "村口",
+                            "damaged_plants": 15,
+                        }
+                    ),
+                ],
+            ]
+        )
+
+        with patch(
+            "backend.services.statistics.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            result = await get_white_moth_locality_summary(
+                year=2026,
+                generation="第一代",
+                as_of_date="2026-06-15",
+                severe_plant_threshold=15,
+            )
+
+        self.assertEqual(result["year"], 2026)
+        self.assertEqual(result["generation"], "第一代")
+        self.assertEqual(result["severe_plant_threshold"], 15)
+        self.assertEqual(result["totals"]["damaged_points"], 5)
+        self.assertEqual(result["totals"]["damaged_plants"], 25)
+        self.assertEqual(result["totals"]["completed_points"], 3)
+        self.assertEqual(result["totals"]["completion_rate"], 60.0)
+        self.assertEqual(result["totals"]["severe_points"], 1)
+        self.assertEqual(result["totals"]["collab_points"], 1)
+        self.assertEqual(len(result["localities"]), 23)
+        self.assertEqual(result["as_of_date"], "2026-06-15")
+        songzhuang = next(item for item in result["localities"] if item["locality"] == "宋庄镇")
+        self.assertEqual(
+            songzhuang["severe_sites"],
+            [{"code": "SZ001", "name": "村口", "damaged_plants": 15}],
+        )
+        self.assertEqual(connection.fetch_calls[0][1], (2026, "第一代", 15, date(2026, 6, 15)))
+        self.assertEqual(connection.fetch_calls[1][1], (2026, "第一代", 15, date(2026, 6, 15)))
+
+    async def test_locality_summary_defaults_year_and_as_of_when_missing(self) -> None:
+        connection = SequentialFakeConnection([[], []])
+
+        with patch(
+            "backend.services.statistics.ensure_pool",
+            new=AsyncMock(return_value=FakePool(connection)),
+        ):
+            result = await get_white_moth_locality_summary()
+
+        self.assertEqual(result["year"], date.today().year)
+        self.assertEqual(result["as_of_date"], date.today().isoformat())
+        self.assertIsNone(result["generation"])
+        self.assertEqual(
+            connection.fetch_calls[0][1],
+            (date.today().year, None, 10, date.today()),
+        )
+        self.assertEqual(
+            connection.fetch_calls[1][1],
+            (date.today().year, None, 10, date.today()),
+        )
+
 
 class StatisticsRouterTest(unittest.IsolatedAsyncioTestCase):
     async def test_white_moth_daily_router_returns_service_result(self) -> None:
@@ -297,6 +475,53 @@ class StatisticsRouterTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(context.exception.status_code, 500)
         self.assertEqual(context.exception.detail, "读取美国白蛾世代汇总失败：连接失败")
+
+    async def test_white_moth_locality_router_returns_service_result(self) -> None:
+        payload = {
+            "year": 2026,
+            "generation": None,
+            "as_of_date": "2026-06-15",
+            "severe_plant_threshold": 10,
+            "totals": {
+                "damaged_points": 0,
+                "damaged_plants": 0,
+                "completed_points": 0,
+                "completion_rate": 0.0,
+                "severe_points": 0,
+                "collab_points": 0,
+            },
+            "localities": [],
+        }
+
+        with patch(
+            "backend.routers.statistics.get_white_moth_locality_summary",
+            new=AsyncMock(return_value=payload),
+        ) as service_mock:
+            result = await get_white_moth_locality_statistics(
+                year=2026,
+                generation="第二代",
+                as_of_date="2026-06-15",
+                severe_plant_threshold=20,
+            )
+
+        self.assertEqual(result, payload)
+        service_mock.assert_awaited_once_with(
+            year=2026,
+            generation="第二代",
+            as_of_date="2026-06-15",
+            severe_plant_threshold=20,
+        )
+
+    async def test_white_moth_locality_router_wraps_errors(self) -> None:
+        with patch(
+            "backend.routers.statistics.get_white_moth_locality_summary",
+            new=AsyncMock(side_effect=RuntimeError("连接失败")),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                await get_white_moth_locality_statistics()
+
+        self.assertEqual(context.exception.status_code, 500)
+        self.assertEqual(context.exception.detail, "读取美国白蛾属地受害汇总失败：连接失败")
 
 
 if __name__ == "__main__":
