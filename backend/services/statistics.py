@@ -372,9 +372,10 @@ _LOCALITY_CASE_SQL = "\n        ".join(
     for locality in WHITE_MOTH_CANONICAL_LOCALITIES
 )
 
-# $1 年份, $2 世代, $3 严重株数阈值, $4 截止日期
-# 纳入：首次调查日（无则首次下派日）<= 截止日
-# 完成：完成日 <= 截止日（剪网彻底→首次调查日；否则有防治→首次防治日）
+# $1 年份, $2 世代, $3 严重株数阈值, $4 截止日期（调查/下派截止）
+# 纳入：首次调查日（无则首次下派日）<= 截止日 —— 圈定「截至该日已发现」的点位
+# 完成：台账最新状态已完成（剪网彻底→有首次调查日；否则有防治→有首次防治日）
+#       完成日不再与截止日比较，避免「先调查后防治」在截止调查日后完成的点被误判未完成
 _LOCALITY_BASE_CTE = f"""
 ledger_base AS (
     SELECT
@@ -445,7 +446,6 @@ SELECT
     COALESCE(SUM(damaged_plants), 0)::integer AS damaged_plants,
     COUNT(*) FILTER (
         WHERE completion_date IS NOT NULL
-          AND completion_date <= $4::date
     )::integer AS completed_points,
     COUNT(*) FILTER (
         WHERE damaged_plants >= $3

@@ -39,7 +39,11 @@ async def get_white_moth_generation_statistics(
 async def get_white_moth_locality_statistics(
     year: int | None = Query(None, description="年份"),
     generation: str | None = Query(None, description="世代"),
-    as_of_date: str | None = Query(None, description="截止日期，格式 YYYY-MM-DD，默认今天"),
+    as_of_date: str | None = Query(
+        None,
+        description="调查截止日期（YYYY-MM-DD，默认今天）：仅纳入首次调查/下派日不晚于该日的点位；"
+        "防治完成按台账最新状态统计，不截断完成日",
+    ),
     severe_plant_threshold: int | None = Query(
         None,
         description="严重点位受害株阈值，默认 10",

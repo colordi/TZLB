@@ -267,7 +267,16 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ELSE '其他单位'", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
         self.assertIn("first_known_date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
         self.assertIn("completion_date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        # 截止日期仅约束纳入（first_known_date <= $4），完成只看最新状态
         self.assertIn("<= $4::date", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
+        self.assertIn(
+            "WHERE completion_date IS NOT NULL",
+            WHITE_MOTH_LOCALITY_SUMMARY_SQL,
+        )
+        self.assertNotIn(
+            "completion_date <= $4::date",
+            WHITE_MOTH_LOCALITY_SUMMARY_SQL,
+        )
         self.assertIn("damaged_plants >= $3", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
         self.assertIn("is_collab", WHITE_MOTH_LOCALITY_SUMMARY_SQL)
         self.assertIn("调查日期列表", WHITE_MOTH_LOCALITY_SUMMARY_SQL)

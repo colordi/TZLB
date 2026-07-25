@@ -373,7 +373,7 @@ describe("DataStatisticsView", () => {
       asOfDate: "2026-06-01",
       severePlantThreshold: 20,
     });
-    // 截止日期/阈值只影响属地汇总
+    // 调查截止日/阈值只影响属地汇总
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(3);
     expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
   });

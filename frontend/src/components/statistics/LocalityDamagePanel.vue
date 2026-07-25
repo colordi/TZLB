@@ -178,13 +178,15 @@ function handleThresholdChange(event) {
       <div class="space-y-1">
         <CardTitle class="text-base">各属地受害情况</CardTitle>
         <CardDescription>
-          按乡镇街道汇总截至所选日期的受害点位、受害株、防治完成、严重与协同情况
+          按乡镇街道汇总：截止日期仅圈定「截至该调查日已发现」的受害点位；防治完成、受害株等取台账最新状态
           <span v-if="threshold">（严重：受害株 ≥ {{ threshold }}）</span>
         </CardDescription>
       </div>
       <div class="flex flex-wrap items-center gap-3" aria-label="属地统计筛选">
         <label class="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>截止日期</span>
+          <span title="仅筛选截至该日已发现（首次调查/下派）的点位；防治完成取台账最新状态">
+            调查截止
+          </span>
           <input
             type="date"
             class="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
