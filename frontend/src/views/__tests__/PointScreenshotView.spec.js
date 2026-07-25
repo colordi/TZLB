@@ -125,7 +125,7 @@ describe("PointScreenshotView", () => {
     expect(wrapper.get('[data-testid="point-screenshot-total"]').text()).toContain("2");
     expect(wrapper.get('[data-testid="point-screenshot-existing"]').text()).toContain("1");
     expect(wrapper.get('[data-testid="point-screenshot-missing"]').text()).toContain("1");
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(2);
     expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
       size: "thumb",
     });
@@ -144,12 +144,12 @@ describe("PointScreenshotView", () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(2);
 
     await wrapper.get('[data-testid="point-screenshot-existing"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(1);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(1);
     expect(wrapper.text()).toContain("MQ001");
     expect(wrapper.text()).not.toContain("MQ002");
     expect(wrapper.get('[data-testid="point-screenshot-existing"]').classes()).toContain(
@@ -159,7 +159,7 @@ describe("PointScreenshotView", () => {
     await wrapper.get('[data-testid="point-screenshot-missing"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(1);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(1);
     expect(wrapper.text()).toContain("MQ002");
     expect(wrapper.text()).not.toContain("玉桥东路");
     expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledWith("美国白蛾", "MQ001", {
@@ -169,7 +169,7 @@ describe("PointScreenshotView", () => {
     await wrapper.get('[data-testid="point-screenshot-total"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(2);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(2);
   });
 
   it("每页最多加载 48 个缩略图，翻页时回收上一页 objectURL", async () => {
@@ -188,14 +188,14 @@ describe("PointScreenshotView", () => {
     const wrapper = mountView();
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(48);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(48);
     expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledTimes(48);
     expect(wrapper.text()).toContain("第 1 / 3 页");
 
     await wrapper.get('[data-testid="point-screenshot-next-page"]').trigger("click");
     await flushPromises();
 
-    expect(wrapper.findAll(".point-screenshot-card")).toHaveLength(48);
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(48);
     expect(wrapper.text()).toContain("MQ0049");
     expect(apiMocks.fetchPointScreenshotBlob).toHaveBeenCalledTimes(96);
     expect(apiMocks.revokeObjectURL).toHaveBeenCalledTimes(48);
@@ -363,5 +363,66 @@ describe("PointScreenshotView", () => {
 
     expect(apiMocks.success).not.toHaveBeenCalled();
     expect(apiMocks.listPointScreenshotStatus).toHaveBeenCalledTimes(listCallCount);
+  });
+
+  it("输入搜索条件后需点击查询按钮才筛选列表", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.get('[data-testid="point-screenshot-search"]').setValue("MQ002");
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(2);
+
+    await wrapper.get('[data-testid="point-screenshot-search-submit"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.findAll(".point-screenshot-row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("MQ002");
+    expect(wrapper.text()).not.toContain("玉桥东路");
+  });
+
+  it("拖拽图片到点位行即可上传截图", async () => {
+    apiMocks.listPointScreenshotStatus
+      .mockResolvedValueOnce({
+        pest_type: "美国白蛾",
+        points: [clonePoints("美国白蛾")[1]],
+      })
+      .mockResolvedValueOnce({
+        pest_type: "美国白蛾",
+        points: [{ ...clonePoints("美国白蛾")[1], has_screenshot: true }],
+      });
+    const wrapper = mountView();
+    await flushPromises();
+
+    const file = new File(["image"], "dropped.png", { type: "image/png" });
+    await wrapper
+      .get('[data-testid="point-screenshot-row-MQ002"]')
+      .trigger("drop", { dataTransfer: { files: [file] } });
+    await flushPromises();
+
+    expect(apiMocks.uploadPointScreenshot).toHaveBeenCalledWith({
+      pestType: "美国白蛾",
+      code: "MQ002",
+      file,
+    });
+    expect(apiMocks.success).toHaveBeenCalledWith(
+      "已上传 MQ002 的点位截图。",
+      "截图已上传",
+    );
+  });
+
+  it("拖拽非图片文件到点位行不会上传", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const file = new File(["text"], "notes.txt", { type: "text/plain" });
+    await wrapper
+      .get('[data-testid="point-screenshot-row-MQ002"]')
+      .trigger("drop", { dataTransfer: { files: [file] } });
+    await flushPromises();
+
+    expect(apiMocks.uploadPointScreenshot).not.toHaveBeenCalled();
+    expect(apiMocks.error).toHaveBeenCalled();
   });
 });

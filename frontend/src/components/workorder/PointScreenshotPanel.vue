@@ -39,6 +39,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const PEST_TABS = Object.freeze([
@@ -47,6 +55,7 @@ const PEST_TABS = Object.freeze([
   { pestType: "美国白蛾", label: "美国白蛾截图" },
 ]);
 const PAGE_SIZE = 48;
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const toast = useToast();
 const STATUS_FILTERS = Object.freeze([
@@ -57,6 +66,7 @@ const STATUS_FILTERS = Object.freeze([
 
 const pestType = ref("美国白蛾");
 const points = ref([]);
+const searchInput = ref("");
 const searchQuery = ref("");
 const statusFilter = ref("all");
 const loading = ref(false);
@@ -64,6 +74,7 @@ const loadFailed = ref(false);
 const fileInput = ref(null);
 const uploadTarget = ref(null);
 const uploadingCode = ref("");
+const dragOverCode = ref("");
 const pendingDelete = ref(null);
 const deletingCode = ref("");
 const currentPage = ref(1);
@@ -73,7 +84,6 @@ const lightbox = ref(null);
 let loadRequestId = 0;
 let thumbnailRequestId = 0;
 let lightboxRequestId = 0;
-let searchTimer = null;
 let componentActive = false;
 
 const total = computed(() => points.value.length);
@@ -266,13 +276,6 @@ function loadCurrentPageThumbnails(requestId = loadRequestId) {
   );
 }
 
-function clearSearchTimer() {
-  if (searchTimer !== null) {
-    window.clearTimeout(searchTimer);
-    searchTimer = null;
-  }
-}
-
 async function loadPoints() {
   if (!componentActive) {
     return;
@@ -284,7 +287,6 @@ async function loadPoints() {
   loadFailed.value = false;
   points.value = [];
   currentPage.value = 1;
-  clearSearchTimer();
   releaseThumbnailUrls();
 
   try {
@@ -314,14 +316,14 @@ async function loadPoints() {
   }
 }
 
-function onSearchInput(event) {
-  searchQuery.value = event.target.value;
+function applySearch() {
+  const nextQuery = searchInput.value;
+  if (nextQuery === searchQuery.value) {
+    return;
+  }
+  searchQuery.value = nextQuery;
   currentPage.value = 1;
-  clearSearchTimer();
-  searchTimer = window.setTimeout(() => {
-    searchTimer = null;
-    loadCurrentPageThumbnails();
-  }, 180);
+  loadCurrentPageThumbnails();
 }
 
 function setStatusFilter(nextFilter) {
@@ -361,7 +363,9 @@ function selectPest(nextPestType) {
   }
   closeLightbox();
   statusFilter.value = "all";
+  searchInput.value = "";
   searchQuery.value = "";
+  dragOverCode.value = "";
   pestType.value = nextPestType;
   loadPoints();
 }
@@ -381,15 +385,7 @@ function openFilePicker(point) {
   }
 }
 
-async function onFileChange(event) {
-  const file = event.target.files?.[0];
-  const target = uploadTarget.value;
-  if (!file || !target) {
-    uploadTarget.value = null;
-    event.target.value = "";
-    return;
-  }
-
+async function performUpload(target, file) {
   const action = target.replacing ? "替换" : "上传";
   uploadingCode.value = target.code;
   try {
@@ -414,9 +410,56 @@ async function onFileChange(event) {
     }
   } finally {
     uploadingCode.value = "";
-    uploadTarget.value = null;
-    event.target.value = "";
   }
+}
+
+async function onFileChange(event) {
+  const file = event.target.files?.[0];
+  const target = uploadTarget.value;
+  uploadTarget.value = null;
+  event.target.value = "";
+  if (!file || !target) {
+    return;
+  }
+  await performUpload(target, file);
+}
+
+function onDragOver(event, point) {
+  if (operationBusy.value) {
+    return;
+  }
+  event.preventDefault();
+  dragOverCode.value = pointKey(point);
+}
+
+function onDragLeave(point) {
+  if (dragOverCode.value === pointKey(point)) {
+    dragOverCode.value = "";
+  }
+}
+
+function onDrop(event, point) {
+  event.preventDefault();
+  dragOverCode.value = "";
+  if (operationBusy.value) {
+    return;
+  }
+  const file = event.dataTransfer?.files?.[0];
+  if (!file) {
+    return;
+  }
+  if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+    toast.error("仅支持 JPG、PNG、WebP 格式的图片。", "截图上传失败");
+    return;
+  }
+  void performUpload(
+    {
+      pestType: pestType.value,
+      code: pointKey(point),
+      replacing: Boolean(point.has_screenshot),
+    },
+    file,
+  );
 }
 
 function requestDelete(point) {
@@ -476,7 +519,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   componentActive = false;
   loadRequestId += 1;
-  clearSearchTimer();
   closeLightbox();
   releaseThumbnailUrls();
 });
@@ -532,19 +574,36 @@ onBeforeUnmount(() => {
             </Button>
           </div>
 
-          <label class="relative min-w-[14rem] max-w-sm flex-1">
-            <span class="sr-only">搜索点位</span>
-            <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              :value="searchQuery"
-              type="search"
-              class="h-8 pl-8"
-              placeholder="搜索编号、名称、属地…"
-              data-testid="point-screenshot-search"
-              @input="onSearchInput"
-            />
-          </label>
+          <div class="flex min-w-[14rem] max-w-sm flex-1 items-center gap-2">
+            <label class="relative flex-1">
+              <span class="sr-only">搜索点位</span>
+              <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                v-model="searchInput"
+                type="search"
+                class="h-8 pl-8"
+                placeholder="搜索编号、名称、属地…"
+                data-testid="point-screenshot-search"
+                @keydown.enter="applySearch"
+              />
+            </label>
+            <Button
+              type="button"
+              size="sm"
+              class="h-8"
+              :disabled="operationBusy"
+              data-testid="point-screenshot-search-submit"
+              @click="applySearch"
+            >
+              <Search class="size-3.5" />
+              查询
+            </Button>
+          </div>
         </div>
+
+        <p class="text-sm text-muted-foreground">
+          输入条件后点击「查询」或按回车执行筛选；拖拽图片到对应点位所在行即可上传或替换截图。
+        </p>
       </CardContent>
     </Card>
 
@@ -565,93 +624,107 @@ onBeforeUnmount(() => {
       :title="emptyFilterMessage"
     />
 
-    <div v-else class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-live="polite">
-      <article
-        v-for="point in paginatedPoints"
-        :key="point.code"
-        class="point-screenshot-card overflow-hidden rounded-lg border bg-card"
-        :data-testid="`point-screenshot-card-${point.code}`"
-      >
-        <div class="relative aspect-[4/3] bg-muted">
-          <button
-            v-if="point.has_screenshot"
-            data-slot="screenshot-preview"
-            type="button"
-            class="absolute inset-0 cursor-pointer focus-visible:ring-3 focus-visible:ring-ring/50"
-            :disabled="operationBusy"
-            :data-testid="`point-screenshot-preview-${point.code}`"
-            :aria-label="`查看 ${point.code} 大图`"
-            @click="openLightbox(point)"
+    <div v-else class="overflow-hidden rounded-xl border bg-card shadow-sm" aria-live="polite">
+      <Table>
+        <TableHeader>
+          <TableRow class="hover:bg-transparent">
+            <TableHead class="w-28">编号</TableHead>
+            <TableHead>名称</TableHead>
+            <TableHead>属地</TableHead>
+            <TableHead>点位截图</TableHead>
+            <TableHead class="w-24">状态</TableHead>
+            <TableHead class="w-36 text-right">操作</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow
+            v-for="point in paginatedPoints"
+            :key="point.code"
+            class="point-screenshot-row"
+            :class="{ 'bg-primary/10 hover:bg-primary/10': dragOverCode === pointKey(point) }"
+            :data-testid="`point-screenshot-row-${point.code}`"
+            @dragover="onDragOver($event, point)"
+            @dragleave="onDragLeave(point)"
+            @drop="onDrop($event, point)"
           >
-            <img
-              v-if="thumbnailUrls.get(pointKey(point))"
-              class="size-full object-cover"
-              :src="thumbnailUrls.get(pointKey(point))"
-              :alt="`${point.code} 点位截图缩略图`"
-            />
-            <div
-              v-else
-              class="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
-            >
-              <Image class="size-6" />
-              <span v-if="thumbnailStates.get(pointKey(point)) === 'loading'" class="text-xs">加载中…</span>
-              <span v-else class="text-xs">预览不可用</span>
-            </div>
-          </button>
-          <div
-            v-else
-            class="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
-          >
-            <ImageOff class="size-6" />
-            <span class="text-xs">缺失</span>
-          </div>
-          <Badge
-            class="absolute top-2 right-2"
-            :variant="point.has_screenshot ? 'default' : 'secondary'"
-          >
-            {{ point.has_screenshot ? "已有截图" : "缺失" }}
-          </Badge>
-        </div>
-
-        <div class="space-y-3 p-3">
-          <div class="space-y-0.5">
-            <strong class="block text-sm">{{ point.code }}</strong>
-            <span class="block text-sm text-muted-foreground">{{ point.name || "未命名点位" }}</span>
-            <small class="block text-xs text-muted-foreground">{{ point.locality || "属地未填写" }}</small>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              :disabled="operationBusy"
-              :data-testid="point.has_screenshot
-                ? `point-screenshot-replace-${point.code}`
-                : `point-screenshot-upload-${point.code}`"
-              @click="openFilePicker(point)"
-            >
-              <Upload class="size-3.5" />
-              {{ uploadingCode === pointKey(point)
-                ? "上传中…"
-                : point.has_screenshot ? "替换" : "上传" }}
-            </Button>
-            <Button
-              v-if="point.has_screenshot"
-              type="button"
-              size="sm"
-              variant="ghost"
-              class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              :disabled="operationBusy"
-              :data-testid="`point-screenshot-delete-${point.code}`"
-              @click="requestDelete(point)"
-            >
-              <Trash2 class="size-3.5" />
-              {{ deletingCode === pointKey(point) ? "删除中…" : "删除" }}
-            </Button>
-          </div>
-        </div>
-      </article>
+            <TableCell class="font-medium">{{ point.code }}</TableCell>
+            <TableCell class="max-w-44 truncate">{{ point.name || "未命名点位" }}</TableCell>
+            <TableCell class="max-w-44 truncate">{{ point.locality || "属地未填写" }}</TableCell>
+            <TableCell>
+              <button
+                v-if="point.has_screenshot"
+                type="button"
+                class="block size-16 cursor-pointer overflow-hidden rounded border bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                :disabled="operationBusy"
+                :data-testid="`point-screenshot-preview-${point.code}`"
+                :aria-label="`查看 ${point.code} 大图`"
+                @click="openLightbox(point)"
+              >
+                <img
+                  v-if="thumbnailUrls.get(pointKey(point))"
+                  class="size-full object-cover"
+                  :src="thumbnailUrls.get(pointKey(point))"
+                  :alt="`${point.code} 点位截图缩略图`"
+                />
+                <div
+                  v-else
+                  class="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground"
+                >
+                  <Image class="size-4" />
+                  <span v-if="thumbnailStates.get(pointKey(point)) === 'loading'" class="text-xs">加载中…</span>
+                  <span v-else class="text-xs">预览不可用</span>
+                </div>
+              </button>
+              <div
+                v-else
+                class="flex size-16 flex-col items-center justify-center gap-1 rounded border border-dashed text-muted-foreground"
+              >
+                <ImageOff class="size-4" />
+                <span class="text-xs">缺失</span>
+              </div>
+            </TableCell>
+            <TableCell>
+              <Badge :variant="point.has_screenshot ? 'default' : 'secondary'">
+                {{ point.has_screenshot ? "已有截图" : "缺失" }}
+              </Badge>
+            </TableCell>
+            <TableCell class="text-right">
+              <div class="flex flex-col items-end gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  class="w-28 border-dashed"
+                  :disabled="operationBusy"
+                  :title="`${point.code}：拖拽图片到本行，或点击选择`"
+                  :data-testid="point.has_screenshot
+                    ? `point-screenshot-replace-${point.code}`
+                    : `point-screenshot-upload-${point.code}`"
+                  @click="openFilePicker(point)"
+                >
+                  <Upload class="size-3.5" />
+                  {{ uploadingCode === pointKey(point)
+                    ? "上传中…"
+                    : point.has_screenshot ? "替换" : "上传" }}
+                </Button>
+                <Button
+                  v-if="point.has_screenshot"
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  class="w-28 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  :disabled="operationBusy"
+                  :data-testid="`point-screenshot-delete-${point.code}`"
+                  @click="requestDelete(point)"
+                >
+                  <Trash2 class="size-3.5" />
+                  {{ deletingCode === pointKey(point) ? "删除中…" : "删除" }}
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
     </div>
 
     <div
