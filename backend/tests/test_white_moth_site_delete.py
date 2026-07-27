@@ -85,7 +85,7 @@ class CheckWhiteMothSiteDeletionTest(unittest.IsolatedAsyncioTestCase):
             "latitude": 39.7,
             "survey_record_count": 3,
         }
-        with patch("backend.db.postgres.fetchrow", new=AsyncMock(return_value=row)):
+        with patch("backend.db.white_moth_sites.fetchrow", new=AsyncMock(return_value=row)):
             result = await check_white_moth_site_deletion("MQ001")
 
         self.assertEqual(result["code"], "MQ001")
@@ -93,7 +93,7 @@ class CheckWhiteMothSiteDeletionTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["locality"], "马驹桥镇")
 
     async def test_returns_none_when_site_missing(self) -> None:
-        with patch("backend.db.postgres.fetchrow", new=AsyncMock(return_value=None)):
+        with patch("backend.db.white_moth_sites.fetchrow", new=AsyncMock(return_value=None)):
             result = await check_white_moth_site_deletion("MQ001")
         self.assertIsNone(result)
 
@@ -114,7 +114,7 @@ class DeleteWhiteMothSiteTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.db.admin.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.postgres.ensure_pool", new=AsyncMock(return_value=pool)):
+        ), patch("backend.db.white_moth_sites.ensure_pool", new=AsyncMock(return_value=pool)):
             result = await delete_white_moth_site(code="MQ001", operator=OPERATOR)
 
         self.assertEqual(connection.transaction_calls, 1)
@@ -135,7 +135,7 @@ class DeleteWhiteMothSiteTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.db.admin.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.postgres.ensure_pool", new=AsyncMock(return_value=pool)):
+        ), patch("backend.db.white_moth_sites.ensure_pool", new=AsyncMock(return_value=pool)):
             result = await delete_white_moth_site(code="MQ001", operator=OPERATOR)
 
         self.assertIsNone(result)

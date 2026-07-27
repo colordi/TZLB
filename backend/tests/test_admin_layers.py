@@ -57,13 +57,13 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
         fetch_mock = AsyncMock(side_effect=fake_fetch)
 
         with (
-            patch("backend.db.admin.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.layer_metadata.ensure_layer_metadata_storage", new=AsyncMock()),
             patch(
-                "backend.db.admin.list_map_views",
+                "backend.db.layer_metadata.list_map_views",
                 new=AsyncMock(return_value=[{"name": "虫情总览", "columns": ["编号"]}]),
             ),
             patch(
-                "backend.db.admin.list_reference_layers",
+                "backend.db.layer_metadata.list_reference_layers",
                 new=AsyncMock(
                     return_value=[
                         {
@@ -75,7 +75,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                     ]
                 ),
             ),
-            patch("backend.db.admin.fetch", new=fetch_mock),
+            patch("backend.db.layer_metadata.fetch", new=fetch_mock),
         ):
             payload = await list_layer_metadata()
 
@@ -95,7 +95,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
     async def test_dashboard_layer_counts_use_synchronized_metadata(self) -> None:
         with (
             patch(
-                "backend.db.admin.fetchrow",
+                "backend.db.admin_dashboard.fetchrow",
                 new=AsyncMock(
                     return_value={
                         "total": 3,
@@ -106,7 +106,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
-                "backend.db.admin.list_layer_metadata",
+                "backend.db.admin_dashboard.list_layer_metadata",
                 new=AsyncMock(
                     return_value=[
                         {"layer_type": "view"},
@@ -116,7 +116,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
-                "backend.db.admin.fetch",
+                "backend.db.admin_dashboard.fetch",
                 new=AsyncMock(
                     side_effect=[
                         [{"total": 2}],
@@ -134,7 +134,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
     async def test_enabled_map_views_exclude_disabled_metadata_rows(self) -> None:
         with (
             patch(
-                "backend.db.admin.list_layer_metadata",
+                "backend.db.layer_metadata.list_layer_metadata",
                 new=AsyncMock(
                     return_value=[
                         {
@@ -157,7 +157,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
-                "backend.db.admin.list_map_views",
+                "backend.db.layer_metadata.list_map_views",
                 new=AsyncMock(
                     return_value=[
                         {"name": "虫情总览", "columns": ["编号"]},
@@ -176,7 +176,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
     async def test_enabled_reference_layers_exclude_disabled_metadata_rows(self) -> None:
         with (
             patch(
-                "backend.db.admin.list_layer_metadata",
+                "backend.db.layer_metadata.list_layer_metadata",
                 new=AsyncMock(
                     return_value=[
                         {
@@ -199,7 +199,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
-                "backend.db.admin.list_reference_layers",
+                "backend.db.layer_metadata.list_reference_layers",
                 new=AsyncMock(
                     return_value=[
                         {
@@ -236,7 +236,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
     async def test_enabled_map_views_pass_through_default_filters(self) -> None:
         with (
             patch(
-                "backend.db.admin.list_layer_metadata",
+                "backend.db.layer_metadata.list_layer_metadata",
                 new=AsyncMock(
                     return_value=[
                         {
@@ -252,7 +252,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
-                "backend.db.admin.list_map_views",
+                "backend.db.layer_metadata.list_map_views",
                 new=AsyncMock(
                     return_value=[
                         {"name": "美国白蛾调查", "columns": ["编号", "年份", "世代"]},
@@ -278,10 +278,10 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
             self.fail(f"未预期的查询：{query}")
 
         with (
-            patch("backend.db.admin.ensure_layer_metadata_storage", new=AsyncMock()),
-            patch("backend.db.admin.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.layer_metadata.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.layer_metadata.fetch", new=AsyncMock(side_effect=fake_fetch)),
             patch(
-                "backend.db.admin.list_layer_metadata",
+                "backend.db.layer_metadata.list_layer_metadata",
                 new=AsyncMock(return_value=[]),
             ),
         ):
@@ -308,8 +308,8 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_batch_upsert_rejects_non_dict_default_filters(self) -> None:
         with (
-            patch("backend.db.admin.ensure_layer_metadata_storage", new=AsyncMock()),
-            patch("backend.db.admin.fetch", new=AsyncMock(return_value=[])),
+            patch("backend.db.layer_metadata.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.layer_metadata.fetch", new=AsyncMock(return_value=[])),
         ):
             with self.assertRaises(ValueError):
                 await batch_upsert_layer_metadata(

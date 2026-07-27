@@ -199,7 +199,7 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
                 return_value=settings,
             ),
             patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=settings,
             ),
         ):

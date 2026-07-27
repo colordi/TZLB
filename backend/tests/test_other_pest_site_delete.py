@@ -94,7 +94,7 @@ class CheckOtherPestSiteDeletionTest(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             result = await check_other_pest_site_deletion("QT0007")
 
         self.assertEqual(result["code"], "QT0007")
@@ -105,7 +105,7 @@ class CheckOtherPestSiteDeletionTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ORDER BY (s.geom IS NOT NULL) DESC", site_query)
 
     async def test_returns_none_when_site_missing(self) -> None:
-        with patch("backend.db.postgres.fetchrow", new=AsyncMock(return_value=None)):
+        with patch("backend.db.other_pest_sites.fetchrow", new=AsyncMock(return_value=None)):
             result = await check_other_pest_site_deletion("QT9999")
         self.assertIsNone(result)
 
@@ -118,7 +118,7 @@ class DeleteOtherPestSiteTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.db.admin.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.postgres.ensure_pool", new=AsyncMock(return_value=pool)):
+        ), patch("backend.db.other_pest_sites.ensure_pool", new=AsyncMock(return_value=pool)):
             result = await delete_other_pest_site(code="QT0007", operator=OPERATOR)
 
         self.assertEqual(connection.transaction_calls, 1)
@@ -140,7 +140,7 @@ class DeleteOtherPestSiteTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.db.admin.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.postgres.ensure_pool", new=AsyncMock(return_value=pool)):
+        ), patch("backend.db.other_pest_sites.ensure_pool", new=AsyncMock(return_value=pool)):
             result = await delete_other_pest_site(code="QT0007", operator=OPERATOR)
 
         self.assertEqual(result["longitude"], 116.5)
@@ -153,7 +153,7 @@ class DeleteOtherPestSiteTest(unittest.IsolatedAsyncioTestCase):
         with patch(
             "backend.db.admin.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.postgres.ensure_pool", new=AsyncMock(return_value=pool)):
+        ), patch("backend.db.other_pest_sites.ensure_pool", new=AsyncMock(return_value=pool)):
             result = await delete_other_pest_site(code="QT9999", operator=OPERATOR)
 
         self.assertIsNone(result)

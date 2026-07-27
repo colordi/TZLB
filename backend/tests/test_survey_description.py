@@ -163,7 +163,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
 
             with (
                 patch(
-                    "backend.db.postgres.fetch",
+                    "backend.db.survey_candidates.fetch",
                     new=AsyncMock(
                         return_value=[
                             {
@@ -179,7 +179,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                     ),
                 ),
                 patch(
-                    "backend.db.postgres.get_settings",
+                    "backend.db.survey_candidates.get_settings",
                     return_value=SimpleNamespace(point_screenshot_dir=Path(tempdir)),
                 ),
             ):
@@ -201,7 +201,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
 
             with (
                 patch(
-                    "backend.db.postgres.fetch",
+                    "backend.db.survey_candidates.fetch",
                     new=AsyncMock(
                         return_value=[
                             {
@@ -217,7 +217,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                     ),
                 ),
                 patch(
-                    "backend.db.postgres.get_settings",
+                    "backend.db.survey_candidates.get_settings",
                     return_value=SimpleNamespace(
                         sophora_point_screenshot_dir=Path(tempdir)
                     ),
@@ -249,10 +249,10 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with TemporaryDirectory() as tempdir, patch(
-            "backend.db.postgres.fetch",
+            "backend.db.survey_candidates.fetch",
             new=mocked_fetch,
         ), patch(
-            "backend.db.postgres.get_settings",
+            "backend.db.survey_candidates.get_settings",
             return_value=SimpleNamespace(point_screenshot_dir=Path(tempdir)),
         ):
             candidates = await fetch_survey_candidates("2026-04-01")
@@ -288,7 +288,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "backend.db.postgres.fetch",
+            "backend.db.survey_candidates.fetch",
             new=mocked_fetch,
         ):
             candidates = await fetch_survey_candidates("2026-04-17", pest_type="其他害虫")
@@ -332,10 +332,10 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with TemporaryDirectory() as tempdir, patch(
-            "backend.db.postgres.fetch",
+            "backend.db.survey_candidates.fetch",
             new=mocked_fetch,
         ), patch(
-            "backend.db.postgres.get_settings",
+            "backend.db.survey_candidates.get_settings",
             return_value=SimpleNamespace(sophora_point_screenshot_dir=Path(tempdir)),
         ):
             candidates = await fetch_survey_candidates(
@@ -394,10 +394,10 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             image_path.write_bytes(image_bytes)
 
             with patch(
-                "backend.db.postgres.fetch",
+                "backend.db.survey_candidates.fetch",
                 new=mocked_fetch,
             ), patch(
-                "backend.db.postgres.get_settings",
+                "backend.db.survey_candidates.get_settings",
                 return_value=SimpleNamespace(meiguobaie_point_screenshot_dir=Path(tempdir)),
             ):
                 candidates = await fetch_survey_candidates(

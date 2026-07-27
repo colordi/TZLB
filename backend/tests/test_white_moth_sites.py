@@ -85,7 +85,7 @@ class WhiteMothSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_next_code_from_max_serial(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": 42})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.white_moth_sites.fetchrow", new=fetchrow_mock):
             result = await get_white_moth_site_code_hint("mq")
 
         self.assertEqual(result["prefix"], "MQ")
@@ -101,7 +101,7 @@ class WhiteMothSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_first_code_when_empty(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": None})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.white_moth_sites.fetchrow", new=fetchrow_mock):
             result = await get_white_moth_site_code_hint("LYI")
 
         self.assertEqual(result["prefix"], "LYI")
@@ -113,7 +113,7 @@ class WhiteMothSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_null_next_when_serial_overflows(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": 999})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.white_moth_sites.fetchrow", new=fetchrow_mock):
             result = await get_white_moth_site_code_hint("MQ")
 
         self.assertEqual(result["latest_code"], "MQ999")
@@ -144,7 +144,7 @@ class WhiteMothSiteCreateTest(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.white_moth_sites.fetchrow", new=fetchrow_mock):
             result = await create_white_moth_site(
                 code="mq001",
                 site_name=" 示范点 ",

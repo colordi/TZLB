@@ -36,7 +36,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "国槐尺蠖幼虫历年发生情况",
@@ -44,7 +44,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.map_queries.fetch", new=AsyncMock(side_effect=fake_fetch)),
         ):
             payload = await fetch_map_filter_options("国槐尺蠖幼虫历年发生情况")
 
@@ -94,7 +94,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "虫情总览",
@@ -102,7 +102,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.map_queries.fetch", new=AsyncMock(side_effect=fake_fetch)),
         ):
             payload = await fetch_map_filter_options("虫情总览")
 
@@ -151,7 +151,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "虫情总览",
@@ -159,7 +159,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.map_queries.fetch", new=AsyncMock(side_effect=fake_fetch)),
         ):
             payload = await fetch_map_filter_options("虫情总览")
 
@@ -193,7 +193,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "虫情总览",
@@ -201,7 +201,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.map_queries.fetch", new=AsyncMock(side_effect=fake_fetch)),
         ):
             payload = await fetch_map_filter_options("虫情总览")
 
@@ -237,7 +237,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "虫情总览",
@@ -245,7 +245,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=AsyncMock(side_effect=fake_fetch)),
+            patch("backend.db.map_queries.fetch", new=AsyncMock(side_effect=fake_fetch)),
         ):
             payload = await fetch_map_filter_options(
                 "虫情总览",
@@ -280,7 +280,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "国槐尺蠖幼虫历年发生情况",
@@ -288,7 +288,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=fetch_mock),
+            patch("backend.db.map_queries.fetch", new=fetch_mock),
         ):
             payload = await fetch_view_feature_collection(
                 "国槐尺蠖幼虫历年发生情况",
@@ -329,7 +329,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_map_view",
+                "backend.db.map_queries.get_map_view",
                 new=AsyncMock(
                     return_value={
                         "name": "美国白蛾调查",
@@ -337,7 +337,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=fetch_mock),
+            patch("backend.db.map_queries.fetch", new=fetch_mock),
         ):
             payload = await fetch_view_feature_collection(
                 "美国白蛾调查",
@@ -394,7 +394,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_reference_layers_list_spatial_reference_tables(self) -> None:
         with patch(
-            "backend.db.postgres.fetch",
+            "backend.db.map_queries.fetch",
             new=AsyncMock(
                 return_value=[
                     {
@@ -435,7 +435,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "backend.db.postgres.get_reference_layer",
+                "backend.db.map_queries.get_reference_layer",
                 new=AsyncMock(
                     return_value={
                         "name": "通州区小区边界",
@@ -445,7 +445,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
                     }
                 ),
             ),
-            patch("backend.db.postgres.fetch", new=fetch_mock),
+            patch("backend.db.map_queries.fetch", new=fetch_mock),
         ):
             payload = await fetch_reference_layer_feature_collection("通州区小区边界")
 

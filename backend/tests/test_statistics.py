@@ -102,7 +102,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_daily_statistics()
@@ -119,7 +119,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         connection = FakeConnection()
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_daily_statistics()
@@ -131,7 +131,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         connection = FakeConnection([build_row()])
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             await get_white_moth_daily_statistics(year=2026, generation="第一代")
@@ -192,7 +192,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_generation_summary()
@@ -241,7 +241,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_generation_summary(year=2025)
@@ -388,7 +388,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_locality_summary(
@@ -421,7 +421,7 @@ class StatisticsServiceTest(unittest.IsolatedAsyncioTestCase):
         connection = SequentialFakeConnection([[], []])
 
         with patch(
-            "backend.services.statistics.ensure_pool",
+            "backend.services.statistics.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             result = await get_white_moth_locality_summary()

@@ -132,7 +132,7 @@ class DataExportServiceTest(unittest.IsolatedAsyncioTestCase):
         connection = FakeConnection()
 
         with patch(
-            "backend.services.data_export.ensure_pool",
+            "backend.services.data_export.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             artifact = await export_all_tables()
@@ -340,7 +340,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_export_pest_type_creates_xlsx_with_correct_sheets(self) -> None:
         connection = _build_rich_fake_connection()
         with patch(
-            "backend.services.data_export.ensure_pool",
+            "backend.services.data_export.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             artifact = await export_pest_type("美国白蛾")
@@ -367,7 +367,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
         connection.fetch = capturing_fetch
 
         with patch(
-            "backend.services.data_export.ensure_pool",
+            "backend.services.data_export.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             artifact = await export_pest_type("美国白蛾", year="2026")
@@ -380,7 +380,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
     async def test_export_pest_type_with_year_and_generation_filter(self) -> None:
         connection = _build_rich_fake_connection()
         with patch(
-            "backend.services.data_export.ensure_pool",
+            "backend.services.data_export.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             artifact = await export_pest_type("美国白蛾", year="2026", generation="1")
@@ -435,7 +435,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
         connection.counts = {}
         connection.table_rows = {}
         with patch(
-            "backend.services.data_export.ensure_pool",
+            "backend.services.data_export.service.ensure_pool",
             new=AsyncMock(return_value=FakePool(connection)),
         ):
             with self.assertRaises(ValueError) as context:

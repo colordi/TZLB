@@ -1,0 +1,438 @@
+/* 颜色一律 var(--*) 语义 token；浮层视觉（bg-card/95、backdrop-blur、圆角、边框、阴影）
+ * 走模板 Tailwind 类（规范 §7），此处保留布局结构与移动端媒体查询。 */
+.map-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.map-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: var(--background);
+  box-shadow: none;
+  isolation: isolate;
+}
+
+.map-workspace::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.24;
+  background-image:
+    linear-gradient(color-mix(in oklch, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--foreground) 6%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 52px 52px;
+  content: "";
+  pointer-events: none;
+}
+
+.map-workspace::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in oklch, var(--card) 22%, transparent),
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 50% 110%,
+      color-mix(in oklch, var(--foreground) 10%, transparent),
+      transparent 42%
+    );
+  content: "";
+  pointer-events: none;
+}
+
+.map-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.map-panel :deep(.map-shell) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  background: transparent;
+}
+
+.map-search-panel {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 1004;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  max-width: calc(100% - 3rem);
+  pointer-events: auto;
+}
+
+.map-control-stack {
+  display: grid;
+  overflow: hidden;
+}
+
+.map-control-icon-button {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 0;
+  color: var(--primary);
+}
+
+.map-control-icon-button + .map-control-icon-button {
+  border-top: 1px solid var(--border);
+}
+
+.map-control-icon-button.is-active {
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.map-control-icon-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--destructive);
+}
+
+.map-panel-popovers {
+  min-width: 0;
+  width: min(342px, calc(100vw - 7.5rem));
+}
+
+.map-search-popover {
+  width: 100%;
+}
+
+.map-search-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.map-search-results {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+}
+
+.map-search-result {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 2px;
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  padding: 0.75rem;
+  color: var(--foreground);
+  text-align: left;
+  white-space: normal;
+}
+
+.map-search-result strong,
+.map-search-result span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-search-result strong {
+  font-size: 0.875rem;
+}
+
+.map-search-result span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.map-survey-status-filter {
+  width: 100%;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.25rem;
+}
+
+.map-survey-status-segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.map-survey-status-option {
+  min-width: 0;
+}
+
+.map-survey-status-option-text,
+.map-survey-status-option-count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-survey-status-option-count {
+  color: color-mix(in oklch, currentColor 76%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.map-dynamic-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.map-dynamic-filter {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-dynamic-filter-label {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.map-dynamic-filter :deep([data-slot="native-select-wrapper"]) {
+  width: 100%;
+}
+
+.detail-drawer,
+.site-add-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1200;
+  width: min(390px, calc(100vw - 320px));
+  pointer-events: none;
+}
+
+.detail-card,
+.site-add-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  border-left: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 96%, transparent);
+  box-shadow: -18px 0 42px color-mix(in oklch, var(--foreground) 14%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto;
+  animation: detail-slide-in 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes detail-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.detail-title {
+  min-width: 0;
+  flex: 1;
+  color: var(--foreground);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-divider {
+  height: 1px;
+  margin: 0 1.5rem;
+  background: linear-gradient(to right, var(--border), transparent);
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.detail-footer {
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 74px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.detail-label {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.detail-value {
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.site-add-card {
+  height: auto;
+  max-height: 100%;
+}
+
+.site-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+}
+
+.site-add-location {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.site-add-location strong {
+  color: var(--foreground);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.site-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.site-add-code-hint {
+  gap: 0.45rem;
+}
+
+.site-add-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}
+
+@media (max-width: 760px) {
+  .map-workspace {
+    min-height: calc(100vh - 4.25rem - 0.65rem);
+    border-radius: var(--radius);
+  }
+
+  .map-search-panel {
+    top: 4rem;
+    left: 1rem;
+    right: auto;
+    max-width: calc(100% - 2rem);
+  }
+
+  .map-panel-popovers {
+    width: min(286px, calc(100vw - 9.5rem));
+  }
+
+  .map-search-submit {
+    display: none;
+  }
+
+  .detail-drawer,
+  .site-add-drawer {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(62vh, 560px);
+  }
+
+  .detail-card,
+  .site-add-card {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -18px 42px color-mix(in oklch, var(--foreground) 14%, transparent);
+  }
+
+  .detail-body {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+  }
+
+  .site-add-actions {
+    grid-template-columns: 1fr;
+  }
+}

@@ -67,7 +67,7 @@ def build_image_settings(temp_dir: Path, **overrides):
 class DocgenTest(unittest.TestCase):
     def test_convert_docx_bytes_to_doc_returns_doc_bytes_and_name(self) -> None:
         with self.subTest("libreoffice convert success"):
-            with patch("backend.services.docgen.get_settings") as mocked_settings:
+            with patch("backend.services.docgen.convert.get_settings") as mocked_settings:
                 settings = SimpleNamespace(
                     temp_dir=Path("/tmp/tzlb-tests"),
                     libreoffice_bin="/opt/homebrew/bin/soffice",
@@ -75,11 +75,11 @@ class DocgenTest(unittest.TestCase):
                 )
                 mocked_settings.return_value = settings
 
-                with patch("backend.services.docgen.tempfile.TemporaryDirectory") as mocked_tempdir:
+                with patch("backend.services.docgen.convert.tempfile.TemporaryDirectory") as mocked_tempdir:
                     mocked_tempdir.return_value.__enter__.return_value = "/tmp/tzlb-tests/export-job"
                     mocked_tempdir.return_value.__exit__.return_value = False
 
-                    with patch("backend.services.docgen.subprocess.run") as mocked_run:
+                    with patch("backend.services.docgen.convert.subprocess.run") as mocked_run:
                         with (
                             patch("pathlib.Path.write_bytes", return_value=11),
                             patch("pathlib.Path.exists", return_value=True),
@@ -167,7 +167,7 @@ class DocgenTest(unittest.TestCase):
     def test_save_base64_images_rejects_disguised_image_payload(self) -> None:
         with TemporaryDirectory() as tempdir:
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(Path(tempdir)),
             ):
                 with self.assertRaises(ValueError) as context:
@@ -186,7 +186,7 @@ class DocgenTest(unittest.TestCase):
 
         with TemporaryDirectory() as tempdir:
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(Path(tempdir)),
             ):
                 with self.assertRaises(ValueError) as context:
@@ -203,7 +203,7 @@ class DocgenTest(unittest.TestCase):
     def test_save_base64_images_rejects_oversized_image_before_decode(self) -> None:
         with TemporaryDirectory() as tempdir:
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(Path(tempdir), workorder_image_max_bytes=4),
             ):
                 with self.assertRaises(ValueError) as context:
@@ -222,7 +222,7 @@ class DocgenTest(unittest.TestCase):
 
         with TemporaryDirectory() as tempdir:
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(Path(tempdir)),
             ):
                 paths = save_base64_images(
@@ -246,7 +246,7 @@ class DocgenTest(unittest.TestCase):
             source_path.write_bytes(create_image_bytes("PNG"))
 
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(root / "tmp"),
             ):
                 paths = sanitize_existing_image_paths([source_path], "row_1")
@@ -426,7 +426,7 @@ class DocgenTest(unittest.TestCase):
                 path.write_bytes(b"fake-image")
 
             with patch(
-                "backend.services.docgen.get_settings",
+                "backend.services.docgen.images.get_settings",
                 return_value=SimpleNamespace(
                     meiguobaie_point_screenshot_dir=points_dir,
                     images_dir=root / "images",

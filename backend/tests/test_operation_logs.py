@@ -37,10 +37,10 @@ class ListOperationLogsTest(unittest.IsolatedAsyncioTestCase):
             ]
 
         with patch(
-            "backend.db.admin.ensure_operation_log_storage",
+            "backend.db.operation_logs.ensure_operation_log_storage",
             new=AsyncMock(return_value=None),
-        ), patch("backend.db.admin.fetchrow", new=AsyncMock(return_value=count_row)), patch(
-            "backend.db.admin.fetch", new=fake_fetch
+        ), patch("backend.db.operation_logs.fetchrow", new=AsyncMock(return_value=count_row)), patch(
+            "backend.db.operation_logs.fetch", new=fake_fetch
         ):
             items, total = await list_operation_logs(limit=100, offset=0)
 

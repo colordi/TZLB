@@ -51,7 +51,7 @@ class OtherPestSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_next_code_from_max_serial(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": 6})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             result = await get_other_pest_site_code_hint()
 
         self.assertEqual(result["prefix"], "QT")
@@ -66,7 +66,7 @@ class OtherPestSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_first_code_when_empty(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": None})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             result = await get_other_pest_site_code_hint()
 
         self.assertIsNone(result["latest_code"])
@@ -76,7 +76,7 @@ class OtherPestSiteCodeHintTest(unittest.IsolatedAsyncioTestCase):
     async def test_hint_returns_null_next_when_serial_overflows(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"max_serial": 9999})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             result = await get_other_pest_site_code_hint()
 
         self.assertEqual(result["latest_code"], "QT9999")
@@ -99,7 +99,7 @@ class OtherPestSiteCreateTest(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             result = await create_other_pest_site(
                 code="qt0007",
                 site_name=" 示范点 ",
@@ -121,7 +121,7 @@ class OtherPestSiteCreateTest(unittest.IsolatedAsyncioTestCase):
     async def test_create_site_rejects_duplicate_code(self) -> None:
         fetchrow_mock = AsyncMock(return_value={"?column?": 1})
 
-        with patch("backend.db.postgres.fetchrow", new=fetchrow_mock):
+        with patch("backend.db.other_pest_sites.fetchrow", new=fetchrow_mock):
             with self.assertRaises(OtherPestSiteDuplicateError):
                 await create_other_pest_site(
                     code="QT0006",
