@@ -6,6 +6,8 @@ import { useToast } from "../composables/useToast.js";
 import {
   createOtherPestSite,
   createWhiteMothSite,
+  deleteOtherPestSite,
+  deleteOtherPestSiteCheck,
   deleteWhiteMothSite,
   deleteWhiteMothSiteCheck,
   fetchMapFilterOptions,
@@ -38,13 +40,13 @@ function createEmptyFeatureCollection() {
 
 const { error, info, success } = useToast();
 const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
-const OTHER_PEST_SURVEY_VIEW_NAME = "其他害虫调查";
+const OTHER_PEST_SITE_VIEW_NAME = "其他害虫点位";
 const SITE_ADD_KIND_WHITE_MOTH = "white-moth";
 const SITE_ADD_KIND_OTHER_PEST = "other-pest";
 // 仅这些图层开放"添加点位"，值决定新增点位的类型
 const SITE_ADD_TARGETS = {
   [WHITE_MOTH_SITE_VIEW_NAME]: SITE_ADD_KIND_WHITE_MOTH,
-  [OTHER_PEST_SURVEY_VIEW_NAME]: SITE_ADD_KIND_OTHER_PEST,
+  [OTHER_PEST_SITE_VIEW_NAME]: SITE_ADD_KIND_OTHER_PEST,
 };
 const LOCALITY_FIELD = "属地";
 const SURVEY_STATUS_FILTER_KEY = "调查状态";
@@ -101,7 +103,7 @@ const loadingOtherPestSiteCodeHint = ref(false);
 const isAddingSite = ref(false);
 const isSavingSite = ref(false);
 const showDeleteConfirm = ref(false);
-const isDeletingWhiteMothSite = ref(false);
+const isDeletingSite = ref(false);
 const deleteCheckLoading = ref(false);
 const pendingDeleteSite = ref(null);
 let geojsonRequestToken = 0;
@@ -166,7 +168,8 @@ const featureRows = computed(() => {
 });
 
 const canDeleteSelectedSite = computed(() => {
-  if (selectedView.value !== WHITE_MOTH_SITE_VIEW_NAME) return false;
+  // 支持添加点位的图层（美国白蛾点位、其他害虫点位）同样支持按编号删除
+  if (!activeSiteAddKind.value) return false;
   if (!selectedFeature.value?.properties) return false;
   const code = `${selectedFeature.value.properties["编号"] ?? ""}`.trim();
   return code !== "";
@@ -175,11 +178,13 @@ const canDeleteSelectedSite = computed(() => {
 const deleteConfirmMessage = computed(() => {
   const site = pendingDeleteSite.value;
   if (!site) return "";
+  const kindLabel =
+    site.kind === SITE_ADD_KIND_OTHER_PEST ? "其他害虫点位" : "美国白蛾点位";
   const label = `${site.locality || "未知属地"} · ${site.site_name || "未命名"}`;
   if (!site.survey_record_count) {
-    return `将删除美国白蛾点位「${site.code}」（${label}）。此操作仅删除点位，不删除已关联的调查记录和台账，且不可撤销。`;
+    return `将删除${kindLabel}「${site.code}」（${label}）。此操作仅删除点位，不删除已关联的调查记录和台账，且不可撤销。`;
   }
-  return `将删除美国白蛾点位「${site.code}」（${label}）。该编号当前关联 ${site.survey_record_count} 条调查记录，删除点位后这些调查记录和台账将变为悬空数据。此操作不可撤销，确认仍要删除吗？`;
+  return `将删除${kindLabel}「${site.code}」（${label}）。该编号当前关联 ${site.survey_record_count} 条调查记录，删除点位后这些调查记录和台账将变为悬空数据。此操作不可撤销，确认仍要删除吗？`;
 });
 
 function closeDeleteConfirm() {
@@ -187,24 +192,28 @@ function closeDeleteConfirm() {
   pendingDeleteSite.value = null;
 }
 
-async function requestDeleteWhiteMothSite() {
-  if (isDeletingWhiteMothSite.value || deleteCheckLoading.value) return;
+async function requestDeleteSite() {
+  if (isDeletingSite.value || deleteCheckLoading.value) return;
+  const kind = activeSiteAddKind.value;
   const code = `${selectedFeature.value?.properties?.["编号"] ?? ""}`.trim();
-  if (!code) {
+  if (!kind || !code) {
     error("未读取到点位编号。", "删除失败");
     return;
   }
 
   deleteCheckLoading.value = true;
   try {
-    const result = await deleteWhiteMothSiteCheck(code);
+    const result =
+      kind === SITE_ADD_KIND_OTHER_PEST
+        ? await deleteOtherPestSiteCheck(code)
+        : await deleteWhiteMothSiteCheck(code);
     if (!result.exists) {
       error("点位已被删除或不存在。", "删除失败");
       closeDetail();
-      await refreshWhiteMothSiteView();
+      await refreshSitePointsView();
       return;
     }
-    pendingDeleteSite.value = result;
+    pendingDeleteSite.value = { ...result, kind };
     showDeleteConfirm.value = true;
   } catch (checkError) {
     if (isUnauthorizedError(checkError)) return;
@@ -214,27 +223,30 @@ async function requestDeleteWhiteMothSite() {
   }
 }
 
-async function confirmDeleteWhiteMothSite() {
+async function confirmDeleteSite() {
   const site = pendingDeleteSite.value;
   if (!site) {
     closeDeleteConfirm();
     return;
   }
 
-  isDeletingWhiteMothSite.value = true;
+  isDeletingSite.value = true;
   try {
-    const deleted = await deleteWhiteMothSite(site.code);
+    const deleted =
+      site.kind === SITE_ADD_KIND_OTHER_PEST
+        ? await deleteOtherPestSite(site.code)
+        : await deleteWhiteMothSite(site.code);
     success(`点位 ${deleted.code} 已删除。`, "删除成功");
     closeDeleteConfirm();
     closeDetail();
-    await refreshWhiteMothSiteView();
+    await refreshSitePointsView();
   } catch (deleteError) {
     if (isUnauthorizedError(deleteError)) {
       return;
     }
     error(`${deleteError.message || deleteError}`, "删除失败");
   } finally {
-    isDeletingWhiteMothSite.value = false;
+    isDeletingSite.value = false;
   }
 }
 
@@ -1194,9 +1206,9 @@ function normalizeSiteCodeInput() {
   siteForm.value.code = siteForm.value.code.trim().toUpperCase();
 }
 
-async function refreshAfterSiteCreate() {
+async function refreshSitePointsView() {
   if (activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST) {
-    // 当前就在其他害虫调查视图，重载数据与搜索索引即可
+    // 当前就在其他害虫点位视图，重载数据与搜索索引即可
     resetSearchIndex();
     return loadGeoJson({ autoFit: false });
   }
@@ -1252,7 +1264,7 @@ async function submitSite() {
     );
     isAddingSite.value = false;
     resetSiteDraft();
-    await refreshAfterSiteCreate();
+    await refreshSitePointsView();
   } catch (saveError) {
     if (isUnauthorizedError(saveError)) {
       return;
@@ -1544,9 +1556,9 @@ onMounted(async () => {
               type="button"
               variant="destructive"
               class="w-full"
-              data-testid="white-moth-site-delete-btn"
+              data-testid="site-delete-btn"
               :disabled="deleteCheckLoading"
-              @click="requestDeleteWhiteMothSite"
+              @click="requestDeleteSite"
             >
               {{ deleteCheckLoading ? "检查中…" : "删除点位" }}
             </Button>
@@ -1765,12 +1777,12 @@ onMounted(async () => {
 
   <ConfirmDialog
     :open="showDeleteConfirm"
-    :busy="isDeletingWhiteMothSite"
+    :busy="isDeletingSite"
     title="删除点位"
     confirm-text="确认删除"
     :message="deleteConfirmMessage"
     @close="closeDeleteConfirm"
-    @confirm="confirmDeleteWhiteMothSite"
+    @confirm="confirmDeleteSite"
   />
 </template>
 

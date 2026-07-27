@@ -657,6 +657,7 @@ async def delete_user(user_id: int) -> bool:
 
 OPERATION_LOG_TABLE = "点位操作日志"
 OPERATION_LOG_ACTION_DELETE_WHITE_MOTH_SITE = "删除美国白蛾点位"
+OPERATION_LOG_ACTION_DELETE_OTHER_PEST_SITE = "删除其他害虫点位"
 
 
 def _qualified_operation_log_table() -> str:

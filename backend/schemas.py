@@ -281,6 +281,29 @@ class OtherPestSiteResponse(BaseModel):
     latitude: float
 
 
+class OtherPestSiteDeleteCheckResponse(BaseModel):
+    """其他害虫点位删除前检查响应。"""
+
+    code: str
+    exists: bool
+    site_name: str | None = None
+    locality: str | None = None
+    longitude: float | None = None
+    latitude: float | None = None
+    survey_record_count: int = 0
+
+
+class OtherPestSiteDeleteResponse(BaseModel):
+    """其他害虫点位删除响应。"""
+
+    code: str
+    site_name: str = ""
+    locality: str = ""
+    longitude: float | None = None
+    latitude: float | None = None
+    survey_record_count: int = 0
+
+
 class OperationLogItem(BaseModel):
     """点位操作日志条目。"""
 

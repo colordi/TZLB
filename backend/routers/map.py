@@ -15,9 +15,11 @@ from backend.db.postgres import (
     OtherPestSiteDuplicateError,
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
+    check_other_pest_site_deletion,
     check_white_moth_site_deletion,
     create_other_pest_site,
     create_white_moth_site,
+    delete_other_pest_site,
     delete_white_moth_site,
     fetch_admin_boundary_feature_collection,
     fetch_map_filter_options,
@@ -31,6 +33,8 @@ from backend.db.postgres import (
 from backend.schemas import (
     OtherPestSiteCodeHintResponse,
     OtherPestSiteCreateRequest,
+    OtherPestSiteDeleteCheckResponse,
+    OtherPestSiteDeleteResponse,
     OtherPestSiteResponse,
     WhiteMothSiteCodeHintResponse,
     WhiteMothSiteCreateRequest,
@@ -234,6 +238,52 @@ async def post_other_pest_site(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"新增其他害虫点位失败：{exc}") from exc
+
+
+@router.get(
+    "/other-pest-sites/{code}/delete-check",
+    response_model=OtherPestSiteDeleteCheckResponse,
+    summary="删除前检查其他害虫点位",
+)
+async def get_other_pest_site_delete_check(code: str) -> OtherPestSiteDeleteCheckResponse:
+    normalized_code = code.strip().upper()
+    try:
+        result = await check_other_pest_site_deletion(normalized_code)
+        if result is None:
+            return OtherPestSiteDeleteCheckResponse(
+                code=normalized_code,
+                exists=False,
+            )
+        return OtherPestSiteDeleteCheckResponse(exists=True, **result)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"删除前检查失败：{exc}") from exc
+
+
+@router.delete(
+    "/other-pest-sites/{code}",
+    response_model=OtherPestSiteDeleteResponse,
+    summary="删除其他害虫点位",
+)
+async def delete_other_pest_site_endpoint(
+    code: str,
+    current_user: dict = Depends(require_authenticated_user),
+) -> OtherPestSiteDeleteResponse:
+    normalized_code = code.strip().upper()
+    try:
+        deleted = await delete_other_pest_site(
+            code=normalized_code,
+            operator=current_user,
+        )
+        if deleted is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"编号不存在：{normalized_code}",
+            )
+        return OtherPestSiteDeleteResponse(**deleted)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"删除其他害虫点位失败：{exc}") from exc
 
 
 @router.get("/views/{view_name}", summary="读取指定地图视图的 GeoJSON")

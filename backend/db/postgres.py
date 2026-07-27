@@ -913,6 +913,164 @@ async def delete_white_moth_site(*, code: str, operator: dict[str, Any]) -> dict
             }
 
 
+async def check_other_pest_site_deletion(code: str) -> dict[str, Any] | None:
+    """删除前检查其他害虫点位：返回点位信息与关联调查记录数。点位不存在返回 None。
+
+    编号可能存在历史重复数据（含无 geom 的坏数据），优先返回带坐标的点位。
+    """
+
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+    )
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(OTHER_PEST_SURVEY_TABLE)}"
+    )
+
+    site_row = await fetchrow(
+        f"""
+        SELECT
+            s."编号" AS code,
+            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+            COALESCE(s."点位名称", '') AS site_name,
+            ST_X(s.geom) AS longitude,
+            ST_Y(s.geom) AS latitude
+        FROM {qualified_site_table} AS s
+        WHERE s."编号" = $1
+        ORDER BY (s.geom IS NOT NULL) DESC
+        LIMIT 1
+        """,
+        code,
+    )
+    if site_row is None:
+        return None
+
+    survey_count_row = await fetchrow(
+        f"""
+        SELECT COUNT(*) AS survey_record_count
+        FROM {qualified_survey_table}
+        WHERE BTRIM("编号") = $1
+        """,
+        code,
+    )
+
+    return {
+        "code": site_row["code"],
+        "locality": site_row["locality"],
+        "site_name": site_row["site_name"],
+        "longitude": site_row["longitude"],
+        "latitude": site_row["latitude"],
+        "survey_record_count": (
+            survey_count_row["survey_record_count"] if survey_count_row else 0
+        ),
+    }
+
+
+async def delete_other_pest_site(*, code: str, operator: dict[str, Any]) -> dict[str, Any] | None:
+    """删除其他害虫点位并在同一事务内写入操作日志。点位不存在返回 None。
+
+    编号无唯一约束，会删除该编号全部记录（含历史遗留的无坐标坏数据）。
+    """
+
+    from backend.db.admin import (
+        ADMIN_SCHEMA,
+        OPERATION_LOG_ACTION_DELETE_OTHER_PEST_SITE,
+        OPERATION_LOG_TABLE,
+        ensure_operation_log_storage,
+    )
+
+    await ensure_operation_log_storage()
+
+    qualified_site_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+    )
+    qualified_survey_table = (
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(OTHER_PEST_SURVEY_TABLE)}"
+    )
+    qualified_log_table = (
+        f'"{ADMIN_SCHEMA}"."{OPERATION_LOG_TABLE}"'
+    )
+
+    operator_id = operator.get("id")
+    operator_username = operator.get("username") or ""
+    operator_display_name = operator.get("display_name") or ""
+    operator_role = operator.get("role") or ""
+
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            deleted_rows = await connection.fetch(
+                f"""
+                DELETE FROM {qualified_site_table}
+                WHERE "编号" = $1
+                RETURNING
+                    "编号" AS code,
+                    COALESCE({quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+                    COALESCE("点位名称", '') AS site_name,
+                    ST_X(geom) AS longitude,
+                    ST_Y(geom) AS latitude
+                """,
+                code,
+            )
+            if not deleted_rows:
+                return None
+
+            deleted = next(
+                (row for row in deleted_rows if row["longitude"] is not None),
+                deleted_rows[0],
+            )
+
+            survey_count_row = await connection.fetchrow(
+                f"""
+                SELECT COUNT(*) AS survey_record_count
+                FROM {qualified_survey_table}
+                WHERE BTRIM("编号") = $1
+                """,
+                code,
+            )
+            survey_record_count = (
+                survey_count_row["survey_record_count"] if survey_count_row else 0
+            )
+
+            await connection.execute(
+                f"""
+                INSERT INTO {qualified_log_table} (
+                    action,
+                    operator_id,
+                    operator_username,
+                    operator_display_name,
+                    operator_role,
+                    site_code,
+                    site_name,
+                    locality,
+                    longitude,
+                    latitude,
+                    survey_record_count
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                """,
+                OPERATION_LOG_ACTION_DELETE_OTHER_PEST_SITE,
+                operator_id,
+                operator_username,
+                operator_display_name,
+                operator_role,
+                deleted["code"],
+                deleted["site_name"],
+                deleted["locality"],
+                deleted["longitude"],
+                deleted["latitude"],
+                survey_record_count,
+            )
+
+            return {
+                "code": deleted["code"],
+                "site_name": deleted["site_name"],
+                "locality": deleted["locality"],
+                "longitude": deleted["longitude"],
+                "latitude": deleted["latitude"],
+                "survey_record_count": survey_record_count,
+            }
+
+
 async def fetch_map_filter_options(
     view_name: str,
     filters: dict[str, str | list[str]] | None = None,

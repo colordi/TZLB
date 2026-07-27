@@ -13,6 +13,8 @@ const apiMocks = vi.hoisted(() => ({
   fetchOtherPestSiteCodeRules: vi.fn(),
   fetchOtherPestSiteCodeHint: vi.fn(),
   createOtherPestSite: vi.fn(),
+  deleteOtherPestSite: vi.fn(),
+  deleteOtherPestSiteCheck: vi.fn(),
   deleteWhiteMothSite: vi.fn(),
   deleteWhiteMothSiteCheck: vi.fn(),
   fetchMapView: vi.fn(),
@@ -29,6 +31,8 @@ vi.mock("../../api/map.js", () => ({
   fetchOtherPestSiteCodeRules: apiMocks.fetchOtherPestSiteCodeRules,
   fetchOtherPestSiteCodeHint: apiMocks.fetchOtherPestSiteCodeHint,
   createOtherPestSite: apiMocks.createOtherPestSite,
+  deleteOtherPestSite: apiMocks.deleteOtherPestSite,
+  deleteOtherPestSiteCheck: apiMocks.deleteOtherPestSiteCheck,
   deleteWhiteMothSite: apiMocks.deleteWhiteMothSite,
   deleteWhiteMothSiteCheck: apiMocks.deleteWhiteMothSiteCheck,
   fetchMapView: apiMocks.fetchMapView,
@@ -313,6 +317,23 @@ describe("MapView", () => {
       code: "MQ001",
       site_name: "示范点",
       locality: "马驹桥镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 0,
+    });
+    apiMocks.deleteOtherPestSiteCheck.mockResolvedValue({
+      code: "QT0007",
+      exists: true,
+      site_name: "示范点",
+      locality: "梨园镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 0,
+    });
+    apiMocks.deleteOtherPestSite.mockResolvedValue({
+      code: "QT0007",
+      site_name: "示范点",
+      locality: "梨园镇",
       longitude: 116.5,
       latitude: 39.7,
       survey_record_count: 0,
@@ -1203,17 +1224,17 @@ describe("MapView", () => {
     expect(apiMocks.createOtherPestSite).not.toHaveBeenCalled();
   });
 
-  it("其他害虫调查图层下新增其他害虫点位", async () => {
+  it("其他害虫点位图层下新增其他害虫点位", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "其他害虫调查",
+        name: "其他害虫点位",
         columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
       expect(apiMocks.fetchOtherPestSiteCodeRules).toHaveBeenCalled();
     });
     expect(getLeafletMapStub(wrapper).props("siteAddLabel")).toBe("添加其他害虫点位");
@@ -1264,20 +1285,20 @@ describe("MapView", () => {
     });
     expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
     // 保存后停留在当前视图并重载数据
-    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
   });
 
   it("其他害虫编号格式不正确时阻止提交", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "其他害虫调查",
+        name: "其他害虫点位",
         columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1565,11 +1586,11 @@ describe("MapView", () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.find('[data-testid="white-moth-site-delete-btn"]').exists(),
+      wrapper.find('[data-testid="site-delete-btn"]').exists(),
     ).toBe(true);
   });
 
-  it("非美国白蛾点位视图选中点位后不显示删除按钮", async () => {
+  it("不支持点位管理的视图选中点位后不显示删除按钮", async () => {
     const targetFeature = {
       type: "Feature",
       properties: {
@@ -1593,7 +1614,7 @@ describe("MapView", () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.find('[data-testid="white-moth-site-delete-btn"]').exists(),
+      wrapper.find('[data-testid="site-delete-btn"]').exists(),
     ).toBe(false);
   });
 
@@ -1641,7 +1662,7 @@ describe("MapView", () => {
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
     await wrapper.vm.$nextTick();
 
-    await wrapper.get('[data-testid="white-moth-site-delete-btn"]').trigger("click");
+    await wrapper.get('[data-testid="site-delete-btn"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.deleteWhiteMothSiteCheck).toHaveBeenCalledWith("MQ001");
@@ -1694,7 +1715,7 @@ describe("MapView", () => {
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
     await wrapper.vm.$nextTick();
 
-    await wrapper.get('[data-testid="white-moth-site-delete-btn"]').trigger("click");
+    await wrapper.get('[data-testid="site-delete-btn"]').trigger("click");
 
     await vi.waitFor(() => {
       expect(apiMocks.deleteWhiteMothSiteCheck).toHaveBeenCalledWith("MQ001");
@@ -1702,5 +1723,72 @@ describe("MapView", () => {
 
     expect(apiMocks.deleteWhiteMothSite).not.toHaveBeenCalled();
     expect(wrapper.find('[data-slot="alert-dialog-description"]').exists()).toBe(false);
+  });
+
+  it("其他害虫点位视图删除点位走其他害虫删除链路", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "QT0007",
+        点位名称: "梨园示范点",
+        属地: "梨园镇",
+      },
+      geometry: { type: "Point", coordinates: [116.5, 39.7] },
+    };
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "其他害虫点位",
+        columns: ["编号", "点位名称", "属地"],
+      },
+    ]);
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+    apiMocks.deleteOtherPestSiteCheck.mockResolvedValue({
+      code: "QT0007",
+      exists: true,
+      site_name: "梨园示范点",
+      locality: "梨园镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 1,
+    });
+    apiMocks.deleteOtherPestSite.mockResolvedValue({
+      code: "QT0007",
+      site_name: "梨园示范点",
+      locality: "梨园镇",
+      longitude: 116.5,
+      latitude: 39.7,
+      survey_record_count: 1,
+    });
+
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="site-delete-btn"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.deleteOtherPestSiteCheck).toHaveBeenCalledWith("QT0007");
+    });
+    expect(apiMocks.deleteWhiteMothSiteCheck).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => {
+      const message = wrapper.get('[data-slot="alert-dialog-description"]').text();
+      expect(message).toContain("其他害虫点位");
+      expect(message).toContain("QT0007");
+      expect(message).toContain("1 条调查记录");
+    });
+
+    await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.deleteOtherPestSite).toHaveBeenCalledWith("QT0007");
+    });
+    expect(apiMocks.deleteWhiteMothSite).not.toHaveBeenCalled();
+    expect(wrapper.find(".detail-drawer").exists()).toBe(false);
   });
 });
