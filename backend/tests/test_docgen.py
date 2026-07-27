@@ -450,6 +450,54 @@ class DocgenTest(unittest.TestCase):
         self.assertIn("MQ001_2.jpg", dated_image_names)
         self.assertNotIn("AMQ001-1.jpg", dated_image_names)
 
+    def test_resolve_other_pest_images_uses_date_folder_and_screenshot(self) -> None:
+        from backend.services.docgen import resolve_auto_disk_image_paths
+
+        payload = WorkOrderGenerateRequest(
+            pest_type="其他害虫",
+            task_type="其他害虫防治",
+            task="2026其他害虫防治",
+            records=[
+                {
+                    "survey_date": "2026-07-27",
+                    "locality": "永顺镇",
+                    "location_id": "QT0007",
+                    "location_name": "物资学院东路",
+                    "pest_name": "蚜虫",
+                    "host_plant": "国槐",
+                    "plot_type": "道路绿化",
+                    "description": "国槐蚜虫危害严重。",
+                    "note": "",
+                    "images": [],
+                }
+            ],
+        )
+
+        with TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            points_dir = root / "points"
+            dated_images_dir = root / "images" / "2026-07-27"
+            points_dir.mkdir()
+            dated_images_dir.mkdir(parents=True)
+            (points_dir / "QT0007.jpg").write_bytes(b"fake-image")
+            (dated_images_dir / "QT0007-1.jpg").write_bytes(b"fake-image")
+            (dated_images_dir / "QT0007-2.jpg").write_bytes(b"fake-image")
+            (dated_images_dir / "QT0008-1.jpg").write_bytes(b"fake-image")
+
+            with patch(
+                "backend.services.docgen.images.get_settings",
+                return_value=SimpleNamespace(
+                    other_pest_point_screenshot_dir=points_dir,
+                    images_dir=root / "images",
+                ),
+            ):
+                image_paths = resolve_auto_disk_image_paths(payload.records[0], "其他害虫")
+
+        self.assertEqual(
+            [path.name for path in image_paths],
+            ["QT0007.jpg", "QT0007-1.jpg", "QT0007-2.jpg"],
+        )
+
     def test_generate_workorder_batch_artifact_packs_successful_records(self) -> None:
         payload = WorkOrderGenerateRequest(
             pest_type="春尺蠖",

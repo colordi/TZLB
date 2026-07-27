@@ -17,7 +17,7 @@ from backend.services.docgen.constants import (
     SUPPORTED_IMAGE_FORMAT_LABEL,
 )
 from backend.services.pest_registry import (
-    IMAGE_STRATEGY_WHITE_MOTH_AUTO,
+    IMAGE_STRATEGY_AUTO_DISK,
     get_pest_config,
 )
 
@@ -212,18 +212,19 @@ def find_dated_location_images(images_dir: Path, survey_date: str, location_id: 
     )
 
 
-def resolve_meiguobaie_image_paths(record: WorkOrderRecord) -> list[Path]:
-    """按美国白蛾工作单规则自动装配图片，最多 4 张。"""
+def resolve_auto_disk_image_paths(record: WorkOrderRecord, pest_type: str) -> list[Path]:
+    """按点位截图 + images/{调查日期}/ 日期现场图自动装配，最多 4 张。"""
 
     settings = get_settings()
+    config = get_pest_config(pest_type)
     image_paths: list[Path] = []
 
-    point_screenshot = find_point_screenshot(
-        settings.meiguobaie_point_screenshot_dir,
-        record.location_id,
-    )
-    if point_screenshot is not None:
-        image_paths.append(point_screenshot)
+    if config.screenshot_dir_attr:
+        screenshot_dir = getattr(settings, config.screenshot_dir_attr, None)
+        if screenshot_dir is not None:
+            point_screenshot = find_point_screenshot(Path(screenshot_dir), record.location_id)
+            if point_screenshot is not None:
+                image_paths.append(point_screenshot)
 
     image_paths.extend(
         find_dated_location_images(
@@ -236,6 +237,12 @@ def resolve_meiguobaie_image_paths(record: WorkOrderRecord) -> list[Path]:
     return unique_existing_images(image_paths)
 
 
+def resolve_meiguobaie_image_paths(record: WorkOrderRecord) -> list[Path]:
+    """兼容旧调用：按美国白蛾配置自动装配图片。"""
+
+    return resolve_auto_disk_image_paths(record, "美国白蛾")
+
+
 def resolve_record_image_paths(
     record: WorkOrderRecord,
     pest_type: str,
@@ -243,8 +250,11 @@ def resolve_record_image_paths(
     temp_images: list[Path],
 ) -> list[Path]:
     config = get_pest_config(pest_type)
-    if config.image_strategy == IMAGE_STRATEGY_WHITE_MOTH_AUTO:
-        image_paths = sanitize_existing_image_paths(resolve_meiguobaie_image_paths(record), row_id)
+    if config.image_strategy == IMAGE_STRATEGY_AUTO_DISK:
+        image_paths = sanitize_existing_image_paths(
+            resolve_auto_disk_image_paths(record, pest_type),
+            row_id,
+        )
         temp_images.extend(image_paths)
         return image_paths
 

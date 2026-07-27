@@ -8,7 +8,10 @@ from backend.config import get_settings
 
 
 IMAGE_STRATEGY_UPLOADED = "uploaded_images"
-IMAGE_STRATEGY_WHITE_MOTH_AUTO = "white_moth_auto_images"
+# 从点位截图目录 + images/{调查日期}/ 按编号自动装配（美国白蛾、其他害虫等）
+IMAGE_STRATEGY_AUTO_DISK = "auto_disk_images"
+# 历史别名，与 IMAGE_STRATEGY_AUTO_DISK 等价
+IMAGE_STRATEGY_WHITE_MOTH_AUTO = IMAGE_STRATEGY_AUTO_DISK
 
 SURVEY_IMPORT_SPRING_INCHWORM = "spring_inchworm"
 SURVEY_IMPORT_GUO_HUAI_INCHWORM = "guo_huai_inchworm"
@@ -198,6 +201,7 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
             "damaged_plant_count": "10",
             "web_nest_count": "0",
         },
+        image_strategy=IMAGE_STRATEGY_AUTO_DISK,
         survey_import_strategy=SURVEY_IMPORT_OTHER_PEST,
         screenshot_dir_attr="other_pest_point_screenshot_dir",
     ),

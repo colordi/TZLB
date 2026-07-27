@@ -55,9 +55,9 @@ const candidateColumns = computed(() =>
     .slice(0, 3),
 );
 const autoAssemblyHint = computed(() =>
-  pestType.value === "美国白蛾"
-    ? "美国白蛾生成工单时会自动按编号从这些图片中装配现场图。"
-    : "提示：目前仅美国白蛾生成工单时自动装配日期图片，其他害虫请使用点位截图或清单内图片。",
+  pestType.value === "美国白蛾" || pestType.value === "其他害虫"
+    ? `${pestType.value}生成工单时会自动按编号从这些图片中装配现场图（点位截图优先，其次日期现场照）。`
+    : "提示：目前仅美国白蛾、其他害虫生成工单时自动装配日期图片；春尺蠖/国槐尺蠖请使用点位截图或清单内图片。",
 );
 
 watch([pestType, year, taskName, selectedDate], () => {

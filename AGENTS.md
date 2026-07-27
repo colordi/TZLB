@@ -141,7 +141,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
   - `uploaded_images`：直接使用前端上传的图片。
 
-  - `white_moth_auto_images`：美国白蛾专用，按点位编号从 `points/美国白蛾点位截图/` 和 `images/{调查日期}/` 自动装配图片。
+  - `auto_disk_images`（历史名 `white_moth_auto_images`）：按点位编号从对应 `points/*点位截图/` 和 `images/{调查日期}/` 自动装配图片（美国白蛾、其他害虫）。
 
 - 生成流程：`backend/services/docgen.py` 使用 `docxtpl` 渲染 `templates/林业有害生物防治工作单模板.docx`，生成 `.docx`，再通过 LibreOffice 转换为 `.doc`。
 
