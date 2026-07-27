@@ -11,19 +11,27 @@ from backend.db.admin import (
 )
 from backend.db.postgres import (
     MAP_MAX_LIMIT,
+    OtherPestSiteCodeError,
+    OtherPestSiteDuplicateError,
     WhiteMothSiteCodeError,
     WhiteMothSiteDuplicateError,
     check_white_moth_site_deletion,
+    create_other_pest_site,
     create_white_moth_site,
     delete_white_moth_site,
     fetch_admin_boundary_feature_collection,
     fetch_map_filter_options,
     fetch_reference_layer_feature_collection,
     fetch_view_feature_collection,
+    get_other_pest_site_code_hint,
+    get_other_pest_site_code_rules,
     get_white_moth_site_code_hint,
     get_white_moth_site_code_rules,
 )
 from backend.schemas import (
+    OtherPestSiteCodeHintResponse,
+    OtherPestSiteCreateRequest,
+    OtherPestSiteResponse,
     WhiteMothSiteCodeHintResponse,
     WhiteMothSiteCreateRequest,
     WhiteMothSiteDeleteCheckResponse,
@@ -181,6 +189,51 @@ async def delete_white_moth_site_endpoint(
         raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"删除美国白蛾点位失败：{exc}") from exc
+
+
+@router.get("/other-pest-sites/code-rules", summary="读取其他害虫点位编号规则")
+async def get_other_pest_site_rules() -> dict:
+    return get_other_pest_site_code_rules()
+
+
+@router.get(
+    "/other-pest-sites/code-hint",
+    response_model=OtherPestSiteCodeHintResponse,
+    summary="读取其他害虫点位编号提示",
+)
+async def get_other_pest_site_code_hint_endpoint() -> OtherPestSiteCodeHintResponse:
+    try:
+        return OtherPestSiteCodeHintResponse(**await get_other_pest_site_code_hint())
+    except OtherPestSiteCodeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取编号提示失败：{exc}") from exc
+
+
+@router.post(
+    "/other-pest-sites",
+    response_model=OtherPestSiteResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="新增其他害虫点位",
+)
+async def post_other_pest_site(
+    payload: OtherPestSiteCreateRequest,
+) -> OtherPestSiteResponse:
+    try:
+        created_site = await create_other_pest_site(
+            code=payload.code,
+            site_name=payload.site_name,
+            locality=payload.locality,
+            longitude=payload.longitude,
+            latitude=payload.latitude,
+        )
+        return OtherPestSiteResponse(**created_site)
+    except OtherPestSiteCodeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OtherPestSiteDuplicateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"新增其他害虫点位失败：{exc}") from exc
 
 
 @router.get("/views/{view_name}", summary="读取指定地图视图的 GeoJSON")

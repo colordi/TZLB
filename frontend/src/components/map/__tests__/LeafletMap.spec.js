@@ -618,6 +618,29 @@ describe("LeafletMap 实时定位", () => {
     ]);
   });
 
+  it("未配置添加点位标签时不渲染添加按钮", () => {
+    const wrapper = mountLeafletMap();
+
+    expect(wrapper.find('[data-testid="map-add-site-button"]').exists()).toBe(false);
+  });
+
+  it("配置添加点位标签后渲染按钮并透出标签文案", async () => {
+    const wrapper = mountLeafletMap({
+      siteAddLabel: "添加其他害虫点位",
+    });
+
+    const addButton = wrapper.get('[data-testid="map-add-site-button"]');
+    expect(addButton.attributes("aria-label")).toBe("添加其他害虫点位");
+
+    await addButton.trigger("click");
+    expect(wrapper.emitted("toggle-white-moth-site-add")).toHaveLength(1);
+
+    await wrapper.setProps({ whiteMothSiteAddMode: true });
+    expect(
+      wrapper.get('[data-testid="map-add-site-button"]').attributes("aria-label"),
+    ).toBe("取消添加其他害虫点位");
+  });
+
   it("添加点位模式关闭时点击地图仍抛出经纬度用于关闭浮层", () => {
     const wrapper = mountLeafletMap();
     const mapInstance = leafletMocks.maps[0];

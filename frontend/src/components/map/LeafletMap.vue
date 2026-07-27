@@ -90,6 +90,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  siteAddLabel: {
+    type: String,
+    default: "",
+  },
 });
 
 const emit = defineEmits([
@@ -141,7 +145,7 @@ const locateButtonLabel = computed(() =>
   isRealtimeLocating.value ? "重新居中到当前位置" : "开启实时定位",
 );
 const whiteMothSiteAddButtonLabel = computed(() =>
-  props.whiteMothSiteAddMode ? "取消添加美国白蛾点位" : "添加美国白蛾点位",
+  props.whiteMothSiteAddMode ? `取消${props.siteAddLabel}` : props.siteAddLabel,
 );
 const pointLayerEntries = computed(() => {
   const fallbackName = props.viewName || "当前点位";
@@ -1294,14 +1298,17 @@ onBeforeUnmount(() => {
         </Button>
       </div>
 
-      <div class="map-tool-group rounded-xl border bg-card/95 shadow-md backdrop-blur">
+      <div
+        v-if="siteAddLabel"
+        class="map-tool-group rounded-xl border bg-card/95 shadow-md backdrop-blur"
+      >
         <Button
           type="button"
           variant="ghost"
           size="icon"
           class="map-tool-btn"
           :class="{ 'is-active': whiteMothSiteAddMode, 'is-loading': whiteMothSiteSaving }"
-          data-testid="map-add-white-moth-site-button"
+          data-testid="map-add-site-button"
           :aria-label="whiteMothSiteAddButtonLabel"
           :aria-pressed="whiteMothSiteAddMode"
           :disabled="whiteMothSiteSaving"

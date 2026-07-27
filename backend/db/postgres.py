@@ -62,6 +62,12 @@ WHITE_MOTH_SITE_PREFIX_LOCALITIES = {
     "TY": "通运街道",
     "LH": "临河里街道",
 }
+# 其他害虫点位编号固定 QT 前缀 + 4 位序号（与现有数据一致），编号不含属地信息
+OTHER_PEST_SITE_CODE_PREFIX = "QT"
+OTHER_PEST_SITE_CODE_PATTERN = re.compile(r"^QT\d{4}$")
+OTHER_PEST_SITE_CODE_EXAMPLE = "QT0001"
+OTHER_PEST_SITE_CODE_SERIAL_WIDTH = 4
+OTHER_PEST_SITE_LOCALITIES = tuple(dict.fromkeys(WHITE_MOTH_SITE_PREFIX_LOCALITIES.values()))
 MAP_DYNAMIC_FILTER_COLUMNS = {
     "年份": "年份",
     "世代": "世代",
@@ -93,6 +99,14 @@ class WhiteMothSiteCodeError(ValueError):
 
 class WhiteMothSiteDuplicateError(ValueError):
     """美国白蛾点位编号重复。"""
+
+
+class OtherPestSiteCodeError(ValueError):
+    """其他害虫点位编号或属地错误。"""
+
+
+class OtherPestSiteDuplicateError(ValueError):
+    """其他害虫点位编号重复。"""
 
 
 def normalize_filter_values(value: Any) -> list[str]:
@@ -194,6 +208,81 @@ async def get_white_moth_site_code_hint(prefix: str) -> dict[str, Any]:
         "latest_serial": int(max_serial),
         "suggested_next_code": (
             f"{normalized_prefix}{next_serial:03d}" if next_serial <= 999 else None
+        ),
+    }
+
+
+def get_other_pest_site_code_rules() -> dict[str, Any]:
+    """返回其他害虫点位编号规则与可选属地列表。"""
+
+    return {
+        "code_pattern": OTHER_PEST_SITE_CODE_PATTERN.pattern,
+        "code_example": OTHER_PEST_SITE_CODE_EXAMPLE,
+        "code_prefix": OTHER_PEST_SITE_CODE_PREFIX,
+        "localities": list(OTHER_PEST_SITE_LOCALITIES),
+    }
+
+
+def normalize_other_pest_site_code(value: str) -> str:
+    """标准化其他害虫点位编号。"""
+
+    return (value or "").strip().upper()
+
+
+def validate_other_pest_site(code: str, locality: str) -> tuple[str, str]:
+    """校验其他害虫点位编号格式与属地合法性，返回标准化后的（编号, 属地）。"""
+
+    normalized_code = normalize_other_pest_site_code(code)
+    if not OTHER_PEST_SITE_CODE_PATTERN.fullmatch(normalized_code):
+        raise OtherPestSiteCodeError(
+            f"编号格式不正确，请输入类似 {OTHER_PEST_SITE_CODE_EXAMPLE} 的编号"
+        )
+
+    normalized_locality = (locality or "").strip()
+    if normalized_locality not in OTHER_PEST_SITE_LOCALITIES:
+        raise OtherPestSiteCodeError("属地不合法，请从列表中选择乡镇街道")
+
+    return normalized_code, normalized_locality
+
+
+async def get_other_pest_site_code_hint() -> dict[str, Any]:
+    """返回其他害虫点位当前最大编号与建议下一编号（QT 固定前缀）。"""
+
+    qualified_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+    )
+    width = OTHER_PEST_SITE_CODE_SERIAL_WIDTH
+    code_pattern = f"^{OTHER_PEST_SITE_CODE_PREFIX}[0-9]{{{width}}}$"
+    serial_pattern = f"^{OTHER_PEST_SITE_CODE_PREFIX}([0-9]{{{width}}})$"
+
+    row = await fetchrow(
+        f"""
+        SELECT MAX(CAST(substring("编号" FROM $1) AS integer)) AS max_serial
+        FROM {qualified_table}
+        WHERE "编号" ~ $2
+        """,
+        serial_pattern,
+        code_pattern,
+    )
+    max_serial = row["max_serial"] if row else None
+    max_serial_allowed = 10**width - 1
+    if max_serial is None:
+        return {
+            "prefix": OTHER_PEST_SITE_CODE_PREFIX,
+            "latest_code": None,
+            "latest_serial": None,
+            "suggested_next_code": f"{OTHER_PEST_SITE_CODE_PREFIX}{1:0{width}d}",
+        }
+
+    next_serial = int(max_serial) + 1
+    return {
+        "prefix": OTHER_PEST_SITE_CODE_PREFIX,
+        "latest_code": f"{OTHER_PEST_SITE_CODE_PREFIX}{int(max_serial):0{width}d}",
+        "latest_serial": int(max_serial),
+        "suggested_next_code": (
+            f"{OTHER_PEST_SITE_CODE_PREFIX}{next_serial:0{width}d}"
+            if next_serial <= max_serial_allowed
+            else None
         ),
     }
 
@@ -623,6 +712,65 @@ async def create_white_moth_site(
         )
     except asyncpg.UniqueViolationError as exc:
         raise WhiteMothSiteDuplicateError(f"编号已存在：{normalized_code}") from exc
+
+    return dict(row or {})
+
+
+async def create_other_pest_site(
+    *,
+    code: str,
+    site_name: str,
+    locality: str,
+    longitude: float,
+    latitude: float,
+) -> dict[str, Any]:
+    """新增其他害虫点位。编号无唯一约束，插入前显式查重。"""
+
+    normalized_code, normalized_locality = validate_other_pest_site(code, locality)
+    qualified_table = (
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+    )
+
+    existing = await fetchrow(
+        f"""
+        SELECT 1
+        FROM {qualified_table}
+        WHERE "编号" = $1
+        LIMIT 1
+        """,
+        normalized_code,
+    )
+    if existing is not None:
+        raise OtherPestSiteDuplicateError(f"编号已存在：{normalized_code}")
+
+    row = await fetchrow(
+        f"""
+        INSERT INTO {qualified_table} (
+            "编号",
+            {quote_identifier(LOCALITY_COLUMN)},
+            "点位名称",
+            geom
+        )
+        VALUES (
+            $1,
+            $2,
+            $3,
+            ST_SetSRID(ST_MakePoint($4, $5), 4326)
+        )
+        RETURNING
+            gid,
+            "编号" AS code,
+            {quote_identifier(LOCALITY_COLUMN)} AS locality,
+            COALESCE("点位名称", '') AS site_name,
+            ST_X(geom) AS longitude,
+            ST_Y(geom) AS latitude
+        """,
+        normalized_code,
+        normalized_locality,
+        (site_name or "").strip(),
+        longitude,
+        latitude,
+    )
 
     return dict(row or {})
 

@@ -10,6 +10,9 @@ const apiMocks = vi.hoisted(() => ({
   fetchWhiteMothSiteCodeRules: vi.fn(),
   fetchWhiteMothSiteCodeHint: vi.fn(),
   createWhiteMothSite: vi.fn(),
+  fetchOtherPestSiteCodeRules: vi.fn(),
+  fetchOtherPestSiteCodeHint: vi.fn(),
+  createOtherPestSite: vi.fn(),
   deleteWhiteMothSite: vi.fn(),
   deleteWhiteMothSiteCheck: vi.fn(),
   fetchMapView: vi.fn(),
@@ -23,6 +26,9 @@ vi.mock("../../api/map.js", () => ({
   fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
   fetchWhiteMothSiteCodeHint: apiMocks.fetchWhiteMothSiteCodeHint,
   createWhiteMothSite: apiMocks.createWhiteMothSite,
+  fetchOtherPestSiteCodeRules: apiMocks.fetchOtherPestSiteCodeRules,
+  fetchOtherPestSiteCodeHint: apiMocks.fetchOtherPestSiteCodeHint,
+  createOtherPestSite: apiMocks.createOtherPestSite,
   deleteWhiteMothSite: apiMocks.deleteWhiteMothSite,
   deleteWhiteMothSiteCheck: apiMocks.deleteWhiteMothSiteCheck,
   fetchMapView: apiMocks.fetchMapView,
@@ -76,6 +82,10 @@ const LeafletMapStub = defineComponent({
       type: Boolean,
       default: false,
     },
+    siteAddLabel: {
+      type: String,
+      default: "",
+    },
   },
   emits: [
     "update:viewName",
@@ -99,8 +109,9 @@ const LeafletMapStub = defineComponent({
   template: `
     <div>
       <button
+        v-if="siteAddLabel"
         type="button"
-        data-testid="map-add-white-moth-site-button"
+        data-testid="map-add-site-button"
         @click="$emit('toggle-white-moth-site-add')"
       >
         {{ whiteMothSiteAddMode ? '取消添加' : '添加点位' }}
@@ -266,6 +277,26 @@ describe("MapView", () => {
       code: "MQ001",
       locality: "马驹桥镇",
       site_name: "示范点",
+      longitude: 116.5,
+      latitude: 39.7,
+    });
+    apiMocks.fetchOtherPestSiteCodeRules.mockResolvedValue({
+      code_pattern: "^QT\\d{4}$",
+      code_example: "QT0001",
+      code_prefix: "QT",
+      localities: ["马驹桥镇", "台湖镇", "梨园镇", "潞邑街道", "潞源街道", "九棵树街道"],
+    });
+    apiMocks.fetchOtherPestSiteCodeHint.mockResolvedValue({
+      prefix: "QT",
+      latest_code: "QT0006",
+      latest_serial: 6,
+      suggested_next_code: "QT0007",
+    });
+    apiMocks.createOtherPestSite.mockResolvedValue({
+      gid: 8,
+      code: "QT0007",
+      locality: "梨园镇",
+      site_name: "",
       longitude: 116.5,
       latitude: 39.7,
     });
@@ -997,20 +1028,27 @@ describe("MapView", () => {
   });
 
   it("新增美国白蛾点位时格式化编号并显示自动识别属地", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "属地", "点位名称"],
+      },
+    ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
       expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("mq001");
 
     expect(wrapper.get('[data-testid="white-moth-site-code"]').element.value).toBe("MQ001");
     expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("马驹桥镇");
 
-    await wrapper.get('[data-testid="white-moth-site-name"]').setValue("示范点");
+    await wrapper.get('[data-testid="site-add-name"]').setValue("示范点");
     await wrapper.get(".site-add-form").trigger("submit");
 
     await vi.waitFor(() => {
@@ -1024,13 +1062,20 @@ describe("MapView", () => {
   });
 
   it("进入新增点位模式后先保留地图可选点，点选后再显示录入表单", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "属地", "点位名称"],
+      },
+    ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
       expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
 
     expect(getLeafletMapStub(wrapper).props("whiteMothSiteAddMode")).toBe(true);
     expect(wrapper.find('[data-testid="white-moth-site-code"]').exists()).toBe(false);
@@ -1038,26 +1083,33 @@ describe("MapView", () => {
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
 
     expect(wrapper.get('[data-testid="white-moth-site-code"]').exists()).toBe(true);
-    expect(wrapper.get('[data-testid="white-moth-site-location"]').text()).toContain(
+    expect(wrapper.get('[data-testid="site-add-location-text"]').text()).toContain(
       "116.500000",
     );
   });
 
   it("编号前缀不支持时阻止新增美国白蛾点位", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "属地", "点位名称"],
+      },
+    ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
       expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("ab001");
 
     expect(wrapper.get('[data-testid="white-moth-site-code-error"]').text()).toContain(
       "编号格式不正确",
     );
-    expect(wrapper.get('[data-testid="white-moth-site-submit"]').attributes("disabled")).toBe(
+    expect(wrapper.get('[data-testid="site-add-submit"]').attributes("disabled")).toBe(
       "",
     );
     await wrapper.get(".site-add-form").trigger("submit");
@@ -1065,13 +1117,20 @@ describe("MapView", () => {
   });
 
   it("三位编号前缀能正确识别属地且不与两位前缀混淆", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "属地", "点位名称"],
+      },
+    ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
       expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
 
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("lyi001");
@@ -1086,13 +1145,20 @@ describe("MapView", () => {
   });
 
   it("仅输入前缀即可识别属地并展示最新编号提示", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "美国白蛾点位",
+        columns: ["gid", "编号", "属地", "点位名称"],
+      },
+    ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
       expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("mq");
 
@@ -1108,49 +1174,127 @@ describe("MapView", () => {
         "MQ043",
       );
     });
-    expect(wrapper.get('[data-testid="white-moth-site-submit"]').attributes("disabled")).toBe(
+    expect(wrapper.get('[data-testid="site-add-submit"]').attributes("disabled")).toBe(
       "",
     );
 
     await wrapper.get('[data-testid="white-moth-site-fill-suggested-code"]').trigger("click");
     expect(wrapper.get('[data-testid="white-moth-site-code"]').element.value).toBe("MQ043");
-    expect(wrapper.get('[data-testid="white-moth-site-submit"]').attributes("disabled")).toBeUndefined();
+    expect(wrapper.get('[data-testid="site-add-submit"]').attributes("disabled")).toBeUndefined();
   });
 
-  it("保存成功后刷新视图并切换到美国白蛾点位视图", async () => {
-    apiMocks.listMapViews
-      .mockResolvedValueOnce([
-        {
-          name: "虫情总览",
-          columns: ["属地", "村", "调查日期"],
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          name: "虫情总览",
-          columns: ["属地", "村", "调查日期"],
-        },
-        {
-          name: "美国白蛾点位",
-          columns: ["gid", "编号", "属地", "点位名称"],
-        },
-      ]);
-
+  it("非目标图层下不开放添加点位", async () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
       expect(getLeafletMapStub(wrapper).props("viewName")).toBe("虫情总览");
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    // 按钮不渲染；即使触发切换事件也不会进入添加模式
+    expect(getLeafletMapStub(wrapper).props("siteAddLabel")).toBe("");
+    expect(wrapper.find('[data-testid="map-add-site-button"]').exists()).toBe(false);
+
+    getLeafletMapStub(wrapper).vm.$emit("toggle-white-moth-site-add");
+    await wrapper.vm.$nextTick();
+
+    expect(getLeafletMapStub(wrapper).props("whiteMothSiteAddMode")).toBe(false);
+    expect(wrapper.find(".site-add-drawer").exists()).toBe(false);
+    expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
+    expect(apiMocks.createOtherPestSite).not.toHaveBeenCalled();
+  });
+
+  it("其他害虫调查图层下新增其他害虫点位", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "其他害虫调查",
+        columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
+      },
+    ]);
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+      expect(apiMocks.fetchOtherPestSiteCodeRules).toHaveBeenCalled();
+    });
+    expect(getLeafletMapStub(wrapper).props("siteAddLabel")).toBe("添加其他害虫点位");
+
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
+
+    await vi.waitFor(() => {
+      expect(apiMocks.fetchOtherPestSiteCodeHint).toHaveBeenCalled();
+    });
+
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
-    await wrapper.get('[data-testid="white-moth-site-code"]').setValue("MQ001");
+
+    // 其他害虫分支渲染：QT 编号 + 属地下拉，不渲染美国白蛾的自动识别属地
+    expect(wrapper.find('[data-testid="other-pest-site-code"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="white-moth-site-code"]').exists()).toBe(false);
+
+    await wrapper.get('[data-testid="other-pest-site-code"]').setValue("qt0007");
+    expect(wrapper.get('[data-testid="other-pest-site-code"]').element.value).toBe("QT0007");
+
+    await vi.waitFor(() => {
+      expect(
+        wrapper.get('[data-testid="other-pest-site-code-hint-text"]').text(),
+      ).toContain("QT0007");
+    });
+
+    // 未选属地时禁止提交
+    expect(wrapper.get('[data-testid="site-add-submit"]').attributes("disabled")).toBe(
+      "",
+    );
+
+    await wrapper
+      .get('[data-testid="other-pest-site-locality-select"]')
+      .setValue("梨园镇");
+    expect(
+      wrapper.get('[data-testid="site-add-submit"]').attributes("disabled"),
+    ).toBeUndefined();
+
     await wrapper.get(".site-add-form").trigger("submit");
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
+      expect(apiMocks.createOtherPestSite).toHaveBeenCalledWith({
+        code: "QT0007",
+        site_name: "",
+        locality: "梨园镇",
+        longitude: 116.5,
+        latitude: 39.7,
+      });
     });
+    expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
+    // 保存后停留在当前视图并重载数据
+    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+  });
+
+  it("其他害虫编号格式不正确时阻止提交", async () => {
+    apiMocks.listMapViews.mockResolvedValue([
+      {
+        name: "其他害虫调查",
+        columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
+      },
+    ]);
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫调查");
+    });
+
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-click-target"]').trigger("click");
+    await wrapper.get('[data-testid="other-pest-site-code"]').setValue("mq001");
+    await wrapper
+      .get('[data-testid="other-pest-site-locality-select"]')
+      .setValue("梨园镇");
+
+    expect(wrapper.get('[data-testid="other-pest-site-code-error"]').text()).toContain(
+      "编号格式不正确",
+    );
+    expect(wrapper.get('[data-testid="site-add-submit"]').attributes("disabled")).toBe(
+      "",
+    );
+    await wrapper.get(".site-add-form").trigger("submit");
+    expect(apiMocks.createOtherPestSite).not.toHaveBeenCalled();
   });
 
   it("已经在美国白蛾点位视图时保存点位不会触发自动缩放", async () => {
@@ -1167,7 +1311,7 @@ describe("MapView", () => {
       expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
     });
 
-    await wrapper.get('[data-testid="map-add-white-moth-site-button"]').trigger("click");
+    await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
     await wrapper.get('[data-testid="white-moth-site-code"]').setValue("MQ001");
     await wrapper.get(".site-add-form").trigger("submit");

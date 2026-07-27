@@ -244,6 +244,43 @@ class WhiteMothSiteDeleteResponse(BaseModel):
     survey_record_count: int = 0
 
 
+class OtherPestSiteCreateRequest(BaseModel):
+    """其他害虫点位新增请求。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    code: str = Field(min_length=1)
+    site_name: str = ""
+    locality: str = Field(min_length=1)
+    longitude: float = Field(ge=-180, le=180)
+    latitude: float = Field(ge=-90, le=90)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class OtherPestSiteCodeHintResponse(BaseModel):
+    """其他害虫点位编号提示响应。"""
+
+    prefix: str
+    latest_code: str | None = None
+    latest_serial: int | None = None
+    suggested_next_code: str | None = None
+
+
+class OtherPestSiteResponse(BaseModel):
+    """其他害虫点位新增响应。"""
+
+    gid: int | None = None
+    code: str
+    locality: str
+    site_name: str = ""
+    longitude: float
+    latitude: float
+
+
 class OperationLogItem(BaseModel):
     """点位操作日志条目。"""
 

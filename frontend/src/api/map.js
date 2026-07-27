@@ -60,6 +60,30 @@ export async function createWhiteMothSite(payload) {
   return response.json();
 }
 
+export async function fetchOtherPestSiteCodeRules() {
+  const response = await apiFetch("/api/map/other-pest-sites/code-rules");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function fetchOtherPestSiteCodeHint() {
+  const response = await apiFetch("/api/map/other-pest-sites/code-hint");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function createOtherPestSite(payload) {
+  const response = await apiFetch("/api/map/other-pest-sites", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function deleteWhiteMothSiteCheck(code) {
   const response = await apiFetch(
     `/api/map/white-moth-sites/${encodeURIComponent(code)}/delete-check`,
