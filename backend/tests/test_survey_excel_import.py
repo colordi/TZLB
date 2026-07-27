@@ -158,6 +158,15 @@ def build_metadata_rows() -> tuple[
         column("其他害虫调查表", 3, "调查日期", "date", "date", "NO"),
         column("其他害虫调查表", 4, "调查结论", "character varying", "varchar", "NO"),
         column("其他害虫调查表", 5, "详细描述", "text", "text", "NO"),
+        column(
+            "其他害虫调查表",
+            6,
+            "点位名称",
+            "character varying",
+            "varchar",
+            "NO",
+            "''::character varying",
+        ),
         ledger_column(MEI_GUO_BAI_E_LEDGER, 1, "id", "integer", "int4", "NO"),
         ledger_column(
             MEI_GUO_BAI_E_LEDGER, 2, "事件时间", "timestamp without time zone", "timestamp", "NO"

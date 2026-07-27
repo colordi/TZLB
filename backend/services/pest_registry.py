@@ -199,6 +199,7 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
             "web_nest_count": "0",
         },
         survey_import_strategy=SURVEY_IMPORT_OTHER_PEST,
+        screenshot_dir_attr="other_pest_point_screenshot_dir",
     ),
 )
 

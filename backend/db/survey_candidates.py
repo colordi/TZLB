@@ -202,6 +202,7 @@ async def fetch_site_points(pest_type: str) -> list[dict[str, str]]:
         "春尺蠖": (SITE_TABLE, "村"),
         "国槐尺蠖": (SOPHORA_SITE_TABLE, "村"),
         "美国白蛾": (WHITE_MOTH_SITE_TABLE, "点位名称"),
+        "其他害虫": (OTHER_PEST_SITE_TABLE, "点位名称"),
     }
     source = site_sources.get(config.key)
     if source is None:
@@ -426,7 +427,11 @@ async def fetch_other_pest_survey_candidates(
             BTRIM(i."调查结论") AS survey_result,
             COALESCE(i."详细描述", '') AS description,
             COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
-            COALESCE(s."点位名称", '') AS location_name,
+            COALESCE(
+                NULLIF(BTRIM(i."点位名称"), ''),
+                NULLIF(BTRIM(s."点位名称"), ''),
+                ''
+            ) AS location_name,
             COALESCE(s."寄主树种", '') AS host_plant,
             COALESCE(s."地块类型", '') AS plot_type
         FROM {qualified_survey_table} AS i
@@ -442,6 +447,11 @@ async def fetch_other_pest_survey_candidates(
         survey_date,
     )
 
+    screenshot_index = (
+        build_point_screenshot_index(get_settings().other_pest_point_screenshot_dir)
+        if include_images
+        else {}
+    )
     return [
         {
             "survey_date": serialize_date_value(row["survey_date"]),
@@ -454,7 +464,10 @@ async def fetch_other_pest_survey_candidates(
             "survey_result": (row["survey_result"] or "").strip(),
             "description": (row["description"] or "").strip(),
             "note": "",
-            "images": [],
+            "images": load_point_screenshot_images(
+                str(row["location_id"] or "").strip(),
+                screenshot_index,
+            ),
         }
         for row in rows
     ]

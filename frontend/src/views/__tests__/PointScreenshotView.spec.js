@@ -54,6 +54,15 @@ const POINTS_BY_PEST = {
     },
   ],
   国槐尺蠖: [],
+  其他害虫: [
+    {
+      code: "QT0001",
+      name: "测试点位",
+      locality: "梨园镇",
+      has_screenshot: false,
+      screenshot_filename: null,
+    },
+  ],
 };
 
 function clonePoints(pestType) {
@@ -121,7 +130,7 @@ describe("PointScreenshotView", () => {
     await flushPromises();
 
     expect(apiMocks.listPointScreenshotStatus).toHaveBeenCalledWith("美国白蛾");
-    expect(wrapper.findAll(".point-screenshot-tabs button")).toHaveLength(3);
+    expect(wrapper.findAll(".point-screenshot-tabs button")).toHaveLength(4);
     expect(wrapper.get('[data-testid="point-screenshot-total"]').text()).toContain("2");
     expect(wrapper.get('[data-testid="point-screenshot-existing"]').text()).toContain("1");
     expect(wrapper.get('[data-testid="point-screenshot-missing"]').text()).toContain("1");

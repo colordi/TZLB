@@ -314,6 +314,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
 
         query = mocked_fetch.call_args.args[0]
         self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
+        self.assertIn('BTRIM(i."点位名称")', query)
         self.assertNotIn('s."乡镇"', query)
 
     async def test_guo_huai_candidates_include_template_required_fields(self) -> None:
