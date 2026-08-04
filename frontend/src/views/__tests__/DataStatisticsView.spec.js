@@ -8,6 +8,7 @@ const apiMocks = vi.hoisted(() => ({
   getWhiteMothDailyStatistics: vi.fn(),
   getWhiteMothGenerationSummary: vi.fn(),
   getWhiteMothLocalitySummary: vi.fn(),
+  getWhiteMothHostSummary: vi.fn(),
   error: vi.fn(),
 }));
 
@@ -15,6 +16,15 @@ vi.mock("../../api/statistics.js", () => ({
   getWhiteMothDailyStatistics: apiMocks.getWhiteMothDailyStatistics,
   getWhiteMothGenerationSummary: apiMocks.getWhiteMothGenerationSummary,
   getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
+  getWhiteMothHostSummary: apiMocks.getWhiteMothHostSummary,
+}));
+
+vi.mock("@/components/charts/BaseChart.vue", () => ({
+  default: {
+    name: "BaseChart",
+    props: ["option", "height", "loading"],
+    template: '<div data-testid="base-chart-stub" />',
+  },
 }));
 
 vi.mock("../../composables/useToast.js", () => ({
@@ -139,6 +149,45 @@ function buildLocalitySummary() {
   };
 }
 
+function buildHostSummary() {
+  return {
+    year: 2026,
+    generation: null,
+    totals: {
+      host_species: 3,
+      damaged_plants: 300,
+      damaged_points: 12,
+      top_host: { host: "法桐", plants: 180, points: 8, share: 0.6 },
+    },
+    hosts: [
+      {
+        host: "法桐",
+        points: 8,
+        plants: 180,
+        share: 0.6,
+        localities: [
+          { locality: "宋庄镇", plants: 100 },
+          { locality: "永顺镇", plants: 80 },
+        ],
+      },
+      {
+        host: "白蜡",
+        points: 3,
+        plants: 90,
+        share: 0.3,
+        localities: [{ locality: "宋庄镇", plants: 90 }],
+      },
+      {
+        host: "桑",
+        points: 1,
+        plants: 30,
+        share: 0.1,
+        localities: [{ locality: "张家湾镇", plants: 30 }],
+      },
+    ],
+  };
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -169,6 +218,7 @@ describe("DataStatisticsView", () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
     apiMocks.getWhiteMothGenerationSummary.mockResolvedValue(buildGenerationSummary());
     apiMocks.getWhiteMothLocalitySummary.mockResolvedValue(buildLocalitySummary());
+    apiMocks.getWhiteMothHostSummary.mockResolvedValue(buildHostSummary());
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -298,7 +348,7 @@ describe("DataStatisticsView", () => {
     expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取数据统计失败");
   });
 
-  it("美国白蛾统计页拆分为三个独立子 tab", async () => {
+  it("美国白蛾统计页拆分为独立子 tab", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
@@ -307,6 +357,9 @@ describe("DataStatisticsView", () => {
     );
     expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-locality"]').text()).toContain(
       "属地受害",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-host"]').text()).toContain(
+      "寄主分布",
     );
     expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-daily"]').text()).toContain(
       "每日统计",
@@ -446,6 +499,60 @@ describe("DataStatisticsView", () => {
     // 世代汇总的筛选不影响其它板块
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
     expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("寄主分布 tab 展示 KPI 与图表，筛选器独立生效", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear(),
+      generation: undefined,
+    });
+
+    // KPI 卡片
+    expect(wrapper.get('[data-testid="data-statistics-host-kpi-host_species"]').text()).toContain("3");
+    expect(wrapper.get('[data-testid="data-statistics-host-kpi-damaged_plants"]').text()).toContain(
+      "300",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-host-kpi-damaged_points"]').text()).toContain(
+      "12",
+    );
+    const topHostKpi = wrapper.get('[data-testid="data-statistics-host-kpi-top_host"]').text();
+    expect(topHostKpi).toContain("法桐");
+    expect(topHostKpi).toContain("60.0%");
+
+    // 三张图表（BaseChart 已 stub）
+    expect(wrapper.get('[data-testid="data-statistics-host-treemap-panel"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="data-statistics-host-ranking-panel"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="data-statistics-host-heatmap-panel"]').exists()).toBe(true);
+    expect(wrapper.findAll('[data-testid="base-chart-stub"]').length).toBe(3);
+
+    await wrapper.get('[data-testid="data-statistics-host-year-filter"]').setValue(
+      String(new Date().getFullYear() - 1),
+    );
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: undefined,
+    });
+    // 寄主分布的筛选不影响其它板块
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
+
+    await wrapper.get('[data-testid="data-statistics-host-generation-filter"]').setValue("第二代");
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenCalledTimes(3);
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: "第二代",
+    });
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
   });
 
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {

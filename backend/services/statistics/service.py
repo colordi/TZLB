@@ -20,6 +20,10 @@ from backend.services.statistics.sql_generation import (
     WHITE_MOTH_DISPATCH_FREQUENCY_SQL,
     WHITE_MOTH_GENERATION_SUMMARY_SQL,
 )
+from backend.services.statistics.host_summary import aggregate_host_summary
+from backend.services.statistics.sql_host import (
+    WHITE_MOTH_HOST_RAW_SQL,
+)
 from backend.services.statistics.sql_locality import (
     WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
@@ -124,4 +128,21 @@ async def get_white_moth_locality_summary(
         "severe_plant_threshold": effective_threshold,
         "totals": totals,
         "localities": localities,
+    }
+
+
+async def get_white_moth_host_summary(
+    year: int | None = None,
+    generation: str | None = None,
+) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        rows = await connection.fetch(WHITE_MOTH_HOST_RAW_SQL, effective_year, generation)
+
+    summary = aggregate_host_summary(rows)
+    return {
+        "year": effective_year,
+        "generation": generation,
+        **summary,
     }

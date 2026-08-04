@@ -54,6 +54,8 @@
 
 `--chart-1..5`：绿系为主、蓝橙辅：`oklch(0.52 0.09 155)`、`oklch(0.65 0.12 130)`、`oklch(0.72 0.13 90)`、`oklch(0.55 0.11 250)`、`oklch(0.60 0.13 30)`。
 
+ECharts 运行时需要 JS 侧色值：唯一来源是 `frontend/src/config/chart-palette.js`（运行时解析 `--chart-*` 及 `--foreground`/`--muted` 等 token，与 map-palette.js 同模式）；图表一律经 `frontend/src/components/charts/BaseChart.vue`（vue-echarts）渲染，option 由纯函数构建器生成（参考 `components/statistics/host/hostChartOptions.js`）。
+
 ### 2.5 领域色（值锁定，属行业判读约定）
 
 危害程度四色是调查行业的既定判读约定，**色值不可调整**，只允许纳入 token 管理：

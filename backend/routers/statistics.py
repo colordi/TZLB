@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.services.statistics import (
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
+    get_white_moth_host_summary,
     get_white_moth_locality_summary,
 )
 
@@ -62,3 +63,14 @@ async def get_white_moth_locality_statistics(
         raise HTTPException(status_code=400, detail=f"查询参数无效：{exc}") from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取美国白蛾属地受害汇总失败：{exc}") from exc
+
+
+@router.get("/white-moth/host-summary", summary="读取美国白蛾寄主分布汇总")
+async def get_white_moth_host_statistics(
+    year: int | None = Query(None, description="年份"),
+    generation: str | None = Query(None, description="世代"),
+) -> dict[str, Any]:
+    try:
+        return await get_white_moth_host_summary(year=year, generation=generation)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取美国白蛾寄主分布汇总失败：{exc}") from exc

@@ -67,4 +67,26 @@ describe("api/statistics", () => {
     );
     expect(result).toEqual({ localities: [], totals: {} });
   });
+
+  it("读取美国白蛾寄主分布汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ hosts: [], totals: {} }),
+    });
+    const { getWhiteMothHostSummary } = await import("../statistics.js");
+
+    const result = await getWhiteMothHostSummary({ year: 2026, generation: "第二代" });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/white-moth/host-summary?year=2026&generation=%E7%AC%AC%E4%BA%8C%E4%BB%A3",
+    );
+    expect(result).toEqual({ hosts: [], totals: {} });
+  });
+
+  it("读取不携带筛选条件的美国白蛾寄主分布汇总", async () => {
+    const { getWhiteMothHostSummary } = await import("../statistics.js");
+
+    await getWhiteMothHostSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/white-moth/host-summary");
+  });
 });

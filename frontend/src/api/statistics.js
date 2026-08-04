@@ -27,6 +27,22 @@ export async function getWhiteMothGenerationSummary({ year } = {}) {
   return response.json();
 }
 
+export async function getWhiteMothHostSummary({ year, generation } = {}) {
+  const params = new URLSearchParams();
+  if (year !== undefined && year !== null && year !== "") {
+    params.set("year", String(year));
+  }
+  if (generation !== undefined && generation !== null && generation !== "") {
+    params.set("generation", generation);
+  }
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/statistics/white-moth/host-summary${query ? `?${query}` : ""}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function getWhiteMothLocalitySummary({
   year,
   generation,

@@ -87,6 +87,8 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - 组件唯一来源：`@/components/ui/*`（shadcn-vue）+ `@/components/common/*`（PageHeader、EmptyState、ConfirmDialog）；弹窗用 ui/dialog、确认用 ui/alert-dialog，toast 用 `useToast()`（vue-sonner）。
 - Leaflet 运行时色值的唯一来源是 `frontend/src/config/map-palette.js`（危害程度等行业色值锁定，见规范 §2.5）。
 
+- 图表统一经 `frontend/src/components/charts/BaseChart.vue`（vue-echarts）渲染，ECharts 运行时色值唯一来源是 `frontend/src/config/chart-palette.js`（见规范 §2.4）。
+
 ### 后端结构
 
 - `backend/main.py`：FastAPI 应用入口。注册所有 router、配置 CORS、异常处理、请求日志中间件，以及托管前端静态资源的路由。

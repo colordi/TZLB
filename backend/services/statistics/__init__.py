@@ -10,6 +10,7 @@ from backend.services.statistics.serializers import (  # noqa: F401
 from backend.services.statistics.service import (  # noqa: F401
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
+    get_white_moth_host_summary,
     get_white_moth_locality_summary,
 )
 from backend.services.statistics.sql_daily import (  # noqa: F401

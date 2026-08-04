@@ -31,5 +31,13 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // echarts 体积大且仅统计页图表使用，拆为独立 vendor chunk
+          echarts: ["echarts/core", "echarts/charts", "echarts/components", "echarts/renderers", "vue-echarts"],
+        },
+      },
+    },
   },
 });
