@@ -298,7 +298,36 @@ describe("DataStatisticsView", () => {
     expect(apiMocks.error).toHaveBeenCalledWith("连接失败", "读取数据统计失败");
   });
 
-  it("切换年份或世代后自动重新加载统计", async () => {
+  it("美国白蛾统计页拆分为三个独立子 tab", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-generation"]').text()).toContain(
+      "世代汇总",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-locality"]').text()).toContain(
+      "属地受害",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-daily"]').text()).toContain(
+      "每日统计",
+    );
+
+    // 默认激活世代汇总 tab，点击后切换到每日统计
+    expect(
+      wrapper.get('[data-testid="data-statistics-white-moth-tab-generation"]').attributes(
+        "data-state",
+      ),
+    ).toBe("active");
+    await wrapper
+      .get('[data-testid="data-statistics-white-moth-tab-daily"]')
+      .trigger("mousedown", { button: 0 });
+    await flushPromises();
+    expect(
+      wrapper.get('[data-testid="data-statistics-white-moth-tab-daily"]').attributes("data-state"),
+    ).toBe("active");
+  });
+
+  it("每日统计 tab 的年份与世代筛选独立生效", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
@@ -307,11 +336,8 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear(),
       generation: undefined,
     });
-    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
-    const today = new Date();
-    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-    await wrapper.get('[data-testid="data-statistics-year-filter"]').setValue(
+    await wrapper.get('[data-testid="data-statistics-daily-year-filter"]').setValue(
       String(new Date().getFullYear() - 1),
     );
     await flushPromises();
@@ -321,17 +347,9 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear() - 1,
       generation: undefined,
     });
-    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
-    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenLastCalledWith({
-      year: new Date().getFullYear() - 1,
-    });
-    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(2);
-    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
-      year: new Date().getFullYear() - 1,
-      generation: undefined,
-      asOfDate: todayIso,
-      severePlantThreshold: 10,
-    });
+    // 每日统计的筛选不影响其它板块
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
 
     await wrapper.get('[data-testid="data-statistics-generation-filter"]').setValue("第一代");
     await flushPromises();
@@ -341,6 +359,37 @@ describe("DataStatisticsView", () => {
       year: new Date().getFullYear() - 1,
       generation: "第一代",
     });
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("属地受害 tab 的筛选器独立生效", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
+
+    await wrapper.get('[data-testid="data-statistics-locality-year-filter"]').setValue(
+      String(new Date().getFullYear() - 1),
+    );
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: undefined,
+      asOfDate: todayIso,
+      severePlantThreshold: 10,
+    });
+    // 属地筛选不影响其它板块
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+
+    await wrapper.get('[data-testid="data-statistics-locality-generation-filter"]').setValue("第一代");
+    await flushPromises();
+
     expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(3);
     expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenLastCalledWith({
       year: new Date().getFullYear() - 1,
@@ -348,8 +397,6 @@ describe("DataStatisticsView", () => {
       asOfDate: todayIso,
       severePlantThreshold: 10,
     });
-    // 世代筛选不触发世代汇总重载
-    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
 
     await wrapper.get('[data-testid="data-statistics-locality-as-of-date"]').setValue("2026-06-01");
     await flushPromises();
@@ -374,8 +421,31 @@ describe("DataStatisticsView", () => {
       severePlantThreshold: 20,
     });
     // 调查截止日/阈值只影响属地汇总
-    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(3);
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("世代汇总 tab 的年份筛选独立生效", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear(),
+    });
+
+    await wrapper.get('[data-testid="data-statistics-generation-year-filter"]').setValue(
+      String(new Date().getFullYear() - 1),
+    );
+    await flushPromises();
+
     expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothGenerationSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+    });
+    // 世代汇总的筛选不影响其它板块
+    expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
   });
 
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {
