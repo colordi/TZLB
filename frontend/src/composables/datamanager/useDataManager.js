@@ -24,25 +24,17 @@ import {
   groupTablesByPest,
   shortTableLabel,
 } from "../../components/datamanager/tableGroups.js";
+import {
+  PREFERRED_FILTER_COLUMNS,
+  MAX_FILTER_INPUTS,
+  buildFilterSpecs,
+} from "../../components/datamanager/filterSpecs.js";
 
 /**
  * Data manager page state: tables, rows, form CRUD, change logs.
  */
 export function useDataManager() {
   const { error, success } = useToast();
-
-  /** 工具栏优先展示的过滤列，按顺序取表中存在的列 */
-  const PREFERRED_FILTER_COLUMNS = [
-    "编号",
-    "属地",
-    "点位名称",
-    "调查日期",
-    "年份",
-    "世代",
-    "危害程度",
-    "害虫类型",
-  ];
-  const MAX_FILTER_INPUTS = 5;
 
   const ACTION_LABELS = {
     insert: "新增",
@@ -83,14 +75,22 @@ export function useDataManager() {
   const hasPrimaryKey = computed(() => Boolean(selectedTable.value?.has_primary_key));
 
   const filterValues = reactive({});
+  const filterRanges = reactive({});
   const appliedFilters = ref({});
-  const filterableColumns = computed(() => {
-    const names = new Set(columns.value.map((c) => c.name));
-    return PREFERRED_FILTER_COLUMNS.filter((name) => names.has(name)).slice(
-      0,
-      MAX_FILTER_INPUTS,
-    );
-  });
+  const filterSpecs = computed(() => buildFilterSpecs(columns.value));
+
+  // 切表/列元数据加载后，为日期区间控件补齐 { from, to } 初值，避免 v-model 读到 undefined
+  watch(
+    filterSpecs,
+    (specs) => {
+      for (const spec of specs) {
+        if (spec.kind === "date" && !filterRanges[spec.name]) {
+          filterRanges[spec.name] = { from: "", to: "" };
+        }
+      }
+    },
+    { immediate: true },
+  );
 
   /* ── 新增 / 编辑 ────────────────────────── */
   const showForm = ref(false);
@@ -218,6 +218,9 @@ export function useDataManager() {
     for (const key of Object.keys(filterValues)) {
       delete filterValues[key];
     }
+    for (const key of Object.keys(filterRanges)) {
+      delete filterRanges[key];
+    }
     logs.value = [];
     logsTotal.value = 0;
     logsPage.value = 1;
@@ -263,10 +266,22 @@ export function useDataManager() {
 
   function applyFilters() {
     const filters = {};
-    for (const name of filterableColumns.value) {
-      const value = (filterValues[name] || "").trim();
-      if (value) {
-        filters[name] = value;
+    for (const spec of filterSpecs.value) {
+      if (spec.kind === "date") {
+        const range = filterRanges[spec.name] || {};
+        const from = (range.from || "").trim();
+        const to = (range.to || "").trim();
+        if (from || to) {
+          filters[spec.name] = {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+          };
+        }
+      } else {
+        const value = (filterValues[spec.name] || "").trim();
+        if (value) {
+          filters[spec.name] = value;
+        }
       }
     }
     appliedFilters.value = filters;
@@ -277,6 +292,9 @@ export function useDataManager() {
   function resetFilters() {
     for (const key of Object.keys(filterValues)) {
       filterValues[key] = "";
+    }
+    for (const key of Object.keys(filterRanges)) {
+      filterRanges[key] = { from: "", to: "" };
     }
     applyFilters();
   }
@@ -430,8 +448,9 @@ export function useDataManager() {
     formColumns,
     hasPrimaryKey,
     filterValues,
+    filterRanges,
     appliedFilters,
-    filterableColumns,
+    filterSpecs,
     showForm,
     formMode,
     editingRow,

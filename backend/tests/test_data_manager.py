@@ -4,6 +4,7 @@ import unittest
 from datetime import date, datetime
 from decimal import Decimal
 
+from backend.db.data_manager import _build_filter_clause
 from backend.services.data_manager import (
     MANAGEABLE_SCHEMAS,
     ManagedColumnMeta,
@@ -376,6 +377,94 @@ class TestValidatePkValues(unittest.TestCase):
     def test_rejects_extra_non_pk_column(self):
         with self.assertRaises(ValueError):
             validate_pk_values(self.meta, {"id": 1, "名称": "x"})
+
+
+class TestBuildFilterClause(unittest.TestCase):
+    def setUp(self):
+        self.meta = make_table()
+
+    def make_event_table(self) -> ManagedTableMeta:
+        return make_table(
+            schema_name="ledger",
+            name="事件流水表",
+            columns=(
+                make_column("编号", data_type="text", ordinal_position=1),
+                make_column(
+                    "事件时间",
+                    data_type="timestamp without time zone",
+                    ordinal_position=2,
+                ),
+            ),
+            primary_key=("编号",),
+        )
+
+    def test_text_filter_uses_ilike(self):
+        where, args = _build_filter_clause(self.meta, {"名称": "宋庄"})
+        self.assertEqual(where, 'WHERE CAST("名称" AS text) ILIKE $1')
+        self.assertEqual(args, ["%宋庄%"])
+
+    def test_date_range_both_ends_inclusive(self):
+        where, args = _build_filter_clause(
+            self.meta, {"调查日期": {"from": "2026-07-01", "to": "2026-07-31"}}
+        )
+        self.assertEqual(where, 'WHERE "调查日期" >= $1 AND "调查日期" <= $2')
+        self.assertEqual(args, [date(2026, 7, 1), date(2026, 7, 31)])
+
+    def test_date_range_open_ends(self):
+        where, args = _build_filter_clause(
+            self.meta, {"调查日期": {"from": "2026-07-01"}}
+        )
+        self.assertEqual(where, 'WHERE "调查日期" >= $1')
+        self.assertEqual(args, [date(2026, 7, 1)])
+
+        where, args = _build_filter_clause(
+            self.meta, {"调查日期": {"to": "2026-07-31"}}
+        )
+        self.assertEqual(where, 'WHERE "调查日期" <= $1')
+        self.assertEqual(args, [date(2026, 7, 31)])
+
+    def test_timestamp_range_to_covers_whole_day(self):
+        meta = self.make_event_table()
+        where, args = _build_filter_clause(
+            meta, {"事件时间": {"from": "2026-07-01", "to": "2026-07-31"}}
+        )
+        self.assertEqual(where, 'WHERE "事件时间" >= $1 AND "事件时间" < $2')
+        self.assertEqual(args, [datetime(2026, 7, 1), datetime(2026, 8, 1)])
+
+    def test_range_and_text_filters_share_placeholders(self):
+        where, args = _build_filter_clause(
+            self.meta, {"名称": "宋庄", "调查日期": {"from": "2026-07-01"}}
+        )
+        self.assertEqual(
+            where,
+            'WHERE CAST("名称" AS text) ILIKE $1 AND "调查日期" >= $2',
+        )
+        self.assertEqual(args, ["%宋庄%", date(2026, 7, 1)])
+
+    def test_empty_range_is_skipped(self):
+        where, args = _build_filter_clause(self.meta, {"调查日期": {}})
+        self.assertEqual(where, "")
+        self.assertEqual(args, [])
+
+    def test_range_rejects_non_date_column(self):
+        with self.assertRaises(ValueError):
+            _build_filter_clause(self.meta, {"名称": {"from": "2026-07-01"}})
+
+    def test_range_rejects_unknown_keys(self):
+        with self.assertRaises(ValueError):
+            _build_filter_clause(
+                self.meta, {"调查日期": {"from": "2026-07-01", "op": "gt"}}
+            )
+
+    def test_range_rejects_invalid_date(self):
+        with self.assertRaises(ValueError):
+            _build_filter_clause(self.meta, {"调查日期": {"from": "不是日期"}})
+
+    def test_rejects_unknown_and_geometry_columns(self):
+        with self.assertRaises(ValueError):
+            _build_filter_clause(self.meta, {"不存在": "x"})
+        with self.assertRaises(ValueError):
+            _build_filter_clause(self.meta, {"geom": "POINT(1 1)"})
 
 
 class TestSerialize(unittest.TestCase):

@@ -56,7 +56,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataManager } from "../composables/datamanager/useDataManager.js";
 
 const {
-  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, tableColumns, formColumns, hasPrimaryKey, filterValues, appliedFilters, filterableColumns, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
+  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, tableColumns, formColumns, hasPrimaryKey, filterValues, filterRanges, appliedFilters, filterSpecs, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
 } = useDataManager();
 </script>
 
@@ -133,17 +133,38 @@ const {
         <!-- 工具栏 -->
         <div class="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3 shadow-sm">
           <div
-            v-for="name in filterableColumns"
-            :key="name"
-            class="grid w-36 gap-1"
+            v-for="spec in filterSpecs"
+            :key="spec.name"
+            class="grid gap-1"
+            :class="spec.kind === 'date' ? 'w-auto' : 'w-36'"
           >
-            <Label :for="`filter-${name}`" class="text-xs text-muted-foreground">{{ name }}</Label>
+            <Label :for="`filter-${spec.name}`" class="text-xs text-muted-foreground">{{ spec.name }}</Label>
             <Input
-              :id="`filter-${name}`"
-              v-model="filterValues[name]"
-              :placeholder="`模糊匹配${name}`"
+              v-if="spec.kind !== 'date'"
+              :id="`filter-${spec.name}`"
+              v-model="filterValues[spec.name]"
+              :placeholder="`模糊匹配${spec.name}`"
               @keyup.enter="applyFilters"
             />
+            <div v-else class="flex items-center gap-1">
+              <Input
+                :id="`filter-${spec.name}`"
+                v-model="filterRanges[spec.name].from"
+                type="date"
+                class="w-36"
+                title="起始日期"
+                @keyup.enter="applyFilters"
+              />
+              <span class="text-xs text-muted-foreground">至</span>
+              <Input
+                v-model="filterRanges[spec.name].to"
+                type="date"
+                class="w-36"
+                title="截止日期"
+                :aria-label="`${spec.name}截止日期`"
+                @keyup.enter="applyFilters"
+              />
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <Button type="button" size="sm" :disabled="rowsLoading" @click="applyFilters">
@@ -193,11 +214,16 @@ const {
                       <TableHead v-for="col in tableColumns" :key="col.name">
                         {{ col.name }}
                       </TableHead>
-                      <TableHead v-if="hasPrimaryKey" class="text-right">操作</TableHead>
+                      <TableHead
+                        v-if="hasPrimaryKey"
+                        class="sticky right-0 border-l bg-card text-right"
+                      >
+                        操作
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow v-for="(row, rowIndex) in rows" :key="rowIndex">
+                    <TableRow v-for="(row, rowIndex) in rows" :key="rowIndex" class="group">
                       <TableCell
                         v-for="col in tableColumns"
                         :key="col.name"
@@ -206,7 +232,10 @@ const {
                       >
                         {{ formatCell(row[col.name]) }}
                       </TableCell>
-                      <TableCell v-if="hasPrimaryKey" class="text-right">
+                      <TableCell
+                        v-if="hasPrimaryKey"
+                        class="sticky right-0 border-l bg-card text-right transition-colors group-hover:bg-muted/50"
+                      >
                         <div class="inline-flex items-center gap-1">
                           <Button
                             type="button"

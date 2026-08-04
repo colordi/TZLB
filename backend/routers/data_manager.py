@@ -82,7 +82,7 @@ async def get_table_rows(
     filters: str | None = Query(default=None, description="JSON 编码的列过滤条件"),
 ) -> dict[str, Any]:
     try:
-        parsed_filters: dict[str, str] = json.loads(filters) if filters else {}
+        parsed_filters: dict[str, Any] = json.loads(filters) if filters else {}
         if not isinstance(parsed_filters, dict):
             raise ValueError("filters 参数必须是 JSON 对象")
         return await fetch_rows(

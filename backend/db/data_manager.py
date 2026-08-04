@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from typing import Any
 
 import asyncpg
@@ -10,7 +11,9 @@ import asyncpg
 from backend.db.postgres import ensure_pool, quote_identifier
 from backend.services.data_manager import (
     MANAGEABLE_SCHEMAS,
+    ManagedColumnMeta,
     ManagedTableMeta,
+    coerce_value,
     fetch_managed_table_metadata,
     get_table_meta,
     serialize_row,
@@ -117,20 +120,53 @@ def list_columns(meta: ManagedTableMeta) -> list[dict[str, Any]]:
     ]
 
 
+def _append_range_clause(
+    clauses: list[str], args: list[Any], column: ManagedColumnMeta, raw: dict[str, Any]
+) -> None:
+    """日期/时间列的区间筛选：from 起（含）、to 止（含当天），两端均可省略。"""
+
+    if column.data_type != "date" and not column.data_type.startswith("timestamp"):
+        raise ValueError(f"列「{column.name}」不支持区间筛选")
+    unknown = set(raw) - {"from", "to"}
+    if unknown:
+        raise ValueError(f"列「{column.name}」区间筛选仅支持 from/to 参数")
+    start = str(raw.get("from") or "").strip()
+    end = str(raw.get("to") or "").strip()
+    if start:
+        args.append(coerce_value(column, start))
+        clauses.append(f"{quote_identifier(column.name)} >= ${len(args)}")
+    if end:
+        end_value = coerce_value(column, end)
+        if column.data_type.startswith("timestamp"):
+            # 截止时间只精确到日期输入框的当天 00:00，+1 天后改半开区间实现"含当天"
+            args.append(end_value + timedelta(days=1))
+            clauses.append(f"{quote_identifier(column.name)} < ${len(args)}")
+        else:
+            args.append(end_value)
+            clauses.append(f"{quote_identifier(column.name)} <= ${len(args)}")
+
+
 def _build_filter_clause(
-    meta: ManagedTableMeta, filters: dict[str, str]
+    meta: ManagedTableMeta, filters: dict[str, Any]
 ) -> tuple[str, list[Any]]:
-    """把每列的过滤文本转成参数化 WHERE 片段（统一按文本模糊匹配）。"""
+    """把过滤条件转成参数化 WHERE 片段。
+
+    字符串值按文本模糊匹配；{"from": ..., "to": ...} 对象仅用于
+    date/timestamp 列，生成起止区间条件（to 含当天）。
+    """
 
     clauses: list[str] = []
     args: list[Any] = []
     for name, raw in (filters or {}).items():
-        text = str(raw or "").strip()
-        if not text:
-            continue
         column = meta.get_column(name)
         if column is None or column.is_geometry:
             raise ValueError(f"列「{name}」不支持筛选")
+        if isinstance(raw, dict):
+            _append_range_clause(clauses, args, column, raw)
+            continue
+        text = str(raw or "").strip()
+        if not text:
+            continue
         args.append(f"%{text}%")
         clauses.append(f"CAST({quote_identifier(name)} AS text) ILIKE ${len(args)}")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
@@ -160,7 +196,7 @@ async def fetch_rows(
     page: int,
     page_size: int,
     sort: str | None,
-    filters: dict[str, str],
+    filters: dict[str, Any],
 ) -> dict[str, Any]:
     """分页读取行数据（不含几何列），返回 rows/total/page/page_size。"""
 
