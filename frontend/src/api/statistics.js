@@ -27,13 +27,16 @@ export async function getWhiteMothGenerationSummary({ year } = {}) {
   return response.json();
 }
 
-export async function getWhiteMothHostSummary({ year, generation } = {}) {
+export async function getWhiteMothHostSummary({ year, generation, byGeneration } = {}) {
   const params = new URLSearchParams();
   if (year !== undefined && year !== null && year !== "") {
     params.set("year", String(year));
   }
   if (generation !== undefined && generation !== null && generation !== "") {
     params.set("generation", generation);
+  }
+  if (byGeneration) {
+    params.set("by_generation", "true");
   }
   const query = params.toString();
   const response = await apiFetch(

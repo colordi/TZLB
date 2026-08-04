@@ -250,3 +250,145 @@ export function buildHeatmapOption(hosts, theme = getChartTheme()) {
     ],
   };
 }
+
+/** 分代对比纳入的寄主数（按各世代株数总和取并集 Top N，排除「其他」合并桶）。 */
+export const GENERATION_COMPARE_HOST_LIMIT = 10;
+
+function collectCompareHostNames(generations) {
+  const totals = new Map();
+  generations.forEach((generation) => {
+    (generation.hosts || []).forEach((host) => {
+      if (isOtherHost(host)) {
+        return;
+      }
+      totals.set(host.host, (totals.get(host.host) || 0) + (Number(host.plants) || 0));
+    });
+  });
+  return [...totals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, GENERATION_COMPARE_HOST_LIMIT)
+    .map(([name]) => name);
+}
+
+function generationMetricMap(generation, metric) {
+  const valueMap = new Map();
+  (generation.hosts || []).forEach((host) => {
+    if (!isOtherHost(host)) {
+      valueMap.set(host.host, metricValue(host, metric));
+    }
+  });
+  return valueMap;
+}
+
+/** 分代寄主对比分组柱状图：x = 寄主并集 Top N，系列 = 各世代。 */
+export function buildGenerationCompareBarOption(generations, metric, theme = getChartTheme()) {
+  const gens = Array.isArray(generations) ? generations : [];
+  const metricInfo = HOST_METRICS[metric] || HOST_METRICS.plants;
+  const hostNames = collectCompareHostNames(gens);
+  return {
+    color: theme.colors,
+    tooltip: {
+      ...baseTooltip(theme),
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: theme.mutedForeground, fontSize: 11 },
+    },
+    grid: { left: 8, right: 16, top: 16, bottom: 48, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: hostNames,
+      axisLabel: {
+        color: theme.foreground,
+        fontSize: 12,
+        interval: 0,
+        rotate: hostNames.length > 6 ? 30 : 0,
+      },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      name: metricInfo.unit,
+      nameTextStyle: { color: theme.mutedForeground, fontSize: 11 },
+      axisLabel: { color: theme.mutedForeground, fontSize: 11 },
+      splitLine: { lineStyle: { color: theme.border } },
+    },
+    series: gens.map((generation, index) => {
+      const valueMap = generationMetricMap(generation, metric);
+      return {
+        name: generation.generation,
+        type: "bar",
+        barMaxWidth: 28,
+        itemStyle: {
+          color: theme.colors[index % theme.colors.length],
+          borderRadius: [3, 3, 0, 0],
+        },
+        data: hostNames.map((name) => valueMap.get(name) || 0),
+      };
+    }),
+  };
+}
+
+/** 寄主 × 世代受害株数热力图：直观呈现优势寄主随世代迁移。 */
+export function buildGenerationHeatmapOption(generations, theme = getChartTheme()) {
+  const gens = Array.isArray(generations) ? generations : [];
+  const hostNames = collectCompareHostNames(gens);
+  const generationNames = gens.map((generation) => generation.generation);
+  const data = [];
+  let max = 0;
+  gens.forEach((generation, generationIndex) => {
+    const valueMap = generationMetricMap(generation, "plants");
+    hostNames.forEach((name, hostIndex) => {
+      const value = valueMap.get(name) || 0;
+      if (value > max) {
+        max = value;
+      }
+      data.push([generationIndex, hostIndex, value]);
+    });
+  });
+  return {
+    grid: { left: 8, right: 16, top: 8, bottom: 48, containLabel: true },
+    tooltip: {
+      ...baseTooltip(theme),
+      formatter: (info) =>
+        `<b>${hostNames[info.value[1]]} · ${generationNames[info.value[0]]}</b><br/>受害株数：${formatNumber(info.value[2])} 株`,
+    },
+    xAxis: {
+      type: "category",
+      data: generationNames,
+      axisLabel: { color: theme.foreground, fontSize: 12 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitArea: { show: true },
+    },
+    yAxis: {
+      type: "category",
+      inverse: true,
+      data: hostNames,
+      axisLabel: { color: theme.foreground, fontSize: 12 },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    visualMap: {
+      min: 0,
+      max: max || 1,
+      orient: "horizontal",
+      left: "center",
+      bottom: 0,
+      calculable: false,
+      textStyle: { color: theme.mutedForeground, fontSize: 11 },
+      inRange: { color: [theme.muted, theme.colors[0]] },
+    },
+    series: [
+      {
+        type: "heatmap",
+        data,
+        itemStyle: { borderColor: theme.card, borderWidth: 1 },
+        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: theme.mutedForeground } },
+      },
+    ],
+  };
+}

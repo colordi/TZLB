@@ -69,8 +69,13 @@ async def get_white_moth_locality_statistics(
 async def get_white_moth_host_statistics(
     year: int | None = Query(None, description="年份"),
     generation: str | None = Query(None, description="世代"),
+    by_generation: bool = Query(False, description="是否按世代分组返回（分代对比）"),
 ) -> dict[str, Any]:
     try:
-        return await get_white_moth_host_summary(year=year, generation=generation)
+        return await get_white_moth_host_summary(
+            year=year,
+            generation=generation,
+            by_generation=by_generation,
+        )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取美国白蛾寄主分布汇总失败：{exc}") from exc

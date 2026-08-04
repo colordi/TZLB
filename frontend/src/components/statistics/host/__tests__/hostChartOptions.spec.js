@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildGenerationCompareBarOption,
+  buildGenerationHeatmapOption,
   buildHeatmapOption,
   buildRankingOption,
   buildTreemapOption,
@@ -126,5 +128,65 @@ describe("hostChartOptions", () => {
   it("formatShare 输出百分比", () => {
     expect(formatShare(0.6)).toBe("60.0%");
     expect(formatShare(0)).toBe("0.0%");
+  });
+});
+
+describe("分代对比 option 构建器", () => {
+  const GENERATIONS = [
+    {
+      generation: "第一代",
+      totals: {},
+      hosts: [
+        { host: "法桐", points: 10, plants: 100, share: 0.5, localities: [] },
+        { host: "白蜡", points: 5, plants: 50, share: 0.25, localities: [] },
+        { host: "其他", points: 99, plants: 999, share: 0.25, localities: [], merged_hosts: 3 },
+      ],
+    },
+    {
+      generation: "第二代",
+      totals: {},
+      hosts: [
+        { host: "法桐", points: 20, plants: 200, share: 0.5, localities: [] },
+        { host: "桑", points: 8, plants: 80, share: 0.2, localities: [] },
+      ],
+    },
+  ];
+
+  it("分组柱状图取寄主并集、缺代补 0、排除「其他」", () => {
+    const option = buildGenerationCompareBarOption(GENERATIONS, "plants", THEME);
+
+    // 并集按株数合计排序：法桐 300、桑 80、白蜡 50
+    expect(option.xAxis.data).toEqual(["法桐", "桑", "白蜡"]);
+    expect(option.series.length).toBe(2);
+    expect(option.series[0].name).toBe("第一代");
+    expect(option.series[0].data).toEqual([100, 0, 50]);
+    expect(option.series[1].name).toBe("第二代");
+    expect(option.series[1].data).toEqual([200, 80, 0]);
+    expect(option.series[0].itemStyle.color).toBe(THEME.colors[0]);
+    expect(option.series[1].itemStyle.color).toBe(THEME.colors[1]);
+  });
+
+  it("分组柱状图支持按点位数取值", () => {
+    const option = buildGenerationCompareBarOption(GENERATIONS, "points", THEME);
+    expect(option.series[0].data).toEqual([10, 0, 5]);
+    expect(option.series[1].data).toEqual([20, 8, 0]);
+  });
+
+  it("世代热力图行列与最大值正确", () => {
+    const option = buildGenerationHeatmapOption(GENERATIONS, THEME);
+
+    expect(option.xAxis.data).toEqual(["第一代", "第二代"]);
+    expect(option.yAxis.data).toEqual(["法桐", "桑", "白蜡"]);
+    expect(option.series[0].data.length).toBe(6);
+    expect(option.visualMap.max).toBe(200);
+  });
+
+  it("空数据时返回安全默认值", () => {
+    const bar = buildGenerationCompareBarOption([], "plants", THEME);
+    expect(bar.series).toEqual([]);
+    expect(bar.xAxis.data).toEqual([]);
+    const heatmap = buildGenerationHeatmapOption([], THEME);
+    expect(heatmap.series[0].data).toEqual([]);
+    expect(heatmap.visualMap.max).toBe(1);
   });
 });

@@ -188,6 +188,41 @@ function buildHostSummary() {
   };
 }
 
+function buildHostCompare() {
+  return {
+    year: 2026,
+    generation: null,
+    generations: [
+      {
+        generation: "第一代",
+        totals: {
+          host_species: 2,
+          damaged_plants: 100,
+          damaged_points: 5,
+          top_host: { host: "法桐", plants: 80, points: 4, share: 0.8 },
+        },
+        hosts: [
+          { host: "法桐", points: 4, plants: 80, share: 0.8, localities: [] },
+          { host: "桑", points: 1, plants: 20, share: 0.2, localities: [] },
+        ],
+      },
+      {
+        generation: "第二代",
+        totals: {
+          host_species: 3,
+          damaged_plants: 200,
+          damaged_points: 8,
+          top_host: { host: "白蜡", plants: 90, points: 3, share: 0.45 },
+        },
+        hosts: [
+          { host: "白蜡", points: 3, plants: 90, share: 0.45, localities: [] },
+          { host: "法桐", points: 5, plants: 110, share: 0.55, localities: [] },
+        ],
+      },
+    ],
+  };
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -218,7 +253,9 @@ describe("DataStatisticsView", () => {
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
     apiMocks.getWhiteMothGenerationSummary.mockResolvedValue(buildGenerationSummary());
     apiMocks.getWhiteMothLocalitySummary.mockResolvedValue(buildLocalitySummary());
-    apiMocks.getWhiteMothHostSummary.mockResolvedValue(buildHostSummary());
+    apiMocks.getWhiteMothHostSummary.mockImplementation(({ byGeneration } = {}) =>
+      Promise.resolve(byGeneration ? buildHostCompare() : buildHostSummary()),
+    );
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -553,6 +590,66 @@ describe("DataStatisticsView", () => {
       generation: "第二代",
     });
     expect(apiMocks.getWhiteMothDailyStatistics).toHaveBeenCalledTimes(1);
+  });
+
+  it("寄主分布分代对比视图：一次请求返回各世代并渲染对比内容", async () => {
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenCalledTimes(1);
+
+    await wrapper
+      .get('[data-testid="data-statistics-host-view-compare"]')
+      .trigger("mousedown", { button: 0 });
+    await flushPromises();
+
+    // 切到对比模式后按 byGeneration 重新请求
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear(),
+      byGeneration: true,
+    });
+
+    // 世代下拉隐藏，对比内容渲染
+    expect(wrapper.find('[data-testid="data-statistics-host-generation-filter"]').exists()).toBe(
+      false,
+    );
+    const kpiTable = wrapper.get('[data-testid="data-statistics-host-compare-kpi"]').text();
+    expect(kpiTable).toContain("第一代");
+    expect(kpiTable).toContain("第二代");
+    expect(kpiTable).toContain("100 株");
+    expect(kpiTable).toContain("200 株");
+    expect(
+      wrapper.get('[data-testid="data-statistics-host-compare-top-第一代"]').text(),
+    ).toContain("法桐（80.0%）");
+    expect(
+      wrapper.get('[data-testid="data-statistics-host-compare-top-第二代"]').text(),
+    ).toContain("白蜡（45.0%）");
+    expect(wrapper.findAll('[data-testid="base-chart-stub"]').length).toBe(2);
+
+    // 年份筛选在对比模式下仍然生效
+    await wrapper.get('[data-testid="data-statistics-host-year-filter"]').setValue(
+      String(new Date().getFullYear() - 1),
+    );
+    await flushPromises();
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      byGeneration: true,
+    });
+
+    // 切回单代恢复原有请求与界面
+    await wrapper
+      .get('[data-testid="data-statistics-host-view-single"]')
+      .trigger("mousedown", { button: 0 });
+    await flushPromises();
+    expect(apiMocks.getWhiteMothHostSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+      generation: undefined,
+    });
+    expect(wrapper.find('[data-testid="data-statistics-host-generation-filter"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="data-statistics-host-kpi"]').exists()).toBe(true);
   });
 
   it("超过 7 行时只显示第一页，并可通过翻页查看后续行", async () => {

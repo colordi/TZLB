@@ -8,6 +8,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StatisticsYearFilter from "./StatisticsYearFilter.vue";
+import HostGenerationComparePanel from "./host/HostGenerationComparePanel.vue";
 import HostLocalityHeatmap from "./host/HostLocalityHeatmap.vue";
 import HostRankingBar from "./host/HostRankingBar.vue";
 import HostTreemap from "./host/HostTreemap.vue";
@@ -22,15 +23,17 @@ const EMPTY_SUMMARY = {
 const { error } = useToast();
 const loading = ref(false);
 const summary = ref({ ...EMPTY_SUMMARY });
+const compareGenerations = ref([]);
 
 const YEAR_OPTIONS = buildYearOptions();
 const GENERATION_OPTIONS = ["第一代", "第二代", "第三代"];
 
+const viewMode = ref("single");
 const selectedYear = ref(new Date().getFullYear());
 const selectedGeneration = ref("");
 const selectedMetric = ref("plants");
 
-watch([selectedYear, selectedGeneration], () => {
+watch([viewMode, selectedYear, selectedGeneration], () => {
   loadSummary();
 });
 
@@ -79,16 +82,25 @@ const kpiItems = computed(() => [
 async function loadSummary() {
   loading.value = true;
   try {
-    const result = await getWhiteMothHostSummary({
-      year: selectedYear.value,
-      generation: selectedGeneration.value || undefined,
-    });
-    summary.value = {
-      totals: { ...EMPTY_SUMMARY.totals, ...(result.totals || {}) },
-      hosts: Array.isArray(result.hosts) ? result.hosts : [],
-    };
+    if (viewMode.value === "compare") {
+      const result = await getWhiteMothHostSummary({
+        year: selectedYear.value,
+        byGeneration: true,
+      });
+      compareGenerations.value = Array.isArray(result.generations) ? result.generations : [];
+    } else {
+      const result = await getWhiteMothHostSummary({
+        year: selectedYear.value,
+        generation: selectedGeneration.value || undefined,
+      });
+      summary.value = {
+        totals: { ...EMPTY_SUMMARY.totals, ...(result.totals || {}) },
+        hosts: Array.isArray(result.hosts) ? result.hosts : [],
+      };
+    }
   } catch (loadError) {
     summary.value = { ...EMPTY_SUMMARY };
+    compareGenerations.value = [];
     handleStatisticsLoadError(error, loadError);
   } finally {
     loading.value = false;
@@ -105,18 +117,33 @@ onMounted(loadSummary);
 <template>
   <div class="flex flex-col gap-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <Tabs v-model="selectedMetric">
-        <TabsList aria-label="统计指标">
-          <TabsTrigger value="plants" data-testid="data-statistics-host-metric-plants">
-            按受害株数
-          </TabsTrigger>
-          <TabsTrigger value="points" data-testid="data-statistics-host-metric-points">
-            按受害点位数
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div class="flex flex-wrap items-center gap-2">
+        <Tabs v-model="viewMode">
+          <TabsList aria-label="视图模式">
+            <TabsTrigger value="single" data-testid="data-statistics-host-view-single">
+              单代
+            </TabsTrigger>
+            <TabsTrigger value="compare" data-testid="data-statistics-host-view-compare">
+              分代对比
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Tabs v-model="selectedMetric">
+          <TabsList aria-label="统计指标">
+            <TabsTrigger value="plants" data-testid="data-statistics-host-metric-plants">
+              按受害株数
+            </TabsTrigger>
+            <TabsTrigger value="points" data-testid="data-statistics-host-metric-points">
+              按受害点位数
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
       <div class="flex flex-wrap items-center gap-3">
-        <label class="flex items-center gap-2 text-sm text-muted-foreground">
+        <label
+          v-if="viewMode === 'single'"
+          class="flex items-center gap-2 text-sm text-muted-foreground"
+        >
           <span>世代</span>
           <NativeSelect
             :model-value="selectedGeneration"
@@ -138,36 +165,45 @@ onMounted(loadSummary);
       </div>
     </div>
 
-    <div
-      class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-      data-testid="data-statistics-host-kpi"
-    >
-      <template v-if="loading">
-        <Skeleton v-for="index in 4" :key="index" class="h-24 rounded-xl" />
-      </template>
-      <article
-        v-for="item in kpiItems"
-        v-else
-        :key="item.key"
-        class="rounded-xl border bg-card p-4 shadow-sm"
-        :data-testid="`data-statistics-host-kpi-${item.key}`"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-sm text-muted-foreground">{{ item.label }}</p>
-          <component :is="item.icon" class="size-4 text-muted-foreground" />
-        </div>
-        <div class="mt-2 flex items-baseline gap-1">
-          <span class="text-2xl font-bold tracking-tight tabular-nums">{{ item.value }}</span>
-          <span class="text-sm text-muted-foreground">{{ item.unit }}</span>
-        </div>
-        <p class="mt-1 text-xs text-muted-foreground">{{ item.hint }}</p>
-      </article>
-    </div>
+    <HostGenerationComparePanel
+      v-if="viewMode === 'compare'"
+      :generations="compareGenerations"
+      :metric="selectedMetric"
+      :loading="loading"
+    />
 
-    <HostTreemap :hosts="hosts" :metric="selectedMetric" :loading="loading" />
-    <div class="grid gap-4 lg:grid-cols-2">
-      <HostRankingBar :hosts="hosts" :metric="selectedMetric" :loading="loading" />
-      <HostLocalityHeatmap :hosts="hosts" :loading="loading" />
-    </div>
+    <template v-else>
+      <div
+        class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        data-testid="data-statistics-host-kpi"
+      >
+        <template v-if="loading">
+          <Skeleton v-for="index in 4" :key="index" class="h-24 rounded-xl" />
+        </template>
+        <article
+          v-for="item in kpiItems"
+          v-else
+          :key="item.key"
+          class="rounded-xl border bg-card p-4 shadow-sm"
+          :data-testid="`data-statistics-host-kpi-${item.key}`"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-muted-foreground">{{ item.label }}</p>
+            <component :is="item.icon" class="size-4 text-muted-foreground" />
+          </div>
+          <div class="mt-2 flex items-baseline gap-1">
+            <span class="text-2xl font-bold tracking-tight tabular-nums">{{ item.value }}</span>
+            <span class="text-sm text-muted-foreground">{{ item.unit }}</span>
+          </div>
+          <p class="mt-1 text-xs text-muted-foreground">{{ item.hint }}</p>
+        </article>
+      </div>
+
+      <HostTreemap :hosts="hosts" :metric="selectedMetric" :loading="loading" />
+      <div class="grid gap-4 lg:grid-cols-2">
+        <HostRankingBar :hosts="hosts" :metric="selectedMetric" :loading="loading" />
+        <HostLocalityHeatmap :hosts="hosts" :loading="loading" />
+      </div>
+    </template>
   </div>
 </template>

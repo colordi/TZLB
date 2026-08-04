@@ -23,7 +23,8 @@ SELECT
     CASE
         {_LOCALITY_CASE_SQL}
         ELSE '其他单位'
-    END AS locality
+    END AS locality,
+    BTRIM(COALESCE(l."世代", '')) AS generation
 FROM
     ledger."美国白蛾问题点位台账" l,
     regexp_split_to_table(COALESCE(l."危害寄主", ''), '、') AS host_part(part)

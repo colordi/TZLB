@@ -20,7 +20,10 @@ from backend.services.statistics.sql_generation import (
     WHITE_MOTH_DISPATCH_FREQUENCY_SQL,
     WHITE_MOTH_GENERATION_SUMMARY_SQL,
 )
-from backend.services.statistics.host_summary import aggregate_host_summary
+from backend.services.statistics.host_summary import (
+    aggregate_host_summary,
+    aggregate_host_summary_by_generation,
+)
 from backend.services.statistics.sql_host import (
     WHITE_MOTH_HOST_RAW_SQL,
 )
@@ -134,11 +137,19 @@ async def get_white_moth_locality_summary(
 async def get_white_moth_host_summary(
     year: int | None = None,
     generation: str | None = None,
+    by_generation: bool = False,
 ) -> dict[str, Any]:
     effective_year = year or date.today().year
     pool = await ensure_pool()
     async with pool.acquire() as connection:
         rows = await connection.fetch(WHITE_MOTH_HOST_RAW_SQL, effective_year, generation)
+
+    if by_generation and not generation:
+        return {
+            "year": effective_year,
+            "generation": None,
+            "generations": aggregate_host_summary_by_generation(rows),
+        }
 
     summary = aggregate_host_summary(rows)
     return {

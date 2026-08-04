@@ -22,6 +22,9 @@ _HOST_ALIASES: dict[str, str] = {
     "君迁": "君迁子",
 }
 
+# 分代对比的固定世代顺序，不在序列内的世代值排在最后
+GENERATION_ORDER: tuple[str, ...] = ("第一代", "第二代", "第三代")
+
 
 def normalize_host_name(raw: Any) -> str:
     """归一化树种名：去空白 → 显式别名 → 去尾部「树」。空值返回空串。"""
@@ -145,3 +148,38 @@ def aggregate_host_summary(
         },
         "hosts": hosts,
     }
+
+
+def aggregate_host_summary_by_generation(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    top_limit: int = TOP_HOST_LIMIT,
+) -> list[dict[str, Any]]:
+    """按世代分组聚合（分代对比用）。
+
+    输入行为含 generation 字段的原始行；输出按固定世代顺序
+    （第一代/第二代/第三代，其他值排最后）排列的
+    [{generation, totals, hosts}]，空世代不出现。
+    """
+    rows_by_generation: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        generation = str(row.get("generation") or "").strip()
+        if not generation:
+            continue
+        rows_by_generation.setdefault(generation, []).append(row)
+
+    def generation_sort_key(generation: str) -> tuple[int, str]:
+        if generation in GENERATION_ORDER:
+            return (GENERATION_ORDER.index(generation), generation)
+        return (len(GENERATION_ORDER), generation)
+
+    return [
+        {
+            "generation": generation,
+            **aggregate_host_summary(group_rows, top_limit=top_limit),
+        }
+        for generation, group_rows in sorted(
+            rows_by_generation.items(),
+            key=lambda item: generation_sort_key(item[0]),
+        )
+    ]

@@ -5,6 +5,7 @@ import unittest
 from backend.services.statistics.host_summary import (
     OTHER_HOST_NAME,
     aggregate_host_summary,
+    aggregate_host_summary_by_generation,
     normalize_host_name,
 )
 
@@ -140,6 +141,53 @@ class TestAggregateHostSummary(unittest.TestCase):
         self.assertEqual(other["points"], 2)
         self.assertEqual(other["localities"], [{"locality": "宋庄镇", "plants": 3}])
         self.assertEqual(other["merged_hosts"], 2)
+
+
+class TestAggregateHostSummaryByGeneration(unittest.TestCase):
+    def test_groups_rows_by_generation(self):
+        rows = [
+            {"code": "A001", "host_raw": "桑", "plants": 2, "locality": "宋庄镇", "generation": "第一代"},
+            {"code": "A001", "host_raw": "桑", "plants": 2, "locality": "宋庄镇", "generation": "第一代"},
+            {"code": "A001", "host_raw": "杨", "plants": 5, "locality": "宋庄镇", "generation": "第二代"},
+            {"code": "A002", "host_raw": "杨", "plants": 3, "locality": "宋庄镇", "generation": "第二代"},
+        ]
+        result = aggregate_host_summary_by_generation(rows)
+
+        self.assertEqual([item["generation"] for item in result], ["第一代", "第二代"])
+        first, second = result
+        # 组内独立聚合、点位去重
+        self.assertEqual(first["totals"]["damaged_plants"], 4)
+        self.assertEqual(first["totals"]["damaged_points"], 1)
+        self.assertEqual(second["totals"]["damaged_plants"], 8)
+        self.assertEqual(second["totals"]["damaged_points"], 2)
+        self.assertEqual(second["totals"]["top_host"]["host"], "杨")
+
+    def test_fixed_generation_order_and_unknown_last(self):
+        rows = [
+            {"code": "A001", "host_raw": "桑", "plants": 1, "locality": "宋庄镇", "generation": "越冬代"},
+            {"code": "A002", "host_raw": "桑", "plants": 1, "locality": "宋庄镇", "generation": "第二代"},
+            {"code": "A003", "host_raw": "桑", "plants": 1, "locality": "宋庄镇", "generation": "第一代"},
+        ]
+        result = aggregate_host_summary_by_generation(rows)
+        self.assertEqual(
+            [item["generation"] for item in result],
+            ["第一代", "第二代", "越冬代"],
+        )
+
+    def test_skips_empty_generation_and_empty_rows(self):
+        self.assertEqual(aggregate_host_summary_by_generation([]), [])
+        rows = [
+            {"code": "A001", "host_raw": "桑", "plants": 1, "locality": "宋庄镇", "generation": ""},
+        ]
+        self.assertEqual(aggregate_host_summary_by_generation(rows), [])
+
+    def test_single_generation_still_returns(self):
+        rows = [
+            {"code": "A001", "host_raw": "桑", "plants": 1, "locality": "宋庄镇", "generation": "第一代"},
+        ]
+        result = aggregate_host_summary_by_generation(rows)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["generation"], "第一代")
 
 
 if __name__ == "__main__":
