@@ -138,7 +138,13 @@ defineExpose({
           <div class="panel-divider"></div>
           <div class="map-legend">
             <div v-for="entry in legendEntries" :key="entry.key" class="legend-item">
-              <span class="legend-dot" :style="{ backgroundColor: entry.color }"></span>
+              <span
+                class="legend-dot"
+                :style="{
+                  backgroundColor: entry.legendFillColor || entry.color,
+                  borderColor: entry.legendFillColor ? entry.color : undefined,
+                }"
+              ></span>
               <span>{{ entry.label }}</span>
             </div>
           </div>

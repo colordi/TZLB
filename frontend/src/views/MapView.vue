@@ -79,7 +79,6 @@ const {
   closeDetail,
   selectDynamicFilter,
   selectSurveyStatusFilter,
-  onMapViewportChange,
   toggleReferenceLayer,
   toggleSiteAdd,
   onMapClick,
@@ -205,7 +204,6 @@ function onSiteLocalityInput(value) {
           :site-add-label="siteAddLabel"
           @feature-click="onFeatureClick"
           @map-click="onMapClick"
-          @viewport-change="onMapViewportChange"
           @toggle-reference-layer="toggleReferenceLayer"
           @toggle-white-moth-site-add="toggleSiteAdd"
           @update:basemap-mode="basemapMode = $event"

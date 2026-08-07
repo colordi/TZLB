@@ -344,33 +344,6 @@
   border-top-color: color-mix(in oklch, var(--foreground) 88%, transparent);
 }
 
-:deep(.map-survey-completion-marker) {
-  width: 16px;
-  height: 16px;
-  background: transparent;
-  border: none;
-  pointer-events: none;
-}
-
-:deep(.map-survey-completion-check) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid var(--card);
-  border-radius: 999px;
-  color: var(--card);
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-  box-shadow:
-    0 1px 3px color-mix(in oklch, var(--foreground) 24%, transparent),
-    0 0 0 1px color-mix(in oklch, var(--success) 25%, transparent);
-  pointer-events: none;
-  /* 背景色为内联样式，取自 config/map-palette.js */
-}
-
 :deep(.map-point-label-marker) {
   width: 0;
   height: 0;
@@ -381,8 +354,9 @@
 
 :deep(.map-point-label-text) {
   position: absolute;
-  left: 8px;
-  top: -0.45rem;
+  left: 0;
+  top: 0;
+  transform: translate(9px, -50%);
   color: var(--primary);
   font-size: 0.76rem;
   font-weight: 800;
@@ -395,6 +369,35 @@
     0 -1px 0 var(--card),
     -1px 0 0 var(--card),
     0 2px 4px color-mix(in oklch, var(--foreground) 18%, transparent);
+}
+
+/* 多方位自动放置，与 leaflet/labels.js 的 POINT_LABEL_PLACEMENTS 对应 */
+:deep(.map-point-label-text--left) {
+  transform: translate(calc(-100% - 9px), -50%);
+}
+
+:deep(.map-point-label-text--top) {
+  transform: translate(-50%, calc(-100% - 9px));
+}
+
+:deep(.map-point-label-text--bottom) {
+  transform: translate(-50%, 9px);
+}
+
+:deep(.map-point-label-text--top-right) {
+  transform: translate(7px, calc(-100% - 7px));
+}
+
+:deep(.map-point-label-text--bottom-right) {
+  transform: translate(7px, 7px);
+}
+
+:deep(.map-point-label-text--top-left) {
+  transform: translate(calc(-100% - 7px), calc(-100% - 7px));
+}
+
+:deep(.map-point-label-text--bottom-left) {
+  transform: translate(calc(-100% - 7px), 7px);
 }
 
 @media (max-width: 760px) {

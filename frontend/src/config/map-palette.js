@@ -67,5 +67,8 @@ export const LOCATE_MARKER_RING = "rgba(47, 128, 237, 0.34)";
 /** 定位标记白色晕圈（深色底图上保证可读性） */
 export const LOCATE_MARKER_HALO = "rgba(255, 255, 255, 0.9)";
 
-/** 调查完成小勾底色（divIcon 内联样式） */
-export const SURVEY_COMPLETION_COLOR = "#16a34a";
+/** 未调查点位：空心点描边灰（circleMarker color / 面图层描边） */
+export const SURVEY_PENDING_STROKE_COLOR = "#9CA3AF";
+
+/** 未调查点位：空心点填充白（circleMarker fillColor / 面图层填充） */
+export const SURVEY_PENDING_FILL_COLOR = "#ffffff";

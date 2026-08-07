@@ -25,9 +25,7 @@ import {
 } from "../../components/map/popupFields.js";
 import {
   createEmptyFeatureCollection,
-  isSameBbox,
   LOCALITY_FIELD,
-  normalizeBbox,
   readStoredSelectedView,
   SEARCH_FIELD_KEYS,
   SEARCH_RESULT_LIMIT,
@@ -73,7 +71,6 @@ export function useMapView() {
   const mapFocusRequest = ref(null);
   const whiteMothSiteCodeRules = ref(null);
   const siteDraftLocation = ref(null);
-  const currentMapViewport = ref(null);
   const siteForm = ref({
     code: "",
     siteName: "",
@@ -476,12 +473,6 @@ export function useMapView() {
     await Promise.all([loadGeoJson({ autoFit: false }), loadFilterOptions()]);
   }
 
-  function buildMapRequestOptions() {
-    return {
-      bbox: currentMapViewport.value?.bbox || null,
-    };
-  }
-
   const currentView = computed(
     () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
   );
@@ -814,7 +805,7 @@ export function useMapView() {
       const payload = await fetchMapView(
         viewName,
         activeMapFilters.value,
-        buildMapRequestOptions(),
+        {},
       );
       if (requestToken !== geojsonRequestToken || viewName !== selectedView.value) {
         return false;
@@ -860,39 +851,6 @@ export function useMapView() {
     await loadGeoJson({ autoFit: false });
   }
 
-  async function reloadActiveReferenceLayers() {
-    const activeLayerNames = activeReferenceLayerNames.value.slice();
-    if (!activeLayerNames.length) {
-      return;
-    }
-
-    await Promise.all(
-      activeLayerNames.map((layerName) =>
-        ensureReferenceLayerGeojson(layerName, { force: true }),
-      ),
-    );
-  }
-
-  async function onMapViewportChange(viewport) {
-    const bbox = normalizeBbox(viewport?.bbox);
-    if (!bbox) {
-      return;
-    }
-    if (isSameBbox(currentMapViewport.value?.bbox, bbox)) {
-      return;
-    }
-
-    currentMapViewport.value = {
-      bbox,
-      zoom: viewport?.zoom ?? null,
-    };
-
-    if (selectedView.value && !loadingViews.value) {
-      await loadGeoJson({ autoFit: false });
-      await reloadActiveReferenceLayers();
-    }
-  }
-
   function setReferenceLayerLoading(layerName, isLoading) {
     if (!layerName) {
       return;
@@ -910,14 +868,14 @@ export function useMapView() {
     );
   }
 
-  async function ensureReferenceLayerGeojson(layerName, { force = false } = {}) {
-    if (!force && referenceLayerGeojsonByName.value[layerName]) {
+  async function ensureReferenceLayerGeojson(layerName) {
+    if (referenceLayerGeojsonByName.value[layerName]) {
       return true;
     }
 
     setReferenceLayerLoading(layerName, true);
     try {
-      const payload = await fetchReferenceLayer(layerName, buildMapRequestOptions());
+      const payload = await fetchReferenceLayer(layerName, {});
       referenceLayerGeojsonByName.value = {
         ...referenceLayerGeojsonByName.value,
         [layerName]: payload,
@@ -1322,7 +1280,6 @@ export function useMapView() {
     closeDetail,
     selectDynamicFilter,
     selectSurveyStatusFilter,
-    onMapViewportChange,
     toggleReferenceLayer,
     toggleSiteAdd,
     onMapClick,

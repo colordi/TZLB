@@ -2,25 +2,27 @@ import L from "leaflet";
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 
 import { useToast } from "../../composables/useToast.js";
-import { POINT_LAYER_COLORS } from "../../config/map-palette.js";
+import {
+  POINT_LAYER_COLORS,
+  SURVEY_PENDING_FILL_COLOR,
+  SURVEY_PENDING_STROKE_COLOR,
+} from "../../config/map-palette.js";
 import { getBasemapConfig } from "./leaflet/basemap.js";
 import {
   collectFeatureCoordinatePairs,
   extractFeatureLabelLatLng,
   getPointFeatureLatLng,
 } from "./leaflet/geometry.js";
-import { boundsIntersect, estimateLabelBounds } from "./leaflet/labels.js";
+import { createLabelCollisionIndex, resolveLabelPlacement } from "./leaflet/labels.js";
 import { clearLayer } from "./leaflet/layerUtils.js";
 import {
   buildDraftSiteMarker,
   buildLocateMarker,
   buildPointLabelMarker,
-  buildSurveyCompletionMarker,
 } from "./leaflet/markers.js";
 import {
   getLegendEntries,
   getPointRenderFeatures,
-  getSurveyDateValue,
   getTopmostPointFeatures,
   hasFeatureCollectionFeatures,
   isNeutralPointStyle,
@@ -29,9 +31,9 @@ import {
   resolveFeaturePathStyle,
   resolvePointStyle,
   resolveReferenceLayerStyle,
+  SURVEY_PENDING_POINT_STYLE,
   usesParcelStatusLegend as computeUsesParcelStatusLegend,
   usesSeverityLegend as computeUsesSeverityLegend,
-  usesSurveyCompletionMarkers as computeUsesSurveyCompletionMarkers,
 } from "./leaflet/styles.js";
 import { resolveFeatureHoverLabel, resolveFeaturePointLabel } from "./popupFields.js";
 
@@ -52,7 +54,6 @@ export function useLeafletMap(props, emit) {
   const referenceLayerGroupRef = shallowRef(null);
   const pointLayerRef = shallowRef(null);
   const pointLabelLayerRef = shallowRef(null);
-  const surveyCompletionLayerRef = shallowRef(null);
   const locateMarkerRef = shallowRef(null);
   const whiteMothSiteDraftMarkerRef = shallowRef(null);
   const locateWatchId = ref(null);
@@ -115,9 +116,6 @@ export function useLeafletMap(props, emit) {
   const usesSeverityLegend = computed(() => computeUsesSeverityLegend(props.popupFields));
   const usesParcelStatusLegend = computed(() =>
     computeUsesParcelStatusLegend(props.popupFields),
-  );
-  const usesSurveyCompletionMarkers = computed(() =>
-    computeUsesSurveyCompletionMarkers(props.popupFields),
   );
 
   const legendEntries = computed(() => getLegendEntries(props.popupFields));
@@ -296,7 +294,7 @@ export function useLeafletMap(props, emit) {
       return;
     }
 
-    const renderedLabelBounds = [];
+    const collisionIndex = createLabelCollisionIndex();
     for (const feature of getTopmostPointFeatures(data.features, props.popupFields)) {
       const label = resolveFeaturePointLabel(feature?.properties || {});
       if (!label) {
@@ -313,8 +311,8 @@ export function useLeafletMap(props, emit) {
         continue;
       }
 
-      const labelBounds = estimateLabelBounds(label, projected);
-      if (renderedLabelBounds.some((item) => boundsIntersect(item, labelBounds))) {
+      const resolved = resolveLabelPlacement(label, projected, collisionIndex);
+      if (!resolved) {
         continue;
       }
 
@@ -322,38 +320,11 @@ export function useLeafletMap(props, emit) {
         pointLabelLayerRef.value = L.layerGroup().addTo(mapRef.value);
       }
 
-      buildPointLabelMarker(label, latlng).addTo(pointLabelLayerRef.value);
-      renderedLabelBounds.push(labelBounds);
+      buildPointLabelMarker(label, latlng, resolved.placement).addTo(pointLabelLayerRef.value);
+      collisionIndex.insert(resolved.bounds);
     }
 
     pointLabelLayerRef.value?.bringToFront?.();
-  }
-
-  function renderSurveyCompletionMarkers(data = props.geojson) {
-    clearLayer(surveyCompletionLayerRef);
-
-    if (!mapRef.value || !usesSurveyCompletionMarkers.value || !data?.features?.length) {
-      return;
-    }
-
-    for (const feature of data.features) {
-      if (!getSurveyDateValue(feature?.properties || {})) {
-        continue;
-      }
-
-      const latlng = extractFeatureLabelLatLng(feature);
-      if (!latlng) {
-        continue;
-      }
-
-      if (!surveyCompletionLayerRef.value) {
-        surveyCompletionLayerRef.value = L.layerGroup().addTo(mapRef.value);
-      }
-
-      buildSurveyCompletionMarker(latlng).addTo(surveyCompletionLayerRef.value);
-    }
-
-    surveyCompletionLayerRef.value?.bringToFront?.();
   }
 
   function drawGeoJson(data, shouldFit = true) {
@@ -375,6 +346,7 @@ export function useLeafletMap(props, emit) {
     };
 
     pointLayerRef.value = L.geoJSON(sortedData, {
+      renderer: L.canvas({ padding: 0.5 }),
       style: (feature) =>
         feature?.geometry?.type === "Point"
           ? {}
@@ -382,12 +354,13 @@ export function useLeafletMap(props, emit) {
       pointToLayer: (feature, latlng) => {
         const pointStyle = resolvePointStyle(feature.properties, props.popupFields);
         const isNeutral = isNeutralPointStyle(pointStyle);
+        const isPending = pointStyle.key === SURVEY_PENDING_POINT_STYLE.key;
         return L.circleMarker(latlng, {
           radius: pointStyle.radius,
-          fillColor: pointStyle.color,
-          color: POINT_OUTLINE_COLOR,
-          weight: 1.45,
-          fillOpacity: isNeutral ? 0.96 : 0.88,
+          fillColor: isPending ? SURVEY_PENDING_FILL_COLOR : pointStyle.color,
+          color: isPending ? SURVEY_PENDING_STROKE_COLOR : POINT_OUTLINE_COLOR,
+          weight: isPending ? 1.6 : 1.45,
+          fillOpacity: isPending ? 0.92 : isNeutral ? 0.96 : 0.88,
         });
       },
       onEachFeature: (feature, layer) => {
@@ -420,12 +393,6 @@ export function useLeafletMap(props, emit) {
   }
 
   function refreshPointLabels() {
-    renderPointLabels(props.geojson);
-  }
-
-  function refreshPointRendering() {
-    drawGeoJson(props.geojson, false);
-    renderSurveyCompletionMarkers(props.geojson);
     renderPointLabels(props.geojson);
   }
 
@@ -628,7 +595,7 @@ export function useLeafletMap(props, emit) {
   }
 
   function handleZoomEnd() {
-    refreshPointRendering();
+    refreshPointLabels();
     emitViewportChange();
   }
 
@@ -642,7 +609,6 @@ export function useLeafletMap(props, emit) {
     drawBoundaryGeoJson(props.boundaryGeojson);
     drawReferenceLayers(props.referenceLayers);
     drawGeoJson(props.geojson, props.autoFitOnDataChange);
-    renderSurveyCompletionMarkers(props.geojson);
     renderPointLabels(props.geojson);
     updateWhiteMothSiteDraftMarker();
     emitViewportChange();
@@ -671,7 +637,6 @@ export function useLeafletMap(props, emit) {
     (value) => {
       drawReferenceLayers(value);
       drawGeoJson(props.geojson, false);
-      renderSurveyCompletionMarkers(props.geojson);
       renderPointLabels(props.geojson);
     },
     { deep: true },
@@ -681,17 +646,14 @@ export function useLeafletMap(props, emit) {
     () => props.geojson,
     (value) => {
       drawGeoJson(value, props.autoFitOnDataChange);
-      renderSurveyCompletionMarkers(value);
       renderPointLabels(value);
     },
-    { deep: true },
   );
 
   watch(
     () => props.popupFields,
     () => {
       drawGeoJson(props.geojson, false);
-      renderSurveyCompletionMarkers(props.geojson);
     },
     { deep: true },
   );
@@ -727,7 +689,6 @@ export function useLeafletMap(props, emit) {
     clearLayer(referenceLayerGroupRef);
     clearLayer(pointLayerRef);
     clearLayer(pointLabelLayerRef);
-    clearLayer(surveyCompletionLayerRef);
     clearLayer(locateMarkerRef);
     clearLayer(whiteMothSiteDraftMarkerRef);
     if (suppressMapClickResetTimer) {

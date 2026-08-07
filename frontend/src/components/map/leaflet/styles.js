@@ -3,6 +3,8 @@ import {
   HAZARD_POINT_COLOR,
   POINT_OUTLINE_COLOR,
   REFERENCE_LAYER_COLORS,
+  SURVEY_PENDING_FILL_COLOR,
+  SURVEY_PENDING_STROKE_COLOR,
 } from "../../../config/map-palette.js";
 import {
   hasFeatureParcelStatusField,
@@ -16,6 +18,15 @@ export const HAZARD_POINT_STYLE = {
   color: HAZARD_POINT_COLOR,
   radius: 8,
   label: "危害点位",
+};
+
+/** 未调查点位样式：灰描边空心点，调查状态与危害程度（颜色）双通道编码 */
+export const SURVEY_PENDING_POINT_STYLE = {
+  key: "survey-pending",
+  color: SURVEY_PENDING_STROKE_COLOR,
+  radius: 8,
+  label: "未调查",
+  legendFillColor: SURVEY_PENDING_FILL_COLOR,
 };
 
 export const ADMIN_BOUNDARY_LAYER_NAME = "通州区行政区边界";
@@ -78,11 +89,15 @@ export function usesParcelStatusLegend(popupFields = []) {
   return !usesSeverityLegend(popupFields) && hasFeatureParcelStatusField(popupFields);
 }
 
-export function usesSurveyCompletionMarkers(popupFields = []) {
-  return hasSurveyDateField(popupFields);
-}
-
 export function resolvePointStyle(properties = {}, popupFields = []) {
+  // 地块状态本身已编码调查/伐除语义，不参与未调查覆写
+  if (
+    !usesParcelStatusLegend(popupFields) &&
+    hasSurveyDateField(popupFields) &&
+    !getSurveyDateValue(properties)
+  ) {
+    return SURVEY_PENDING_POINT_STYLE;
+  }
   if (usesSeverityLegend(popupFields)) {
     return resolveFeatureSeverity(properties);
   }
@@ -94,6 +109,15 @@ export function resolvePointStyle(properties = {}, popupFields = []) {
 
 export function resolveFeaturePathStyle(properties = {}, popupFields = []) {
   const pointStyle = resolvePointStyle(properties, popupFields);
+  if (pointStyle.key === SURVEY_PENDING_POINT_STYLE.key) {
+    return {
+      color: SURVEY_PENDING_STROKE_COLOR,
+      fillColor: SURVEY_PENDING_FILL_COLOR,
+      fillOpacity: 0.5,
+      opacity: 0.9,
+      weight: 1.2,
+    };
+  }
   if (usesParcelStatusLegend(popupFields)) {
     if (pointStyle.key === "parcel-default") {
       return {
@@ -141,12 +165,16 @@ export function getTopmostPointFeatures(features = [], popupFields = []) {
 
 export function getLegendEntries(popupFields = []) {
   if (usesSeverityLegend(popupFields)) {
-    return [
+    const entries = [
       resolveFeatureSeverity("无"),
       resolveFeatureSeverity("轻"),
       resolveFeatureSeverity("中"),
       resolveFeatureSeverity("重"),
     ];
+    if (hasSurveyDateField(popupFields)) {
+      entries.push(SURVEY_PENDING_POINT_STYLE);
+    }
+    return entries;
   }
 
   if (usesParcelStatusLegend(popupFields)) {
@@ -154,6 +182,13 @@ export function getLegendEntries(popupFields = []) {
       resolveFeatureParcelStatus({ 地块状态: "" }),
       resolveFeatureParcelStatus({ 地块状态: "调查" }),
       resolveFeatureParcelStatus({ 地块状态: "伐除" }),
+    ];
+  }
+
+  if (hasSurveyDateField(popupFields)) {
+    return [
+      { ...HAZARD_POINT_STYLE, key: "hazard-point-surveyed", label: "已调查" },
+      SURVEY_PENDING_POINT_STYLE,
     ];
   }
 

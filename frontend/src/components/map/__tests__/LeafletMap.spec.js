@@ -45,6 +45,7 @@ const leafletMocks = vi.hoisted(() => {
   return {
     maps,
     markers,
+    canvas: vi.fn(() => ({})),
     circleMarker: vi.fn(() => createLayer()),
     control: {
       zoom: vi.fn(() => ({
@@ -206,15 +207,6 @@ function getPointLabelMarkerCalls() {
 
 function getPointLabelMarkerHtml() {
   return getPointLabelMarkerCalls().map(([, options]) => options?.icon?.html || "");
-}
-
-function getSurveyCompletionMarkerCalls() {
-  return leafletMocks.marker.mock.calls.filter(
-    ([, options]) =>
-      options?.interactive === false &&
-      options?.keyboard === false &&
-      options?.icon?.className === "map-survey-completion-marker",
-  );
 }
 
 function getPointClusterMarkerCalls() {
@@ -726,13 +718,33 @@ describe("LeafletMap 图例", () => {
 
   it("不含危害程度字段时只显示危害点位图例", async () => {
     const wrapper = mountLeafletMap({
-      popupFields: ["编号", "调查日期", "调查状态"],
+      popupFields: ["编号", "调查状态"],
     });
 
     await openLegend(wrapper);
 
     expect(getLegendLabels(wrapper)).toEqual(["危害点位"]);
     expect(wrapper.text()).not.toContain("未调查");
+  });
+
+  it("含调查日期字段时图例显示已调查与未调查", async () => {
+    const wrapper = mountLeafletMap({
+      popupFields: ["编号", "调查日期", "调查状态"],
+    });
+
+    await openLegend(wrapper);
+
+    expect(getLegendLabels(wrapper)).toEqual(["已调查", "未调查"]);
+  });
+
+  it("危害程度与调查日期并存时图例附加未调查", async () => {
+    const wrapper = mountLeafletMap({
+      popupFields: ["编号", "危害程度", "调查日期"],
+    });
+
+    await openLegend(wrapper);
+
+    expect(getLegendLabels(wrapper)).toEqual(["无", "轻", "中", "重", "未调查"]);
   });
 
   it("白蜡地块状态 view 显示其他、调查、伐除图例", async () => {
@@ -904,7 +916,7 @@ describe("LeafletMap 参考图层", () => {
   });
 });
 
-describe("LeafletMap 调查完成标记", () => {
+describe("LeafletMap 调查状态样式", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     leafletMocks.maps.length = 0;
@@ -912,54 +924,115 @@ describe("LeafletMap 调查完成标记", () => {
     installGeolocationMock();
   });
 
-  it("当前 view 有调查日期字段时，为已调查点位添加中心小勾", () => {
+  it("有调查日期字段时，未调查点位渲染为灰色空心点", () => {
+    const feature = createPointFeature("A-002", 116.74, 39.93, { 调查日期: "" });
+
     mountLeafletMap({
       popupFields: ["编号", "调查日期"],
       geojson: {
         type: "FeatureCollection",
-        features: [
-          createPointFeature("A-001", 116.73, 39.92, { 调查日期: "2026-05-02" }),
-          createPointFeature("A-002", 116.74, 39.93, { 调查日期: "" }),
-        ],
+        features: [feature],
       },
     });
 
-    const markerCalls = getSurveyCompletionMarkerCalls();
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.93, 116.74]);
 
-    expect(markerCalls).toHaveLength(1);
-    expect(markerCalls[0][0]).toEqual([39.92, 116.73]);
-    expect(markerCalls[0][1].icon.html).toContain("map-survey-completion-check");
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.93, 116.74],
+      expect.objectContaining({
+        radius: 8,
+        fillColor: "#ffffff",
+        color: "#9CA3AF",
+        weight: 1.6,
+        fillOpacity: 0.92,
+      }),
+    );
   });
 
-  it("当前 view 没有调查日期字段时不显示完成小勾", () => {
+  it("有调查日期字段时，已调查点位保持原有样式", () => {
+    const feature = createPointFeature("A-001", 116.73, 39.92, { 调查日期: "2026-05-02" });
+
+    mountLeafletMap({
+      popupFields: ["编号", "调查日期"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [feature],
+      },
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
+
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        radius: 8,
+        fillColor: "#ff0000",
+        color: "#1F2933",
+        weight: 1.45,
+      }),
+    );
+  });
+
+  it("没有调查日期字段时不应用未调查样式", () => {
+    const feature = createPointFeature("A-001", 116.73, 39.92, { 调查日期: "" });
+
     mountLeafletMap({
       popupFields: ["编号", "调查状态"],
       geojson: {
         type: "FeatureCollection",
-        features: [createPointFeature("A-001", 116.73, 39.92, { 调查日期: "2026-05-02" })],
+        features: [feature],
       },
     });
 
-    expect(getSurveyCompletionMarkerCalls()).toHaveLength(0);
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
+
+    expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
+      [39.92, 116.73],
+      expect.objectContaining({
+        fillColor: "#ff0000",
+        color: "#1F2933",
+      }),
+    );
   });
 
-  it("面图层有调查日期时在几何中心添加完成小勾", () => {
+  it("未调查面要素渲染为灰边白填充", () => {
+    const pendingFeature = createPolygonFeature("MGB-001", { 调查日期: "" });
+    const surveyedFeature = createPolygonFeature("MGB-002", { 调查日期: "2026-05-02" });
+
     mountLeafletMap({
       popupFields: ["编号", "调查日期"],
       geojson: {
         type: "FeatureCollection",
-        features: [
-          createPolygonFeature("MGB-001", {
-            调查日期: "2026-05-02",
-          }),
-        ],
+        features: [pendingFeature, surveyedFeature],
       },
     });
 
-    const markerCalls = getSurveyCompletionMarkerCalls();
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    expect(geoJsonCall[1].style(pendingFeature)).toMatchObject({
+      color: "#9CA3AF",
+      fillColor: "#ffffff",
+    });
+    expect(geoJsonCall[1].style(surveyedFeature)).toMatchObject({
+      color: "#1F2933",
+      fillColor: "#ff0000",
+    });
+  });
 
-    expect(markerCalls).toHaveLength(1);
-    expect(markerCalls[0][0]).toEqual([39.925, 116.735]);
+  it("主点位图层使用 canvas 渲染器", () => {
+    mountLeafletMap({
+      popupFields: ["编号"],
+      geojson: {
+        type: "FeatureCollection",
+        features: [createPointFeature("A-001", 116.73, 39.92)],
+      },
+    });
+
+    expect(leafletMocks.canvas).toHaveBeenCalledWith({ padding: 0.5 });
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
+    expect(geoJsonCall[1].renderer).toBe(leafletMocks.canvas.mock.results[0].value);
   });
 });
 
@@ -992,7 +1065,6 @@ describe("LeafletMap 点位样式", () => {
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
 
-    expect(getSurveyCompletionMarkerCalls()).toHaveLength(1);
     expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
       [39.92, 116.73],
       expect.objectContaining({
@@ -1005,7 +1077,7 @@ describe("LeafletMap 点位样式", () => {
     );
   });
 
-  it("危害程度 view 的未调查点位也按危害程度颜色渲染", () => {
+  it("危害程度 view 的未调查点位渲染为灰色空心点", () => {
     const feature = {
       type: "Feature",
       geometry: { type: "Point", coordinates: [116.73, 39.92] },
@@ -1026,14 +1098,14 @@ describe("LeafletMap 点位样式", () => {
     const geoJsonCall = leafletMocks.geoJSON.mock.calls[leafletMocks.geoJSON.mock.calls.length - 1];
     geoJsonCall[1].pointToLayer(feature, [39.92, 116.73]);
 
-    expect(leafletMocks.marker).not.toHaveBeenCalled();
     expect(leafletMocks.circleMarker).toHaveBeenCalledWith(
       [39.92, 116.73],
       expect.objectContaining({
-        radius: 7,
-        fillColor: "#0033ff",
-        color: "#1F2933",
-        weight: 1.45,
+        radius: 8,
+        fillColor: "#ffffff",
+        color: "#9CA3AF",
+        weight: 1.6,
+        fillOpacity: 0.92,
       }),
     );
   });
@@ -1439,7 +1511,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerHtml()[0]).toContain("A-001");
   });
 
-  it("编号标签存在遮挡时只保留视觉顶层标签", () => {
+  it("编号标签遮挡时自动换到无碰撞方位", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -1452,10 +1524,15 @@ describe("LeafletMap 编号标签性能优化", () => {
     });
 
     const labelCalls = getPointLabelMarkerCalls();
+    const labelHtml = getPointLabelMarkerHtml();
 
-    expect(labelCalls).toHaveLength(1);
+    // 视觉顶层点位优先占右侧，被遮挡点位自动换到左侧放置
+    expect(labelCalls).toHaveLength(2);
     expect(labelCalls[0][0]).toEqual([39.9201, 116.7301]);
-    expect(getPointLabelMarkerHtml()[0]).toContain("A-002");
+    expect(labelHtml[0]).toContain("A-002");
+    expect(labelHtml[0]).toContain("map-point-label-text--right");
+    expect(labelHtml[1]).toContain("A-001");
+    expect(labelHtml[1]).toContain("map-point-label-text--left");
   });
 
   it("多边形点位也会在当前视口内渲染编号", () => {
@@ -1498,7 +1575,7 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerCalls()).toHaveLength(120);
   });
 
-  it("缩放会重绘点位，平移只刷新编号标签", () => {
+  it("缩放和平移只刷新编号标签，不重建点位层", () => {
     mountLeafletMap({
       geojson: {
         type: "FeatureCollection",
@@ -1516,9 +1593,13 @@ describe("LeafletMap 编号标签性能优化", () => {
     expect(getPointLabelMarkerCalls()).toHaveLength(1);
 
     mapInstance.trigger("zoomend");
+
+    expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(1);
+    expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(2);
+
     mapInstance.trigger("moveend");
 
-    expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(2);
+    expect(leafletMocks.geoJSON).toHaveBeenCalledTimes(1);
     expect(leafletMocks.layerGroup).toHaveBeenCalledTimes(3);
     expect(getPointLabelMarkerCalls()).toHaveLength(3);
   });

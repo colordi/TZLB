@@ -176,9 +176,7 @@ function getLeafletMapStub(wrapper) {
   return wrapper.getComponent(LeafletMapStub);
 }
 
-const DEFAULT_MAP_OPTIONS = {
-  bbox: null,
-};
+const DEFAULT_MAP_OPTIONS = {};
 
 describe("MapView", () => {
   beforeEach(() => {
@@ -636,12 +634,8 @@ describe("MapView", () => {
     });
   });
 
-  it("地图视窗变化后带 bbox 重新请求当前视图和已开启参考图层", async () => {
+  it("地图视窗变化后不再重新请求数据", async () => {
     const wrapper = mountMapView();
-    const bbox = [116.1, 39.5, 116.9, 40.1];
-    const requestOptions = {
-      bbox,
-    };
 
     await vi.waitFor(() => {
       expect(apiMocks.fetchMapView).toHaveBeenCalled();
@@ -655,21 +649,13 @@ describe("MapView", () => {
     apiMocks.fetchReferenceLayer.mockClear();
 
     getLeafletMapStub(wrapper).vm.$emit("viewport-change", {
-      bbox,
+      bbox: [116.1, 39.5, 116.9, 40.1],
       zoom: 13,
     });
+    await nextTick();
 
-    await vi.waitFor(() => {
-      expect(apiMocks.fetchMapView).toHaveBeenCalledWith(
-        "虫情总览",
-        {},
-        requestOptions,
-      );
-      expect(apiMocks.fetchReferenceLayer).toHaveBeenCalledWith(
-        "通州区行政区边界",
-        requestOptions,
-      );
-    });
+    expect(apiMocks.fetchMapView).not.toHaveBeenCalled();
+    expect(apiMocks.fetchReferenceLayer).not.toHaveBeenCalled();
   });
 
   it("刷新页面后优先恢复浏览器记住的上次视图", async () => {
@@ -773,11 +759,11 @@ describe("MapView", () => {
       },
       geometry: { type: "Point", coordinates: [116.7, 39.9] },
     };
-    // 地图加载走 bbox/筛选参数，返回空；搜索拉取全量数据，返回全部点位
+    // 地图加载带筛选参数（返回空）；搜索索引不带任何参数拉取全量点位
     apiMocks.fetchMapView.mockImplementation(async (viewName, filters, options) =>
-      options && "bbox" in options
-        ? createFeatureCollection([])
-        : createFeatureCollection([offscreenFeature]),
+      options === undefined
+        ? createFeatureCollection([offscreenFeature])
+        : createFeatureCollection([]),
     );
 
     const wrapper = mountMapView();

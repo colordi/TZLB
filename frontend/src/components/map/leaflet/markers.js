@@ -6,7 +6,6 @@ import {
   LOCATE_MARKER_HALO,
   LOCATE_MARKER_PULSE,
   LOCATE_MARKER_RING,
-  SURVEY_COMPLETION_COLOR,
 } from "../../../config/map-palette.js";
 import { escapeHtml } from "./html.js";
 
@@ -41,30 +40,18 @@ export const WHITE_MOTH_SITE_DRAFT_MARKER_HTML = `
   </div>
 `;
 
-export function buildPointLabelMarker(label, latlng) {
+export function buildPointLabelMarker(label, latlng, placement = "right") {
   const safeLabel = escapeHtml(label);
+  const safePlacement = /^[a-z-]+$/.test(`${placement}`) ? placement : "right";
 
   return L.marker(latlng, {
     interactive: false,
     keyboard: false,
     icon: L.divIcon({
       className: "map-point-label-marker",
-      html: `<span class="map-point-label-text">${safeLabel}</span>`,
+      html: `<span class="map-point-label-text map-point-label-text--${safePlacement}">${safeLabel}</span>`,
       iconSize: [1, 1],
       iconAnchor: [0, 0],
-    }),
-  });
-}
-
-export function buildSurveyCompletionMarker(latlng) {
-  return L.marker(latlng, {
-    interactive: false,
-    keyboard: false,
-    icon: L.divIcon({
-      className: "map-survey-completion-marker",
-      html: `<span class="map-survey-completion-check" style="background: ${SURVEY_COMPLETION_COLOR};" aria-hidden="true">✓</span>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8],
     }),
   });
 }
