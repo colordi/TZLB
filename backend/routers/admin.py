@@ -24,13 +24,35 @@ from backend.schemas import (
     LayerMetadataResponse,
     OperationLogListResponse,
     ResetPasswordRequest,
+    TaskViewDefinitionRequest,
+    TaskViewMutationResponse,
+    TaskViewPreviewResponse,
+    TaskViewSourcesResponse,
     UpdateUserRequest,
 )
+from backend.services import view_builder
 
 
 router = APIRouter(
     dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
+
+
+def _task_view_definition(payload: TaskViewDefinitionRequest) -> dict:
+    """将请求模型转换为构建器定义，筛选键映射为中文列名。"""
+
+    return {
+        "name": payload.name,
+        "display_name": payload.display_name,
+        "base_table": payload.base_table,
+        "related_table": payload.related_table,
+        "site_name_column": payload.site_name_column,
+        "filters": {
+            view_builder.YEAR_COLUMN: payload.filters.year,
+            view_builder.GENERATION_COLUMN: payload.filters.generation,
+            "codes": payload.filters.codes,
+        },
+    }
 
 
 # ──────────────────────────────────────────────
@@ -80,6 +102,75 @@ async def put_layers(payload: BatchUpdateLayersRequest) -> list[LayerMetadataRes
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"更新图层元数据失败：{exc}") from exc
+
+
+# ──────────────────────────────────────────────
+#  Task View Builder — 任务图层构建器
+# ──────────────────────────────────────────────
+
+
+@router.get(
+    "/view-builder/sources",
+    response_model=TaskViewSourcesResponse,
+    summary="列出任务视图构建器候选源表",
+)
+async def get_view_builder_sources() -> TaskViewSourcesResponse:
+    try:
+        return await view_builder.list_builder_sources()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"读取候选源表失败：{exc}") from exc
+
+
+@router.post(
+    "/view-builder/preview",
+    response_model=TaskViewPreviewResponse,
+    summary="预览任务视图",
+)
+async def post_view_builder_preview(
+    payload: TaskViewDefinitionRequest,
+) -> TaskViewPreviewResponse:
+    try:
+        return await view_builder.preview_task_view(_task_view_definition(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"预览任务视图失败：{exc}") from exc
+
+
+@router.post(
+    "/view-builder/views",
+    response_model=TaskViewMutationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="发布任务视图",
+)
+async def post_view_builder_view(
+    payload: TaskViewDefinitionRequest,
+) -> TaskViewMutationResponse:
+    try:
+        return await view_builder.create_task_view(_task_view_definition(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"发布任务视图失败：{exc}") from exc
+
+
+@router.delete(
+    "/view-builder/views/{view_name}",
+    response_model=TaskViewMutationResponse,
+    summary="删除任务视图",
+)
+async def delete_view_builder_view(view_name: str) -> TaskViewMutationResponse:
+    try:
+        deleted = await view_builder.delete_task_view(view_name)
+        if deleted is None:
+            raise HTTPException(status_code=404, detail=f"任务视图不存在：{view_name}")
+        return deleted
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"删除任务视图失败：{exc}") from exc
 
 
 # ──────────────────────────────────────────────

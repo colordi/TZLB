@@ -86,7 +86,7 @@ export function useLeafletMap(props, emit) {
 
         return {
           key: name,
-          label: name,
+          label: `${view?.label || name}`.trim(),
           active: name === props.viewName,
           color: POINT_LAYER_COLORS[index % POINT_LAYER_COLORS.length],
           countLabel: name === props.viewName ? featureCount.value : "切换",

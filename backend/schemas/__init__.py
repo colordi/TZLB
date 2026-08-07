@@ -10,6 +10,13 @@ from backend.schemas.admin import (  # noqa: F401
     LayerMetadataItem,
     LayerMetadataResponse,
     ResetPasswordRequest,
+    TaskViewBaseSource,
+    TaskViewDefinitionRequest,
+    TaskViewFilters,
+    TaskViewMutationResponse,
+    TaskViewPreviewResponse,
+    TaskViewRelatedSource,
+    TaskViewSourcesResponse,
     UpdateUserRequest,
 )
 from backend.schemas.auth import (  # noqa: F401

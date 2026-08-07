@@ -458,6 +458,28 @@ describe("LeafletMap 底图图层", () => {
     expect(wrapper.emitted("update:viewName")).toEqual([["美国白蛾点位"]]);
   });
 
+  it("点位图层优先显示视图别名", async () => {
+    const wrapper = mountLeafletMap({
+      viewName: "task_guohuai_2026_gen1",
+      views: [
+        { name: "task_guohuai_2026_gen1", label: "国槐尺蠖2026年第一代调查", columns: [] },
+        { name: "美国白蛾点位", columns: [] },
+      ],
+      geojson: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
+
+    const panel = wrapper.get("#map-layer-panel");
+    expect(panel.text()).toContain("国槐尺蠖2026年第一代调查");
+    expect(panel.text()).not.toContain("task_guohuai_2026_gen1");
+    // 未配置别名的图层仍显示图层键
+    expect(panel.text()).toContain("美国白蛾点位");
+  });
+
   it("右上角缩放按钮直接调用地图缩放方法", async () => {
     const wrapper = mountLeafletMap();
     const mapInstance = leafletMocks.maps[0];

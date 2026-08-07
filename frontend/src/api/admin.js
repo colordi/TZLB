@@ -31,6 +31,45 @@ export async function updateLayers(items) {
 }
 
 /* ──────────────────────────────────────────
+   Task View Builder — 任务图层构建器
+   ────────────────────────────────────────── */
+
+export async function fetchViewBuilderSources() {
+  const response = await apiFetch("/api/admin/view-builder/sources");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function previewTaskView(payload) {
+  const response = await apiFetch("/api/admin/view-builder/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function createTaskView(payload) {
+  const response = await apiFetch("/api/admin/view-builder/views", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function deleteTaskView(viewName) {
+  const response = await apiFetch(
+    `/api/admin/view-builder/views/${encodeURIComponent(viewName)}`,
+    { method: "DELETE" },
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+/* ──────────────────────────────────────────
    User Management
    ────────────────────────────────────────── */
 

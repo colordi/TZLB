@@ -40,6 +40,81 @@ class BatchUpdateLayersRequest(BaseModel):
     items: list[LayerMetadataItem]
 
 
+# ──────────────────────────────────────────────
+#  Task View Builder — 任务图层构建器
+# ──────────────────────────────────────────────
+
+
+class TaskViewFilters(BaseModel):
+    """任务视图筛选条件（烘焙进视图 SQL）。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    year: str | None = None
+    generation: str | None = None
+    codes: list[str] | None = None
+
+
+class TaskViewDefinitionRequest(BaseModel):
+    """任务视图定义请求。related_table 形如 "schema.table"（survey/ledger）。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=45)
+    display_name: str = Field(min_length=1, max_length=100)
+    base_table: str = Field(min_length=1)
+    related_table: str | None = None
+    site_name_column: str | None = None
+    filters: TaskViewFilters = Field(default_factory=TaskViewFilters)
+
+
+class TaskViewBaseSource(BaseModel):
+    """基表候选（sites schema 下含 geom 的表）。"""
+
+    table_schema: str
+    name: str
+    columns: list[str]
+    has_join_key: bool
+    site_name_column: str | None = None
+
+
+class TaskViewRelatedSource(BaseModel):
+    """关联表候选（survey/ledger schema 下含编号的表）。"""
+
+    table_schema: str
+    name: str
+    columns: list[str]
+    has_year: bool
+    has_generation: bool
+    has_survey_date: bool
+
+
+class TaskViewSourcesResponse(BaseModel):
+    """构建器候选源表响应。"""
+
+    base_tables: list[TaskViewBaseSource]
+    related_tables: list[TaskViewRelatedSource]
+
+
+class TaskViewPreviewResponse(BaseModel):
+    """任务视图预览响应。"""
+
+    name: str
+    total: int
+    sample_columns: list[str]
+    sample_rows: list[dict[str, Any]]
+    codes_total: int = 0
+    codes_matched: int = 0
+    codes_unmatched: list[str] = Field(default_factory=list)
+
+
+class TaskViewMutationResponse(BaseModel):
+    """任务视图创建/删除响应。"""
+
+    name: str
+    display_name: str | None = None
+
+
 class CreateUserRequest(BaseModel):
     """创建用户请求。"""
 

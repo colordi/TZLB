@@ -129,7 +129,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `/api/map`：需要登录
 
-- `/api/workorder`、`/api/survey`、`/api/data-export`、`/api/statistics`、`/api/data-manager`：需要 `admin`
+- `/api/workorder`、`/api/survey`、`/api/data-export`、`/api/statistics`、`/api/data-manager`、`/api/admin`：需要 `admin`
 
 前端路由守卫在 `frontend/src/router/index.js` 中实现，权限逻辑在 `frontend/src/auth/permissions.js` 中。
 
@@ -160,6 +160,8 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - 地图弹窗字段来自视图除 `geom` 外的所有字段；筛选器根据字段名自动推断，如 `属地`、`调查日期`、`年份`、`世代`、`危害程度` 等。
 
 - 行政区边界来自 `reference."通州区行政区边界"`。
+
+- 任务图层构建器：`backend/services/view_builder.py` 支持管理员基于 `sites`/`survey`/`ledger` 表以约束式构建发布 `views.task_*` 视图（选基表 + 可选关联表 + 年份/世代筛选，标识符全部走白名单校验），API 在 `backend/routers/admin.py` 的 `/api/admin/view-builder/*` 下，入口在 `frontend/src/views/AdminLayersView.vue`。仅允许删除 `task_` 前缀的视图。
 
 ### 数据库依赖
 
