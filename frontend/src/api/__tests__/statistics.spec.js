@@ -89,4 +89,25 @@ describe("api/statistics", () => {
 
     expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/white-moth/host-summary");
   });
+
+  it("读取其他害虫整体汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ totals: {}, pest_types: [] }),
+    });
+    const { getOtherPestSummary } = await import("../statistics.js");
+
+    const result = await getOtherPestSummary({ year: 2026 });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/other-pest/summary?year=2026");
+    expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ totals: {}, pest_types: [] });
+  });
+
+  it("读取不携带筛选条件的其他害虫整体汇总", async () => {
+    const { getOtherPestSummary } = await import("../statistics.js");
+
+    await getOtherPestSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/other-pest/summary");
+  });
 });

@@ -9,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   getWhiteMothGenerationSummary: vi.fn(),
   getWhiteMothLocalitySummary: vi.fn(),
   getWhiteMothHostSummary: vi.fn(),
+  getOtherPestSummary: vi.fn(),
   error: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock("../../api/statistics.js", () => ({
   getWhiteMothGenerationSummary: apiMocks.getWhiteMothGenerationSummary,
   getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
   getWhiteMothHostSummary: apiMocks.getWhiteMothHostSummary,
+  getOtherPestSummary: apiMocks.getOtherPestSummary,
 }));
 
 vi.mock("@/components/charts/BaseChart.vue", () => ({
@@ -223,6 +225,42 @@ function buildHostCompare() {
   };
 }
 
+function buildOtherPestSummary() {
+  return {
+    year: 2026,
+    totals: {
+      survey_records: 36,
+      surveyed_points: 35,
+      problem_records: 18,
+      no_problem_records: 18,
+      problem_points: 17,
+      problem_rate: 50.0,
+      last_survey_date: "2026-07-27",
+      ledger_points: 17,
+      status_counts: [
+        { status: "待防治", count: 12 },
+        { status: "待复查", count: 5 },
+      ],
+    },
+    pest_types: [
+      {
+        pest_type: "蚜虫",
+        survey_records: 30,
+        problem_records: 12,
+        problem_points: 12,
+        last_survey_date: "2026-07-27",
+      },
+      {
+        pest_type: "草履蚧",
+        survey_records: 5,
+        problem_records: 5,
+        problem_points: 4,
+        last_survey_date: "2026-04-01",
+      },
+    ],
+  };
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -256,6 +294,7 @@ describe("DataStatisticsView", () => {
     apiMocks.getWhiteMothHostSummary.mockImplementation(({ byGeneration } = {}) =>
       Promise.resolve(byGeneration ? buildHostCompare() : buildHostSummary()),
     );
+    apiMocks.getOtherPestSummary.mockResolvedValue(buildOtherPestSummary());
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -351,7 +390,43 @@ describe("DataStatisticsView", () => {
     expect(wrapper.get('[data-testid="data-statistics-pest-white-moth"]').attributes("disabled")).toBeUndefined();
     expect(wrapper.get('[data-testid="data-statistics-pest-poplar-inchworm"]').attributes("disabled")).toBeDefined();
     expect(wrapper.get('[data-testid="data-statistics-pest-sophora-inchworm"]').attributes("disabled")).toBeDefined();
-    expect(wrapper.get('[data-testid="data-statistics-pest-other-pests"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.get('[data-testid="data-statistics-pest-other-pests"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("其他害虫统计展示整体汇总与虫害类型计数", async () => {
+    const { wrapper } = await mountView("/data-statistics/other-pests");
+    await flushPromises();
+
+    expect(apiMocks.getOtherPestSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
+    expect(wrapper.get('[data-testid="data-statistics-other-pest-totals"]').text()).toContain(
+      "年整体情况",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-other-pest-kpi-survey"]').text()).toContain(
+      "36",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-other-pest-kpi-rate"]').text()).toContain(
+      "50.0%",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-other-pest-kpi-ledger"]').text()).toContain(
+      "待防治 12",
+    );
+    const aphidRow = wrapper.get('[data-testid="data-statistics-other-pest-row-蚜虫"]').text();
+    expect(aphidRow).toContain("蚜虫");
+    expect(aphidRow).toContain("30");
+    expect(aphidRow).toContain("2026-07-27");
+    expect(wrapper.get('[data-testid="data-statistics-other-pest-row-草履蚧"]').exists()).toBe(true);
+
+    await wrapper
+      .get('[data-testid="data-statistics-other-pest-year-filter"]')
+      .setValue(String(new Date().getFullYear() - 1));
+    await flushPromises();
+
+    expect(apiMocks.getOtherPestSummary).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getOtherPestSummary).toHaveBeenLastCalledWith({
+      year: new Date().getFullYear() - 1,
+    });
   });
 
   it("非法虫种路径重定向到美国白蛾", async () => {

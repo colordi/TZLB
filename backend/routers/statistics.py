@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.services.statistics import (
+    get_other_pest_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
@@ -79,3 +80,13 @@ async def get_white_moth_host_statistics(
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取美国白蛾寄主分布汇总失败：{exc}") from exc
+
+
+@router.get("/other-pest/summary", summary="读取其他害虫整体汇总")
+async def get_other_pest_summary_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
+    try:
+        return await get_other_pest_summary(year=year)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取其他害虫汇总失败：{exc}") from exc

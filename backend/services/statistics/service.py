@@ -31,6 +31,11 @@ from backend.services.statistics.sql_locality import (
     WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
 )
+from backend.services.statistics.sql_other_pest import (
+    OTHER_PEST_PEST_TYPE_SQL,
+    OTHER_PEST_STATUS_SQL,
+    OTHER_PEST_TOTALS_SQL,
+)
 
 
 async def get_white_moth_daily_statistics(
@@ -156,4 +161,46 @@ async def get_white_moth_host_summary(
         "year": effective_year,
         "generation": generation,
         **summary,
+    }
+
+
+async def get_other_pest_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        totals_rows = await connection.fetch(OTHER_PEST_TOTALS_SQL, effective_year)
+        status_rows = await connection.fetch(OTHER_PEST_STATUS_SQL, effective_year)
+        pest_type_rows = await connection.fetch(OTHER_PEST_PEST_TYPE_SQL, effective_year)
+
+    totals_row = totals_rows[0] if totals_rows else {}
+    survey_records = int(totals_row.get("survey_records") or 0)
+    problem_records = int(totals_row.get("problem_records") or 0)
+    status_counts = [
+        {"status": row["status"] or "未知", "count": int(row["count"] or 0)}
+        for row in status_rows
+    ]
+
+    return {
+        "year": effective_year,
+        "totals": {
+            "survey_records": survey_records,
+            "surveyed_points": int(totals_row.get("surveyed_points") or 0),
+            "problem_records": problem_records,
+            "no_problem_records": survey_records - problem_records,
+            "problem_points": int(totals_row.get("problem_points") or 0),
+            "problem_rate": _completion_rate(problem_records, survey_records),
+            "last_survey_date": serialize_daily_value(totals_row.get("last_survey_date")),
+            "ledger_points": sum(item["count"] for item in status_counts),
+            "status_counts": status_counts,
+        },
+        "pest_types": [
+            {
+                "pest_type": row["pest_type"] or "未知",
+                "survey_records": int(row["survey_records"] or 0),
+                "problem_records": int(row["problem_records"] or 0),
+                "problem_points": int(row["problem_points"] or 0),
+                "last_survey_date": serialize_daily_value(row["last_survey_date"]),
+            }
+            for row in pest_type_rows
+        ],
     }

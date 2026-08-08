@@ -8,6 +8,7 @@ from backend.services.statistics.serializers import (  # noqa: F401
     serialize_white_moth_daily_row,
 )
 from backend.services.statistics.service import (  # noqa: F401
+    get_other_pest_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,

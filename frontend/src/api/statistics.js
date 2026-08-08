@@ -76,3 +76,16 @@ export async function getWhiteMothLocalitySummary({
   await ensureApiSuccess(response);
   return response.json();
 }
+
+export async function getOtherPestSummary({ year } = {}) {
+  const params = new URLSearchParams();
+  if (year !== undefined && year !== null && year !== "") {
+    params.set("year", String(year));
+  }
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/statistics/other-pest/summary${query ? `?${query}` : ""}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
