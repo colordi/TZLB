@@ -289,9 +289,9 @@ class TaskViewCodeListTest(unittest.TestCase):
             )
 
 
-class TaskViewDeleteGuardTest(unittest.IsolatedAsyncioTestCase):
-    async def test_non_task_prefix_rejected_before_db(self) -> None:
-        for name in ["美国白蛾调查", "views.美国白蛾点位", "TASK_x"]:
+class ViewDeleteGuardTest(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_view_name_rejected_before_db(self) -> None:
+        for name in ["", "views.美国白蛾点位", "美国白蛾 调查", 'x"; DROP TABLE t', "a" * 64]:
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):
                     await view_builder.delete_task_view(name)

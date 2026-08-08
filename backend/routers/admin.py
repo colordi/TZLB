@@ -157,20 +157,20 @@ async def post_view_builder_view(
 @router.delete(
     "/view-builder/views/{view_name}",
     response_model=TaskViewMutationResponse,
-    summary="删除任务视图",
+    summary="删除视图",
 )
 async def delete_view_builder_view(view_name: str) -> TaskViewMutationResponse:
     try:
         deleted = await view_builder.delete_task_view(view_name)
         if deleted is None:
-            raise HTTPException(status_code=404, detail=f"任务视图不存在：{view_name}")
+            raise HTTPException(status_code=404, detail=f"视图不存在：{view_name}")
         return deleted
     except HTTPException:
         raise
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"删除任务视图失败：{exc}") from exc
+        raise HTTPException(status_code=500, detail=f"删除视图失败：{exc}") from exc
 
 
 # ──────────────────────────────────────────────

@@ -3,8 +3,8 @@
 视图定义采用约束式构建：选择基表（sites，提供 geom）与可选关联表
 （survey/ledger，按编号关联），筛选条件（年份/世代）经严格校验后以
 字面量烘焙进 SQL。所有表名、列名均来自 information_schema 白名单，
-不开放自由 SQL。系统创建的视图统一使用 ``task_`` 前缀，仅允许删除
-此前缀的视图。
+不开放自由 SQL。系统创建的视图统一使用 ``task_`` 前缀；删除功能
+对 ``views`` 下的所有视图开放。
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ BASE_SCHEMA = "sites"
 RELATED_SCHEMAS = ("survey", "ledger")
 TASK_VIEW_PREFIX = "task_"
 TASK_VIEW_NAME_PATTERN = re.compile(r"^task_[a-z0-9_]{1,40}$")
+VIEW_NAME_PATTERN = re.compile(r"^[0-9A-Za-z_一-鿿]{1,63}$")
 YEAR_FILTER_PATTERN = re.compile(r"^\d{4}$")
 GENERATION_FILTER_VALUES = ("第一代", "第二代", "第三代")
 CODE_LIST_MAX_COUNT = 2000
@@ -507,10 +508,10 @@ async def create_task_view(definition: TaskViewDefinition) -> dict[str, Any]:
 
 
 async def delete_task_view(view_name: str) -> dict[str, Any] | None:
-    """删除系统创建的任务视图及其图层元数据。视图不存在时返回 None。"""
+    """删除 views 下的视图及其图层元数据。视图不存在时返回 None。"""
 
-    if not TASK_VIEW_NAME_PATTERN.match(view_name):
-        raise ValueError("仅允许删除 task_ 前缀的任务视图")
+    if not VIEW_NAME_PATTERN.match(view_name):
+        raise ValueError("视图名称不合法")
 
     exists_row = await fetchrow(
         """
