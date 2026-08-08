@@ -56,6 +56,20 @@ export function buildPointLabelMarker(label, latlng, placement = "right") {
   });
 }
 
+/** 参考图层文字标注：居中放置在要素 bounds 中心（点要素为坐标） */
+export function buildReferenceLabelMarker(label, latlng) {
+  return L.marker(latlng, {
+    interactive: false,
+    keyboard: false,
+    icon: L.divIcon({
+      className: "map-reference-label-marker",
+      html: `<span class="map-reference-label-text">${escapeHtml(label)}</span>`,
+      iconSize: [1, 1],
+      iconAnchor: [0, 0],
+    }),
+  });
+}
+
 export function buildLocateMarker(latlng) {
   return L.marker(latlng, {
     icon: L.divIcon({

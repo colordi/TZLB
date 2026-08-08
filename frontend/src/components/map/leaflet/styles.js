@@ -54,12 +54,21 @@ export function hasFeatureCollectionFeatures(data) {
   return Array.isArray(data?.features) && data.features.length > 0;
 }
 
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
 export function resolveReferenceLayerColor(index = 0) {
   return REFERENCE_LAYER_COLORS[index % REFERENCE_LAYER_COLORS.length];
 }
 
+/** 管理员配置的参考图层自定义色（合法 hex 才生效），否则返回 null */
+export function resolveReferenceLayerCustomColor(layer = {}) {
+  const color = `${layer?.style?.color ?? ""}`.trim();
+  return HEX_COLOR_PATTERN.test(color) ? color : null;
+}
+
 export function resolveReferenceLayerStyle(layer = {}, index = 0) {
-  if (layer.name === ADMIN_BOUNDARY_LAYER_NAME) {
+  const customColor = resolveReferenceLayerCustomColor(layer);
+  if (layer.name === ADMIN_BOUNDARY_LAYER_NAME && !customColor) {
     return {
       ...resolveBoundaryStyle(),
       weight: 3.5,
@@ -67,11 +76,11 @@ export function resolveReferenceLayerStyle(layer = {}, index = 0) {
     };
   }
 
-  const color = resolveReferenceLayerColor(index);
+  const color = customColor || resolveReferenceLayerColor(index);
   return {
     color,
     fillColor: color,
-    fillOpacity: 0.12,
+    fillOpacity: 0,
     opacity: 0.82,
     weight: 1.5,
   };

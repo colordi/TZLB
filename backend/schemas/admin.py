@@ -4,6 +4,16 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+class LayerStyleConfig(BaseModel):
+    """图层样式配置（目前仅参考图层使用）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    color: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    show_label: bool = False
+    label_column: str | None = Field(default=None, max_length=64)
+
+
 class LayerMetadataItem(BaseModel):
     """图层元数据条目。"""
 
@@ -16,6 +26,7 @@ class LayerMetadataItem(BaseModel):
     default_visible: bool = False
     is_enabled: bool = True
     default_filters: dict[str, str] = Field(default_factory=dict)
+    style: LayerStyleConfig = Field(default_factory=LayerStyleConfig)
 
 
 class LayerMetadataResponse(BaseModel):
@@ -29,6 +40,8 @@ class LayerMetadataResponse(BaseModel):
     default_visible: bool
     is_enabled: bool
     default_filters: dict[str, str] = Field(default_factory=dict)
+    style: LayerStyleConfig = Field(default_factory=LayerStyleConfig)
+    columns: list[str] | None = None
     updated_at: str | None = None
 
 

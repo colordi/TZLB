@@ -161,7 +161,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - 行政区边界来自 `reference."通州区行政区边界"`。
 
-- 任务图层构建器：`backend/services/view_builder.py` 支持管理员基于 `sites`/`survey`/`ledger` 表以约束式构建发布 `views.task_*` 视图（选基表 + 可选关联表 + 年份/世代筛选，标识符全部走白名单校验），API 在 `backend/routers/admin.py` 的 `/api/admin/view-builder/*` 下，入口在 `frontend/src/views/AdminLayersView.vue`。仅允许删除 `task_` 前缀的视图。
+- 任务图层构建器：`backend/services/view_builder.py` 支持管理员基于 `sites`/`survey`/`ledger` 表以约束式构建发布 `views.task_*` 视图（选基表 + 可选关联表 + 年份/世代筛选，标识符全部走白名单校验），API 在 `backend/routers/admin.py` 的 `/api/admin/view-builder/*` 下，入口在 `frontend/src/views/AdminLayersView.vue`。`views` 下的所有视图均可在图层管理中删除。参考图层支持在图层管理中配置颜色（预设色板，存于 `layer_metadata.style` JSONB）与文字标注（开关 + 标注字段下拉），地图渲染端由 `frontend/src/components/map/leaflet/styles.js` 与 `useLeafletMap.js` 应用。
 
 ### 数据库依赖
 

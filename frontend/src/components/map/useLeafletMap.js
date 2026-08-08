@@ -19,6 +19,7 @@ import {
   buildDraftSiteMarker,
   buildLocateMarker,
   buildPointLabelMarker,
+  buildReferenceLabelMarker,
 } from "./leaflet/markers.js";
 import {
   getLegendEntries,
@@ -231,7 +232,28 @@ export function useLeafletMap(props, emit) {
             fillOpacity: 0.74,
           }),
       }).addTo(referenceLayerGroupRef.value);
+      renderReferenceLayerLabels(layer);
     });
+  }
+
+  /** 参考图层文字标注：按管理员配置的标注字段取值，放置在要素中心 */
+  function renderReferenceLayerLabels(layer) {
+    const labelColumn = `${layer?.style?.label_column ?? ""}`.trim();
+    if (!layer?.style?.show_label || !labelColumn || !referenceLayerGroupRef.value) {
+      return;
+    }
+
+    for (const feature of layer.geojson?.features || []) {
+      const text = `${feature?.properties?.[labelColumn] ?? ""}`.trim();
+      if (!text) {
+        continue;
+      }
+      const latlng = extractFeatureLabelLatLng(feature);
+      if (!latlng) {
+        continue;
+      }
+      buildReferenceLabelMarker(text, latlng).addTo(referenceLayerGroupRef.value);
+    }
   }
 
   function getFeatureLatLngBounds(feature) {

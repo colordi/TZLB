@@ -37,6 +37,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                         "default_visible": False,
                         "is_enabled": True,
                         "default_filters": {},
+                        "style": {},
                         "updated_at": updated_at,
                     },
                     {
@@ -48,6 +49,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                         "default_visible": True,
                         "is_enabled": True,
                         "default_filters": {},
+                        "style": {"color": "#2563EB", "show_label": True, "label_column": "区域"},
                         "updated_at": updated_at,
                     },
                 ]
@@ -80,6 +82,12 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
             payload = await list_layer_metadata()
 
         self.assertEqual([layer["layer_key"] for layer in payload], ["虫情总览", "通州区行政区边界"])
+        self.assertEqual(
+            payload[1]["style"],
+            {"color": "#2563EB", "show_label": True, "label_column": "区域"},
+        )
+        self.assertEqual(payload[1]["columns"], ["gid"])
+        self.assertIsNone(payload[0]["columns"])
         insert_calls = [
             call
             for call in fetch_mock.await_args_list
@@ -186,6 +194,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                             "sort_order": 0,
                             "default_visible": True,
                             "is_enabled": True,
+                            "style": {"color": "#2563EB", "show_label": True, "label_column": "区域"},
                         },
                         {
                             "layer_key": "国槐参考图层",
@@ -194,6 +203,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                             "sort_order": 1,
                             "default_visible": False,
                             "is_enabled": False,
+                            "style": {"color": None, "show_label": False, "label_column": None},
                         },
                     ]
                 ),
@@ -228,6 +238,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                     "label": "行政区",
                     "columns": ["gid"],
                     "default_visible": True,
+                    "style": {"color": "#2563EB", "show_label": True, "label_column": "区域"},
                 }
             ],
         )
@@ -295,6 +306,7 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
                         "default_visible": False,
                         "is_enabled": True,
                         "default_filters": {"世代": "第二代", "年份": "2026"},
+                        "style": {"color": "#2563EB", "show_label": True, "label_column": "区域"},
                     }
                 ]
             )
@@ -305,6 +317,31 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[1], "view")
         json_param = args[6]
         self.assertEqual(_json.loads(json_param), {"世代": "第二代", "年份": "2026"})
+        style_param = args[7]
+        self.assertEqual(
+            _json.loads(style_param),
+            {"color": "#2563EB", "show_label": True, "label_column": "区域"},
+        )
+
+    async def test_batch_upsert_rejects_invalid_style_color(self) -> None:
+        with (
+            patch("backend.db.layer_metadata.ensure_layer_metadata_storage", new=AsyncMock()),
+            patch("backend.db.layer_metadata.fetch", new=AsyncMock(return_value=[])),
+        ):
+            with self.assertRaises(ValueError):
+                await batch_upsert_layer_metadata(
+                    [
+                        {
+                            "layer_key": "通州区行政区边界",
+                            "layer_type": "reference",
+                            "display_name": None,
+                            "sort_order": 0,
+                            "default_visible": True,
+                            "is_enabled": True,
+                            "style": {"color": "红色"},
+                        }
+                    ]
+                )
 
     async def test_batch_upsert_rejects_non_dict_default_filters(self) -> None:
         with (

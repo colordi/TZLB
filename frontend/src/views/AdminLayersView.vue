@@ -13,10 +13,12 @@ import {
 import { fetchMapFilterOptions } from "../api/map.js";
 import { isUnauthorizedError } from "../api/http.js";
 import { useToast } from "../composables/useToast.js";
+import { REFERENCE_LAYER_COLORS } from "@/config/map-palette.js";
 import PageHeader from "@/components/common/PageHeader.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -27,15 +29,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const { error, info } = useToast();
@@ -106,10 +101,6 @@ const canPreviewTaskView = computed(
     builderForm.value.display_name.trim() !== "" &&
     builderForm.value.base_table !== "",
 );
-
-function isTaskLayer(layer) {
-  return layer.layer_key.startsWith(TASK_VIEW_PREFIX);
-}
 
 async function openBuilder() {
   builderForm.value = emptyBuilderForm();
@@ -194,12 +185,12 @@ async function handleDeleteTaskView() {
   deletingTask.value = true;
   try {
     await deleteTaskView(deleteTarget.value.layer_key);
-    info(`任务图层 ${deleteTarget.value.layer_key} 已删除`, "删除成功");
+    info(`图层 ${deleteTarget.value.layer_key} 已删除`, "删除成功");
     deleteTarget.value = null;
     await load();
   } catch (err) {
     if (isUnauthorizedError(err)) return;
-    error(`删除任务图层失败：${err.message || err}`, "删除失败");
+    error(`删除图层失败：${err.message || err}`, "删除失败");
   } finally {
     deletingTask.value = false;
   }
@@ -239,6 +230,11 @@ function buildCache(data) {
       default_visible: layer.default_visible,
       is_enabled: layer.is_enabled,
       default_filters: { ...(layer.default_filters || {}) },
+      style: {
+        color: layer.style?.color || null,
+        show_label: Boolean(layer.style?.show_label),
+        label_column: layer.style?.label_column || "",
+      },
     };
   }
   return cache;
@@ -329,6 +325,30 @@ function toggleDefaultVisible(layer) {
   markChanged();
 }
 
+/* ── 参考图层样式设置 ── */
+function getStyleEdit(layer) {
+  const edit = getEdit(layer);
+  if (!edit.style) {
+    edit.style = { color: null, show_label: false, label_column: "" };
+  }
+  return edit.style;
+}
+
+function setStyleColor(layer, color) {
+  getStyleEdit(layer).color = color;
+  markChanged();
+}
+
+function setStyleShowLabel(layer, value) {
+  getStyleEdit(layer).show_label = Boolean(value);
+  markChanged();
+}
+
+function setStyleLabelColumn(layer, value) {
+  getStyleEdit(layer).label_column = value;
+  markChanged();
+}
+
 /* ── 拖拽排序（组内，不跨 layer_type） ── */
 function onDragStart(e, layer, typeKey) {
   dragKey.value = layer.layer_key;
@@ -414,6 +434,11 @@ async function handleSave() {
         default_visible: edit.default_visible ?? layer.default_visible,
         is_enabled: edit.is_enabled ?? layer.is_enabled,
         default_filters: edit.default_filters || {},
+        style: {
+          color: edit.style?.color || null,
+          show_label: Boolean(edit.style?.show_label),
+          label_column: edit.style?.label_column || null,
+        },
       };
     });
 
@@ -478,153 +503,178 @@ onMounted(() => {
         </Button>
       </div>
 
-      <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <div class="overflow-x-auto">
-          <Table class="min-w-[48rem]">
-            <TableHeader>
-              <TableRow class="hover:bg-transparent">
-                <TableHead class="w-10" />
-                <TableHead class="w-14">序号</TableHead>
-                <TableHead>显示名称</TableHead>
-                <TableHead>图层键</TableHead>
-                <TableHead class="w-28">状态</TableHead>
-                <TableHead v-if="typeKey === 'reference'" class="w-32">默认显隐</TableHead>
-                <TableHead v-if="typeKey === 'view'">默认筛选</TableHead>
-                <TableHead v-if="typeKey === 'view'" class="w-20">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow
-                v-for="(layer, index) in listFor(typeKey)"
-                :key="layer.id"
-                :class="cn(
-                  !getEdit(layer).is_enabled && 'opacity-50',
-                  dragKey === layer.layer_key && 'opacity-40',
-                  dragOverKey === layer.layer_key && dragOverPos === 'before' && 'border-t-2 border-t-primary',
-                  dragOverKey === layer.layer_key && dragOverPos === 'after' && 'border-b-2 border-b-primary',
-                )"
-                @dragover="onDragOver($event, layer, typeKey)"
-                @drop="onDrop($event, layer, typeKey)"
-                @dragend="onDragEnd"
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card
+          v-for="(layer, index) in listFor(typeKey)"
+          :key="layer.id"
+          class="gap-0 p-4"
+          :class="cn(
+            !getEdit(layer).is_enabled && 'opacity-50',
+            dragKey === layer.layer_key && 'opacity-40',
+            dragOverKey === layer.layer_key && dragOverPos === 'before' && 'border-t-2 border-t-primary',
+            dragOverKey === layer.layer_key && dragOverPos === 'after' && 'border-b-2 border-b-primary',
+          )"
+          @dragover="onDragOver($event, layer, typeKey)"
+          @drop="onDrop($event, layer, typeKey)"
+          @dragend="onDragEnd"
+        >
+          <div class="flex items-center gap-2">
+            <div
+              class="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              draggable="true"
+              title="拖拽排序"
+              @dragstart="onDragStart($event, layer, typeKey)"
+            >
+              <GripVertical class="size-4" />
+            </div>
+            <span class="shrink-0 text-xs text-muted-foreground tabular-nums">{{ index + 1 }}</span>
+            <Input
+              v-model="getEdit(layer).display_name"
+              class="h-8 min-w-0 flex-1"
+              draggable="false"
+              :placeholder="layer.layer_key"
+              @input="markChanged"
+            />
+            <Button
+              type="button"
+              size="sm"
+              class="shrink-0"
+              :variant="getEdit(layer).is_enabled ? 'default' : 'outline'"
+              draggable="false"
+              :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
+              :data-testid="`toggle-layer-${layer.layer_key}`"
+              @click="toggleEnabled(layer)"
+            >
+              <Eye v-if="getEdit(layer).is_enabled" class="size-3.5" />
+              <EyeOff v-else class="size-3.5" />
+              {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
+            </Button>
+          </div>
+          <code class="mt-1.5 block truncate pl-9 text-xs text-muted-foreground">{{ layer.layer_key }}</code>
+
+          <div class="mt-3 space-y-3 border-t pt-3">
+            <template v-if="typeKey === 'view'">
+              <div
+                v-if="configurableFieldsFor(layer).length"
+                class="flex flex-wrap items-center gap-2"
+                data-testid="layer-default-filters"
               >
-                <TableCell class="w-10 px-2">
-                  <div
-                    class="flex size-8 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-                    draggable="true"
-                    title="拖拽排序"
-                    @dragstart="onDragStart($event, layer, typeKey)"
+                <label
+                  v-for="field in configurableFieldsFor(layer)"
+                  :key="field.key"
+                  class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <span class="whitespace-nowrap">{{ field.label }}</span>
+                  <NativeSelect
+                    class="h-8 py-1"
+                    :model-value="getFilterValue(layer, field.key)"
+                    :data-testid="`layer-filter-${field.key}`"
+                    @change="setFilterValue(layer, field.key, $event.target.value)"
                   >
-                    <GripVertical class="size-4" />
-                  </div>
-                </TableCell>
-                <TableCell class="text-muted-foreground tabular-nums">
-                  {{ index + 1 }}
-                </TableCell>
-                <TableCell>
-                  <Input
-                    v-model="getEdit(layer).display_name"
-                    class="h-8 min-w-[10rem] max-w-xs"
-                    draggable="false"
-                    :placeholder="layer.layer_key"
-                    @input="markChanged"
-                  />
-                </TableCell>
-                <TableCell>
-                  <code class="text-xs text-muted-foreground">{{ layer.layer_key }}</code>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    size="sm"
-                    :variant="getEdit(layer).is_enabled ? 'default' : 'outline'"
-                    draggable="false"
-                    :title="getEdit(layer).is_enabled ? '点击停用' : '点击启用'"
-                    @click="toggleEnabled(layer)"
-                  >
-                    <Eye v-if="getEdit(layer).is_enabled" class="size-3.5" />
-                    <EyeOff v-else class="size-3.5" />
-                    {{ getEdit(layer).is_enabled ? "启用" : "停用" }}
-                  </Button>
-                </TableCell>
-                <TableCell v-if="typeKey === 'reference'">
-                  <Button
-                    type="button"
-                    size="sm"
-                    :variant="getEdit(layer).default_visible ? 'secondary' : 'outline'"
-                    draggable="false"
-                    title="默认显隐"
-                    @click="toggleDefaultVisible(layer)"
-                  >
-                    {{ getEdit(layer).default_visible ? "默认显示" : "默认隐藏" }}
-                  </Button>
-                </TableCell>
-                <TableCell v-if="typeKey === 'view'">
-                  <div
-                    v-if="configurableFieldsFor(layer).length"
-                    class="flex flex-wrap items-center gap-2"
-                    data-testid="layer-default-filters"
-                  >
-                    <label
-                      v-for="field in configurableFieldsFor(layer)"
-                      :key="field.key"
-                      class="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    <option value="">全部</option>
+                    <option
+                      v-for="option in field.options"
+                      :key="option.value"
+                      :value="option.value"
                     >
-                      <span class="whitespace-nowrap">{{ field.label }}</span>
-                      <NativeSelect
-                        class="h-8 py-1"
-                        :model-value="getFilterValue(layer, field.key)"
-                        :data-testid="`layer-filter-${field.key}`"
-                        @change="setFilterValue(layer, field.key, $event.target.value)"
-                      >
-                        <option value="">全部</option>
-                        <option
-                          v-for="option in field.options"
-                          :key="option.value"
-                          :value="option.value"
-                        >
-                          {{ option.label }}
-                        </option>
-                        <option
-                          v-if="isStaleFilterValue(layer, field)"
-                          disabled
-                          :value="getFilterValue(layer, field.key)"
-                        >
-                          {{ getFilterValue(layer, field.key) }}（当前无此值）
-                        </option>
-                      </NativeSelect>
-                    </label>
-                  </div>
-                  <span v-else class="text-xs text-muted-foreground">—</span>
-                </TableCell>
-                <TableCell v-if="typeKey === 'view'">
-                  <Button
-                    v-if="isTaskLayer(layer)"
+                      {{ option.label }}
+                    </option>
+                    <option
+                      v-if="isStaleFilterValue(layer, field)"
+                      disabled
+                      :value="getFilterValue(layer, field.key)"
+                    >
+                      {{ getFilterValue(layer, field.key) }}（当前无此值）
+                    </option>
+                  </NativeSelect>
+                </label>
+              </div>
+              <div class="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="text-destructive hover:text-destructive"
+                  title="删除图层"
+                  :data-testid="`delete-task-view-${layer.layer_key}`"
+                  @click="requestDeleteTaskView(layer)"
+                >
+                  <Trash2 class="size-4" />
+                  <span>删除</span>
+                </Button>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted-foreground">默认显示</span>
+                <Switch
+                  :model-value="getEdit(layer).default_visible"
+                  :data-testid="`layer-default-visible-${layer.layer_key}`"
+                  @update:model-value="toggleDefaultVisible(layer)"
+                />
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="shrink-0 text-xs text-muted-foreground">颜色</span>
+                <div class="flex flex-wrap items-center justify-end gap-1.5">
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    class="text-destructive hover:text-destructive"
-                    title="删除任务图层"
-                    :data-testid="`delete-task-view-${layer.layer_key}`"
-                    @click="requestDeleteTaskView(layer)"
+                    class="flex h-6 items-center rounded-full border px-2 text-xs text-muted-foreground transition-shadow"
+                    :class="!getStyleEdit(layer).color && 'ring-2 ring-primary ring-offset-1'"
+                    title="按图层顺序自动配色"
+                    :data-testid="`layer-color-auto-${layer.layer_key}`"
+                    @click="setStyleColor(layer, null)"
                   >
-                    <Trash2 class="size-4" />
-                  </Button>
-                  <span v-else class="text-xs text-muted-foreground">—</span>
-                </TableCell>
-              </TableRow>
-              <TableRow v-if="listFor(typeKey).length === 0 && !loading">
-                <TableCell :colspan="typeKey === 'view' ? 7 : 6" class="h-24 text-center text-muted-foreground">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-              <TableRow v-if="loading && listFor(typeKey).length === 0">
-                <TableCell :colspan="typeKey === 'view' ? 7 : 6" class="h-24 text-center text-muted-foreground">
-                  加载中…
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+                    自动
+                  </button>
+                  <button
+                    v-for="color in REFERENCE_LAYER_COLORS"
+                    :key="color"
+                    type="button"
+                    class="size-6 rounded-full border border-black/10 transition-shadow"
+                    :class="getStyleEdit(layer).color === color && 'ring-2 ring-primary ring-offset-1'"
+                    :style="{ backgroundColor: color }"
+                    :title="color"
+                    :data-testid="`layer-color-${layer.layer_key}-${color}`"
+                    @click="setStyleColor(layer, color)"
+                  />
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted-foreground">显示标注</span>
+                <Switch
+                  :model-value="getStyleEdit(layer).show_label"
+                  :data-testid="`layer-show-label-${layer.layer_key}`"
+                  @update:model-value="setStyleShowLabel(layer, $event)"
+                />
+              </div>
+              <div v-if="getStyleEdit(layer).show_label" class="flex items-center justify-between gap-2">
+                <span class="shrink-0 text-xs text-muted-foreground">标注字段</span>
+                <NativeSelect
+                  class="h-8 max-w-48 py-1"
+                  :model-value="getStyleEdit(layer).label_column"
+                  :data-testid="`layer-label-column-${layer.layer_key}`"
+                  @change="setStyleLabelColumn(layer, $event.target.value)"
+                >
+                  <option value="">选择字段</option>
+                  <option
+                    v-for="column in layer.columns || []"
+                    :key="column"
+                    :value="column"
+                  >
+                    {{ column }}
+                  </option>
+                </NativeSelect>
+              </div>
+            </template>
+          </div>
+        </Card>
+      </div>
+      <div
+        v-if="listFor(typeKey).length === 0"
+        class="flex h-24 items-center justify-center rounded-xl border bg-card text-sm text-muted-foreground"
+      >
+        {{ loading ? "加载中…" : "暂无数据" }}
       </div>
     </template>
 
@@ -844,8 +894,8 @@ onMounted(() => {
 
     <ConfirmDialog
       :open="!!deleteTarget"
-      title="删除任务图层"
-      :message="`确定删除任务图层 ${deleteTarget?.layer_key} 吗？对应的数据库视图将被一并删除，此操作不可撤销。`"
+      title="删除图层"
+      :message="`确定删除图层 ${deleteTarget?.layer_key} 吗？对应的数据库视图将被一并删除，此操作不可撤销。`"
       confirm-text="确认删除"
       :busy="deletingTask"
       @confirm="handleDeleteTaskView"

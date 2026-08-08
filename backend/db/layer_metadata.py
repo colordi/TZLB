@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from backend.db.pool import ensure_pool, fetch, fetchrow
@@ -25,6 +26,40 @@ def _parse_default_filters(value: Any) -> dict[str, str]:
     if isinstance(value, dict):
         return value
     return dict(value)
+
+
+DEFAULT_STYLE: dict[str, Any] = {"color": None, "show_label": False, "label_column": None}
+
+
+def _parse_style(value: Any) -> dict[str, Any]:
+    """解析样式配置 JSONB 字段，缺省键补默认值。"""
+
+    parsed = _parse_default_filters(value)
+    return {
+        "color": parsed.get("color") or None,
+        "show_label": bool(parsed.get("show_label")),
+        "label_column": parsed.get("label_column") or None,
+    }
+
+
+def _validate_style(style: Any) -> dict[str, Any]:
+    """校验待写入的样式配置，非法时抛 ValueError。"""
+
+    if style is None:
+        return dict(DEFAULT_STYLE)
+    if not isinstance(style, dict):
+        raise ValueError("style 必须是对象")
+    color = style.get("color") or None
+    if color is not None and not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+        raise ValueError(f"style.color 必须是 #RRGGBB 形式的色值：{color}")
+    label_column = style.get("label_column") or None
+    if label_column is not None and len(label_column) > 64:
+        raise ValueError("style.label_column 超长")
+    return {
+        "color": color,
+        "show_label": bool(style.get("show_label")),
+        "label_column": label_column,
+    }
 
 
 async def ensure_layer_metadata_storage() -> None:
@@ -54,6 +89,12 @@ async def ensure_layer_metadata_storage() -> None:
                 f"""
                 ALTER TABLE {layer_table}
                 ADD COLUMN IF NOT EXISTS default_filters JSONB NOT NULL DEFAULT '{{}}'::jsonb
+                """
+            )
+            await connection.execute(
+                f"""
+                ALTER TABLE {layer_table}
+                ADD COLUMN IF NOT EXISTS style JSONB NOT NULL DEFAULT '{{}}'::jsonb
                 """
             )
             await connection.execute(
@@ -162,6 +203,7 @@ async def list_layer_metadata() -> list[LayerMetadataDict]:
             default_visible,
             is_enabled,
             default_filters,
+            style,
             updated_at
         FROM {_qualified_layer_table()}
         WHERE
@@ -172,6 +214,9 @@ async def list_layer_metadata() -> list[LayerMetadataDict]:
         view_layer_keys,
         reference_layer_keys,
     )
+    reference_columns = {
+        layer["name"]: layer["columns"] for layer in await list_reference_layers()
+    }
     return [
         {
             "id": row["id"],
@@ -182,6 +227,12 @@ async def list_layer_metadata() -> list[LayerMetadataDict]:
             "default_visible": bool(row["default_visible"]),
             "is_enabled": bool(row["is_enabled"]),
             "default_filters": _parse_default_filters(row["default_filters"]),
+            "style": _parse_style(row["style"]),
+            "columns": (
+                reference_columns.get(row["layer_key"])
+                if row["layer_type"] == "reference"
+                else None
+            ),
             "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
         }
         for row in rows
@@ -204,6 +255,7 @@ async def get_layer_metadata_by_key(layer_type: str, layer_key: str) -> LayerMet
             default_visible,
             is_enabled,
             default_filters,
+            style,
             updated_at
         FROM {_qualified_layer_table()}
         WHERE layer_type = $1 AND layer_key = $2
@@ -222,6 +274,7 @@ async def get_layer_metadata_by_key(layer_type: str, layer_key: str) -> LayerMet
         "default_visible": bool(row["default_visible"]),
         "is_enabled": bool(row["is_enabled"]),
         "default_filters": _parse_default_filters(row["default_filters"]),
+        "style": _parse_style(row["style"]),
         "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
     }
 
@@ -284,6 +337,7 @@ async def list_enabled_reference_layers() -> list[dict[str, Any]]:
                 **layer,
                 "label": row["display_name"] or layer["label"] or layer["name"],
                 "default_visible": row["default_visible"],
+                "style": row["style"],
             }
         )
 
@@ -312,13 +366,14 @@ async def batch_upsert_layer_metadata(
         default_filters = item.get("default_filters") or {}
         if not isinstance(default_filters, dict):
             raise ValueError("default_filters 必须是对象")
+        style = _validate_style(item.get("style"))
         await fetch(
             f"""
             INSERT INTO {qualified} (
                 layer_key, layer_type, display_name, sort_order,
-                default_visible, is_enabled, default_filters
+                default_visible, is_enabled, default_filters, style
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
             ON CONFLICT (layer_type, layer_key)
             DO UPDATE SET
                 display_name    = COALESCE(EXCLUDED.display_name, {qualified}.display_name),
@@ -326,6 +381,7 @@ async def batch_upsert_layer_metadata(
                 default_visible = EXCLUDED.default_visible,
                 is_enabled      = EXCLUDED.is_enabled,
                 default_filters = EXCLUDED.default_filters,
+                style           = EXCLUDED.style,
                 updated_at      = NOW()
             """,
             item.get("layer_key"),
@@ -335,6 +391,7 @@ async def batch_upsert_layer_metadata(
             item.get("default_visible", False),
             item.get("is_enabled", True),
             json.dumps(default_filters, ensure_ascii=False),
+            json.dumps(style, ensure_ascii=False),
         )
 
     return await list_layer_metadata()

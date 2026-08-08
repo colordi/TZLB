@@ -857,6 +857,82 @@ describe("LeafletMap 参考图层", () => {
     );
   });
 
+  it("管理员配置的自定义颜色优先于默认配色", () => {
+    const feature = createPolygonFeature("SQ-001", { 名称: "示范小区" });
+
+    mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: true,
+          columns: ["名称"],
+          style: { color: "#16A34A", show_label: false, label_column: null },
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    const geoJsonCall = leafletMocks.geoJSON.mock.calls[0];
+    const style = geoJsonCall[1].style();
+    expect(style.color).toBe("#16A34A");
+    expect(style.fillColor).toBe("#16A34A");
+  });
+
+  it("开启标注后按标注字段在要素中心渲染文字标注", () => {
+    const feature = createPolygonFeature("SQ-001", { 名称: "示范小区" });
+
+    mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: true,
+          columns: ["名称"],
+          style: { color: null, show_label: true, label_column: "名称" },
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    const labelMarkers = leafletMocks.marker.mock.calls.filter(
+      ([, options]) => options?.icon?.className === "map-reference-label-marker",
+    );
+    expect(labelMarkers).toHaveLength(1);
+    expect(labelMarkers[0][1].icon.html).toContain("示范小区");
+  });
+
+  it("未开启标注时不渲染文字标注", () => {
+    const feature = createPolygonFeature("SQ-001", { 名称: "示范小区" });
+
+    mountLeafletMap({
+      referenceLayers: [
+        {
+          name: "通州区小区边界",
+          label: "通州区小区边界",
+          active: true,
+          columns: ["名称"],
+          style: { color: null, show_label: false, label_column: null },
+          geojson: {
+            type: "FeatureCollection",
+            features: [feature],
+          },
+        },
+      ],
+    });
+
+    const labelMarkers = leafletMocks.marker.mock.calls.filter(
+      ([, options]) => options?.icon?.className === "map-reference-label-marker",
+    );
+    expect(labelMarkers).toHaveLength(0);
+  });
+
   it("点击 reference 图层菜单项时发出切换事件", async () => {
     const wrapper = mountLeafletMap({
       referenceLayers: [
