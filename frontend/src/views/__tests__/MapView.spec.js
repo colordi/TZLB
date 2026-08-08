@@ -818,6 +818,34 @@ describe("MapView", () => {
     expect(wrapper.find(".detail-drawer").exists()).toBe(false);
   });
 
+  it("点位详情提供高德地图外链（WGS84 坐标）", async () => {
+    const targetFeature = {
+      type: "Feature",
+      properties: {
+        编号: "TY001",
+        点位名称: "通运家园",
+        属地: "通运街道",
+      },
+      geometry: { type: "Point", coordinates: [116.6, 39.8] },
+    };
+    apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
+    const wrapper = mountMapView();
+
+    await vi.waitFor(() => {
+      expect(getLeafletMapStub(wrapper).props("geojson").features).toHaveLength(1);
+    });
+
+    getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
+    await wrapper.vm.$nextTick();
+
+    const link = wrapper.get('[data-testid="external-map-link"]');
+    const href = link.attributes("href");
+    expect(href).toContain("https://uri.amap.com/marker?");
+    expect(href).toContain("position=116.6,39.8");
+    expect(href).toContain("coordinate=wgs84");
+    expect(href).toContain(`name=${encodeURIComponent("通运家园")}`);
+  });
+
   it("切换 view 后更新传给 LeafletMap 的 popupFields", async () => {
     const wrapper = mountMapView();
 

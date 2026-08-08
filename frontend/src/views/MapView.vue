@@ -44,6 +44,7 @@ const {
   deleteCheckLoading,
   featureTitle,
   featureRows,
+  externalMapUrl,
   canDeleteSelectedSite,
   deleteConfirmMessage,
   searchResults,
@@ -150,6 +151,7 @@ function onSiteLocalityInput(value) {
         v-if="selectedFeature"
         :feature-title="featureTitle"
         :feature-rows="featureRows"
+        :external-map-url="externalMapUrl"
         :can-delete="canDeleteSelectedSite"
         :delete-check-loading="deleteCheckLoading"
         @close="closeDetail"

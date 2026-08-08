@@ -1,11 +1,12 @@
 <script setup>
-import { X } from "@lucide/vue";
+import { Navigation, X } from "@lucide/vue";
 
 import { Button } from "@/components/ui/button";
 
 defineProps({
   featureTitle: { type: String, default: "" },
   featureRows: { type: Array, default: () => [] },
+  externalMapUrl: { type: String, default: "" },
   canDelete: { type: Boolean, default: false },
   deleteCheckLoading: { type: Boolean, default: false },
 });
@@ -36,8 +37,25 @@ const emit = defineEmits(["close", "delete"]);
           <span class="detail-value">{{ value }}</span>
         </div>
       </div>
-      <footer v-if="canDelete" class="detail-footer">
+      <footer v-if="canDelete || externalMapUrl" class="detail-footer">
         <Button
+          v-if="externalMapUrl"
+          as-child
+          variant="outline"
+          class="w-full"
+        >
+          <a
+            :href="externalMapUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="external-map-link"
+          >
+            <Navigation aria-hidden="true" />
+            在高德地图中打开
+          </a>
+        </Button>
+        <Button
+          v-if="canDelete"
           type="button"
           variant="destructive"
           class="w-full"

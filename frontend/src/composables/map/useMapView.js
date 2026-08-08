@@ -23,6 +23,7 @@ import {
   buildPopupRows,
   resolveFeatureHoverLabel,
 } from "../../components/map/popupFields.js";
+import { isValidLngLatPair } from "../../components/map/leaflet/geometry.js";
 import {
   createEmptyFeatureCollection,
   LOCALITY_FIELD,
@@ -104,6 +105,21 @@ export function useMapView() {
   const featureRows = computed(() => {
     if (!selectedFeature.value?.properties) return [];
     return buildPopupRows(currentView.value.columns, selectedFeature.value.properties);
+  });
+
+  /**
+   * 外部地图（高德）跳转链接。点位几何为 WGS84，高德 URI API
+   * 通过 coordinate=wgs84 直接接收原始 GPS 坐标，无需 GCJ-02 转换。
+   */
+  const externalMapUrl = computed(() => {
+    const geometry = selectedFeature.value?.geometry;
+    if (geometry?.type !== "Point" || !isValidLngLatPair(geometry.coordinates)) return "";
+    const [lng, lat] = geometry.coordinates.map(Number);
+    const name = featureTitle.value || "调查点位";
+    return (
+      `https://uri.amap.com/marker?position=${lng},${lat}` +
+      `&name=${encodeURIComponent(name)}&coordinate=wgs84&callnative=1`
+    );
   });
 
   const canDeleteSelectedSite = computed(() => {
@@ -1245,6 +1261,7 @@ export function useMapView() {
     SITE_ADD_KIND_WHITE_MOTH,
     featureTitle,
     featureRows,
+    externalMapUrl,
     canDeleteSelectedSite,
     deleteConfirmMessage,
     searchResults,
