@@ -51,7 +51,7 @@ const emit = defineEmits(["close", "delete"]);
             data-testid="external-map-link"
           >
             <Navigation aria-hidden="true" />
-            在高德地图中打开
+            在地图应用中打开
           </a>
         </Button>
         <Button

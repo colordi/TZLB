@@ -108,18 +108,20 @@ export function useMapView() {
   });
 
   /**
-   * 外部地图（高德）跳转链接。点位几何为 WGS84，高德 URI API
-   * 通过 coordinate=wgs84 直接接收原始 GPS 坐标，无需 GCJ-02 转换。
+   * 外部地图跳转链接，按平台分流（点位几何为 WGS84）：
+   * - Android：geo: URI，系统弹出已安装地图应用的选择器（高德/百度/腾讯等均可）；
+   * - iOS/桌面端：高德 URI（coordinate=wgs84 直传 GPS 原始坐标），
+   *   callnative=1 会尝试拉起高德 App，未安装时回落到网页版。
    */
   const externalMapUrl = computed(() => {
     const geometry = selectedFeature.value?.geometry;
     if (geometry?.type !== "Point" || !isValidLngLatPair(geometry.coordinates)) return "";
     const [lng, lat] = geometry.coordinates.map(Number);
-    const name = featureTitle.value || "调查点位";
-    return (
-      `https://uri.amap.com/marker?position=${lng},${lat}` +
-      `&name=${encodeURIComponent(name)}&coordinate=wgs84&callnative=1`
-    );
+    const name = encodeURIComponent(featureTitle.value || "调查点位");
+    if (/android/i.test(navigator.userAgent || "")) {
+      return `geo:0,0?q=${lat},${lng}(${name})`;
+    }
+    return `https://uri.amap.com/marker?position=${lng},${lat}&name=${name}&coordinate=wgs84&callnative=1`;
   });
 
   const canDeleteSelectedSite = computed(() => {
