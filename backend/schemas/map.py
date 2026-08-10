@@ -129,6 +129,52 @@ class OtherPestSiteDeleteResponse(BaseModel):
     survey_record_count: int = 0
 
 
+class GenericSiteCreateRequest(BaseModel):
+    """任务视图通用点位新增请求。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    view_name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+    site_name: str = ""
+    locality: str | None = None
+    longitude: float = Field(ge=-180, le=180)
+    latitude: float = Field(ge=-90, le=90)
+
+    @field_validator("code")
+    @classmethod
+    def normalize_code(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @field_validator("view_name")
+    @classmethod
+    def normalize_view_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class GenericSiteCodeHintResponse(BaseModel):
+    """通用点位编号提示响应。"""
+
+    prefix: str
+    locality: str | None = None
+    latest_code: str | None = None
+    latest_serial: int | None = None
+    suggested_next_code: str | None = None
+
+
+class GenericSiteResponse(BaseModel):
+    """通用点位新增响应。"""
+
+    gid: int | None = None
+    code: str
+    locality: str
+    site_name: str = ""
+    longitude: float
+    latitude: float
+    base_table: str
+    view_name: str
+
+
 class OperationLogItem(BaseModel):
     """点位操作日志条目。"""
 

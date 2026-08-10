@@ -1,4 +1,8 @@
 <script setup>
+/**
+ * 前端 SiteEditorPanel：根据 locality_mode 展示前缀识别或属地下拉。
+ * activeSiteAddKind 仍用 white-moth / other-pest 兼容旧测试 testid。
+ */
 import { X } from "@lucide/vue";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,8 @@ defineProps({
   whiteMothSiteCodeHintText: { type: String, default: "" },
   whiteMothSiteCodeHint: { type: Object, default: null },
   loadingWhiteMothSiteCodeHint: { type: Boolean, default: false },
+  hasCodeListFilter: { type: Boolean, default: false },
+  nameFieldLabel: { type: String, default: "点位名称" },
 });
 
 const emit = defineEmits([
@@ -62,6 +68,15 @@ const otherPestKind = SITE_ADD_KIND_OTHER_PEST;
       <div class="detail-divider"></div>
 
       <form class="site-add-form" @submit.prevent="emit('submit')">
+        <div
+          v-if="hasCodeListFilter"
+          class="site-add-location"
+          data-testid="site-add-code-list-warning"
+        >
+          <span class="detail-label">编号清单</span>
+          <strong>本任务视图限定了编号清单，新增编号必须在清单内。</strong>
+        </div>
+
         <div class="site-add-location">
           <span class="detail-label">坐标</span>
           <strong data-testid="site-add-location-text">
@@ -187,7 +202,7 @@ const otherPestKind = SITE_ADD_KIND_OTHER_PEST;
         </template>
 
         <label class="site-add-field">
-          <span>点位名称</span>
+          <span>{{ nameFieldLabel }}</span>
           <Input
             :model-value="siteForm.siteName"
             data-testid="site-add-name"

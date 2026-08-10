@@ -1,15 +1,17 @@
 /** Shared map page constants and small pure helpers. */
 
-export const WHITE_MOTH_SITE_VIEW_NAME = "美国白蛾点位";
-export const OTHER_PEST_SITE_VIEW_NAME = "其他害虫点位";
+export const LOCALITY_MODE_PREFIX = "prefix";
+export const LOCALITY_MODE_MANUAL = "manual";
+
+/** 仅这两种基础表保留旧的按编号删除入口（通用删除未做） */
+export const DELETABLE_BASE_TABLES = new Set([
+  "美国白蛾点位基础表",
+  "其他害虫点位基础表",
+]);
+
 export const SITE_ADD_KIND_WHITE_MOTH = "white-moth";
 export const SITE_ADD_KIND_OTHER_PEST = "other-pest";
-
-/** 仅这些图层开放「添加点位」，值决定新增点位的类型 */
-export const SITE_ADD_TARGETS = {
-  [WHITE_MOTH_SITE_VIEW_NAME]: SITE_ADD_KIND_WHITE_MOTH,
-  [OTHER_PEST_SITE_VIEW_NAME]: SITE_ADD_KIND_OTHER_PEST,
-};
+export const SITE_ADD_KIND_GENERIC = "generic";
 
 export const LOCALITY_FIELD = "属地";
 export const SURVEY_STATUS_FILTER_KEY = "调查状态";
@@ -92,4 +94,28 @@ export function isSameBbox(left, right) {
     return false;
   }
   return left.every((value, index) => Math.abs(value - right[index]) < 0.000001);
+}
+
+export function resolveSiteAddConfig(view) {
+  const siteAdd = view?.site_add;
+  if (!siteAdd?.enabled) {
+    return null;
+  }
+  return siteAdd;
+}
+
+export function matchSitePrefix(code, prefixLocalities = {}) {
+  const normalized = `${code || ""}`.trim().toUpperCase();
+  if (!normalized) return "";
+  const prefixes = Object.keys(prefixLocalities).sort((a, b) => b.length - a.length);
+  for (const prefix of prefixes) {
+    if (normalized === prefix) return prefix;
+    if (
+      normalized.startsWith(prefix) &&
+      /^\d*$/.test(normalized.slice(prefix.length))
+    ) {
+      return prefix;
+    }
+  }
+  return "";
 }

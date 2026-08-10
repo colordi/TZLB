@@ -357,17 +357,17 @@
   left: 0;
   top: 0;
   transform: translate(9px, -50%);
-  color: var(--primary);
+  color: #000000;
   font-size: 0.76rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;
   text-shadow:
-    0 1px 0 var(--card),
-    1px 0 0 var(--card),
-    0 -1px 0 var(--card),
-    -1px 0 0 var(--card),
+    0 1px 0 #fff,
+    1px 0 0 #fff,
+    0 -1px 0 #fff,
+    -1px 0 0 #fff,
     0 2px 4px color-mix(in oklch, var(--foreground) 18%, transparent);
 }
 

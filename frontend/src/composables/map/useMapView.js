@@ -2,19 +2,15 @@ import { computed, onMounted, ref, shallowRef, watch } from "vue";
 
 import { useToast } from "../useToast.js";
 import {
-  createOtherPestSite,
-  createWhiteMothSite,
+  createMapSite,
   deleteOtherPestSite,
   deleteOtherPestSiteCheck,
   deleteWhiteMothSite,
   deleteWhiteMothSiteCheck,
   fetchMapFilterOptions,
   fetchMapView,
-  fetchOtherPestSiteCodeHint,
-  fetchOtherPestSiteCodeRules,
   fetchReferenceLayer,
-  fetchWhiteMothSiteCodeHint,
-  fetchWhiteMothSiteCodeRules,
+  fetchSiteCodeHint,
   listMapViews,
   listReferenceLayers,
 } from "../../api/map.js";
@@ -26,18 +22,21 @@ import {
 import { isValidLngLatPair } from "../../components/map/leaflet/geometry.js";
 import {
   createEmptyFeatureCollection,
+  DELETABLE_BASE_TABLES,
   LOCALITY_FIELD,
+  LOCALITY_MODE_MANUAL,
+  LOCALITY_MODE_PREFIX,
+  matchSitePrefix,
   readStoredSelectedView,
+  resolveSiteAddConfig,
   SEARCH_FIELD_KEYS,
   SEARCH_RESULT_LIMIT,
   SITE_ADD_KIND_OTHER_PEST,
   SITE_ADD_KIND_WHITE_MOTH,
-  SITE_ADD_TARGETS,
   storeSelectedView,
   SURVEY_STATUS_COUNT_KEYS,
   SURVEY_STATUS_FILTER_KEY,
   SURVEY_STATUS_FILTER_OPTIONS,
-  WHITE_MOTH_SITE_VIEW_NAME,
 } from "./constants.js";
 
 /**
@@ -70,18 +69,14 @@ export function useMapView() {
   const isSurveyStatusFilterOpen = ref(false);
   const dynamicFilterValues = ref({});
   const mapFocusRequest = ref(null);
-  const whiteMothSiteCodeRules = ref(null);
   const siteDraftLocation = ref(null);
   const siteForm = ref({
     code: "",
     siteName: "",
     locality: "",
   });
-  const whiteMothSiteCodeHint = ref(null);
-  const loadingWhiteMothSiteCodeHint = ref(false);
-  const otherPestSiteCodeRules = ref(null);
-  const otherPestSiteCodeHint = ref(null);
-  const loadingOtherPestSiteCodeHint = ref(false);
+  const siteCodeHint = ref(null);
+  const loadingSiteCodeHint = ref(false);
   const isAddingSite = ref(false);
   const isSavingSite = ref(false);
   const showDeleteConfirm = ref(false);
@@ -91,7 +86,7 @@ export function useMapView() {
   let geojsonRequestToken = 0;
   let filterOptionsRequestToken = 0;
   let searchIndexRequestToken = 0;
-  let whiteMothSiteCodeHintRequestToken = 0;
+  let siteCodeHintRequestToken = 0;
   let shouldAutoFitOnNextViewChange = true;
   let mapFocusRequestToken = 0;
 
@@ -121,8 +116,9 @@ export function useMapView() {
   });
 
   const canDeleteSelectedSite = computed(() => {
-    // 支持添加点位的图层（美国白蛾点位、其他害虫点位）同样支持按编号删除
-    if (!activeSiteAddKind.value) return false;
+    // 通用删除未做：仅美国白蛾/其他害虫基表保留旧删除入口
+    const baseTable = siteAddConfig.value?.base_table || "";
+    if (!DELETABLE_BASE_TABLES.has(baseTable)) return false;
     if (!selectedFeature.value?.properties) return false;
     const code = `${selectedFeature.value.properties["编号"] ?? ""}`.trim();
     return code !== "";
@@ -147,7 +143,13 @@ export function useMapView() {
 
   async function requestDeleteSite() {
     if (isDeletingSite.value || deleteCheckLoading.value) return;
-    const kind = activeSiteAddKind.value;
+    const baseTable = siteAddConfig.value?.base_table || "";
+    const kind =
+      baseTable === "其他害虫点位基础表"
+        ? SITE_ADD_KIND_OTHER_PEST
+        : baseTable === "美国白蛾点位基础表"
+          ? SITE_ADD_KIND_WHITE_MOTH
+          : "";
     const code = `${selectedFeature.value?.properties?.["编号"] ?? ""}`.trim();
     if (!kind || !code) {
       error("未读取到点位编号。", "删除失败");
@@ -490,184 +492,139 @@ export function useMapView() {
   const currentView = computed(
     () => views.value.find((view) => view.name === selectedView.value) || { columns: [] },
   );
-  const activeSiteAddKind = computed(() => SITE_ADD_TARGETS[selectedView.value] ?? null);
-  const siteAddLabel = computed(() => {
-    if (activeSiteAddKind.value === SITE_ADD_KIND_WHITE_MOTH) return "添加美国白蛾点位";
-    if (activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST) return "添加其他害虫点位";
-    return "";
+  const siteAddConfig = computed(() => resolveSiteAddConfig(currentView.value));
+  const canAddSite = computed(() => Boolean(siteAddConfig.value?.enabled));
+  /** 兼容旧面板：manual=其他害虫样式；prefix=前缀识别属地 */
+  const activeSiteAddKind = computed(() => {
+    if (!siteAddConfig.value?.enabled) return null;
+    return siteAddConfig.value.locality_mode === LOCALITY_MODE_MANUAL
+      ? SITE_ADD_KIND_OTHER_PEST
+      : SITE_ADD_KIND_WHITE_MOTH;
   });
-  const siteAddTitle = computed(() =>
-    activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-      ? "新增其他害虫点位"
-      : "新增美国白蛾点位",
+  const siteAddLabel = computed(() => {
+    if (!canAddSite.value) return "";
+    const label = currentView.value.label || currentView.value.name || "点位";
+    return `添加点位（${label}）`;
+  });
+  const siteAddTitle = computed(() => {
+    if (!canAddSite.value) return "新增点位";
+    const label = currentView.value.label || currentView.value.name || "任务";
+    return `新增点位 · ${label}`;
+  });
+  const siteCodeExample = computed(
+    () => siteAddConfig.value?.code_example || "MQ001",
   );
-  const whiteMothSiteCodeExample = computed(
-    () => whiteMothSiteCodeRules.value?.code_example || "MQ001",
+  const sitePrefixLocalities = computed(
+    () => siteAddConfig.value?.prefix_localities || {},
   );
-  const whiteMothSitePrefixLocalities = computed(
-    () => whiteMothSiteCodeRules.value?.prefix_localities || {},
+  const siteLocalities = computed(() => siteAddConfig.value?.localities || []);
+  const siteSerialWidth = computed(() =>
+    Number(siteAddConfig.value?.serial_width || 3),
   );
-  const normalizedWhiteMothSiteCode = computed(() =>
-    siteForm.value.code.trim().toUpperCase(),
+  const isManualLocalityMode = computed(
+    () => siteAddConfig.value?.locality_mode === LOCALITY_MODE_MANUAL,
   );
-  const whiteMothSiteCodeRegex = computed(() => {
-    const pattern = whiteMothSiteCodeRules.value?.code_pattern || "";
+  const normalizedSiteCode = computed(() => siteForm.value.code.trim().toUpperCase());
+  const siteCodeRegex = computed(() => {
+    const pattern = siteAddConfig.value?.code_pattern || "";
     try {
       return pattern ? new RegExp(pattern) : null;
     } catch {
       return null;
     }
   });
-  const sortedWhiteMothSitePrefixes = computed(() =>
-    Object.keys(whiteMothSitePrefixLocalities.value).sort((a, b) => b.length - a.length),
-  );
-  const matchedWhiteMothSitePrefix = computed(() => {
-    const code = normalizedWhiteMothSiteCode.value;
-    if (!code) {
-      return "";
+  const matchedSitePrefix = computed(() => {
+    if (!siteAddConfig.value?.enabled) return "";
+    if (isManualLocalityMode.value) {
+      return siteAddConfig.value.fixed_prefix || "";
     }
-    // 按前缀长度从长到短匹配，输入前缀即可识别，且避免 LYI 被误判为 LY
-    for (const prefix of sortedWhiteMothSitePrefixes.value) {
-      if (code === prefix) {
-        return prefix;
-      }
-      if (code.startsWith(prefix) && /^\d{0,3}$/.test(code.slice(prefix.length))) {
-        return prefix;
-      }
-    }
-    return "";
+    return matchSitePrefix(normalizedSiteCode.value, sitePrefixLocalities.value);
   });
-  const resolvedWhiteMothSiteLocality = computed(() => {
-    if (!matchedWhiteMothSitePrefix.value) {
-      return "";
+  const resolvedSiteLocality = computed(() => {
+    if (isManualLocalityMode.value) {
+      return siteForm.value.locality || "";
     }
-    return whiteMothSitePrefixLocalities.value[matchedWhiteMothSitePrefix.value] || "";
+    if (!matchedSitePrefix.value) return "";
+    return sitePrefixLocalities.value[matchedSitePrefix.value] || "";
   });
-  const isCompleteWhiteMothSiteCode = computed(() => {
-    const code = normalizedWhiteMothSiteCode.value;
+  const isCompleteSiteCode = computed(() => {
+    const code = normalizedSiteCode.value;
+    if (!code || !siteCodeRegex.value?.test(code)) return false;
+    if (isManualLocalityMode.value) return true;
     return Boolean(
-      code &&
-        matchedWhiteMothSitePrefix.value &&
-        whiteMothSiteCodeRegex.value?.test(code) &&
-        code.slice(matchedWhiteMothSitePrefix.value.length).length === 3,
+      matchedSitePrefix.value &&
+        code.slice(matchedSitePrefix.value.length).length === siteSerialWidth.value,
     );
   });
-  const whiteMothSiteCodeError = computed(() => {
-    if (!whiteMothSiteCodeRules.value) {
-      return "正在读取编号规则";
+  const siteCodeError = computed(() => {
+    if (!siteAddConfig.value?.enabled) {
+      return "当前视图不支持添加点位";
     }
-
-    const code = normalizedWhiteMothSiteCode.value;
-    if (!code) {
-      return "请输入编号";
+    const code = normalizedSiteCode.value;
+    if (!code) return "请输入编号";
+    if (isManualLocalityMode.value) {
+      if (isCompleteSiteCode.value) return "";
+      const prefix = siteAddConfig.value.fixed_prefix || "QT";
+      // 输入过程中先不报红错
+      if (new RegExp(`^${prefix}\\d{0,${siteSerialWidth.value - 1}}$`).test(code)) {
+        return "";
+      }
+      if (code === prefix.slice(0, code.length) && code.length < prefix.length) {
+        return "";
+      }
+      return `编号格式不正确，请输入类似 ${siteCodeExample.value} 的编号`;
     }
-    if (matchedWhiteMothSitePrefix.value) {
+    if (matchedSitePrefix.value) {
       // 前缀已识别：完整编号才可提交；输入过程中不报红错
       return "";
     }
-    // 仍在输入首个字母时先不报错
-    if (/^[A-Z]$/.test(code)) {
-      return "";
-    }
-    return `编号格式不正确，请输入类似 ${whiteMothSiteCodeExample.value} 的编号`;
+    if (/^[A-Z]$/.test(code)) return "";
+    return `编号格式不正确，请输入类似 ${siteCodeExample.value} 的编号`;
   });
-  const whiteMothSiteCodeHintText = computed(() => {
-    if (!matchedWhiteMothSitePrefix.value) {
-      return "";
+  const siteCodeHintText = computed(() => {
+    if (loadingSiteCodeHint.value) {
+      return isManualLocalityMode.value
+        ? "正在查询最新编号…"
+        : "正在查询该属地最新编号…";
     }
-    if (loadingWhiteMothSiteCodeHint.value) {
-      return "正在查询该属地最新编号…";
-    }
-    const hint = whiteMothSiteCodeHint.value;
-    if (!hint || hint.prefix !== matchedWhiteMothSitePrefix.value) {
+    const hint = siteCodeHint.value;
+    if (!hint) return "编号提示暂不可用";
+    if (!isManualLocalityMode.value && hint.prefix !== matchedSitePrefix.value) {
       return "编号提示暂不可用";
     }
     if (hint.latest_code && hint.suggested_next_code) {
       return `当前最大编号 ${hint.latest_code}，建议新编号 ${hint.suggested_next_code}`;
     }
     if (hint.suggested_next_code) {
-      return `该属地暂无点位，建议新编号 ${hint.suggested_next_code}`;
+      return isManualLocalityMode.value
+        ? `暂无点位，建议新编号 ${hint.suggested_next_code}`
+        : `该属地暂无点位，建议新编号 ${hint.suggested_next_code}`;
     }
     if (hint.latest_code) {
       return `当前最大编号 ${hint.latest_code}，序号已用尽`;
     }
     return "编号提示暂不可用";
   });
-  const otherPestSiteCodeExample = computed(
-    () => otherPestSiteCodeRules.value?.code_example || "QT0001",
+  // 兼容 SiteEditorPanel 旧 prop 名
+  const whiteMothSiteCodeExample = siteCodeExample;
+  const otherPestSiteCodeExample = siteCodeExample;
+  const otherPestSiteLocalities = siteLocalities;
+  const resolvedWhiteMothSiteLocality = resolvedSiteLocality;
+  const matchedWhiteMothSitePrefix = matchedSitePrefix;
+  const whiteMothSiteCodeHintText = computed(() =>
+    isManualLocalityMode.value ? "" : siteCodeHintText.value,
   );
-  const otherPestSiteLocalities = computed(
-    () => otherPestSiteCodeRules.value?.localities || [],
+  const otherPestSiteCodeHintText = computed(() =>
+    isManualLocalityMode.value ? siteCodeHintText.value : "",
   );
-  const normalizedOtherPestSiteCode = computed(() =>
-    siteForm.value.code.trim().toUpperCase(),
+  const whiteMothSiteCodeHint = computed(() =>
+    isManualLocalityMode.value ? null : siteCodeHint.value,
   );
-  const otherPestSiteCodeRegex = computed(() => {
-    const pattern = otherPestSiteCodeRules.value?.code_pattern || "";
-    try {
-      return pattern ? new RegExp(pattern) : null;
-    } catch {
-      return null;
-    }
-  });
-  const isCompleteOtherPestSiteCode = computed(() =>
-    Boolean(
-      normalizedOtherPestSiteCode.value &&
-        otherPestSiteCodeRegex.value?.test(normalizedOtherPestSiteCode.value),
-    ),
+  const otherPestSiteCodeHint = computed(() =>
+    isManualLocalityMode.value ? siteCodeHint.value : null,
   );
-  const otherPestSiteCodeError = computed(() => {
-    if (!otherPestSiteCodeRules.value) {
-      return "正在读取编号规则";
-    }
-
-    const code = normalizedOtherPestSiteCode.value;
-    if (!code) {
-      return "请输入编号";
-    }
-    if (isCompleteOtherPestSiteCode.value) {
-      return "";
-    }
-    // 输入过程中（QT + 不足 4 位数字）先不报红错
-    if (/^Q(T\d{0,3})?$/.test(code)) {
-      return "";
-    }
-    return `编号格式不正确，请输入类似 ${otherPestSiteCodeExample.value} 的编号`;
-  });
-  const otherPestSiteCodeHintText = computed(() => {
-    if (loadingOtherPestSiteCodeHint.value) {
-      return "正在查询最新编号…";
-    }
-    const hint = otherPestSiteCodeHint.value;
-    if (!hint) {
-      return "编号提示暂不可用";
-    }
-    if (hint.latest_code && hint.suggested_next_code) {
-      return `当前最大编号 ${hint.latest_code}，建议新编号 ${hint.suggested_next_code}`;
-    }
-    if (hint.suggested_next_code) {
-      return `暂无点位，建议新编号 ${hint.suggested_next_code}`;
-    }
-    if (hint.latest_code) {
-      return `当前最大编号 ${hint.latest_code}，序号已用尽`;
-    }
-    return "编号提示暂不可用";
-  });
-  const siteCodeExample = computed(() =>
-    activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-      ? otherPestSiteCodeExample.value
-      : whiteMothSiteCodeExample.value,
-  );
-  const siteCodeError = computed(() =>
-    activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-      ? otherPestSiteCodeError.value
-      : whiteMothSiteCodeError.value,
-  );
-  const isCompleteSiteCode = computed(() =>
-    activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-      ? isCompleteOtherPestSiteCode.value
-      : isCompleteWhiteMothSiteCode.value,
-  );
+  const loadingWhiteMothSiteCodeHint = loadingSiteCodeHint;
+  const loadingOtherPestSiteCodeHint = loadingSiteCodeHint;
   const siteLocationText = computed(() => {
     if (!siteDraftLocation.value) {
       return "请在地图上点击点位位置";
@@ -677,17 +634,21 @@ export function useMapView() {
     return `${Number(longitude).toFixed(6)}, ${Number(latitude).toFixed(6)}`;
   });
   const canSubmitSite = computed(() => {
-    if (!activeSiteAddKind.value || !siteDraftLocation.value || isSavingSite.value) {
+    if (!canAddSite.value || !siteDraftLocation.value || isSavingSite.value) {
       return false;
     }
     if (!isCompleteSiteCode.value) {
       return false;
     }
-    if (activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST) {
+    if (isManualLocalityMode.value) {
       return Boolean(siteForm.value.locality);
     }
     return true;
   });
+  const hasCodeListFilter = computed(() =>
+    Boolean(siteAddConfig.value?.has_code_list_filter),
+  );
+
   const pointCount = computed(() => geojson.value?.features?.length || 0);
   const referenceLayersForMap = computed(() =>
     referenceLayers.value.map((layer) => ({
@@ -737,29 +698,7 @@ export function useMapView() {
     }
   }
 
-  async function loadWhiteMothSiteCodeRules() {
-    try {
-      whiteMothSiteCodeRules.value = await fetchWhiteMothSiteCodeRules();
-    } catch (loadError) {
-      whiteMothSiteCodeRules.value = null;
-      if (isUnauthorizedError(loadError)) {
-        return;
-      }
-      error(`${loadError.message || loadError}`, "编号规则读取失败");
-    }
-  }
 
-  async function loadOtherPestSiteCodeRules() {
-    try {
-      otherPestSiteCodeRules.value = await fetchOtherPestSiteCodeRules();
-    } catch (loadError) {
-      otherPestSiteCodeRules.value = null;
-      if (isUnauthorizedError(loadError)) {
-        return;
-      }
-      error(`${loadError.message || loadError}`, "编号规则读取失败");
-    }
-  }
 
   async function loadFilterOptions(viewName = selectedView.value) {
     if (!viewName) {
@@ -963,21 +902,8 @@ export function useMapView() {
     }
   }
 
-  async function refreshWhiteMothSiteView() {
-    const loadedViews = await loadViews();
-    if (!loadedViews) {
-      return false;
-    }
-
-    const hasWhiteMothSiteView = views.value.some(
-      (view) => view.name === WHITE_MOTH_SITE_VIEW_NAME,
-    );
-    if (hasWhiteMothSiteView && selectedView.value !== WHITE_MOTH_SITE_VIEW_NAME) {
-      shouldAutoFitOnNextViewChange = false;
-      selectedView.value = WHITE_MOTH_SITE_VIEW_NAME;
-      return true;
-    }
-
+  async function refreshSitePointsView() {
+    resetSearchIndex();
     return loadGeoJson({ autoFit: false });
   }
 
@@ -988,78 +914,73 @@ export function useMapView() {
       siteName: "",
       locality: "",
     };
-    whiteMothSiteCodeHint.value = null;
-    loadingWhiteMothSiteCodeHint.value = false;
-    whiteMothSiteCodeHintRequestToken += 1;
-    otherPestSiteCodeHint.value = null;
-    loadingOtherPestSiteCodeHint.value = false;
+    siteCodeHint.value = null;
+    loadingSiteCodeHint.value = false;
+    siteCodeHintRequestToken += 1;
   }
 
-  async function loadWhiteMothSiteCodeHint(prefix) {
-    const normalizedPrefix = `${prefix || ""}`.trim().toUpperCase();
-    if (!normalizedPrefix) {
-      whiteMothSiteCodeHint.value = null;
-      loadingWhiteMothSiteCodeHint.value = false;
-      return;
-    }
 
-    const requestToken = ++whiteMothSiteCodeHintRequestToken;
-    loadingWhiteMothSiteCodeHint.value = true;
-    try {
-      const hint = await fetchWhiteMothSiteCodeHint(normalizedPrefix);
-      if (requestToken !== whiteMothSiteCodeHintRequestToken) {
-        return;
-      }
-      whiteMothSiteCodeHint.value = hint;
-    } catch {
-      if (requestToken !== whiteMothSiteCodeHintRequestToken) {
-        return;
-      }
-      // 提示失败不打断录入，仅隐藏建议编号。
-      whiteMothSiteCodeHint.value = null;
-    } finally {
-      if (requestToken === whiteMothSiteCodeHintRequestToken) {
-        loadingWhiteMothSiteCodeHint.value = false;
-      }
-    }
-  }
-
-  async function loadOtherPestSiteCodeHint() {
-    loadingOtherPestSiteCodeHint.value = true;
-    try {
-      otherPestSiteCodeHint.value = await fetchOtherPestSiteCodeHint();
-    } catch {
-      // 提示失败不打断录入，仅隐藏建议编号。
-      otherPestSiteCodeHint.value = null;
-    } finally {
-      loadingOtherPestSiteCodeHint.value = false;
-    }
-  }
 
   function applySuggestedSiteCode() {
     if (isSavingSite.value) {
       return;
     }
-    const suggested =
-      activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-        ? otherPestSiteCodeHint.value?.suggested_next_code
-        : whiteMothSiteCodeHint.value?.suggested_next_code;
+    const suggested = siteCodeHint.value?.suggested_next_code;
     if (!suggested) {
       return;
     }
     siteForm.value.code = suggested;
   }
 
+  async function loadSiteCodeHint(prefix = "") {
+    if (!canAddSite.value || !selectedView.value) {
+      siteCodeHint.value = null;
+      loadingSiteCodeHint.value = false;
+      return;
+    }
+    if (!isManualLocalityMode.value && !prefix) {
+      siteCodeHint.value = null;
+      loadingSiteCodeHint.value = false;
+      return;
+    }
+
+    const requestToken = ++siteCodeHintRequestToken;
+    loadingSiteCodeHint.value = true;
+    try {
+      const hint = await fetchSiteCodeHint(selectedView.value, prefix);
+      if (requestToken !== siteCodeHintRequestToken) {
+        return;
+      }
+      siteCodeHint.value = hint;
+    } catch {
+      if (requestToken !== siteCodeHintRequestToken) {
+        return;
+      }
+      siteCodeHint.value = null;
+    } finally {
+      if (requestToken === siteCodeHintRequestToken) {
+        loadingSiteCodeHint.value = false;
+      }
+    }
+  }
+
   function startSiteAdd() {
-    if (!activeSiteAddKind.value) {
+    if (!canAddSite.value) {
       return;
     }
     selectedFeature.value = null;
     isAddingSite.value = true;
-    if (activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST) {
-      loadOtherPestSiteCodeHint();
+    if (isManualLocalityMode.value) {
+      loadSiteCodeHint();
     }
-    info("请在地图上点击新点位位置。", "添加点位");
+    if (hasCodeListFilter.value) {
+      info(
+        "本任务视图限定了编号清单，新增编号必须在清单内，否则无法保存。",
+        "添加点位",
+      );
+    } else {
+      info("请在地图上点击新点位位置。", "添加点位");
+    }
   }
 
   function cancelSiteAdd() {
@@ -1097,15 +1018,6 @@ export function useMapView() {
     siteForm.value.code = siteForm.value.code.trim().toUpperCase();
   }
 
-  async function refreshSitePointsView() {
-    if (activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST) {
-      // 当前就在其他害虫点位视图，重载数据与搜索索引即可
-      resetSearchIndex();
-      return loadGeoJson({ autoFit: false });
-    }
-    return refreshWhiteMothSiteView();
-  }
-
   async function submitSite() {
     normalizeSiteCodeInput();
     if (!siteDraftLocation.value) {
@@ -1123,32 +1035,21 @@ export function useMapView() {
       error(siteCodeError.value, "新增点位失败");
       return;
     }
-    if (
-      activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST &&
-      !siteForm.value.locality
-    ) {
+    if (isManualLocalityMode.value && !siteForm.value.locality) {
       error("请选择属地。", "新增点位失败");
       return;
     }
 
     isSavingSite.value = true;
     try {
-      const basePayload = {
+      const createdSite = await createMapSite({
+        view_name: selectedView.value,
+        code: normalizedSiteCode.value,
         site_name: siteForm.value.siteName.trim(),
+        locality: isManualLocalityMode.value ? siteForm.value.locality : undefined,
         longitude: siteDraftLocation.value.longitude,
         latitude: siteDraftLocation.value.latitude,
-      };
-      const createdSite =
-        activeSiteAddKind.value === SITE_ADD_KIND_OTHER_PEST
-          ? await createOtherPestSite({
-              ...basePayload,
-              code: normalizedOtherPestSiteCode.value,
-              locality: siteForm.value.locality,
-            })
-          : await createWhiteMothSite({
-              ...basePayload,
-              code: normalizedWhiteMothSiteCode.value,
-            });
+      });
       success(
         `点位 ${createdSite.code} 已保存到 ${createdSite.locality}。`,
         "新增成功",
@@ -1197,17 +1098,17 @@ export function useMapView() {
     await loadGeoJson({ autoFit: shouldAutoFit });
   });
 
-  watch(matchedWhiteMothSitePrefix, (prefix) => {
-    if (activeSiteAddKind.value !== SITE_ADD_KIND_WHITE_MOTH) {
+  watch(matchedSitePrefix, (prefix) => {
+    if (!canAddSite.value || isManualLocalityMode.value) {
       return;
     }
     if (!prefix) {
-      whiteMothSiteCodeHintRequestToken += 1;
-      whiteMothSiteCodeHint.value = null;
-      loadingWhiteMothSiteCodeHint.value = false;
+      siteCodeHintRequestToken += 1;
+      siteCodeHint.value = null;
+      loadingSiteCodeHint.value = false;
       return;
     }
-    loadWhiteMothSiteCodeHint(prefix);
+    loadSiteCodeHint(prefix);
   });
 
   watch(searchQuery, (keyword) => {
@@ -1217,13 +1118,9 @@ export function useMapView() {
   });
 
   onMounted(async () => {
-    await Promise.all([
-      loadViews(),
-      loadReferenceLayers(),
-      loadWhiteMothSiteCodeRules(),
-      loadOtherPestSiteCodeRules(),
-    ]);
+    await Promise.all([loadViews(), loadReferenceLayers()]);
   });
+
 
   return {
     views,
@@ -1269,6 +1166,8 @@ export function useMapView() {
     dynamicFilterFields,
     currentView,
     activeSiteAddKind,
+    siteAddConfig,
+    canAddSite,
     siteAddLabel,
     siteAddTitle,
     whiteMothSiteCodeExample,
@@ -1281,6 +1180,8 @@ export function useMapView() {
     siteCodeError,
     siteLocationText,
     canSubmitSite,
+    hasCodeListFilter,
+    siteCodeExample,
     referenceLayersForMap,
     closeDeleteConfirm,
     requestDeleteSite,

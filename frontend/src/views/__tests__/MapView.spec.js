@@ -7,12 +7,8 @@ import MapView from "../MapView.vue";
 const apiMocks = vi.hoisted(() => ({
   listMapViews: vi.fn(),
   fetchMapFilterOptions: vi.fn(),
-  fetchWhiteMothSiteCodeRules: vi.fn(),
-  fetchWhiteMothSiteCodeHint: vi.fn(),
-  createWhiteMothSite: vi.fn(),
-  fetchOtherPestSiteCodeRules: vi.fn(),
-  fetchOtherPestSiteCodeHint: vi.fn(),
-  createOtherPestSite: vi.fn(),
+  fetchSiteCodeHint: vi.fn(),
+  createMapSite: vi.fn(),
   deleteOtherPestSite: vi.fn(),
   deleteOtherPestSiteCheck: vi.fn(),
   deleteWhiteMothSite: vi.fn(),
@@ -25,12 +21,8 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock("../../api/map.js", () => ({
   listMapViews: apiMocks.listMapViews,
   fetchMapFilterOptions: apiMocks.fetchMapFilterOptions,
-  fetchWhiteMothSiteCodeRules: apiMocks.fetchWhiteMothSiteCodeRules,
-  fetchWhiteMothSiteCodeHint: apiMocks.fetchWhiteMothSiteCodeHint,
-  createWhiteMothSite: apiMocks.createWhiteMothSite,
-  fetchOtherPestSiteCodeRules: apiMocks.fetchOtherPestSiteCodeRules,
-  fetchOtherPestSiteCodeHint: apiMocks.fetchOtherPestSiteCodeHint,
-  createOtherPestSite: apiMocks.createOtherPestSite,
+  fetchSiteCodeHint: apiMocks.fetchSiteCodeHint,
+  createMapSite: apiMocks.createMapSite,
   deleteOtherPestSite: apiMocks.deleteOtherPestSite,
   deleteOtherPestSiteCheck: apiMocks.deleteOtherPestSiteCheck,
   deleteWhiteMothSite: apiMocks.deleteWhiteMothSite,
@@ -39,6 +31,51 @@ vi.mock("../../api/map.js", () => ({
   fetchReferenceLayer: apiMocks.fetchReferenceLayer,
   listReferenceLayers: apiMocks.listReferenceLayers,
 }));
+
+const PREFIX_LOCALITIES = {
+  MQ: "马驹桥镇",
+  TH: "台湖镇",
+  LY: "梨园镇",
+  LYI: "潞邑街道",
+  LYU: "潞源街道",
+  JK: "九棵树街道",
+};
+
+const OTHER_LOCALITIES = ["马驹桥镇", "台湖镇", "梨园镇", "潞邑街道", "潞源街道", "九棵树街道"];
+
+function buildPrefixSiteAdd(baseTable = "美国白蛾点位基础表", extras = {}) {
+  return {
+    enabled: true,
+    base_table: baseTable,
+    locality_mode: "prefix",
+    code_pattern: "^[A-Z]{2,3}\\d{3}$",
+    code_example: "MQ001",
+    serial_width: 3,
+    fixed_prefix: null,
+    name_field_label: "点位名称",
+    has_code_list_filter: false,
+    prefix_localities: { ...PREFIX_LOCALITIES },
+    localities: [],
+    ...extras,
+  };
+}
+
+function buildManualSiteAdd(baseTable = "其他害虫点位基础表", extras = {}) {
+  return {
+    enabled: true,
+    base_table: baseTable,
+    locality_mode: "manual",
+    code_pattern: "^QT\\d{4}$",
+    code_example: "QT0001",
+    serial_width: 4,
+    fixed_prefix: "QT",
+    name_field_label: "点位名称",
+    has_code_list_filter: false,
+    prefix_localities: {},
+    localities: [...OTHER_LOCALITIES],
+    ...extras,
+  };
+}
 
 const LeafletMapStub = defineComponent({
   name: "LeafletMap",
@@ -247,77 +284,48 @@ describe("MapView", () => {
       type: "FeatureCollection",
       features: [],
     });
-    apiMocks.fetchWhiteMothSiteCodeRules.mockResolvedValue({
-      code_pattern: "^[A-Z]{2,3}\\d{3}$",
-      code_example: "MQ001",
-      prefix_localities: {
-        MQ: "马驹桥镇",
-        TH: "台湖镇",
-        LY: "梨园镇",
-        LYI: "潞邑街道",
-        LYU: "潞源街道",
-        JK: "九棵树街道",
-      },
+    apiMocks.fetchSiteCodeHint.mockImplementation(async (viewName, prefix) => {
+      if (`${viewName}`.includes("others") || `${viewName}`.includes("other") || `${viewName}` === "其他害虫点位") {
+        return {
+          prefix: "QT",
+          locality: null,
+          latest_code: "QT0006",
+          latest_serial: 6,
+          suggested_next_code: "QT0007",
+        };
+      }
+      const p = `${prefix || "MQ"}`.toUpperCase();
+      return {
+        prefix: p,
+        locality: PREFIX_LOCALITIES[p] || "",
+        latest_code: `${p}042`,
+        latest_serial: 42,
+        suggested_next_code: `${p}043`,
+      };
     });
-    apiMocks.fetchWhiteMothSiteCodeHint.mockImplementation(async (prefix) => ({
-      prefix: `${prefix}`.toUpperCase(),
-      locality:
-        {
-          MQ: "马驹桥镇",
-          TH: "台湖镇",
-          LY: "梨园镇",
-          LYI: "潞邑街道",
-          LYU: "潞源街道",
-          JK: "九棵树街道",
-        }[`${prefix}`.toUpperCase()] || "",
-      latest_code: `${`${prefix}`.toUpperCase()}042`,
-      latest_serial: 42,
-      suggested_next_code: `${`${prefix}`.toUpperCase()}043`,
-    }));
-    apiMocks.createWhiteMothSite.mockResolvedValue({
-      gid: 14,
-      code: "MQ001",
-      locality: "马驹桥镇",
-      site_name: "示范点",
-      longitude: 116.5,
-      latitude: 39.7,
-    });
-    apiMocks.fetchOtherPestSiteCodeRules.mockResolvedValue({
-      code_pattern: "^QT\\d{4}$",
-      code_example: "QT0001",
-      code_prefix: "QT",
-      localities: ["马驹桥镇", "台湖镇", "梨园镇", "潞邑街道", "潞源街道", "九棵树街道"],
-    });
-    apiMocks.fetchOtherPestSiteCodeHint.mockResolvedValue({
-      prefix: "QT",
-      latest_code: "QT0006",
-      latest_serial: 6,
-      suggested_next_code: "QT0007",
-    });
-    apiMocks.createOtherPestSite.mockResolvedValue({
-      gid: 8,
-      code: "QT0007",
-      locality: "梨园镇",
-      site_name: "",
-      longitude: 116.5,
-      latitude: 39.7,
-    });
-    apiMocks.deleteWhiteMothSiteCheck.mockResolvedValue({
-      code: "MQ001",
-      exists: true,
-      site_name: "示范点",
-      locality: "马驹桥镇",
-      longitude: 116.5,
-      latitude: 39.7,
-      survey_record_count: 0,
-    });
-    apiMocks.deleteWhiteMothSite.mockResolvedValue({
-      code: "MQ001",
-      site_name: "示范点",
-      locality: "马驹桥镇",
-      longitude: 116.5,
-      latitude: 39.7,
-      survey_record_count: 0,
+    apiMocks.createMapSite.mockImplementation(async (payload) => {
+      if (payload.code?.startsWith("QT")) {
+        return {
+          gid: 8,
+          code: payload.code,
+          locality: payload.locality || "台湖镇",
+          site_name: payload.site_name || "",
+          longitude: payload.longitude,
+          latitude: payload.latitude,
+          base_table: "其他害虫点位基础表",
+          view_name: payload.view_name,
+        };
+      }
+      return {
+        gid: 14,
+        code: payload.code || "MQ001",
+        locality: "马驹桥镇",
+        site_name: payload.site_name || "示范点",
+        longitude: payload.longitude,
+        latitude: payload.latitude,
+        base_table: "美国白蛾点位基础表",
+        view_name: payload.view_name,
+      };
     });
     apiMocks.deleteOtherPestSiteCheck.mockResolvedValue({
       code: "QT0007",
@@ -710,8 +718,11 @@ describe("MapView", () => {
     };
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["编号", "点位名称", "属地"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(
@@ -1066,15 +1077,17 @@ describe("MapView", () => {
   it("新增美国白蛾点位时格式化编号并显示自动识别属地", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1088,9 +1101,11 @@ describe("MapView", () => {
     await wrapper.get(".site-add-form").trigger("submit");
 
     await vi.waitFor(() => {
-      expect(apiMocks.createWhiteMothSite).toHaveBeenCalledWith({
+      expect(apiMocks.createMapSite).toHaveBeenCalledWith({
+        view_name: "task_baie",
         code: "MQ001",
         site_name: "示范点",
+        locality: undefined,
         longitude: 116.5,
         latitude: 39.7,
       });
@@ -1100,15 +1115,17 @@ describe("MapView", () => {
   it("进入新增点位模式后先保留地图可选点，点选后再显示录入表单", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1127,15 +1144,17 @@ describe("MapView", () => {
   it("编号前缀不支持时阻止新增美国白蛾点位", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1149,21 +1168,23 @@ describe("MapView", () => {
       "",
     );
     await wrapper.get(".site-add-form").trigger("submit");
-    expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
+    expect(apiMocks.createMapSite).not.toHaveBeenCalled();
   });
 
   it("三位编号前缀能正确识别属地且不与两位前缀混淆", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1183,15 +1204,17 @@ describe("MapView", () => {
   it("仅输入前缀即可识别属地并展示最新编号提示", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
-      expect(apiMocks.fetchWhiteMothSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1200,7 +1223,7 @@ describe("MapView", () => {
 
     expect(wrapper.get('[data-testid="white-moth-site-locality"]').text()).toBe("马驹桥镇");
     await vi.waitFor(() => {
-      expect(apiMocks.fetchWhiteMothSiteCodeHint).toHaveBeenCalledWith("MQ");
+      expect(apiMocks.fetchSiteCodeHint).toHaveBeenCalledWith("task_baie", "MQ");
     });
     await vi.waitFor(() => {
       expect(wrapper.get('[data-testid="white-moth-site-code-hint-text"]').text()).toContain(
@@ -1235,29 +1258,31 @@ describe("MapView", () => {
 
     expect(getLeafletMapStub(wrapper).props("whiteMothSiteAddMode")).toBe(false);
     expect(wrapper.find(".site-add-drawer").exists()).toBe(false);
-    expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
-    expect(apiMocks.createOtherPestSite).not.toHaveBeenCalled();
+    expect(apiMocks.createMapSite).not.toHaveBeenCalled();
+    expect(apiMocks.createMapSite).not.toHaveBeenCalled();
   });
 
   it("其他害虫点位图层下新增其他害虫点位", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "其他害虫点位",
+        name: "task_others",
         columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
+        label: "其他害虫点位",
+        base_table: "其他害虫点位基础表",
+        site_add: buildManualSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
-      expect(apiMocks.fetchOtherPestSiteCodeRules).toHaveBeenCalled();
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_others");
     });
-    expect(getLeafletMapStub(wrapper).props("siteAddLabel")).toBe("添加其他害虫点位");
+    expect(getLeafletMapStub(wrapper).props("siteAddLabel")).toContain("添加点位");
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
 
     await vi.waitFor(() => {
-      expect(apiMocks.fetchOtherPestSiteCodeHint).toHaveBeenCalled();
+      expect(apiMocks.fetchSiteCodeHint).toHaveBeenCalled();
     });
 
     await wrapper.get('[data-testid="map-click-target"]').trigger("click");
@@ -1290,7 +1315,8 @@ describe("MapView", () => {
     await wrapper.get(".site-add-form").trigger("submit");
 
     await vi.waitFor(() => {
-      expect(apiMocks.createOtherPestSite).toHaveBeenCalledWith({
+      expect(apiMocks.createMapSite).toHaveBeenCalledWith({
+        view_name: "task_others",
         code: "QT0007",
         site_name: "",
         locality: "梨园镇",
@@ -1298,22 +1324,24 @@ describe("MapView", () => {
         latitude: 39.7,
       });
     });
-    expect(apiMocks.createWhiteMothSite).not.toHaveBeenCalled();
     // 保存后停留在当前视图并重载数据
-    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
+    expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_others");
   });
 
   it("其他害虫编号格式不正确时阻止提交", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "其他害虫点位",
+        name: "task_others",
         columns: ["编号", "属地", "点位名称", "害虫类型", "调查日期", "年份"],
+        label: "其他害虫点位",
+        base_table: "其他害虫点位基础表",
+        site_add: buildManualSiteAdd(),
       },
     ]);
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_others");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1330,21 +1358,24 @@ describe("MapView", () => {
       "",
     );
     await wrapper.get(".site-add-form").trigger("submit");
-    expect(apiMocks.createOtherPestSite).not.toHaveBeenCalled();
+    expect(apiMocks.createMapSite).not.toHaveBeenCalled();
   });
 
   it("已经在美国白蛾点位视图时保存点位不会触发自动缩放", async () => {
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["gid", "编号", "属地", "点位名称"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
 
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     await wrapper.get('[data-testid="map-add-site-button"]').trigger("click");
@@ -1353,7 +1384,7 @@ describe("MapView", () => {
     await wrapper.get(".site-add-form").trigger("submit");
 
     await vi.waitFor(() => {
-      expect(apiMocks.createWhiteMothSite).toHaveBeenCalled();
+      expect(apiMocks.createMapSite).toHaveBeenCalled();
       expect(getLeafletMapStub(wrapper).props("autoFitOnDataChange")).toBe(false);
     });
   });
@@ -1585,8 +1616,11 @@ describe("MapView", () => {
     };
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["编号", "点位名称", "属地"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
@@ -1594,7 +1628,7 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
@@ -1645,8 +1679,11 @@ describe("MapView", () => {
     };
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["编号", "点位名称", "属地"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
@@ -1671,7 +1708,7 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
@@ -1710,8 +1747,11 @@ describe("MapView", () => {
     };
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "美国白蛾点位",
+        name: "task_baie",
         columns: ["编号", "点位名称", "属地"],
+        label: "美国白蛾点位",
+        base_table: "美国白蛾点位基础表",
+        site_add: buildPrefixSiteAdd(),
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
@@ -1724,7 +1764,7 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("美国白蛾点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_baie");
     });
 
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);
@@ -1752,8 +1792,11 @@ describe("MapView", () => {
     };
     apiMocks.listMapViews.mockResolvedValue([
       {
-        name: "其他害虫点位",
+        name: "task_others",
         columns: ["编号", "点位名称", "属地"],
+        label: "其他害虫点位",
+        base_table: "其他害虫点位基础表",
+        site_add: buildManualSiteAdd(),
       },
     ]);
     apiMocks.fetchMapView.mockResolvedValue(createFeatureCollection([targetFeature]));
@@ -1778,7 +1821,7 @@ describe("MapView", () => {
     const wrapper = mountMapView();
 
     await vi.waitFor(() => {
-      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("其他害虫点位");
+      expect(getLeafletMapStub(wrapper).props("viewName")).toBe("task_others");
     });
 
     getLeafletMapStub(wrapper).vm.$emit("feature-click", targetFeature);

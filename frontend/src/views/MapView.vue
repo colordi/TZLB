@@ -66,6 +66,8 @@ const {
   siteCodeError,
   siteLocationText,
   canSubmitSite,
+  hasCodeListFilter,
+  siteAddConfig,
   referenceLayersForMap,
   closeDeleteConfirm,
   requestDeleteSite,
@@ -178,6 +180,8 @@ function onSiteLocalityInput(value) {
         :white-moth-site-code-hint-text="whiteMothSiteCodeHintText"
         :white-moth-site-code-hint="whiteMothSiteCodeHint"
         :loading-white-moth-site-code-hint="loadingWhiteMothSiteCodeHint"
+        :has-code-list-filter="hasCodeListFilter"
+        :name-field-label="siteAddConfig?.name_field_label || '点位名称'"
         @cancel="cancelSiteAdd"
         @submit="submitSite"
         @update:code="onSiteCodeInput"

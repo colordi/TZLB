@@ -9,6 +9,14 @@ from backend.db.admin import (
     list_enabled_map_views,
     list_enabled_reference_layers,
 )
+from backend.db.generic_sites import (
+    GenericSiteDuplicateError,
+    GenericSiteError,
+    GenericSiteNotSupportedError,
+    create_generic_site,
+    get_code_hint_for_profile,
+    resolve_site_table_profile,
+)
 from backend.db.postgres import (
     MAP_MAX_LIMIT,
     OtherPestSiteCodeError,
@@ -31,6 +39,9 @@ from backend.db.postgres import (
     get_white_moth_site_code_rules,
 )
 from backend.schemas import (
+    GenericSiteCodeHintResponse,
+    GenericSiteCreateRequest,
+    GenericSiteResponse,
     OtherPestSiteCodeHintResponse,
     OtherPestSiteCreateRequest,
     OtherPestSiteDeleteCheckResponse,
@@ -91,6 +102,100 @@ async def get_views() -> list[dict]:
         return await list_enabled_map_views()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取地图视图失败：{exc}") from exc
+
+
+async def _resolve_task_view_site_context(view_name: str) -> dict:
+    """解析任务视图的 base_table / profile / 编号清单。"""
+
+    view = await get_enabled_map_view(view_name)
+    if view is None:
+        raise HTTPException(status_code=404, detail=f"视图不存在或已停用：{view_name}")
+    if not str(view_name).startswith("task_"):
+        raise HTTPException(status_code=422, detail="仅任务视图支持添加点位")
+
+    site_add = view.get("site_add") or {}
+    if not site_add.get("enabled"):
+        reason = site_add.get("reason") or "当前视图不支持添加点位"
+        raise HTTPException(status_code=422, detail=reason)
+
+    base_table = site_add.get("base_table") or view.get("base_table")
+    if not base_table:
+        raise HTTPException(status_code=422, detail="任务视图未绑定基础点位表")
+
+    # 从元数据取编号清单（list_enabled 不回传完整 codes 列表）
+    from backend.db.layer_metadata import get_layer_metadata_by_key
+
+    metadata = await get_layer_metadata_by_key("view", view_name)
+    source = (metadata or {}).get("source_definition") or {}
+    codes = source.get("codes") if isinstance(source, dict) else None
+    if not isinstance(codes, list):
+        codes = []
+
+    try:
+        profile = await resolve_site_table_profile(base_table)
+    except GenericSiteNotSupportedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return {
+        "view": view,
+        "base_table": base_table,
+        "profile": profile,
+        "allowed_codes": codes,
+    }
+
+
+@router.get(
+    "/sites/code-hint",
+    response_model=GenericSiteCodeHintResponse,
+    summary="读取任务视图点位编号提示",
+)
+async def get_generic_site_code_hint(
+    view_name: str,
+    prefix: str | None = None,
+) -> GenericSiteCodeHintResponse:
+    try:
+        context = await _resolve_task_view_site_context(view_name)
+        hint = await get_code_hint_for_profile(context["profile"], prefix=prefix)
+        return GenericSiteCodeHintResponse(**hint)
+    except HTTPException:
+        raise
+    except GenericSiteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取编号提示失败：{exc}") from exc
+
+
+@router.post(
+    "/sites",
+    response_model=GenericSiteResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="在任务视图对应的基础点位表中新增点位",
+)
+async def post_generic_site(payload: GenericSiteCreateRequest) -> GenericSiteResponse:
+    try:
+        context = await _resolve_task_view_site_context(payload.view_name)
+        created = await create_generic_site(
+            base_table=context["base_table"],
+            code=payload.code,
+            site_name=payload.site_name,
+            locality=payload.locality,
+            longitude=payload.longitude,
+            latitude=payload.latitude,
+            allowed_codes=context["allowed_codes"] or None,
+        )
+        return GenericSiteResponse(
+            **created,
+            base_table=context["base_table"],
+            view_name=payload.view_name,
+        )
+    except HTTPException:
+        raise
+    except GenericSiteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GenericSiteDuplicateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"新增点位失败：{exc}") from exc
 
 
 @router.get("/reference-layers", summary="列出参考图层")

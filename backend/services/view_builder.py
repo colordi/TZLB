@@ -488,6 +488,14 @@ async def create_task_view(definition: TaskViewDefinition) -> dict[str, Any]:
         """
     )
     next_sort_order = int(sort_row["next_sort_order"]) if sort_row else 0
+    source_definition = {
+        "base_table": normalized["base_table"],
+        "site_name_column": normalized.get("site_name_column"),
+        "related_table": normalized.get("related_table"),
+        "year_filter": normalized.get("year_filter") or "",
+        "generation_filter": normalized.get("generation_filter") or "",
+        "codes": list(normalized.get("codes") or []),
+    }
     await batch_upsert_layer_metadata(
         [
             {
@@ -498,12 +506,15 @@ async def create_task_view(definition: TaskViewDefinition) -> dict[str, Any]:
                 "default_visible": False,
                 "is_enabled": True,
                 "default_filters": {},
+                "base_table": normalized["base_table"],
+                "source_definition": source_definition,
             }
         ]
     )
     return {
         "name": normalized["name"],
         "display_name": normalized["display_name"],
+        "base_table": normalized["base_table"],
     }
 
 

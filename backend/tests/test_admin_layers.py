@@ -178,7 +178,21 @@ class AdminLayerMetadataTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             payload,
-            [{"name": "虫情总览", "columns": ["编号"], "label": "总览", "default_filters": {}}],
+            [
+                {
+                    "name": "虫情总览",
+                    "columns": ["编号"],
+                    "label": "总览",
+                    "default_filters": {},
+                    "base_table": None,
+                    "site_add": {
+                        "enabled": False,
+                        "base_table": None,
+                        "reason": "仅任务视图支持添加点位",
+                        "has_code_list_filter": False,
+                    },
+                }
+            ],
         )
 
     async def test_enabled_reference_layers_exclude_disabled_metadata_rows(self) -> None:

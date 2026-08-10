@@ -35,6 +35,9 @@ from backend.schemas.data_manager import (  # noqa: F401
     DataManagerTableInfo,
 )
 from backend.schemas.map import (  # noqa: F401
+    GenericSiteCodeHintResponse,
+    GenericSiteCreateRequest,
+    GenericSiteResponse,
     MapViewSummary,
     OperationLogItem,
     OperationLogListResponse,

@@ -22,12 +22,38 @@ export async function fetchReferenceLayer(name, options = {}) {
   return response.json();
 }
 
+export async function fetchSiteCodeHint(viewName, prefix) {
+  const search = new URLSearchParams();
+  search.set("view_name", `${viewName || ""}`.trim());
+  const normalizedPrefix = `${prefix || ""}`.trim().toUpperCase();
+  if (normalizedPrefix) {
+    search.set("prefix", normalizedPrefix);
+  }
+  const response = await apiFetch(`/api/map/sites/code-hint?${search.toString()}`);
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function createMapSite(payload) {
+  const response = await apiFetch("/api/map/sites", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+/** @deprecated 保留兼容旧测试；新代码请用 fetchSiteCodeHint / createMapSite */
 export async function fetchWhiteMothSiteCodeRules() {
   const response = await apiFetch("/api/map/white-moth-sites/code-rules");
   await ensureApiSuccess(response);
   return response.json();
 }
 
+/** @deprecated */
 export async function fetchWhiteMothSiteCodeHint(prefix) {
   const search = new URLSearchParams();
   search.set("prefix", `${prefix || ""}`.trim().toUpperCase());
@@ -48,6 +74,7 @@ export async function fetchMapFilterOptions(name, filters = {}) {
   return response.json();
 }
 
+/** @deprecated */
 export async function createWhiteMothSite(payload) {
   const response = await apiFetch("/api/map/white-moth-sites", {
     method: "POST",
@@ -60,18 +87,21 @@ export async function createWhiteMothSite(payload) {
   return response.json();
 }
 
+/** @deprecated */
 export async function fetchOtherPestSiteCodeRules() {
   const response = await apiFetch("/api/map/other-pest-sites/code-rules");
   await ensureApiSuccess(response);
   return response.json();
 }
 
+/** @deprecated */
 export async function fetchOtherPestSiteCodeHint() {
   const response = await apiFetch("/api/map/other-pest-sites/code-hint");
   await ensureApiSuccess(response);
   return response.json();
 }
 
+/** @deprecated */
 export async function createOtherPestSite(payload) {
   const response = await apiFetch("/api/map/other-pest-sites", {
     method: "POST",
