@@ -255,9 +255,9 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         counts_query, counts_args = next(
             (query, args) for query, args in calls if "ST_AsGeoJSON" in query
         )
-        # 计数应应用年份等筛选条件，但忽略调查状态本身
-        self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', counts_query)
-        self.assertNotIn("IS NOT NULL", counts_query)
+        # 计数应应用年份等筛选条件，但忽略调查状态本身；年份筛选须保留 NULL（未调查）
+        self.assertIn('("年份" IS NULL OR BTRIM("年份"::text) = ANY($1::text[]))', counts_query)
+        self.assertNotIn("调查日期", counts_query)
         self.assertEqual(counts_args, (["2026"],))
         self.assertEqual(
             payload["survey_status_counts"],
@@ -303,7 +303,7 @@ class MapFilterOptionsTest(unittest.IsolatedAsyncioTestCase):
         query = fetch_mock.await_args.args[0]
         args = fetch_mock.await_args.args[1:]
 
-        self.assertIn('BTRIM("年份"::text) = ANY($1::text[])', query)
+        self.assertIn('("年份" IS NULL OR BTRIM("年份"::text) = ANY($1::text[]))', query)
         self.assertIn('BTRIM("危害程度"::text) = ANY($2::text[])', query)
         self.assertIn('"调查日期" IS NOT NULL', query)
         self.assertNotIn("LIMIT", query)

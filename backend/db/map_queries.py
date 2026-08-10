@@ -455,6 +455,9 @@ def build_map_view_filter_clauses(
 ) -> list[str]:
     filters = filters or {}
     where_clauses: list[str] = []
+    # 任务视图 LEFT JOIN 调查表后，未调查点位的年份/世代为 NULL。
+    # 按调查属性筛选时仍应保留这些点（否则新增点位会被默认年份筛掉）。
+    null_inclusive_columns = {"年份", "世代"}
 
     for column, raw_value in filters.items():
         values = normalize_filter_values(raw_value)
@@ -479,9 +482,12 @@ def build_map_view_filter_clauses(
         if not values:
             continue
         args.append(values)
-        where_clauses.append(
-            f"BTRIM({quote_identifier(column)}::text) = ANY(${len(args)}::text[])"
-        )
+        column_sql = quote_identifier(column)
+        match_sql = f"BTRIM({column_sql}::text) = ANY(${len(args)}::text[])"
+        if column in null_inclusive_columns:
+            where_clauses.append(f"({column_sql} IS NULL OR {match_sql})")
+        else:
+            where_clauses.append(match_sql)
 
     return where_clauses
 

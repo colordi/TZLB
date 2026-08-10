@@ -365,6 +365,46 @@ async def get_code_hint_for_profile(
     }
 
 
+async def _load_table_geom_meta(base_table: str) -> dict[str, int]:
+    """读取 sites 基表 geom 的 SRID 与坐标维数。"""
+
+    row = await fetchrow(
+        """
+        SELECT
+            COALESCE(gc.srid, 4326) AS srid,
+            COALESCE(gc.coord_dimension, 2) AS coord_dimension
+        FROM geometry_columns AS gc
+        WHERE gc.f_table_schema = $1
+          AND gc.f_table_name = $2
+          AND gc.f_geometry_column = $3
+        LIMIT 1
+        """,
+        SITE_SCHEMA,
+        base_table,
+        GEOM_COLUMN,
+    )
+    if row is None:
+        return {"srid": 4326, "coord_dimension": 2}
+    try:
+        srid = int(row["srid"] or 4326)
+    except (TypeError, ValueError):
+        srid = 4326
+    try:
+        dim = int(row["coord_dimension"] or 2)
+    except (TypeError, ValueError):
+        dim = 2
+    return {
+        "srid": srid if srid > 0 else 4326,
+        "coord_dimension": dim if dim in (2, 3, 4) else 2,
+    }
+
+
+async def _load_table_geom_srid(base_table: str) -> int:
+    """兼容旧调用：仅返回 SRID。"""
+
+    return (await _load_table_geom_meta(base_table))["srid"]
+
+
 async def create_generic_site(
     *,
     base_table: str,
@@ -407,6 +447,9 @@ async def create_generic_site(
         raise GenericSiteDuplicateError(f"编号已存在：{normalized_code}")
 
     columns = await _load_table_columns(profile.table_name)
+    geom_meta = await _load_table_geom_meta(profile.table_name)
+    target_srid = geom_meta["srid"]
+    coord_dimension = geom_meta["coord_dimension"]
     insert_columns: list[str] = [CODE_COLUMN]
     values_sql: list[str] = ["$1"]
     args: list[Any] = [normalized_code]
@@ -446,9 +489,15 @@ async def create_generic_site(
     lat_placeholder = f"${arg_index + 1}"
     args.extend([longitude, latitude])
     insert_columns.append(GEOM_COLUMN)
-    values_sql.append(
-        f"ST_SetSRID(ST_MakePoint({lon_placeholder}, {lat_placeholder}), 4326)"
-    )
+    # 前端始终传 WGS84；写入时变换到目标表 SRID，并匹配 2D/3D 维数
+    point_sql = f"ST_SetSRID(ST_MakePoint({lon_placeholder}, {lat_placeholder}), 4326)"
+    if target_srid != 4326:
+        point_sql = f"ST_Transform({point_sql}, {int(target_srid)})"
+    if coord_dimension >= 3:
+        point_sql = f"ST_Force3D({point_sql})"
+    elif coord_dimension == 2:
+        point_sql = f"ST_Force2D({point_sql})"
+    values_sql.append(point_sql)
 
     column_sql = ", ".join(quote_identifier(col) for col in insert_columns)
     value_sql = ", ".join(values_sql)
@@ -470,6 +519,11 @@ async def create_generic_site(
     else:
         gid_expr = "NULL::integer AS gid"
 
+    geom_col = quote_identifier(GEOM_COLUMN)
+    # 响应坐标统一回 WGS84
+    lon_expr = f"ST_X(ST_Transform({geom_col}, 4326)) AS longitude"
+    lat_expr = f"ST_Y(ST_Transform({geom_col}, 4326)) AS latitude"
+
     try:
         row = await fetchrow(
             f"""
@@ -480,8 +534,8 @@ async def create_generic_site(
                 BTRIM({quote_identifier(CODE_COLUMN)}::text) AS code,
                 {returning_locality} AS locality,
                 {returning_name} AS site_name,
-                ST_X({quote_identifier(GEOM_COLUMN)}) AS longitude,
-                ST_Y({quote_identifier(GEOM_COLUMN)}) AS latitude
+                {lon_expr},
+                {lat_expr}
             """,
             *args,
         )
