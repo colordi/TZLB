@@ -99,7 +99,7 @@ const {
             :value="group.pest"
             :data-testid="`pest-tab-${group.pest}`"
           >
-            <Bug v-if="group.pest !== '通用'" class="size-4" />
+            <Bug class="size-4" />
             <span>{{ group.pest }}</span>
           </TabsTrigger>
         </TabsList>
