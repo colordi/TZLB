@@ -17,6 +17,7 @@ SURVEY_IMPORT_SPRING_INCHWORM = "spring_inchworm"
 SURVEY_IMPORT_GUO_HUAI_INCHWORM = "guo_huai_inchworm"
 SURVEY_IMPORT_OTHER_PEST = "other_pest"
 SURVEY_IMPORT_MEI_GUO_BAI_E = "mei_guo_bai_e"
+SURVEY_IMPORT_YANGSHU_SHIYE = "yangshu_shiye"
 WORKORDER_TEMPLATE_FILENAME = "林业有害生物防治工作单模板.docx"
 DEFAULT_TASK_TEMPLATE = "{year}{pest}{generation}防治"
 GENERATION_NONE: tuple[str | None, ...] = (None,)
@@ -204,6 +205,32 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         image_strategy=IMAGE_STRATEGY_AUTO_DISK,
         survey_import_strategy=SURVEY_IMPORT_OTHER_PEST,
         screenshot_dir_attr="other_pest_point_screenshot_dir",
+    ),
+    PestRegistryEntry(
+        key="杨树食叶害虫",
+        label="杨树食叶害虫",
+        control_type="杨树食叶害虫防治",
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATION_NONE,
+        field_keys=OTHER_PEST_FIELD_KEYS,
+        required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
+        number_field_keys=(),
+        template_filename=WORKORDER_TEMPLATE_FILENAME,
+        payload_field_keys=(
+            *COMMON_PAYLOAD_FIELD_KEYS,
+            "plot_type",
+            "pest_name",
+            "host_plant",
+        ),
+        default_region="乡镇",
+        context_defaults={
+            "tree_height": "8米下",
+            "damaged_plant_count": "10",
+            "web_nest_count": "0",
+        },
+        image_strategy=IMAGE_STRATEGY_AUTO_DISK,
+        survey_import_strategy=SURVEY_IMPORT_YANGSHU_SHIYE,
+        screenshot_dir_attr="yangshu_shiye_point_screenshot_dir",
     ),
 )
 

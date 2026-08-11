@@ -102,6 +102,7 @@ from backend.db.survey_candidates import (  # noqa: F401
     fetch_spring_inchworm_survey_candidates,
     fetch_survey_candidates,
     fetch_survey_candidates_by_type,
+    fetch_yangshu_shiye_survey_candidates,
     load_point_screenshot_images,
     serialize_date_value,
 )

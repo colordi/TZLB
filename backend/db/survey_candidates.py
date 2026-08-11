@@ -13,6 +13,7 @@ from backend.services.pest_registry import (
     SURVEY_IMPORT_MEI_GUO_BAI_E,
     SURVEY_IMPORT_OTHER_PEST,
     SURVEY_IMPORT_SPRING_INCHWORM,
+    SURVEY_IMPORT_YANGSHU_SHIYE,
     get_pest_config,
 )
 
@@ -21,11 +22,13 @@ SURVEY_LARVA_TABLE = "春尺蠖幼虫调查表"
 GUO_HUAI_LARVA_TABLE = "国槐尺蠖幼虫调查表"
 OTHER_PEST_SURVEY_TABLE = "其他害虫调查表"
 MEI_GUO_BAI_E_SURVEY_TABLE = "美国白蛾调查表"
+YANGSHU_SHIYE_SURVEY_TABLE = "杨树食叶害虫调查表"
 SITE_SCHEMA = "sites"
 SITE_TABLE = "杨树点位基础表"
 SOPHORA_SITE_TABLE = "国槐点位基础表"
 OTHER_PEST_SITE_TABLE = "其他害虫点位基础表"
 WHITE_MOTH_SITE_TABLE = "美国白蛾点位基础表"
+YANGSHU_SHIYE_SITE_TABLE = "杨树食叶害虫点位基础表"
 LOCALITY_COLUMN = "属地"
 
 
@@ -203,6 +206,7 @@ async def fetch_site_points(pest_type: str) -> list[dict[str, str]]:
         "国槐尺蠖": (SOPHORA_SITE_TABLE, "村"),
         "美国白蛾": (WHITE_MOTH_SITE_TABLE, "点位名称"),
         "其他害虫": (OTHER_PEST_SITE_TABLE, "点位名称"),
+        "杨树食叶害虫": (YANGSHU_SHIYE_SITE_TABLE, "村"),
     }
     source = site_sources.get(config.key)
     if source is None:
@@ -252,6 +256,7 @@ async def fetch_survey_candidates_by_type(
         SURVEY_IMPORT_SPRING_INCHWORM: fetch_spring_inchworm_survey_candidates,
         SURVEY_IMPORT_GUO_HUAI_INCHWORM: fetch_guo_huai_inchworm_survey_candidates,
         SURVEY_IMPORT_MEI_GUO_BAI_E: fetch_meiguobaie_survey_candidates,
+        SURVEY_IMPORT_YANGSHU_SHIYE: fetch_yangshu_shiye_survey_candidates,
     }
     handler = strategy_handlers.get(config.survey_import_strategy or "")
     if handler is None:
@@ -405,17 +410,34 @@ async def fetch_guo_huai_inchworm_survey_candidates(
     return candidates
 
 
-async def fetch_other_pest_survey_candidates(
+async def fetch_other_pest_like_survey_candidates(
     survey_date: date_cls,
+    *,
+    survey_table: str,
+    site_table: str,
+    site_name_column: str,
+    site_host_column: str | None,
+    site_plot_column: str | None,
+    screenshot_dir: Path,
     include_images: bool = True,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的其他害虫调查导入候选记录。"""
+    """按"调查结论=发现问题"读取调查导入候选记录（其他害虫、杨树食叶害虫共用）。
+
+    两个虫种的调查表结构一致；点位基础表的名称/寄主/地块列名不同，由参数指定，
+    没有的列传 None，对应字段返回空串。
+    """
 
     qualified_survey_table = (
-        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(OTHER_PEST_SURVEY_TABLE)}"
+        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(survey_table)}"
     )
     qualified_site_table = (
-        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(OTHER_PEST_SITE_TABLE)}"
+        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(site_table)}"
+    )
+    host_expression = (
+        f"COALESCE(s.{quote_identifier(site_host_column)}, '')" if site_host_column else "''"
+    )
+    plot_expression = (
+        f"COALESCE(s.{quote_identifier(site_plot_column)}, '')" if site_plot_column else "''"
     )
 
     rows = await fetch(
@@ -429,11 +451,11 @@ async def fetch_other_pest_survey_candidates(
             COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(
                 NULLIF(BTRIM(i."点位名称"), ''),
-                NULLIF(BTRIM(s."点位名称"), ''),
+                NULLIF(BTRIM(s.{quote_identifier(site_name_column)}), ''),
                 ''
             ) AS location_name,
-            COALESCE(s."寄主树种", '') AS host_plant,
-            COALESCE(s."地块类型", '') AS plot_type
+            {host_expression} AS host_plant,
+            {plot_expression} AS plot_type
         FROM {qualified_survey_table} AS i
         JOIN {qualified_site_table} AS s
           ON i."编号" = s."编号"
@@ -448,7 +470,7 @@ async def fetch_other_pest_survey_candidates(
     )
 
     screenshot_index = (
-        build_point_screenshot_index(get_settings().other_pest_point_screenshot_dir)
+        build_point_screenshot_index(screenshot_dir)
         if include_images
         else {}
     )
@@ -471,6 +493,42 @@ async def fetch_other_pest_survey_candidates(
         }
         for row in rows
     ]
+
+
+async def fetch_other_pest_survey_candidates(
+    survey_date: date_cls,
+    include_images: bool = True,
+) -> list[dict[str, Any]]:
+    """读取指定日期的其他害虫调查导入候选记录。"""
+
+    return await fetch_other_pest_like_survey_candidates(
+        survey_date,
+        survey_table=OTHER_PEST_SURVEY_TABLE,
+        site_table=OTHER_PEST_SITE_TABLE,
+        site_name_column="点位名称",
+        site_host_column="寄主树种",
+        site_plot_column="地块类型",
+        screenshot_dir=get_settings().other_pest_point_screenshot_dir,
+        include_images=include_images,
+    )
+
+
+async def fetch_yangshu_shiye_survey_candidates(
+    survey_date: date_cls,
+    include_images: bool = True,
+) -> list[dict[str, Any]]:
+    """读取指定日期的杨树食叶害虫调查导入候选记录。"""
+
+    return await fetch_other_pest_like_survey_candidates(
+        survey_date,
+        survey_table=YANGSHU_SHIYE_SURVEY_TABLE,
+        site_table=YANGSHU_SHIYE_SITE_TABLE,
+        site_name_column="村",
+        site_host_column="杨树类型",
+        site_plot_column=None,
+        screenshot_dir=get_settings().yangshu_shiye_point_screenshot_dir,
+        include_images=include_images,
+    )
 
 
 async def fetch_meiguobaie_survey_candidates(

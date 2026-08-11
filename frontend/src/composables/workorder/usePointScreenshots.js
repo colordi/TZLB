@@ -20,6 +20,7 @@ export function usePointScreenshots() {
     { pestType: "国槐尺蠖", label: "国槐点位截图" },
     { pestType: "美国白蛾", label: "美国白蛾截图" },
     { pestType: "其他害虫", label: "其他害虫截图" },
+    { pestType: "杨树食叶害虫", label: "杨树食叶害虫截图" },
   ]);
   const PAGE_SIZE = 48;
   const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);

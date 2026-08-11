@@ -7,7 +7,7 @@ import { fetchPointDateImageBlob } from "../../api/workorder.js";
 import { useToast } from "../../composables/useToast.js";
 import { useDatePointImages } from "../../composables/workorder/useDatePointImages.js";
 import { useWorkorderTaskConfig } from "../../composables/workorder/useWorkorderTaskConfig.js";
-import { getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
+import { getPestConfig, getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import { Button } from "@/components/ui/button";
@@ -55,9 +55,9 @@ const candidateColumns = computed(() =>
     .slice(0, 3),
 );
 const autoAssemblyHint = computed(() =>
-  pestType.value === "美国白蛾" || pestType.value === "其他害虫"
+  getPestConfig(pestType.value).imageStrategy === "auto_disk_images"
     ? `${pestType.value}生成工单时会自动按编号从这些图片中装配现场图（点位截图优先，其次日期现场照）。`
-    : "提示：目前仅美国白蛾、其他害虫生成工单时自动装配日期图片；春尺蠖/国槐尺蠖请使用点位截图或清单内图片。",
+    : "提示：自动装配日期图片的虫种会在生成工单时按编号装配现场图；其余虫种请使用点位截图或清单内图片。",
 );
 
 watch([pestType, year, taskName, selectedDate], () => {

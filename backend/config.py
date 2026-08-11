@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     sophora_point_screenshot_dir: Path = BASE_DIR / "points" / "国槐点位截图"
     meiguobaie_point_screenshot_dir: Path = BASE_DIR / "points" / "美国白蛾点位截图"
     other_pest_point_screenshot_dir: Path = BASE_DIR / "points" / "其他害虫点位截图"
+    yangshu_shiye_point_screenshot_dir: Path = BASE_DIR / "points" / "杨树食叶害虫点位截图"
     images_dir: Path = BASE_DIR / "images"
     temp_dir: Path = BASE_DIR / ".tmp" / "workorder_images"
     libreoffice_bin: str = Field(

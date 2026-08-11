@@ -60,9 +60,22 @@ const CHI_HUO_IMPORT_COLUMNS = [
 
 const COMMON_IMPORT_KEY_FIELDS = ["survey_date", "location_id", "pest_name"];
 
+const OTHER_PEST_IMPORT_COLUMNS = [
+  { key: "location_id", label: "编号", fallback: "—" },
+  { key: "locality", label: "属地", fallback: "未匹配" },
+  { key: "location_name", label: "点位名称", fallback: "未匹配" },
+  { key: "pest_name", label: "虫害类型", fallback: "—" },
+  { key: "host_plant", label: "寄主树种", fallback: "—" },
+  { key: "survey_result", label: "调查结论", fallback: "—" },
+];
+
 const DEFAULT_TASK_TEMPLATE = "{year}{pest}{generation}防治";
 const GENERATION_NONE = [null];
 const GENERATIONS_THREE = ["第一代", "第二代", "第三代"];
+
+// 与后端 pest_registry 的图片策略一致
+const IMAGE_STRATEGY_UPLOADED = "uploaded_images";
+const IMAGE_STRATEGY_AUTO_DISK = "auto_disk_images";
 
 export const PEST_REGISTRY = [
   {
@@ -79,6 +92,7 @@ export const PEST_REGISTRY = [
     defaultRegion: "乡镇",
     recordDefaults: { plot_type: "平原造林" },
     recordOverrides: { pest_name: "", host_plant: "" },
+    imageStrategy: IMAGE_STRATEGY_UPLOADED,
     surveyImport: {
       description: "按调查日期查询春尺蠖受害点位，并批量导入到当前工单。",
       idleHint: "当前支持导入春尺蠖幼虫调查数据。",
@@ -100,6 +114,7 @@ export const PEST_REGISTRY = [
     defaultRegion: "乡镇",
     recordDefaults: { plot_type: "平原造林" },
     recordOverrides: { pest_name: "", host_plant: "" },
+    imageStrategy: IMAGE_STRATEGY_UPLOADED,
     surveyImport: {
       description: "按调查日期查询国槐尺蠖受害点位，并批量导入到当前工单。",
       idleHint: "当前支持导入国槐尺蠖幼虫调查数据。",
@@ -127,6 +142,7 @@ export const PEST_REGISTRY = [
     defaultRegion: "乡镇",
     recordDefaults: {},
     recordOverrides: {},
+    imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
     surveyImport: {
       description: "按调查日期查询美国白蛾第一代问题点位，并批量导入到当前工单。",
       idleHint: "当前支持按调查日期导入美国白蛾第一代调查数据。",
@@ -161,17 +177,38 @@ export const PEST_REGISTRY = [
     defaultRegion: "城区",
     recordDefaults: {},
     recordOverrides: {},
+    imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
     surveyImport: {
       description: "按调查日期查询其他害虫问题点位，并批量导入到当前工单。",
       idleHint: "当前支持按调查日期导入其他害虫调查数据。",
-      columns: [
-        { key: "location_id", label: "编号", fallback: "—" },
-        { key: "locality", label: "属地", fallback: "未匹配" },
-        { key: "location_name", label: "点位名称", fallback: "未匹配" },
-        { key: "pest_name", label: "虫害类型", fallback: "—" },
-        { key: "host_plant", label: "寄主树种", fallback: "—" },
-        { key: "survey_result", label: "调查结论", fallback: "—" },
-      ],
+      columns: OTHER_PEST_IMPORT_COLUMNS,
+      candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
+    },
+  },
+  {
+    key: "杨树食叶害虫",
+    label: "杨树食叶害虫",
+    group: "yangshu_shiye",
+    controlType: "杨树食叶害虫防治",
+    taskTemplate: DEFAULT_TASK_TEMPLATE,
+    generations: GENERATION_NONE,
+    fieldKeys: OTHER_PEST_FIELD_KEYS,
+    requiredFieldKeys: COMMON_REQUIRED_FIELD_KEYS,
+    numberFieldKeys: [],
+    payloadFieldKeys: [
+      ...COMMON_PAYLOAD_FIELD_KEYS,
+      "plot_type",
+      "pest_name",
+      "host_plant",
+    ],
+    defaultRegion: "乡镇",
+    recordDefaults: {},
+    recordOverrides: {},
+    imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
+    surveyImport: {
+      description: "按调查日期查询杨树食叶害虫问题点位，并批量导入到当前工单。",
+      idleHint: "当前支持按调查日期导入杨树食叶害虫调查数据。",
+      columns: OTHER_PEST_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     },
   },
