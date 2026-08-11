@@ -6,7 +6,10 @@ from io import BytesIO
 from openpyxl import load_workbook
 
 from backend.services.survey_excel_import import ColumnMeta, TableMeta
-from backend.services.survey_template import build_import_template_bytes
+from backend.services.survey_template import (
+    build_import_template_bytes,
+    filter_template_metadata,
+)
 
 
 class SurveyTemplateTest(unittest.TestCase):
@@ -107,6 +110,50 @@ class SurveyTemplateTest(unittest.TestCase):
         self.assertIsNotNone(required_header.comment)
         self.assertIn("必填", required_header.comment.text)
         self.assertNotEqual(required_header.fill.start_color.rgb, optional_header.fill.start_color.rgb)
+
+
+class FilterTemplateMetadataTest(unittest.TestCase):
+    def _build_metadata(self) -> dict[str, TableMeta]:
+        return {
+            "美国白蛾调查表": TableMeta(
+                schema_name="survey",
+                name="美国白蛾调查表",
+                columns={},
+                conflict_columns=("编号",),
+            ),
+            "美国白蛾问题点位事件流水表": TableMeta(
+                schema_name="ledger",
+                name="美国白蛾问题点位事件流水表",
+                columns={},
+                conflict_columns=("id",),
+            ),
+            "春尺蠖幼虫调查表": TableMeta(
+                schema_name="survey",
+                name="春尺蠖幼虫调查表",
+                columns={},
+                conflict_columns=("编号",),
+            ),
+        }
+
+    def test_filter_keeps_only_tables_of_the_pest(self) -> None:
+        metadata = self._build_metadata()
+
+        filtered = filter_template_metadata(metadata, "美国白蛾")
+
+        self.assertEqual(
+            sorted(filtered.keys()),
+            ["美国白蛾调查表", "美国白蛾问题点位事件流水表"],
+        )
+
+    def test_filter_rejects_unknown_pest_type(self) -> None:
+        metadata = self._build_metadata()
+
+        with self.assertRaises(ValueError):
+            filter_template_metadata(metadata, "不存在的虫")
+
+    def test_filter_rejects_pest_without_tables(self) -> None:
+        with self.assertRaises(ValueError):
+            filter_template_metadata({}, "美国白蛾")
 
 
 if __name__ == "__main__":

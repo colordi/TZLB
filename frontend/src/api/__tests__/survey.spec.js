@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { downloadImportTemplate, fetchSurveyCandidates, uploadSurveyExcel } from "../survey.js";
+import { downloadImportTemplate, fetchPestTypes, fetchSurveyCandidates, uploadSurveyExcel } from "../survey.js";
 
 function buildResponse(payload, ok = true) {
   return {
@@ -77,6 +77,24 @@ describe("survey api", () => {
     expect(init.body.get("file")).toBe(file);
   });
 
+  it("fetchPestTypes 请求虫种列表接口", async () => {
+    const payload = [
+      { key: "美国白蛾", label: "美国白蛾" },
+      { key: "杨树食叶害虫", label: "杨树食叶害虫" },
+    ];
+    global.fetch.mockResolvedValue(buildResponse(payload));
+
+    const result = await fetchPestTypes();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/survey/pest-types",
+      expect.objectContaining({
+        credentials: "same-origin",
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
   it("downloadImportTemplate 返回 blob 和解码后的文件名", async () => {
     const blob = new Blob(["xlsx-template"]);
     global.fetch.mockResolvedValue(
@@ -87,10 +105,10 @@ describe("survey api", () => {
       ),
     );
 
-    const result = await downloadImportTemplate();
+    const result = await downloadImportTemplate("美国白蛾");
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/import-template",
+      `/api/survey/import-template?pest_type=${encodeURIComponent("美国白蛾")}`,
       expect.objectContaining({
         credentials: "same-origin",
       }),

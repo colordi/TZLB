@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import {
   CheckCircle2,
   Download,
@@ -12,13 +12,14 @@ import {
 } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../api/http.js";
-import { downloadImportTemplate, uploadSurveyExcel } from "../api/survey.js";
+import { downloadImportTemplate, fetchPestTypes, uploadSurveyExcel } from "../api/survey.js";
 import { useToast } from "../composables/useToast.js";
 import { downloadBlob } from "../utils/download.js";
 import PageHeader from "@/components/common/PageHeader.vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const { error, info, success } = useToast();
 
@@ -28,6 +29,25 @@ const previewResult = ref(null);
 const loading = ref(false);
 const committing = ref(false);
 const downloadingTemplate = ref(false);
+const templatePestOptions = ref([]);
+const templatePestType = ref("");
+
+async function loadTemplatePestOptions() {
+  try {
+    const pestTypes = await fetchPestTypes();
+    templatePestOptions.value = Array.isArray(pestTypes) ? pestTypes : [];
+    if (!templatePestType.value && templatePestOptions.value.length) {
+      templatePestType.value = templatePestOptions.value[0].key;
+    }
+  } catch (loadError) {
+    if (isUnauthorizedError(loadError)) {
+      return;
+    }
+    error(`${loadError.message || loadError}`, "虫种列表加载失败");
+  }
+}
+
+onMounted(loadTemplatePestOptions);
 
 const totals = computed(() => previewResult.value?.totals || {});
 const hasErrors = computed(() => Number(totals.value.error_count || 0) > 0);
@@ -109,13 +129,13 @@ function hasBusinessStats(sheet) {
 }
 
 async function handleDownloadTemplate() {
-  if (downloadingTemplate.value) {
+  if (downloadingTemplate.value || !templatePestType.value) {
     return;
   }
 
   downloadingTemplate.value = true;
   try {
-    const { blob, filename } = await downloadImportTemplate();
+    const { blob, filename } = await downloadImportTemplate(templatePestType.value);
     await downloadBlob(blob, filename);
     success("导入模板已下载。", "下载完成");
   } catch (downloadError) {
@@ -251,18 +271,35 @@ async function handleConfirm() {
             {{ loading ? "校验中…" : "预览校验" }}
           </Button>
           <span class="text-xs text-muted-foreground">仅支持 .xlsx</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            class="ml-auto"
-            :disabled="downloadingTemplate"
-            data-testid="survey-excel-download-template"
-            @click="handleDownloadTemplate"
-          >
-            <Download class="size-4" />
-            {{ downloadingTemplate ? "正在下载模板…" : "下载模板" }}
-          </Button>
+          <div class="ml-auto flex items-center gap-2">
+            <label
+              class="flex items-center gap-2 text-sm text-muted-foreground"
+              data-testid="survey-excel-template-pest"
+            >
+              <span>模板虫种</span>
+              <NativeSelect
+                v-model="templatePestType"
+                :disabled="downloadingTemplate"
+              >
+                <option
+                  v-for="pest in templatePestOptions"
+                  :key="pest.key"
+                  :value="pest.key"
+                >{{ pest.label }}</option>
+              </NativeSelect>
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :disabled="downloadingTemplate || !templatePestType"
+              data-testid="survey-excel-download-template"
+              @click="handleDownloadTemplate"
+            >
+              <Download class="size-4" />
+              {{ downloadingTemplate ? "正在下载模板…" : "下载模板" }}
+            </Button>
+          </div>
         </div>
 
         <!-- 校验结果 -->

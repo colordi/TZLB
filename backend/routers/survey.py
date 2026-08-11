@@ -10,12 +10,21 @@ from fastapi.responses import Response
 from backend.db.postgres import fetch_survey_candidates_by_type
 from backend.exceptions import BusinessError
 from backend.schemas import PestType
+from backend.services.pest_registry import list_pest_configs
 from backend.services.pest_registry import validate_generation as validate_registered_generation
 from backend.services.survey_excel_import import import_survey_excel
 from backend.services.survey_template import generate_import_template_bytes
 
 
 router = APIRouter()
+
+
+@router.get("/pest-types", summary="读取已注册害虫类型列表")
+async def list_survey_pest_types() -> list[dict[str, str]]:
+    return [
+        {"key": entry.key, "label": entry.label}
+        for entry in list_pest_configs()
+    ]
 
 
 @router.get("/candidates", summary="读取调查导入候选记录")
@@ -71,14 +80,16 @@ async def import_survey_excel_file(
 
 
 @router.get("/import-template", summary="下载数据导入模板")
-async def download_survey_import_template() -> Response:
+async def download_survey_import_template(
+    pest_type: str = Query(..., description="害虫类型，如 美国白蛾"),
+) -> Response:
     try:
-        content = await generate_import_template_bytes()
+        content = await generate_import_template_bytes(pest_type)
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
 
     exported_at = date_cls.today().strftime("%Y%m%d")
-    filename = f"林业数据导入模板_{exported_at}.xlsx"
+    filename = f"{pest_type}数据导入模板_{exported_at}.xlsx"
     encoded_name = quote(filename)
     return Response(
         content=content,

@@ -2,6 +2,7 @@
 
 模板完全依据数据库 information_schema 元数据生成，因此 sheet 名、列名、
 必填列与 `/api/survey/excel-import` 的校验规则保持一致。
+模板按虫种生成：虫种来自 pest_registry 注册表，表归属按"表名包含虫种名"匹配。
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from openpyxl.utils import get_column_letter
 
 from backend.db.postgres import ensure_pool
 from backend.logging_config import get_logger
+from backend.services.pest_registry import validate_pest_type
 from backend.services.survey_excel_import import fetch_survey_table_metadata
 
 
@@ -110,12 +112,30 @@ def build_import_template_bytes(metadata: dict[str, Any]) -> bytes:
     return output.getvalue()
 
 
-async def generate_import_template_bytes() -> bytes:
-    """异步获取数据库元数据并生成模板字节流。"""
+def filter_template_metadata(
+    metadata: dict[str, Any],
+    pest_type: str,
+) -> dict[str, Any]:
+    """按虫种过滤模板元数据，只保留表名包含该虫种名的可导入表。"""
+
+    validated_pest = validate_pest_type(pest_type)
+    filtered = {
+        table_name: table_meta
+        for table_name, table_meta in metadata.items()
+        if validated_pest in table_meta.name
+    }
+    if not filtered:
+        raise ValueError(f"{validated_pest} 没有可导入的数据表")
+    return filtered
+
+
+async def generate_import_template_bytes(pest_type: str) -> bytes:
+    """异步获取数据库元数据并生成指定虫种的模板字节流。"""
 
     pool = await ensure_pool()
     async with pool.acquire() as connection:
         metadata = await fetch_survey_table_metadata(connection)
 
-    logger.info("生成导入模板: 共 %d 张表", len(metadata))
-    return build_import_template_bytes(metadata)
+    filtered = filter_template_metadata(metadata, pest_type)
+    logger.info("生成导入模板: 虫种=%s 共 %d 张表", pest_type, len(filtered))
+    return build_import_template_bytes(filtered)

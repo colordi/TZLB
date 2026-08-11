@@ -40,15 +40,22 @@ export async function uploadSurveyExcel({ file, dryRun = true }) {
   return response.json();
 }
 
-export async function downloadImportTemplate() {
-  const response = await apiFetch("/api/survey/import-template");
+export async function fetchPestTypes() {
+  const response = await apiFetch("/api/survey/pest-types");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function downloadImportTemplate(pestType) {
+  const search = new URLSearchParams({ pest_type: pestType });
+  const response = await apiFetch(`/api/survey/import-template?${search.toString()}`);
   await ensureApiSuccess(response);
 
   return {
     blob: await response.blob(),
     filename: extractFilename(
       response.headers.get("content-disposition"),
-      "林业数据导入模板.xlsx",
+      `${pestType}数据导入模板.xlsx`,
     ),
   };
 }
