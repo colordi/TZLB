@@ -112,6 +112,72 @@ class SurveyTemplateTest(unittest.TestCase):
         self.assertNotEqual(required_header.fill.start_color.rgb, optional_header.fill.start_color.rgb)
 
 
+    def test_example_row_prefers_real_data(self) -> None:
+        metadata = {
+            "美国白蛾调查表": TableMeta(
+                schema_name="survey",
+                name="美国白蛾调查表",
+                columns={
+                    "编号": ColumnMeta(
+                        name="编号",
+                        data_type="character varying",
+                        udt_name="varchar",
+                        is_nullable=False,
+                        default="",
+                        ordinal_position=1,
+                    ),
+                    "受害株数": ColumnMeta(
+                        name="受害株数",
+                        data_type="integer",
+                        udt_name="int4",
+                        is_nullable=True,
+                        default="0",
+                        ordinal_position=2,
+                    ),
+                    "备注": ColumnMeta(
+                        name="备注",
+                        data_type="text",
+                        udt_name="text",
+                        is_nullable=True,
+                        default="",
+                        ordinal_position=3,
+                    ),
+                    "id": ColumnMeta(
+                        name="id",
+                        data_type="integer",
+                        udt_name="int4",
+                        is_nullable=False,
+                        default="",
+                        ordinal_position=4,
+                        is_identity=True,
+                    ),
+                },
+                conflict_columns=("编号",),
+            ),
+        }
+        example_rows = {
+            "美国白蛾调查表": {
+                "编号": "MQ0001",
+                "受害株数": None,
+                "id": 42,
+            },
+        }
+
+        content = build_import_template_bytes(metadata, example_rows)
+        worksheet = load_workbook(BytesIO(content)).active
+        self.assertIsNotNone(worksheet)
+
+        examples = [cell.value for cell in worksheet[2]]
+        # 真实值覆盖占位
+        self.assertEqual(examples[0], "MQ0001")
+        # 真实行中的 NULL 留空
+        self.assertIsNone(examples[1])
+        # 真实行缺少的列回退到类型占位
+        self.assertEqual(examples[2], "示例值")
+        # 自动生成列即使真实行有值也留空
+        self.assertIsNone(examples[3])
+
+
 class FilterTemplateMetadataTest(unittest.TestCase):
     def _build_metadata(self) -> dict[str, TableMeta]:
         return {
