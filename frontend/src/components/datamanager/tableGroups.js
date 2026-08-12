@@ -53,6 +53,13 @@ export const PEST_TABLE_RULES = [
     ],
   },
   {
+    pest: "白蜡蛀干害虫",
+    tables: [
+      "survey.白蜡蛀干害虫调查表",
+      "sites.白蜡点位基础表",
+    ],
+  },
+  {
     pest: "监测点位",
     tables: [
       "sites.监测点位基础表",

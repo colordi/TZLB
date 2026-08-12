@@ -27,6 +27,7 @@ function allTables() {
     makeTable("survey", "美国白蛾调查表"),
     makeTable("survey", "其他害虫调查表"),
     makeTable("survey", "杨树食叶害虫调查表"),
+    makeTable("survey", "白蜡蛀干害虫调查表"),
     makeTable("ledger", "春尺蠖问题点位事件流水表"),
     makeTable("ledger", "国槐尺蠖问题点位事件流水表"),
     makeTable("ledger", "美国白蛾问题点位事件流水表"),
@@ -38,6 +39,7 @@ function allTables() {
     makeTable("sites", "美国白蛾小区点位基础表"),
     makeTable("sites", "其他害虫点位基础表"),
     makeTable("sites", "杨树食叶害虫点位基础表"),
+    makeTable("sites", "白蜡点位基础表"),
     makeTable("sites", "监测点位基础表"),
   ];
 }
@@ -52,9 +54,10 @@ describe("datamanager/tableGroups groupTablesByPest", () => {
       "美国白蛾",
       "其他害虫",
       "杨树食叶害虫",
+      "白蜡蛀干害虫",
       "监测点位",
     ]);
-    expect(groups.map((g) => g.tables.length)).toEqual([5, 3, 4, 3, 3, 1]);
+    expect(groups.map((g) => g.tables.length)).toEqual([5, 3, 4, 3, 3, 2, 1]);
   });
 
   it("杨树点位基础表归入春尺蠖，国槐点位基础表归入国槐尺蠖", () => {
@@ -81,6 +84,18 @@ describe("datamanager/tableGroups groupTablesByPest", () => {
     ]);
     expect(byPest["美国白蛾"]).toContain("美国白蛾小区点位基础表");
     expect(byPest["监测点位"]).toEqual(["监测点位基础表"]);
+  });
+
+  it("白蜡蛀干害虫仅调查表与白蜡点位基础表", () => {
+    const groups = groupTablesByPest(allTables());
+    const byPest = Object.fromEntries(
+      groups.map((g) => [g.pest, g.tables.map((t) => t.table_name)]),
+    );
+
+    expect(byPest["白蜡蛀干害虫"]).toEqual([
+      "白蜡蛀干害虫调查表",
+      "白蜡点位基础表",
+    ]);
   });
 
   it("全部可管理表都被分组覆盖，无遗漏", () => {

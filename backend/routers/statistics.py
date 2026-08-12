@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.services.statistics import (
     get_other_pest_summary,
+    get_sophora_generation_summary,
+    get_sophora_locality_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
@@ -90,3 +92,30 @@ async def get_other_pest_summary_statistics(
         return await get_other_pest_summary(year=year)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取其他害虫汇总失败：{exc}") from exc
+
+
+@router.get(
+    "/sophora-inchworm/generation-summary",
+    summary="读取国槐尺蠖各世代汇总",
+)
+async def get_sophora_generation_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
+    try:
+        return await get_sophora_generation_summary(year=year)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取国槐尺蠖世代汇总失败：{exc}") from exc
+
+
+@router.get(
+    "/sophora-inchworm/locality-summary",
+    summary="读取国槐尺蠖各属地受害汇总",
+)
+async def get_sophora_locality_statistics(
+    year: int | None = Query(None, description="年份"),
+    generation: str | None = Query(None, description="世代，如第一代；空为全部"),
+) -> dict[str, Any]:
+    try:
+        return await get_sophora_locality_summary(year=year, generation=generation)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取国槐尺蠖属地受害汇总失败：{exc}") from exc

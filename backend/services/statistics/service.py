@@ -36,6 +36,12 @@ from backend.services.statistics.sql_other_pest import (
     OTHER_PEST_STATUS_SQL,
     OTHER_PEST_TOTALS_SQL,
 )
+from backend.services.statistics.sql_sophora import (
+    SOPHORA_GENERATION_SUMMARY_SQL,
+    SOPHORA_LOCALITY_ORDER,
+    SOPHORA_LOCALITY_SEVERE_SITES_SQL,
+    SOPHORA_LOCALITY_SUMMARY_SQL,
+)
 
 
 async def get_white_moth_daily_statistics(
@@ -161,6 +167,190 @@ async def get_white_moth_host_summary(
         "year": effective_year,
         "generation": generation,
         **summary,
+    }
+
+
+def _rate(numerator: int, denominator: int) -> float | None:
+    if denominator <= 0:
+        return None
+    return round(numerator / denominator * 100, 1)
+
+
+def _avg_insect(value: Any) -> float | None:
+    if value is None:
+        return None
+    return round(float(value), 1)
+
+
+def _serialize_sophora_generation_row(row: Any) -> dict[str, Any]:
+    surveyed = int(row["surveyed_points"] or 0)
+    damaged = int(row["damaged_points"] or 0)
+    ledger_points = int(row["ledger_points"] or 0)
+    closed = int(row["closed_points"] or 0)
+    return {
+        "generation": row["世代"],
+        "start_date": serialize_daily_value(row["start_date"]),
+        "end_date": serialize_daily_value(row["end_date"]),
+        "surveyed_points": surveyed,
+        "damaged_points": damaged,
+        "damage_rate": _rate(damaged, surveyed),
+        "light_points": int(row["light_points"] or 0),
+        "medium_points": int(row["medium_points"] or 0),
+        "severe_points": int(row["severe_points"] or 0),
+        "avg_insect_count": _avg_insect(row["avg_insect_count"]),
+        "ledger_points": ledger_points,
+        "pending_treatment": int(row["pending_treatment"] or 0),
+        "pending_recheck": int(row["pending_recheck"] or 0),
+        "recheck_abnormal": int(row["recheck_abnormal"] or 0),
+        "closed_points": closed,
+        "closure_rate": _rate(closed, ledger_points),
+    }
+
+
+def _serialize_sophora_locality_row(row: Any) -> dict[str, Any]:
+    monitor = int(row["monitor_points"] or 0)
+    surveyed = int(row["surveyed_points"] or 0)
+    damaged = int(row["damaged_points"] or 0)
+    ledger_points = int(row["ledger_points"] or 0)
+    closed = int(row["closed_points"] or 0)
+    return {
+        "locality": row["locality"],
+        "monitor_points": monitor,
+        "surveyed_points": surveyed,
+        "coverage_rate": _rate(surveyed, monitor),
+        "damaged_points": damaged,
+        "light_points": int(row["light_points"] or 0),
+        "medium_points": int(row["medium_points"] or 0),
+        "severe_points": int(row["severe_points"] or 0),
+        "avg_insect_count": _avg_insect(row["avg_insect_count"]),
+        "ledger_points": ledger_points,
+        "pending_treatment": int(row["pending_treatment"] or 0),
+        "pending_recheck": int(row["pending_recheck"] or 0),
+        "recheck_abnormal": int(row["recheck_abnormal"] or 0),
+        "closed_points": closed,
+        "closure_rate": _rate(closed, ledger_points),
+        "severe_sites": [],
+    }
+
+
+def _serialize_sophora_severe_site(row: Any) -> dict[str, Any]:
+    return {
+        "code": row["code"] or "",
+        "name": row["name"] or "--",
+        "avg_insect_count": int(row["avg_insect_count"] or 0),
+        "survey_date": serialize_daily_value(row["survey_date"]),
+        "ledger_status": row["ledger_status"] or None,
+    }
+
+
+def _merge_sophora_localities(
+    rows: list[Any],
+    severe_site_rows: list[Any] | None = None,
+) -> list[dict[str, Any]]:
+    by_locality = {
+        item["locality"]: item
+        for item in (_serialize_sophora_locality_row(row) for row in rows)
+    }
+    empty = {
+        "monitor_points": 0,
+        "surveyed_points": 0,
+        "coverage_rate": None,
+        "damaged_points": 0,
+        "light_points": 0,
+        "medium_points": 0,
+        "severe_points": 0,
+        "avg_insect_count": None,
+        "ledger_points": 0,
+        "pending_treatment": 0,
+        "pending_recheck": 0,
+        "recheck_abnormal": 0,
+        "closed_points": 0,
+        "closure_rate": None,
+        "severe_sites": [],
+    }
+
+    severe_by_locality: dict[str, list[dict[str, Any]]] = {}
+    for row in severe_site_rows or []:
+        locality = row["locality"]
+        severe_by_locality.setdefault(locality, []).append(
+            _serialize_sophora_severe_site(row)
+        )
+
+    localities: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for locality in SOPHORA_LOCALITY_ORDER:
+        seen.add(locality)
+        item = {"locality": locality, **by_locality.get(locality, empty)}
+        sites = severe_by_locality.get(locality, [])
+        item["severe_sites"] = sites
+        item["severe_points"] = len(sites) if sites else int(item.get("severe_points") or 0)
+        localities.append(item)
+
+    # 清单外属地（理论上已归一到「其他单位」）兜底追加
+    for locality, item in by_locality.items():
+        if locality in seen:
+            continue
+        sites = severe_by_locality.get(locality, [])
+        item = {**item, "severe_sites": sites}
+        item["severe_points"] = len(sites) if sites else int(item.get("severe_points") or 0)
+        localities.append(item)
+
+    return localities
+
+
+async def get_sophora_generation_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        rows = await connection.fetch(SOPHORA_GENERATION_SUMMARY_SQL, effective_year)
+
+    generations = [_serialize_sophora_generation_row(row) for row in rows]
+    return {
+        "as_of_date": serialize_daily_value(rows[0]["as_of_date"]) if rows else None,
+        "year": rows[0]["year"] if rows else effective_year,
+        "generations": generations,
+    }
+
+
+async def get_sophora_locality_summary(
+    year: int | None = None,
+    generation: str | None = None,
+) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    effective_generation = (generation or "").strip() or None
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        rows = await connection.fetch(
+            SOPHORA_LOCALITY_SUMMARY_SQL,
+            effective_year,
+            effective_generation,
+        )
+        severe_site_rows = await connection.fetch(
+            SOPHORA_LOCALITY_SEVERE_SITES_SQL,
+            effective_year,
+            effective_generation,
+        )
+
+    localities = _merge_sophora_localities(rows, severe_site_rows)
+    surveyed_points = sum(item["surveyed_points"] for item in localities)
+    damaged_points = sum(item["damaged_points"] for item in localities)
+    ledger_points = sum(item["ledger_points"] for item in localities)
+    closed_points = sum(item["closed_points"] for item in localities)
+    totals = {
+        "surveyed_points": surveyed_points,
+        "damaged_points": damaged_points,
+        "damage_rate": _rate(damaged_points, surveyed_points),
+        "severe_points": sum(item["severe_points"] for item in localities),
+        "ledger_points": ledger_points,
+        "closed_points": closed_points,
+        "closure_rate": _rate(closed_points, ledger_points),
+    }
+
+    return {
+        "year": effective_year,
+        "generation": effective_generation,
+        "totals": totals,
+        "localities": localities,
     }
 
 

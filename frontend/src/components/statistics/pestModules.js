@@ -1,4 +1,5 @@
 import OtherPestsStatisticsPanel from "./OtherPestsStatisticsPanel.vue";
+import SophoraInchwormStatisticsPanel from "./SophoraInchwormStatisticsPanel.vue";
 import WhiteMothStatisticsPanel from "./WhiteMothStatisticsPanel.vue";
 
 /**
@@ -13,7 +14,12 @@ export const STATISTICS_MODULES = Object.freeze([
     component: WhiteMothStatisticsPanel,
   },
   { value: "poplar-inchworm", label: "春尺蠖", disabled: true, component: null },
-  { value: "sophora-inchworm", label: "国槐尺蠖", disabled: true, component: null },
+  {
+    value: "sophora-inchworm",
+    label: "国槐尺蠖",
+    disabled: false,
+    component: SophoraInchwormStatisticsPanel,
+  },
   {
     value: "other-pests",
     label: "其他害虫",

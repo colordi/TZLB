@@ -10,6 +10,8 @@ const apiMocks = vi.hoisted(() => ({
   getWhiteMothLocalitySummary: vi.fn(),
   getWhiteMothHostSummary: vi.fn(),
   getOtherPestSummary: vi.fn(),
+  getSophoraGenerationSummary: vi.fn(),
+  getSophoraLocalitySummary: vi.fn(),
   error: vi.fn(),
 }));
 
@@ -19,6 +21,8 @@ vi.mock("../../api/statistics.js", () => ({
   getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
   getWhiteMothHostSummary: apiMocks.getWhiteMothHostSummary,
   getOtherPestSummary: apiMocks.getOtherPestSummary,
+  getSophoraGenerationSummary: apiMocks.getSophoraGenerationSummary,
+  getSophoraLocalitySummary: apiMocks.getSophoraLocalitySummary,
 }));
 
 vi.mock("@/components/charts/BaseChart.vue", () => ({
@@ -295,6 +299,107 @@ describe("DataStatisticsView", () => {
       Promise.resolve(byGeneration ? buildHostCompare() : buildHostSummary()),
     );
     apiMocks.getOtherPestSummary.mockResolvedValue(buildOtherPestSummary());
+    apiMocks.getSophoraGenerationSummary.mockResolvedValue({
+      as_of_date: "2026-08-12",
+      year: 2026,
+      generations: [
+        {
+          generation: "第一代",
+          start_date: "2026-05-09",
+          end_date: "2026-05-24",
+          surveyed_points: 535,
+          damaged_points: 70,
+          damage_rate: 13.1,
+          light_points: 26,
+          medium_points: 16,
+          severe_points: 28,
+          avg_insect_count: 8.5,
+          ledger_points: 60,
+          pending_treatment: 4,
+          pending_recheck: 45,
+          recheck_abnormal: 10,
+          closed_points: 1,
+          closure_rate: 1.7,
+        },
+        {
+          generation: "第二代",
+          start_date: null,
+          end_date: null,
+          surveyed_points: 0,
+          damaged_points: 0,
+          damage_rate: null,
+          light_points: 0,
+          medium_points: 0,
+          severe_points: 0,
+          avg_insect_count: null,
+          ledger_points: 0,
+          pending_treatment: 0,
+          pending_recheck: 0,
+          recheck_abnormal: 0,
+          closed_points: 0,
+          closure_rate: null,
+        },
+        {
+          generation: "第三代",
+          start_date: "2026-08-10",
+          end_date: "2026-08-11",
+          surveyed_points: 107,
+          damaged_points: 0,
+          damage_rate: 0,
+          light_points: 0,
+          medium_points: 0,
+          severe_points: 0,
+          avg_insect_count: null,
+          ledger_points: 0,
+          pending_treatment: 0,
+          pending_recheck: 0,
+          recheck_abnormal: 0,
+          closed_points: 0,
+          closure_rate: null,
+        },
+      ],
+    });
+    apiMocks.getSophoraLocalitySummary.mockResolvedValue({
+      year: 2026,
+      generation: null,
+      totals: {
+        surveyed_points: 600,
+        damaged_points: 70,
+        damage_rate: 11.7,
+        severe_points: 2,
+        ledger_points: 60,
+        closed_points: 1,
+        closure_rate: 1.7,
+      },
+      localities: [
+        {
+          locality: "永乐店镇",
+          monitor_points: 239,
+          surveyed_points: 57,
+          coverage_rate: 23.8,
+          damaged_points: 30,
+          light_points: 10,
+          medium_points: 12,
+          severe_points: 1,
+          avg_insect_count: 9.5,
+          ledger_points: 30,
+          pending_treatment: 2,
+          pending_recheck: 20,
+          recheck_abnormal: 7,
+          closed_points: 1,
+          closure_rate: 3.3,
+          severe_sites: [
+            {
+              code: "YL001",
+              name: "示范村",
+              avg_insect_count: 15,
+              survey_date: "2026-05-12",
+              ledger_status: "待复查",
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it("加载美国白蛾每日统计并展示表格", async () => {
@@ -383,14 +488,33 @@ describe("DataStatisticsView", () => {
     );
   });
 
-  it("其它虫种入口为占位不可点击", async () => {
+  it("春尺蠖入口仍为占位，国槐尺蠖已启用", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
     expect(wrapper.get('[data-testid="data-statistics-pest-white-moth"]').attributes("disabled")).toBeUndefined();
     expect(wrapper.get('[data-testid="data-statistics-pest-poplar-inchworm"]').attributes("disabled")).toBeDefined();
-    expect(wrapper.get('[data-testid="data-statistics-pest-sophora-inchworm"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.get('[data-testid="data-statistics-pest-sophora-inchworm"]').attributes("disabled")).toBeUndefined();
     expect(wrapper.get('[data-testid="data-statistics-pest-other-pests"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("国槐尺蠖统计展示世代汇总", async () => {
+    const { wrapper } = await mountView("/data-statistics/sophora-inchworm");
+    await flushPromises();
+
+    expect(apiMocks.getSophoraGenerationSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
+    expect(wrapper.get('[data-testid="data-statistics-sophora-summary-panel"]').text()).toContain(
+      "国槐尺蠖各世代累计情况",
+    );
+    const first = wrapper.get('[data-testid="data-statistics-sophora-summary-第一代"]').text();
+    expect(first).toContain("535");
+    expect(first).toContain("轻 / 中 / 重");
+    expect(first).toContain("待防治");
+    expect(wrapper.get('[data-testid="data-statistics-sophora-summary-第二代"]').text()).toContain(
+      "暂无调查日期",
+    );
   });
 
   it("其他害虫统计展示整体汇总与虫害类型计数", async () => {

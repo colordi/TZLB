@@ -9,6 +9,8 @@ from backend.services.statistics.serializers import (  # noqa: F401
 )
 from backend.services.statistics.service import (  # noqa: F401
     get_other_pest_summary,
+    get_sophora_generation_summary,
+    get_sophora_locality_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
@@ -29,4 +31,10 @@ from backend.services.statistics.sql_locality import (  # noqa: F401
     WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
     WHITE_MOTH_SEVERE_PLANT_THRESHOLD,
+)
+from backend.services.statistics.sql_sophora import (  # noqa: F401
+    SOPHORA_GENERATION_SUMMARY_SQL,
+    SOPHORA_LOCALITY_ORDER,
+    SOPHORA_LOCALITY_SEVERE_SITES_SQL,
+    SOPHORA_LOCALITY_SUMMARY_SQL,
 )

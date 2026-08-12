@@ -110,6 +110,14 @@ KNOWN_SITE_PROFILES: dict[str, SiteTableProfile] = {
         name_column="村",
         code_example="MQ0001",
     ),
+    "白蜡点位基础表": SiteTableProfile(
+        table_name="白蜡点位基础表",
+        locality_mode="prefix",
+        serial_width=4,
+        name_column="村",
+        code_example="MQ0001",
+        defaults={"地块状态": ""},
+    ),
     "美国白蛾小区点位基础表": SiteTableProfile(
         table_name="美国白蛾小区点位基础表",
         locality_mode="prefix",

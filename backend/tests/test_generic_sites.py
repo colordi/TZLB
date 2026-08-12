@@ -7,6 +7,7 @@ from backend.db.generic_sites import (
     GenericSiteDuplicateError,
     GenericSiteError,
     SiteTableProfile,
+    get_known_profile,
     match_prefix,
     validate_code_and_locality,
 )
@@ -49,6 +50,15 @@ class GenericSiteValidationTest(unittest.TestCase):
         )
         self.assertEqual(code, "QT0008")
         self.assertEqual(locality, "台湖镇")
+
+    def test_baila_sites_profile(self) -> None:
+        profile = get_known_profile("白蜡点位基础表")
+        self.assertIsNotNone(profile)
+        assert profile is not None
+        self.assertEqual(profile.table_name, "白蜡点位基础表")
+        self.assertEqual(profile.name_column, "村")
+        self.assertEqual(profile.locality_mode, "prefix")
+        self.assertEqual(profile.defaults.get("地块状态"), "")
 
     def test_yangshu_serial_width_4(self) -> None:
         profile = SiteTableProfile(

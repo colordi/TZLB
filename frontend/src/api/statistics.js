@@ -89,3 +89,32 @@ export async function getOtherPestSummary({ year } = {}) {
   await ensureApiSuccess(response);
   return response.json();
 }
+
+export async function getSophoraGenerationSummary({ year } = {}) {
+  const params = new URLSearchParams();
+  if (year !== undefined && year !== null && year !== "") {
+    params.set("year", String(year));
+  }
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/statistics/sophora-inchworm/generation-summary${query ? `?${query}` : ""}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function getSophoraLocalitySummary({ year, generation } = {}) {
+  const params = new URLSearchParams();
+  if (year !== undefined && year !== null && year !== "") {
+    params.set("year", String(year));
+  }
+  if (generation !== undefined && generation !== null && generation !== "") {
+    params.set("generation", generation);
+  }
+  const query = params.toString();
+  const response = await apiFetch(
+    `/api/statistics/sophora-inchworm/locality-summary${query ? `?${query}` : ""}`,
+  );
+  await ensureApiSuccess(response);
+  return response.json();
+}

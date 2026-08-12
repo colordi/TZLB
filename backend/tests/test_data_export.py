@@ -230,6 +230,24 @@ def _build_rich_fake_connection():
             "columns": ["编号", "年份"],
         },
         {
+            "table_schema": "survey",
+            "table_name": "白蜡蛀干害虫调查表",
+            "object_type": "table",
+            "columns": [
+                "编号",
+                "属地",
+                "调查日期",
+                "目测死亡（株）",
+                "伐除（株）",
+                "换植（株）",
+                "窄吉丁危害（株）",
+                "窄吉丁孔数（个）",
+                "木蠹蛾危害（株）",
+                "备注",
+                "年份",
+            ],
+        },
+        {
             "table_schema": "ledger",
             "table_name": "美国白蛾问题点位事件流水表",
             "object_type": "table",
@@ -285,6 +303,7 @@ def _build_rich_fake_connection():
         '"survey"."春尺蠖成虫调查表"': 10,
         '"survey"."春尺蠖围环调查表"': 5,
         '"survey"."其他害虫调查表"': 8,
+        '"survey"."白蜡蛀干害虫调查表"': 0,
         '"ledger"."美国白蛾问题点位事件流水表"': 40,
         '"ledger"."美国白蛾问题点位台账"': 25,
         '"ledger"."国槐尺蠖问题点位事件流水表"': 15,
@@ -316,6 +335,7 @@ def _build_rich_fake_connection():
         '"survey"."其他害虫调查表"': [
             {"编号": "QT001", "年份": "2026"},
         ],
+        '"survey"."白蜡蛀干害虫调查表"': [],
     }
     return conn
 
@@ -325,7 +345,10 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
         connection = _build_rich_fake_connection()
         result = await fetch_pest_export_metadata(connection)
         pest_types = [pm.pest_type for pm in result]
-        self.assertEqual(pest_types, ["美国白蛾", "国槐尺蠖", "春尺蠖", "其他害虫"])
+        self.assertEqual(
+            pest_types,
+            ["美国白蛾", "国槐尺蠖", "春尺蠖", "其他害虫", "白蜡蛀干害虫"],
+        )
 
     async def test_fetch_pest_export_metadata_filters_by_pest_type(self) -> None:
         connection = _build_rich_fake_connection()

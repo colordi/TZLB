@@ -110,4 +110,35 @@ describe("api/statistics", () => {
 
     expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/other-pest/summary");
   });
+
+  it("读取国槐尺蠖世代汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ generations: [] }),
+    });
+    const { getSophoraGenerationSummary } = await import("../statistics.js");
+
+    const result = await getSophoraGenerationSummary({ year: 2026 });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/sophora-inchworm/generation-summary?year=2026",
+    );
+    expect(result).toEqual({ generations: [] });
+  });
+
+  it("读取国槐尺蠖属地受害汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ localities: [], totals: {} }),
+    });
+    const { getSophoraLocalitySummary } = await import("../statistics.js");
+
+    const result = await getSophoraLocalitySummary({
+      year: 2026,
+      generation: "第一代",
+    });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/sophora-inchworm/locality-summary?year=2026&generation=%E7%AC%AC%E4%B8%80%E4%BB%A3",
+    );
+    expect(result).toEqual({ localities: [], totals: {} });
+  });
 });

@@ -232,6 +232,26 @@ PEST_REGISTRY: tuple[PestRegistryEntry, ...] = (
         survey_import_strategy=SURVEY_IMPORT_YANGSHU_SHIYE,
         screenshot_dir_attr="yangshu_shiye_point_screenshot_dir",
     ),
+    # 仅调查/点位数据维护，不生成防治工单（无 survey_import_strategy / 截图目录）
+    PestRegistryEntry(
+        key="白蜡蛀干害虫",
+        label="白蜡蛀干害虫",
+        control_type="白蜡蛀干害虫防治",
+        task_template=DEFAULT_TASK_TEMPLATE,
+        generations=GENERATION_NONE,
+        field_keys=CHI_HUO_FIELD_KEYS,
+        required_field_keys=COMMON_REQUIRED_FIELD_KEYS,
+        number_field_keys=(),
+        template_filename=WORKORDER_TEMPLATE_FILENAME,
+        payload_field_keys=COMMON_PAYLOAD_FIELD_KEYS,
+        default_region="乡镇",
+        context_overrides={
+            "pest_species": "白蜡蛀干害虫",
+            "host": "白蜡",
+        },
+        survey_import_strategy=None,
+        screenshot_dir_attr=None,
+    ),
 )
 
 PEST_REGISTRY_BY_KEY = {entry.key: entry for entry in PEST_REGISTRY}
