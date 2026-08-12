@@ -18,6 +18,7 @@ import AdminDashboardView from "../views/AdminDashboardView.vue";
 import AdminUsersView from "../views/AdminUsersView.vue";
 import AdminLayersView from "../views/AdminLayersView.vue";
 import AdminOperationLogsView from "../views/AdminOperationLogsView.vue";
+import AdminStorageView from "../views/AdminStorageView.vue";
 
 const routes = [
   {
@@ -150,6 +151,16 @@ const routes = [
     meta: {
       section: "操作日志",
       blurb: "查看调查员与管理员的点位删除操作记录。",
+      requiredRoles: [USER_ROLES.ADMIN],
+    },
+  },
+  {
+    path: "/admin/storage",
+    name: "admin-storage",
+    component: AdminStorageView,
+    meta: {
+      section: "存储配置",
+      blurb: "配置工单素材的存储位置（本地磁盘或 Cloudflare R2）。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },

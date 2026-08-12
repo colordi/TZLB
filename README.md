@@ -116,6 +116,10 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - `WORKORDER_DEFAULT_OUTPUT_FORMAT=doc`：默认仍输出 `.doc`，也可按请求直出 `.docx`
 - `WORKORDER_IMAGE_MAX_BYTES` / `WORKORDER_IMAGE_MAX_TOTAL_BYTES`：单图和单记录图片总大小限制
 - `WORKORDER_IMAGE_MAX_DIMENSION`：插入 Word 前图片最长边压缩阈值
+- `ASSET_STORAGE_BACKEND=r2`：将工单素材（点位截图、日期现场照片）切换到 Cloudflare R2，
+  需同时配置 `R2_ENDPOINT_URL` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET`，
+  可选 `R2_PREFIX` 隔离多套环境；默认 `local` 存本机磁盘。
+  以上配置也可由管理员在「管理后台 → 存储配置」页面直接维护（数据库取值优先于 `.env`）
 
 `APP_ENV=production` 时，如果仍使用默认 `AUTH_SECRET_KEY`、默认管理员密码、
 `AUTH_COOKIE_SECURE=false` 或 `AUTH_BYPASS_LOCALHOST=true`，后端会在启动阶段直接失败。
@@ -200,6 +204,12 @@ WGS84 GeoJSON。除 `views."通州区监测点位分布"` 外，地图视图默�
 美国白蛾、其他害虫生成 Word 工单时会按磁盘文件自动装配图片：第一张优先取
 对应 `points/*点位截图/{编号}.*`，后续图片从 `images/{调查日期}/`
 下所有以 `{编号}` 为文件名前缀的图片中按序补齐，最多使用 4 张。
+
+素材默认保存在本机磁盘。管理员在「管理后台 → 存储配置」页面（或 `.env` 的
+`ASSET_STORAGE_BACKEND=r2` + `R2_*`）切换到 Cloudflare R2 后，新上传的素材写入桶中，
+未迁移的本地存量素材仍可正常读取（同名以桶内为准），删除会同时清理两处，API 与前端行为不变。
+如需把存量素材全部上桶，可用 `python -m backend.scripts.migrate_assets_to_r2 [--dry-run]`
+（读取 `.env` 配置，幂等，不删本地文件）。
 
 ### 地图点位
 

@@ -67,6 +67,33 @@ class RuntimeSettingsValidationTest(unittest.TestCase):
 
         self.assertIn("LOG_LEVEL", str(context.exception))
 
+    def test_rejects_invalid_asset_storage_backend(self) -> None:
+        with self.assertRaises(RuntimeError) as context:
+            validate_runtime_settings(build_settings(asset_storage_backend="s3"))
+
+        self.assertIn("ASSET_STORAGE_BACKEND", str(context.exception))
+
+    def test_r2_backend_requires_connection_settings(self) -> None:
+        with self.assertRaises(RuntimeError) as context:
+            validate_runtime_settings(build_settings(asset_storage_backend="r2"))
+
+        message = str(context.exception)
+        self.assertIn("R2_ENDPOINT_URL", message)
+        self.assertIn("R2_ACCESS_KEY_ID", message)
+        self.assertIn("R2_SECRET_ACCESS_KEY", message)
+        self.assertIn("R2_BUCKET", message)
+
+    def test_r2_backend_accepts_complete_settings(self) -> None:
+        validate_runtime_settings(
+            build_settings(
+                asset_storage_backend="r2",
+                r2_endpoint_url="https://example.r2.cloudflarestorage.com",
+                r2_access_key_id="key-id",
+                r2_secret_access_key="secret",
+                r2_bucket="tzlb-assets",
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

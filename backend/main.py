@@ -13,6 +13,7 @@ from backend.auth.dependencies import require_authenticated_user, require_user_r
 from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
 from backend.config import get_settings
 from backend.db.admin import ensure_operation_log_storage
+from backend.db.app_settings import ensure_app_settings_storage
 from backend.db.data_manager import ensure_data_change_log_storage
 from backend.db.postgres import close_pool
 from backend.exceptions import (
@@ -30,6 +31,7 @@ from backend.routers import point_screenshot as point_screenshot_router
 from backend.routers import statistics as statistics_router
 from backend.routers import survey as survey_router
 from backend.routers import workorder as workorder_router
+from backend.services import storage_config as storage_config_service
 
 
 logger = get_logger(__name__)
@@ -43,6 +45,8 @@ async def lifespan(_: FastAPI):
     await ensure_auth_storage()
     await ensure_operation_log_storage()
     await ensure_data_change_log_storage()
+    await ensure_app_settings_storage()
+    await storage_config_service.refresh_storage_config_override()
     yield
     await close_pool()
 

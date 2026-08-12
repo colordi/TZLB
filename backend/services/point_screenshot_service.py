@@ -15,15 +15,20 @@ from backend.services.docgen import (
     SUPPORTED_IMAGE_FORMATS,
     SUPPORTED_IMAGE_FORMAT_LABEL,
     ensure_image_size_limits,
-    find_point_screenshot,
+    find_point_screenshot_name,
     image_to_rgb,
     is_image_file,
     natural_path_sort_key,
 )
 from backend.services.pest_registry import get_screenshot_dir
+from backend.services.storage import (
+    AssetObject,
+    AssetStorage,
+    get_storage_for_dir,
+)
 
 
-POINT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9\u4e00-\u9fa5_-]+$")
+POINT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9一-龥_-]+$")
 PREVIEW_SIZES = frozenset({"full", "thumb"})
 THUMB_MAX_EDGE = 360
 THUMB_JPEG_QUALITY = 82
@@ -48,20 +53,17 @@ def validate_point_code(code: str) -> str:
     return normalized
 
 
-def ensure_inside_directory(root: Path, candidate: Path) -> None:
-    """确保 candidate 位于 root 目录之内，防止路径穿越。"""
-
-    root_resolved = root.resolve()
-    candidate_resolved = candidate.resolve()
-    if candidate_resolved != root_resolved and root_resolved not in candidate_resolved.parents:
-        raise ValueError("保存路径不合法")
-
-
 def require_screenshot_dir(pest_type: str) -> Path:
     screenshot_dir = get_screenshot_dir(pest_type)
     if screenshot_dir is None:
         raise FileNotFoundError(f"{pest_type} 未配置点位截图目录")
     return screenshot_dir
+
+
+def require_screenshot_storage(pest_type: str) -> AssetStorage:
+    """返回害虫点位截图目录对应的素材存储。"""
+
+    return get_storage_for_dir(require_screenshot_dir(pest_type), get_settings())
 
 
 def detect_image_extension(content: bytes, filename: str | None) -> str:
@@ -89,40 +91,27 @@ def detect_image_extension(content: bytes, filename: str | None) -> str:
     return IMAGE_EXTENSION_BY_FORMAT[image_format]
 
 
-def list_screenshot_files(screenshot_dir: Path) -> list[Path]:
-    if not screenshot_dir.is_dir():
-        return []
+def list_screenshot_objects(storage: AssetStorage) -> list[AssetObject]:
+    """列出截图存储位置下的图片文件，按文件名自然排序。"""
 
-    files: list[Path] = []
-    for path in screenshot_dir.iterdir():
-        if not path.is_file() or not is_image_file(path):
-            continue
-        try:
-            ensure_inside_directory(screenshot_dir, path)
-        except ValueError:
-            continue
-        files.append(path)
-    return sorted(files, key=natural_path_sort_key)
+    return sorted(
+        (obj for obj in storage.list() if is_image_file(Path(obj.name))),
+        key=lambda obj: natural_path_sort_key(Path(obj.name)),
+    )
 
 
-def find_matching_files(screenshot_dir: Path, code: str) -> list[Path]:
-    if not screenshot_dir.is_dir():
-        return []
-    return [
-        path
-        for path in screenshot_dir.iterdir()
-        if path.is_file() and path.stem.strip() == code
-    ]
+def find_matching_names(storage: AssetStorage, code: str) -> list[str]:
+    return [obj.name for obj in storage.list() if Path(obj.name).stem.strip() == code]
 
 
 async def list_point_screenshot_status(pest_type: str) -> list[dict[str, object]]:
-    """合并基础点位与截图目录，返回每个点位的截图状态。"""
+    """合并基础点位与截图存储，返回每个点位的截图状态。"""
 
     points = await postgres.fetch_site_points(pest_type)
-    screenshot_dir = require_screenshot_dir(pest_type)
+    storage = require_screenshot_storage(pest_type)
     screenshot_index: dict[str, str] = {}
-    for path in list_screenshot_files(screenshot_dir):
-        screenshot_index.setdefault(path.stem.strip(), path.name)
+    for obj in list_screenshot_objects(storage):
+        screenshot_index.setdefault(Path(obj.name).stem.strip(), obj.name)
 
     return [
         {
@@ -144,23 +133,20 @@ async def save_point_screenshot(
     """保存点位截图；已有相同编号的任意扩展名文件会被替换。"""
 
     normalized_code = validate_point_code(code)
-    screenshot_dir = require_screenshot_dir(pest_type)
+    storage = require_screenshot_storage(pest_type)
     max_bytes = get_settings().workorder_image_max_bytes
     content = await upload_file.read(max_bytes + 1)
     ensure_image_size_limits(content, "点位截图")
     extension = detect_image_extension(content, upload_file.filename)
 
-    screenshot_dir.mkdir(parents=True, exist_ok=True)
-    for existing_path in find_matching_files(screenshot_dir, normalized_code):
-        ensure_inside_directory(screenshot_dir, existing_path)
-        existing_path.unlink()
+    for existing_name in find_matching_names(storage, normalized_code):
+        storage.delete(existing_name)
 
-    target_path = screenshot_dir / f"{normalized_code}.{extension}"
-    ensure_inside_directory(screenshot_dir, target_path)
-    target_path.write_bytes(content)
+    filename = f"{normalized_code}.{extension}"
+    storage.write(filename, content)
     return {
         "code": normalized_code,
-        "filename": target_path.name,
+        "filename": filename,
         "size": len(content),
     }
 
@@ -169,14 +155,13 @@ def delete_point_screenshot(pest_type: str, code: str) -> dict[str, object]:
     """删除点位编号对应的全部截图文件。"""
 
     normalized_code = validate_point_code(code)
-    screenshot_dir = require_screenshot_dir(pest_type)
-    matching_files = find_matching_files(screenshot_dir, normalized_code)
-    if not matching_files:
+    storage = require_screenshot_storage(pest_type)
+    matching_names = find_matching_names(storage, normalized_code)
+    if not matching_names:
         raise FileNotFoundError(f"未找到点位 {normalized_code} 的截图")
 
-    for path in matching_files:
-        ensure_inside_directory(screenshot_dir, path)
-        path.unlink()
+    for name in matching_names:
+        storage.delete(name)
     return {"code": normalized_code, "deleted": True}
 
 
@@ -225,15 +210,14 @@ def read_point_screenshot(
         raise ValueError("预览尺寸仅支持 full 或 thumb")
 
     normalized_code = validate_point_code(code)
-    screenshot_dir = require_screenshot_dir(pest_type)
-    screenshot_path = find_point_screenshot(screenshot_dir, normalized_code)
-    if screenshot_path is None:
+    storage = require_screenshot_storage(pest_type)
+    screenshot_name = find_point_screenshot_name(storage, normalized_code)
+    if screenshot_name is None:
         raise FileNotFoundError(f"未找到点位 {normalized_code} 的截图")
 
-    ensure_inside_directory(screenshot_dir, screenshot_path)
-    content = screenshot_path.read_bytes()
+    content = storage.read(screenshot_name)
     if normalized_size == "thumb":
         return _build_thumbnail_bytes(content), "image/jpeg"
 
-    media_type, _ = mimetypes.guess_type(screenshot_path.name)
+    media_type, _ = mimetypes.guess_type(screenshot_name)
     return content, media_type or "application/octet-stream"

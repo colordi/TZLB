@@ -97,6 +97,10 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `backend/services/`：业务逻辑，如工单生成、调查导入、数据统计、Excel 导入等。
 
+- `backend/services/storage/`：工单素材存储抽象层，`ASSET_STORAGE_BACKEND` 切换本地磁盘（`local`，默认）或 Cloudflare R2（`r2`，S3 兼容）。
+
+- `backend/scripts/`：一次性运维脚本，如 `migrate_assets_to_r2`（存量素材上桶）。
+
 - `backend/db/postgres.py`：asyncpg 连接池管理。
 
 - `backend/auth/`：基于 Cookie 的会话认证，包含密码哈希、令牌解析、依赖注入。
@@ -148,6 +152,16 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - 生成流程：`backend/services/docgen.py` 使用 `docxtpl` 渲染 `templates/林业有害生物防治工作单模板.docx`，生成 `.docx`，再通过 LibreOffice 转换为 `.doc`。
 
 - 前端在 `frontend/src/views/WorkOrderView.vue` 中逐条调用 `POST /api/workorder/generate`，分别下载文件。
+
+### 素材存储
+
+- 工单素材（点位截图 `points/*点位截图/`、日期现场照片 `images/{调查日期}/`）统一经 `backend/services/storage/` 访问：接口以单个目录/前缀为范围（`list/read/write/delete/exists`），对象存储 key 与本地相对路径一致（`R2_PREFIX` + 相对项目根目录路径）。
+
+- 存储后端有两种：`local`（本机磁盘，默认）与 `r2`（Cloudflare R2，boto3 S3 兼容 API）。生效配置由 `backend/services/storage_config.py` 决定：**数据库覆盖（`app_admin.app_settings`，管理员在「管理后台 → 存储配置」页面维护，保存即生效）优先于 `.env`**；页面可测试连接，密钥只写不读（接口只返回"是否已配置"）。REST API 契约不变，前端业务页面无感知。
+
+- `r2` 模式返回 `FallbackAssetStorage` 双层存储：**新上传只写 R2，读取/列表合并 R2 与本地目录（同名 R2 优先），删除同时清理两处** —— 本地存量素材无需迁移即可继续读取。
+
+- 如需把存量素材全部上桶，可用 `python -m backend.scripts.migrate_assets_to_r2 [--dry-run]`（读取 `.env` 的 `R2_*` 配置，幂等，只上传不删本地）；不迁移也不影响使用。
 
 ### 地图点位
 
@@ -214,4 +228,8 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 - `WORKORDER_DEFAULT_OUTPUT_FORMAT`：`doc` 或 `docx`
 
 - `WORKORDER_IMAGE_MAX_BYTES`、`WORKORDER_IMAGE_MAX_TOTAL_BYTES`、`WORKORDER_IMAGE_MAX_DIMENSION`：图片大小与压缩限制
+
+- `ASSET_STORAGE_BACKEND`：素材存储后端，`local`（默认）或 `r2`
+
+- `R2_ENDPOINT_URL`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`、`R2_BUCKET`：`r2` 模式必填；`R2_PREFIX` 为对象 key 前缀（默认 `assets/`）。以上素材存储配置也可由管理员在「管理后台 → 存储配置」页面维护（存 `app_admin.app_settings`），数据库取值优先于 `.env`
 

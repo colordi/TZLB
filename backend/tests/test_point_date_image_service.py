@@ -13,7 +13,7 @@ from backend.services.point_date_image_service import (
     delete_point_date_image,
     list_date_images,
     list_point_date_images,
-    resolve_point_date_image_path,
+    read_point_date_image,
     save_point_date_images,
 )
 
@@ -180,29 +180,48 @@ class ListPointDateImagesTest(unittest.TestCase):
             )
 
 
-class ResolvePointDateImagePathTest(unittest.TestCase):
-    def test_resolve_rejects_path_traversal_and_non_image(self) -> None:
+class ReadPointDateImageTest(unittest.TestCase):
+    def test_read_rejects_path_traversal_and_non_image(self) -> None:
         with TemporaryDirectory() as tempdir:
             with patch_images_dir(Path(tempdir) / "images"):
                 with self.assertRaisesRegex(ValueError, "文件名不合法"):
-                    resolve_point_date_image_path(
+                    read_point_date_image(
                         survey_date="2026-05-26",
                         file_name="../MQ001-1.jpg",
                     )
                 with self.assertRaisesRegex(ValueError, "图片文件"):
-                    resolve_point_date_image_path(
+                    read_point_date_image(
                         survey_date="2026-05-26",
                         file_name="MQ001-说明.txt",
                     )
 
-    def test_resolve_returns_none_when_missing(self) -> None:
+    def test_read_returns_none_when_missing(self) -> None:
         with TemporaryDirectory() as tempdir:
             with patch_images_dir(Path(tempdir) / "images"):
-                path = resolve_point_date_image_path(
+                result = read_point_date_image(
                     survey_date="2026-05-26",
                     file_name="MQ001-1.jpg",
                 )
-            self.assertIsNone(path)
+            self.assertIsNone(result)
+
+    def test_read_returns_content_and_media_type(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            images_dir = Path(tempdir) / "images"
+            date_dir = images_dir / "2026-05-26"
+            date_dir.mkdir(parents=True)
+            content = make_jpeg_bytes()
+            (date_dir / "MQ001-1.jpg").write_bytes(content)
+
+            with patch_images_dir(images_dir):
+                result = read_point_date_image(
+                    survey_date="2026-05-26",
+                    file_name="MQ001-1.jpg",
+                )
+
+            self.assertIsNotNone(result)
+            read_content, media_type = result
+            self.assertEqual(read_content, content)
+            self.assertEqual(media_type, "image/jpeg")
 
 
 class DeletePointDateImageTest(unittest.TestCase):

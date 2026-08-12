@@ -16,7 +16,6 @@ from backend.routers.point_screenshot import (
     delete_point_screenshot as delete_route,
     preview_point_screenshot as preview_route,
 )
-from backend.services.docgen import find_point_screenshot
 from backend.services.point_screenshot_service import (
     THUMB_MAX_EDGE,
     delete_point_screenshot,
@@ -156,13 +155,12 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
                     "YB001",
                     FakeUploadFile(content),
                 )
+                read_content, media_type = read_point_screenshot("春尺蠖", "YB001")
 
             self.assertFalse(old_path.exists())
             self.assertEqual((screenshot_dir / "YB001.png").read_bytes(), content)
-            self.assertEqual(
-                find_point_screenshot(screenshot_dir, "YB001"),
-                screenshot_dir / "YB001.png",
-            )
+            self.assertEqual(read_content, content)
+            self.assertEqual(media_type, "image/png")
 
     async def test_upload_rejects_invalid_code(self) -> None:
         with self.assertRaisesRegex(ValueError, "点位编号"):

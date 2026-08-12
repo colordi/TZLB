@@ -181,3 +181,42 @@ class DashboardStatsResponse(BaseModel):
 # ──────────────────────────────────────────────
 #  Data Manager — 数据管理 API
 # ──────────────────────────────────────────────
+
+
+# ──────────────────────────────────────────────
+#  Storage Config — 素材存储配置
+# ──────────────────────────────────────────────
+
+
+class StorageConfigPayload(BaseModel):
+    """保存/测试素材存储配置的表单请求。密钥留空表示沿用已保存的值。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    backend: str = Field(pattern=r"^(local|r2)$")
+    r2_endpoint_url: str = Field(default="", max_length=512)
+    r2_access_key_id: str = Field(default="", max_length=128)
+    r2_secret_access_key: str = Field(default="", max_length=256)
+    r2_bucket: str = Field(default="", max_length=128)
+    r2_prefix: str = Field(default="assets/", max_length=128)
+
+
+class StorageConfigResponse(BaseModel):
+    """素材存储配置响应。密钥永不下发，只返回是否已配置。"""
+
+    backend: str
+    r2_endpoint_url: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_configured: bool = False
+    r2_bucket: str = ""
+    r2_prefix: str = "assets/"
+    source: str = "env"
+    updated_by: str = ""
+    updated_at: str = ""
+
+
+class TestStorageConnectionResponse(BaseModel):
+    """存储连接测试结果。"""
+
+    ok: bool
+    message: str

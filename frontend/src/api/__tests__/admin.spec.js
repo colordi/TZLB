@@ -102,4 +102,44 @@ describe("api/admin", () => {
     expect(url).toBe("/api/admin/view-builder/views/task_baie_2026");
     expect(options.method).toBe("DELETE");
   });
+
+  it("读取素材存储配置", async () => {
+    const { fetchStorageConfig } = await import("../admin.js");
+
+    await fetchStorageConfig();
+
+    const [url] = httpMocks.apiFetch.mock.calls[0];
+    expect(url).toBe("/api/admin/storage-config");
+  });
+
+  it("保存素材存储配置时提交表单内容", async () => {
+    const { updateStorageConfig } = await import("../admin.js");
+    const payload = {
+      backend: "r2",
+      r2_endpoint_url: "https://example.r2.cloudflarestorage.com",
+      r2_access_key_id: "key-id",
+      r2_secret_access_key: "",
+      r2_bucket: "tzlb-assets",
+      r2_prefix: "assets/",
+    };
+
+    await updateStorageConfig(payload);
+
+    const [url, options] = httpMocks.apiFetch.mock.calls[0];
+    expect(url).toBe("/api/admin/storage-config");
+    expect(options.method).toBe("PUT");
+    expect(JSON.parse(options.body)).toEqual(payload);
+  });
+
+  it("测试存储连接时提交表单内容", async () => {
+    const { testStorageConnection } = await import("../admin.js");
+    const payload = { backend: "r2", r2_bucket: "tzlb-assets" };
+
+    await testStorageConnection(payload);
+
+    const [url, options] = httpMocks.apiFetch.mock.calls[0];
+    expect(url).toBe("/api/admin/storage-config/test");
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body)).toEqual(payload);
+  });
 });

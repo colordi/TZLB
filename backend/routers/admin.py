@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from backend.auth.dependencies import require_user_role
+from backend.auth.dependencies import get_current_user, require_user_role
 from backend.auth.store import USER_ROLE_ADMIN
+from backend.config import get_settings
+from backend.db import app_settings as app_settings_db
 from backend.db.admin import (
     batch_upsert_layer_metadata,
     create_user,
@@ -24,13 +26,18 @@ from backend.schemas import (
     LayerMetadataResponse,
     OperationLogListResponse,
     ResetPasswordRequest,
+    StorageConfigPayload,
+    StorageConfigResponse,
     TaskViewDefinitionRequest,
     TaskViewMutationResponse,
     TaskViewPreviewResponse,
     TaskViewSourcesResponse,
+    TestStorageConnectionResponse,
     UpdateUserRequest,
 )
+from backend.services import storage_config as storage_config_service
 from backend.services import view_builder
+from backend.services.storage import test_r2_connection
 
 
 router = APIRouter(
@@ -285,3 +292,94 @@ async def get_operation_logs(limit: int = 100, offset: int = 0) -> OperationLogL
         return OperationLogListResponse(items=items, total=total)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"读取操作日志失败：{exc}") from exc
+
+
+# ──────────────────────────────────────────────
+#  Storage Config — 素材存储配置
+# ──────────────────────────────────────────────
+
+
+def _build_storage_config_response(
+    config: storage_config_service.StorageConfig,
+    meta: dict[str, dict[str, str]] | None = None,
+) -> StorageConfigResponse:
+    override = storage_config_service.get_storage_config_override()
+    backend_meta = (meta or {}).get("asset_storage_backend", {})
+    return StorageConfigResponse(
+        backend=config.backend,
+        r2_endpoint_url=config.r2_endpoint_url,
+        r2_access_key_id=config.r2_access_key_id,
+        r2_secret_configured=bool(config.r2_secret_access_key),
+        r2_bucket=config.r2_bucket,
+        r2_prefix=config.r2_prefix,
+        source="database" if override is not None else "env",
+        updated_by=backend_meta.get("updated_by", ""),
+        updated_at=backend_meta.get("updated_at", ""),
+    )
+
+
+@router.get(
+    "/storage-config",
+    response_model=StorageConfigResponse,
+    summary="读取素材存储配置",
+)
+async def get_storage_config() -> StorageConfigResponse:
+    config = storage_config_service.resolve_storage_config(get_settings())
+    meta: dict[str, dict[str, str]] = {}
+    if storage_config_service.get_storage_config_override() is not None:
+        try:
+            meta = await app_settings_db.load_app_settings_meta(["asset_storage_backend"])
+        except Exception:  # noqa: BLE001  # 元数据仅用于展示，读取失败不影响主流程
+            meta = {}
+    return _build_storage_config_response(config, meta)
+
+
+@router.put(
+    "/storage-config",
+    response_model=StorageConfigResponse,
+    summary="保存素材存储配置",
+)
+async def put_storage_config(
+    payload: StorageConfigPayload,
+    current_user: dict = Depends(get_current_user),
+) -> StorageConfigResponse:
+    existing = storage_config_service.resolve_storage_config(get_settings())
+    config = storage_config_service.build_config_from_payload(
+        payload,
+        fallback_secret=existing.r2_secret_access_key,
+    )
+    try:
+        storage_config_service.validate_storage_config(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        await app_settings_db.save_app_settings(
+            storage_config_service.config_to_settings_dict(config),
+            updated_by=str(current_user.get("username", "") or ""),
+        )
+        await storage_config_service.refresh_storage_config_override()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"保存存储配置失败：{exc}") from exc
+    return await get_storage_config()
+
+
+@router.post(
+    "/storage-config/test",
+    response_model=TestStorageConnectionResponse,
+    summary="测试 R2 存储连接",
+)
+async def post_storage_config_test(payload: StorageConfigPayload) -> TestStorageConnectionResponse:
+    existing = storage_config_service.resolve_storage_config(get_settings())
+    config = storage_config_service.build_config_from_payload(
+        payload,
+        fallback_secret=existing.r2_secret_access_key,
+    )
+    if config.backend != storage_config_service.STORAGE_BACKEND_R2:
+        raise HTTPException(status_code=422, detail="仅 R2 存储需要测试连接")
+    try:
+        storage_config_service.validate_storage_config(config)
+        await test_r2_connection(config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TestStorageConnectionResponse(ok=True, message="连接成功，Bucket 可正常访问")

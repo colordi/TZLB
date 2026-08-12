@@ -4,7 +4,7 @@ import asyncio
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 
 from backend.exceptions import BusinessError, ConfigurationError
 from backend.schemas import (
@@ -17,7 +17,7 @@ from backend.services.point_date_image_service import (
     delete_point_date_image,
     list_date_images,
     list_point_date_images,
-    resolve_point_date_image_path,
+    read_point_date_image,
     save_point_date_images,
 )
 from backend.services.docgen import generate_workorder_artifact, generate_workorder_batch_artifact
@@ -160,17 +160,22 @@ async def upload_workorder_point_date_images(
 
 
 @router.get("/point-date-images/{survey_date}/{file_name}", summary="读取点位日期图片")
-async def read_workorder_point_date_image(survey_date: str, file_name: str) -> FileResponse:
+async def read_workorder_point_date_image(survey_date: str, file_name: str) -> Response:
     try:
-        image_path = resolve_point_date_image_path(
+        result = read_point_date_image(
             survey_date=survey_date,
             file_name=file_name,
         )
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
-    if image_path is None:
+    if result is None:
         raise HTTPException(status_code=404, detail="图片不存在")
-    return FileResponse(image_path)
+    content, media_type = result
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=300"},
+    )
 
 
 @router.delete("/point-date-images/{survey_date}/{file_name}", summary="删除点位日期图片")

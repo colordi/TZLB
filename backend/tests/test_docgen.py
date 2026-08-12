@@ -14,15 +14,16 @@ from PIL import Image
 from backend.schemas import WorkOrderGenerateRequest
 from backend.services.docgen import (
     convert_docx_bytes_to_doc,
-    find_dated_location_images,
+    find_dated_location_image_names,
     generate_workorder_artifact,
     generate_workorder_batch_artifact,
     get_template_path,
     render_single_document,
-    resolve_meiguobaie_image_paths,
-    sanitize_existing_image_paths,
+    resolve_meiguobaie_images,
+    sanitize_images_to_temp,
     save_base64_images,
 )
+from backend.services.storage import LocalAssetStorage
 
 
 def create_payload() -> WorkOrderGenerateRequest:
@@ -239,7 +240,7 @@ class DocgenTest(unittest.TestCase):
         self.assertEqual(image_format, "JPEG")
         self.assertEqual(mode, "RGB")
 
-    def test_sanitize_existing_image_paths_normalizes_disk_images(self) -> None:
+    def test_sanitize_images_to_temp_normalizes_disk_images(self) -> None:
         with TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             source_path = root / "MQ001.png"
@@ -249,7 +250,10 @@ class DocgenTest(unittest.TestCase):
                 "backend.services.docgen.images.get_settings",
                 return_value=build_image_settings(root / "tmp"),
             ):
-                paths = sanitize_existing_image_paths([source_path], "row_1")
+                paths = sanitize_images_to_temp(
+                    [(source_path.name, source_path.read_bytes())],
+                    "row_1",
+                )
                 with Image.open(paths[0]) as image:
                     image_format = image.format
 
@@ -432,18 +436,14 @@ class DocgenTest(unittest.TestCase):
                     images_dir=root / "images",
                 ),
             ):
-                image_paths = resolve_meiguobaie_image_paths(payload.records[0])
-                dated_image_names = [
-                    path.name
-                    for path in find_dated_location_images(
-                        root / "images",
-                        "2026-05-26",
-                        "MQ001",
-                    )
-                ]
+                named_images = resolve_meiguobaie_images(payload.records[0])
+                dated_image_names = find_dated_location_image_names(
+                    LocalAssetStorage(root / "images" / "2026-05-26"),
+                    "MQ001",
+                )
 
         self.assertEqual(
-            [path.name for path in image_paths],
+            [name for name, _ in named_images],
             ["MQ001.jpg", "MQ001-1.jpg", "MQ001-2.jpg", "MQ001-3.jpg"],
         )
         self.assertIn("MQ001现场.jpg", dated_image_names)
@@ -451,7 +451,7 @@ class DocgenTest(unittest.TestCase):
         self.assertNotIn("AMQ001-1.jpg", dated_image_names)
 
     def test_resolve_other_pest_images_uses_date_folder_and_screenshot(self) -> None:
-        from backend.services.docgen import resolve_auto_disk_image_paths
+        from backend.services.docgen import resolve_auto_disk_images
 
         payload = WorkOrderGenerateRequest(
             pest_type="其他害虫",
@@ -491,10 +491,10 @@ class DocgenTest(unittest.TestCase):
                     images_dir=root / "images",
                 ),
             ):
-                image_paths = resolve_auto_disk_image_paths(payload.records[0], "其他害虫")
+                named_images = resolve_auto_disk_images(payload.records[0], "其他害虫")
 
         self.assertEqual(
-            [path.name for path in image_paths],
+            [name for name, _ in named_images],
             ["QT0007.jpg", "QT0007-1.jpg", "QT0007-2.jpg"],
         )
 

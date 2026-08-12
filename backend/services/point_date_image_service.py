@@ -1,12 +1,13 @@
 """点位日期图片的上传、列举与删除。
 
-图片保存在 ``images/{调查日期}/`` 目录下，统一命名为 ``{点位编号}-{序号}.{扩展名}``，
-与美国白蛾工单生成时 ``docgen.find_dated_location_images`` 的"文件名以点位编号开头"
-匹配规则兼容，用户无需在本地预先改名。
+图片保存在 ``images/{调查日期}/`` 存储位置下（本地目录或 R2 前缀），统一命名为
+``{点位编号}-{序号}.{扩展名}``，与美国白蛾工单生成时 ``docgen.find_dated_location_image_names``
+的"文件名以点位编号开头"匹配规则兼容，用户无需在本地预先改名。
 """
 
 from __future__ import annotations
 
+import mimetypes
 import re
 from datetime import date as date_cls
 from pathlib import Path
@@ -21,9 +22,9 @@ from backend.services.docgen import (
 )
 from backend.services.point_screenshot_service import (
     detect_image_extension,
-    ensure_inside_directory,
     validate_point_code,
 )
+from backend.services.storage import AssetStorage, ensure_inside_directory, get_storage_for_dir
 
 
 logger = get_logger(__name__)
@@ -57,22 +58,28 @@ def resolve_date_dir(survey_date: str) -> Path:
     return date_dir
 
 
+def resolve_date_storage(survey_date: str) -> AssetStorage:
+    """校验日期并返回 images 下对应日期目录的素材存储。"""
+
+    return get_storage_for_dir(resolve_date_dir(survey_date), get_settings())
+
+
 def list_date_images(*, survey_date: str) -> list[dict[str, Any]]:
-    """列出指定日期目录下的全部图片。"""
+    """列出指定日期存储位置下的全部图片。"""
 
-    date_dir = resolve_date_dir(survey_date)
-    if not date_dir.is_dir():
-        return []
-
+    storage = resolve_date_storage(survey_date)
     return [
-        {"file_name": path.name, "size_bytes": path.stat().st_size}
-        for path in sorted(date_dir.iterdir(), key=natural_path_sort_key)
-        if path.is_file() and is_image_file(path)
+        {"file_name": obj.name, "size_bytes": obj.size_bytes}
+        for obj in sorted(
+            storage.list(),
+            key=lambda item: natural_path_sort_key(Path(item.name)),
+        )
+        if is_image_file(Path(obj.name))
     ]
 
 
 def list_point_date_images(*, survey_date: str, point_code: str) -> list[dict[str, Any]]:
-    """列出某点位在指定日期目录下的全部图片（文件名以点位编号开头）。"""
+    """列出某点位在指定日期下的全部图片（文件名以点位编号开头）。"""
 
     normalized_code = validate_point_code(point_code)
     return [
@@ -82,16 +89,15 @@ def list_point_date_images(*, survey_date: str, point_code: str) -> list[dict[st
     ]
 
 
-def resolve_point_date_image_path(*, survey_date: str, file_name: str) -> Path | None:
-    """解析日期目录下的图片路径，不存在时返回 None。"""
+def read_point_date_image(*, survey_date: str, file_name: str) -> tuple[bytes, str] | None:
+    """读取日期存储位置下的图片内容和媒体类型，不存在时返回 None。"""
 
-    date_dir = resolve_date_dir(survey_date)
+    storage = resolve_date_storage(survey_date)
     name = validate_image_file_name(file_name)
-    target = date_dir / name
-    ensure_inside_directory(date_dir, target)
-    if not target.is_file() or not is_image_file(target):
+    if not storage.exists(name):
         return None
-    return target
+    media_type, _ = mimetypes.guess_type(name)
+    return storage.read(name), media_type or "application/octet-stream"
 
 
 def validate_image_file_name(file_name: str) -> str:
@@ -105,14 +111,13 @@ def validate_image_file_name(file_name: str) -> str:
     return name
 
 
-def _next_sequence(date_dir: Path, point_code: str) -> int:
+def _next_sequence(storage: AssetStorage, point_code: str) -> int:
     pattern = re.compile(rf"^{re.escape(point_code)}-(\d+)$")
     max_sequence = 0
-    if date_dir.is_dir():
-        for path in date_dir.iterdir():
-            match = pattern.match(path.stem)
-            if match:
-                max_sequence = max(max_sequence, int(match.group(1)))
+    for obj in storage.list():
+        match = pattern.match(Path(obj.name).stem)
+        if match:
+            max_sequence = max(max_sequence, int(match.group(1)))
     return max_sequence + 1
 
 
@@ -125,7 +130,7 @@ async def save_point_date_images(
     """把上传的图片保存为 ``{点位编号}-{序号}.{扩展名}``，序号在现有文件基础上递增。"""
 
     normalized_code = validate_point_code(point_code)
-    date_dir = resolve_date_dir(survey_date)
+    storage = resolve_date_storage(survey_date)
     if not files:
         raise ValueError("请选择要上传的图片")
 
@@ -138,11 +143,9 @@ async def save_point_date_images(
         total_size += len(content)
         ensure_image_size_limits(content, f"图片“{original_name}”", total_size)
 
-    date_dir.mkdir(parents=True, exist_ok=True)
-
     saved: list[dict[str, Any]] = []
     rejected: list[dict[str, str]] = []
-    sequence = _next_sequence(date_dir, normalized_code)
+    sequence = _next_sequence(storage, normalized_code)
 
     for original_name, content in payloads:
         try:
@@ -151,13 +154,13 @@ async def save_point_date_images(
             rejected.append({"file_name": original_name, "reason": str(exc)})
             continue
 
-        target = date_dir / f"{normalized_code}-{sequence}.{extension}"
-        while target.exists():
+        filename = f"{normalized_code}-{sequence}.{extension}"
+        while storage.exists(filename):
             sequence += 1
-            target = date_dir / f"{normalized_code}-{sequence}.{extension}"
+            filename = f"{normalized_code}-{sequence}.{extension}"
 
-        target.write_bytes(content)
-        saved.append({"file_name": target.name, "size_bytes": len(content)})
+        storage.write(filename, content)
+        saved.append({"file_name": filename, "size_bytes": len(content)})
         sequence += 1
 
     logger.info(
@@ -181,15 +184,13 @@ def delete_point_date_image(*, survey_date: str, point_code: str, file_name: str
     """删除指定点位的日期图片，仅允许删除文件名以该点位编号开头的图片。"""
 
     normalized_code = validate_point_code(point_code)
-    date_dir = resolve_date_dir(survey_date)
+    storage = resolve_date_storage(survey_date)
     name = validate_image_file_name(file_name)
     if not Path(name).stem.startswith(normalized_code):
         raise ValueError("只能删除文件名以该点位编号开头的图片")
 
-    target = date_dir / name
-    ensure_inside_directory(date_dir, target)
-    if not target.is_file():
+    if not storage.exists(name):
         raise FileNotFoundError(f"图片不存在：{name}")
 
-    target.unlink()
+    storage.delete(name)
     logger.info("点位日期图片已删除: date=%s point=%s file=%s", survey_date, normalized_code, name)

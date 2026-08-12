@@ -133,3 +133,33 @@ export async function fetchOperationLogs(params = {}) {
   await ensureApiSuccess(response);
   return response.json();
 }
+
+/* ──────────────────────────────────────────
+   Storage Config — 素材存储配置
+   ────────────────────────────────────────── */
+
+export async function fetchStorageConfig() {
+  const response = await apiFetch("/api/admin/storage-config");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function updateStorageConfig(payload) {
+  const response = await apiFetch("/api/admin/storage-config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
+export async function testStorageConnection(payload) {
+  const response = await apiFetch("/api/admin/storage-config/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await ensureApiSuccess(response);
+  return response.json();
+}

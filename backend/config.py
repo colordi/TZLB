@@ -13,6 +13,7 @@ DEFAULT_AUTH_SECRET_KEY = "tzlb-dev-secret-change-me"
 DEFAULT_AUTH_DEFAULT_ADMIN_PASSWORD = "Forestry@2026"
 ALLOWED_APP_ENVS = {"development", "production"}
 ALLOWED_WORKORDER_OUTPUT_FORMATS = {"doc", "docx"}
+ALLOWED_ASSET_STORAGE_BACKENDS = {"local", "r2"}
 ALLOWED_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
@@ -104,6 +105,30 @@ class Settings(BaseSettings):
         default=50,
         validation_alias="WORKORDER_BATCH_MAX_RECORDS",
     )
+    asset_storage_backend: str = Field(
+        default="local",
+        validation_alias="ASSET_STORAGE_BACKEND",
+    )
+    r2_endpoint_url: str = Field(
+        default="",
+        validation_alias="R2_ENDPOINT_URL",
+    )
+    r2_access_key_id: str = Field(
+        default="",
+        validation_alias="R2_ACCESS_KEY_ID",
+    )
+    r2_secret_access_key: str = Field(
+        default="",
+        validation_alias="R2_SECRET_ACCESS_KEY",
+    )
+    r2_bucket: str = Field(
+        default="",
+        validation_alias="R2_BUCKET",
+    )
+    r2_prefix: str = Field(
+        default="assets/",
+        validation_alias="R2_PREFIX",
+    )
     log_level: str = Field(
         default="INFO",
         validation_alias="LOG_LEVEL",
@@ -148,6 +173,19 @@ def validate_runtime_settings(settings: Any) -> None:
 
     if settings.workorder_batch_max_records <= 0:
         errors.append("WORKORDER_BATCH_MAX_RECORDS 必须大于 0")
+
+    storage_backend = str(getattr(settings, "asset_storage_backend", "local") or "").strip().lower()
+    if storage_backend not in ALLOWED_ASSET_STORAGE_BACKENDS:
+        errors.append("ASSET_STORAGE_BACKEND 只能是 local 或 r2")
+    if storage_backend == "r2":
+        if not str(getattr(settings, "r2_endpoint_url", "") or "").strip():
+            errors.append("ASSET_STORAGE_BACKEND=r2 时必须配置 R2_ENDPOINT_URL")
+        if not str(getattr(settings, "r2_access_key_id", "") or "").strip():
+            errors.append("ASSET_STORAGE_BACKEND=r2 时必须配置 R2_ACCESS_KEY_ID")
+        if not str(getattr(settings, "r2_secret_access_key", "") or "").strip():
+            errors.append("ASSET_STORAGE_BACKEND=r2 时必须配置 R2_SECRET_ACCESS_KEY")
+        if not str(getattr(settings, "r2_bucket", "") or "").strip():
+            errors.append("ASSET_STORAGE_BACKEND=r2 时必须配置 R2_BUCKET")
 
     if settings.log_level.upper() not in ALLOWED_LOG_LEVELS:
         errors.append(f"LOG_LEVEL 只能是 {', '.join(sorted(ALLOWED_LOG_LEVELS))} 之一")

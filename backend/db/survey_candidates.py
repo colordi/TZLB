@@ -16,6 +16,7 @@ from backend.services.pest_registry import (
     SURVEY_IMPORT_YANGSHU_SHIYE,
     get_pest_config,
 )
+from backend.services.storage import AssetStorage, get_storage_for_dir
 
 SURVEY_SCHEMA = "survey"
 SURVEY_LARVA_TABLE = "春尺蠖幼虫调查表"
@@ -117,43 +118,37 @@ def serialize_date_value(value: Any) -> str:
     return str(value)
 
 
-def build_point_screenshot_index(screenshot_dir: Path) -> dict[str, Path]:
-    """扫描本地点位截图目录，返回可唯一匹配的点位截图索引。"""
+def build_point_screenshot_index(storage: AssetStorage) -> dict[str, str]:
+    """列出点位截图存储位置，返回可唯一匹配的点位截图索引（编号 -> 文件名）。"""
 
-    if not screenshot_dir.exists() or not screenshot_dir.is_dir():
-        return {}
-
-    indexed_paths: dict[str, list[Path]] = {}
-    for path in sorted(screenshot_dir.iterdir()):
-        if not path.is_file():
-            continue
-
-        mime_type, _ = mimetypes.guess_type(path.name)
+    indexed_names: dict[str, list[str]] = {}
+    for obj in sorted(storage.list(), key=lambda item: item.name):
+        mime_type, _ = mimetypes.guess_type(obj.name)
         if not mime_type or not mime_type.startswith("image/"):
             continue
 
-        location_id = path.stem.strip()
+        location_id = Path(obj.name).stem.strip()
         if not location_id:
             continue
 
-        indexed_paths.setdefault(location_id, []).append(path)
+        indexed_names.setdefault(location_id, []).append(obj.name)
 
     return {
-        location_id: paths[0]
-        for location_id, paths in indexed_paths.items()
-        if len(paths) == 1
+        location_id: names[0]
+        for location_id, names in indexed_names.items()
+        if len(names) == 1
     }
 
 
-def encode_image_as_data_url(image_path: Path) -> str | None:
-    """读取本地图片并编码为前端可直接使用的 Data URL。"""
+def encode_image_as_data_url(storage: AssetStorage, name: str) -> str | None:
+    """读取素材图片并编码为前端可直接使用的 Data URL。"""
 
-    mime_type, _ = mimetypes.guess_type(image_path.name)
+    mime_type, _ = mimetypes.guess_type(name)
     if not mime_type or not mime_type.startswith("image/"):
         return None
 
     try:
-        content = image_path.read_bytes()
+        content = storage.read(name)
     except OSError:
         return None
 
@@ -163,7 +158,8 @@ def encode_image_as_data_url(image_path: Path) -> str | None:
 
 def load_point_screenshot_images(
     location_id: str,
-    screenshot_index: dict[str, Path],
+    screenshot_index: dict[str, str],
+    screenshot_storage: AssetStorage | None,
 ) -> list[str]:
     """按点位编号匹配导入记录的默认截图。"""
 
@@ -171,11 +167,11 @@ def load_point_screenshot_images(
     if not normalized_location_id:
         return []
 
-    image_path = screenshot_index.get(normalized_location_id)
-    if image_path is None:
+    name = screenshot_index.get(normalized_location_id)
+    if name is None or screenshot_storage is None:
         return []
 
-    data_url = encode_image_as_data_url(image_path)
+    data_url = encode_image_as_data_url(screenshot_storage, name)
     return [data_url] if data_url else []
 
 
@@ -298,8 +294,9 @@ async def fetch_spring_inchworm_survey_candidates(
         survey_date,
     )
 
+    screenshot_storage = get_storage_for_dir(get_settings().point_screenshot_dir, get_settings())
     screenshot_index = (
-        build_point_screenshot_index(get_settings().point_screenshot_dir)
+        build_point_screenshot_index(screenshot_storage)
         if include_images
         else {}
     )
@@ -322,7 +319,11 @@ async def fetch_spring_inchworm_survey_candidates(
                 "total_insect_count": insect_count,
                 "damage_level": damage_level,
                 "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(location_id, screenshot_index),
+                "images": load_point_screenshot_images(
+                    location_id,
+                    screenshot_index,
+                    screenshot_storage,
+                ),
                 "description": build_spring_inchworm_description(
                     locality=locality,
                     location_name=location_name,
@@ -372,8 +373,12 @@ async def fetch_guo_huai_inchworm_survey_candidates(
         survey_date,
     )
 
+    screenshot_storage = get_storage_for_dir(
+        get_settings().sophora_point_screenshot_dir,
+        get_settings(),
+    )
     screenshot_index = (
-        build_point_screenshot_index(get_settings().sophora_point_screenshot_dir)
+        build_point_screenshot_index(screenshot_storage)
         if include_images
         else {}
     )
@@ -396,7 +401,11 @@ async def fetch_guo_huai_inchworm_survey_candidates(
                 "total_insect_count": insect_count,
                 "damage_level": damage_level,
                 "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(location_id, screenshot_index),
+                "images": load_point_screenshot_images(
+                    location_id,
+                    screenshot_index,
+                    screenshot_storage,
+                ),
                 "description": build_guo_huai_inchworm_description(
                     locality=locality,
                     location_name=location_name,
@@ -418,7 +427,7 @@ async def fetch_other_pest_like_survey_candidates(
     site_name_column: str,
     site_host_column: str | None,
     site_plot_column: str | None,
-    screenshot_dir: Path,
+    screenshot_storage: AssetStorage,
     include_images: bool = True,
 ) -> list[dict[str, Any]]:
     """按"调查结论=发现问题"读取调查导入候选记录（其他害虫、杨树食叶害虫共用）。
@@ -470,7 +479,7 @@ async def fetch_other_pest_like_survey_candidates(
     )
 
     screenshot_index = (
-        build_point_screenshot_index(screenshot_dir)
+        build_point_screenshot_index(screenshot_storage)
         if include_images
         else {}
     )
@@ -489,6 +498,7 @@ async def fetch_other_pest_like_survey_candidates(
             "images": load_point_screenshot_images(
                 str(row["location_id"] or "").strip(),
                 screenshot_index,
+                screenshot_storage,
             ),
         }
         for row in rows
@@ -508,7 +518,10 @@ async def fetch_other_pest_survey_candidates(
         site_name_column="点位名称",
         site_host_column="寄主树种",
         site_plot_column="地块类型",
-        screenshot_dir=get_settings().other_pest_point_screenshot_dir,
+        screenshot_storage=get_storage_for_dir(
+            get_settings().other_pest_point_screenshot_dir,
+            get_settings(),
+        ),
         include_images=include_images,
     )
 
@@ -526,7 +539,10 @@ async def fetch_yangshu_shiye_survey_candidates(
         site_name_column="村",
         site_host_column="杨树类型",
         site_plot_column=None,
-        screenshot_dir=get_settings().yangshu_shiye_point_screenshot_dir,
+        screenshot_storage=get_storage_for_dir(
+            get_settings().yangshu_shiye_point_screenshot_dir,
+            get_settings(),
+        ),
         include_images=include_images,
     )
 
@@ -570,8 +586,12 @@ async def fetch_meiguobaie_survey_candidates(
         survey_date,
     )
 
+    screenshot_storage = get_storage_for_dir(
+        get_settings().meiguobaie_point_screenshot_dir,
+        get_settings(),
+    )
     screenshot_index = (
-        build_point_screenshot_index(get_settings().meiguobaie_point_screenshot_dir)
+        build_point_screenshot_index(screenshot_storage)
         if include_images
         else {}
     )
@@ -594,7 +614,11 @@ async def fetch_meiguobaie_survey_candidates(
                 "web_nest_count": int(web_nest_count or 0),
                 "description": (row["description"] or "").strip(),
                 "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(location_id, screenshot_index),
+                "images": load_point_screenshot_images(
+                    location_id,
+                    screenshot_index,
+                    screenshot_storage,
+                ),
             }
         )
 

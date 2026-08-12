@@ -20,6 +20,7 @@ from backend.services.pest_registry import (
     IMAGE_STRATEGY_AUTO_DISK,
     get_pest_config,
 )
+from backend.services.storage import AssetStorage, get_storage_for_dir
 
 
 def format_size_limit(size: int) -> str:
@@ -113,14 +114,13 @@ def save_base64_images(base64_list: list[str], row_id: str) -> list[Path]:
     return paths
 
 
-def sanitize_existing_image_paths(paths: list[Path], row_id: str) -> list[Path]:
-    """将磁盘图片校验并规范化为临时 JPEG 文件。"""
+def sanitize_images_to_temp(named_images: list[tuple[str, bytes]], row_id: str) -> list[Path]:
+    """将装配到的素材图片校验并规范化为临时 JPEG 文件。"""
 
     sanitized_paths: list[Path] = []
     total_size = 0
-    for index, path in enumerate(paths[:MAX_IMAGES]):
-        label = f"图片文件 {path.name}"
-        content = path.read_bytes()
+    for index, (name, content) in enumerate(named_images[:MAX_IMAGES]):
+        label = f"图片文件 {name}"
         total_size += len(content)
         ensure_image_size_limits(content, label, total_size)
         sanitized_paths.append(
@@ -152,95 +152,71 @@ def natural_path_sort_key(path: Path) -> tuple[tuple[int, int | str], ...]:
     )
 
 
-def unique_existing_images(paths: list[Path]) -> list[Path]:
-    images: list[Path] = []
-    seen: set[str] = set()
+def find_point_screenshot_name(storage: AssetStorage, location_id: str) -> str | None:
+    """在点位截图存储位置中按编号精确匹配（不含扩展名）第一张截图。"""
 
-    for path in paths:
-        if not path.is_file() or not is_image_file(path):
-            continue
-
-        marker = str(path.resolve())
-        if marker in seen:
-            continue
-
-        seen.add(marker)
-        images.append(path)
-        if len(images) >= MAX_IMAGES:
-            break
-
-    return images
-
-
-def find_point_screenshot(screenshot_dir: Path, location_id: str) -> Path | None:
     normalized_location_id = (location_id or "").strip()
-    if not normalized_location_id or not screenshot_dir.is_dir():
+    if not normalized_location_id:
         return None
 
     matches = sorted(
         (
-            path
-            for path in screenshot_dir.iterdir()
-            if path.is_file()
-            and is_image_file(path)
-            and path.stem.strip() == normalized_location_id
+            obj.name
+            for obj in storage.list()
+            if is_image_file(Path(obj.name))
+            and Path(obj.name).stem.strip() == normalized_location_id
         ),
-        key=natural_path_sort_key,
+        key=lambda name: natural_path_sort_key(Path(name)),
     )
     return matches[0] if matches else None
 
 
-def find_dated_location_images(images_dir: Path, survey_date: str, location_id: str) -> list[Path]:
-    normalized_location_id = (location_id or "").strip()
-    normalized_date = (survey_date or "").strip()[:10]
-    if not normalized_location_id or not normalized_date:
-        return []
+def find_dated_location_image_names(storage: AssetStorage, location_id: str) -> list[str]:
+    """列出日期存储位置下文件名以点位编号开头的全部图片。"""
 
-    dated_dir = images_dir / normalized_date
-    if not dated_dir.is_dir():
+    normalized_location_id = (location_id or "").strip()
+    if not normalized_location_id:
         return []
 
     return sorted(
         (
-            path
-            for path in dated_dir.iterdir()
-            if path.is_file()
-            and is_image_file(path)
-            and path.stem.startswith(normalized_location_id)
+            obj.name
+            for obj in storage.list()
+            if is_image_file(Path(obj.name))
+            and Path(obj.name).stem.startswith(normalized_location_id)
         ),
-        key=natural_path_sort_key,
+        key=lambda name: natural_path_sort_key(Path(name)),
     )
 
 
-def resolve_auto_disk_image_paths(record: WorkOrderRecord, pest_type: str) -> list[Path]:
-    """按点位截图 + images/{调查日期}/ 日期现场图自动装配，最多 4 张。"""
+def resolve_auto_disk_images(record: WorkOrderRecord, pest_type: str) -> list[tuple[str, bytes]]:
+    """按点位截图 + images/{调查日期}/ 日期现场图自动装配，最多 MAX_IMAGES 张。"""
 
     settings = get_settings()
     config = get_pest_config(pest_type)
-    image_paths: list[Path] = []
+    named_images: list[tuple[str, bytes]] = []
 
     if config.screenshot_dir_attr:
         screenshot_dir = getattr(settings, config.screenshot_dir_attr, None)
         if screenshot_dir is not None:
-            point_screenshot = find_point_screenshot(Path(screenshot_dir), record.location_id)
-            if point_screenshot is not None:
-                image_paths.append(point_screenshot)
+            storage = get_storage_for_dir(Path(screenshot_dir), settings)
+            screenshot_name = find_point_screenshot_name(storage, record.location_id)
+            if screenshot_name is not None:
+                named_images.append((screenshot_name, storage.read(screenshot_name)))
 
-    image_paths.extend(
-        find_dated_location_images(
-            settings.images_dir,
-            record.survey_date,
-            record.location_id,
-        )
-    )
+    survey_date = (record.survey_date or "").strip()[:10]
+    if survey_date:
+        date_storage = get_storage_for_dir(Path(settings.images_dir) / survey_date, settings)
+        for name in find_dated_location_image_names(date_storage, record.location_id):
+            named_images.append((name, date_storage.read(name)))
 
-    return unique_existing_images(image_paths)
+    return named_images[:MAX_IMAGES]
 
 
-def resolve_meiguobaie_image_paths(record: WorkOrderRecord) -> list[Path]:
+def resolve_meiguobaie_images(record: WorkOrderRecord) -> list[tuple[str, bytes]]:
     """兼容旧调用：按美国白蛾配置自动装配图片。"""
 
-    return resolve_auto_disk_image_paths(record, "美国白蛾")
+    return resolve_auto_disk_images(record, "美国白蛾")
 
 
 def resolve_record_image_paths(
@@ -251,8 +227,8 @@ def resolve_record_image_paths(
 ) -> list[Path]:
     config = get_pest_config(pest_type)
     if config.image_strategy == IMAGE_STRATEGY_AUTO_DISK:
-        image_paths = sanitize_existing_image_paths(
-            resolve_auto_disk_image_paths(record, pest_type),
+        image_paths = sanitize_images_to_temp(
+            resolve_auto_disk_images(record, pest_type),
             row_id,
         )
         temp_images.extend(image_paths)
