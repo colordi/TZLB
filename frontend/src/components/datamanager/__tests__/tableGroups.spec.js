@@ -12,7 +12,7 @@ function makeTable(schemaName, tableName, extra = {}) {
     table_name: tableName,
     has_primary_key: true,
     primary_key: ["id"],
-    row_estimate: 100,
+    row_count: 100,
     ...extra,
   };
 }

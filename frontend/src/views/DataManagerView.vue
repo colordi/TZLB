@@ -124,7 +124,7 @@ const {
         >
           <span>{{ shortTableLabel(table.table_name, activePest) }}</span>
           <Badge variant="secondary" class="ml-1 px-1.5 text-[10px]">
-            {{ formatNumber(table.row_estimate) }}
+            {{ formatNumber(table.row_count) }}
           </Badge>
         </Button>
       </div>

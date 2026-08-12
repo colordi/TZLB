@@ -9,7 +9,7 @@ class DataManagerTableInfo(BaseModel):
 
     schema_name: str
     table_name: str
-    row_estimate: int
+    row_count: int
     has_primary_key: bool
     primary_key: list[str] = Field(default_factory=list)
 

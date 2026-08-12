@@ -10,7 +10,6 @@ import asyncpg
 
 from backend.db.postgres import ensure_pool, quote_identifier
 from backend.services.data_manager import (
-    MANAGEABLE_SCHEMAS,
     ManagedColumnMeta,
     ManagedTableMeta,
     coerce_value,
@@ -72,32 +71,29 @@ async def _load_table_meta(
 
 
 async def list_manageable_tables() -> list[dict[str, Any]]:
-    """列出可管理的基表：schema、表名、行数估计、主键信息。"""
+    """列出可管理的基表：schema、表名、精确行数、主键信息。
+
+    行数使用实时 COUNT(*)，与数据导出页面的统计口径一致；
+    不能用 pg_class.reltuples，那是 ANALYZE 维护的估计值，导入后可能长期过期。
+    """
 
     pool = await ensure_pool()
     async with pool.acquire() as connection:
         metadata = await fetch_managed_table_metadata(connection)
-        estimate_rows = await connection.fetch(
-            """
-            SELECT n.nspname AS table_schema, c.relname AS table_name, c.reltuples::bigint AS estimate
-            FROM pg_class AS c
-            JOIN pg_namespace AS n ON n.oid = c.relnamespace
-            WHERE n.nspname = ANY($1::text[]) AND c.relkind = 'r'
-            """,
-            list(MANAGEABLE_SCHEMAS),
-        )
-    estimates = {(row["table_schema"], row["table_name"]): row["estimate"] for row in estimate_rows}
-    tables: list[dict[str, Any]] = []
-    for (schema_name, table_name), meta in sorted(metadata.items()):
-        tables.append(
-            {
-                "schema_name": schema_name,
-                "table_name": table_name,
-                "row_estimate": max(estimates.get((schema_name, table_name), 0), 0),
-                "has_primary_key": bool(meta.primary_key),
-                "primary_key": list(meta.primary_key),
-            }
-        )
+        tables: list[dict[str, Any]] = []
+        for (schema_name, table_name), meta in sorted(metadata.items()):
+            count_row = await connection.fetchrow(
+                f"SELECT COUNT(*) AS row_count FROM {meta.qualified_name}"
+            )
+            tables.append(
+                {
+                    "schema_name": schema_name,
+                    "table_name": table_name,
+                    "row_count": int(count_row["row_count"] if count_row else 0),
+                    "has_primary_key": bool(meta.primary_key),
+                    "primary_key": list(meta.primary_key),
+                }
+            )
     return tables
 
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
-from backend.db.data_manager import _build_filter_clause
+from backend.db.data_manager import _build_filter_clause, list_manageable_tables
 from backend.services.data_manager import (
     MANAGEABLE_SCHEMAS,
     ManagedColumnMeta,
@@ -503,6 +504,81 @@ class TestSerialize(unittest.TestCase):
                 "备注": None,
             },
         )
+
+
+class _FakeAcquire:
+    def __init__(self, connection):
+        self.connection = connection
+
+    async def __aenter__(self):
+        return self.connection
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+
+class _FakePool:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def acquire(self):
+        return _FakeAcquire(self.connection)
+
+
+class _ListTablesFakeConnection:
+    """list_manageable_tables 用的假连接：一旦出现 reltuples 估计查询直接报错。"""
+
+    def __init__(self):
+        self.column_rows = [
+            {
+                "table_schema": "survey",
+                "table_name": "测试表",
+                "ordinal_position": 1,
+                "column_name": "id",
+                "data_type": "integer",
+                "udt_name": "int4",
+                "is_nullable": "NO",
+                "is_identity": "NO",
+                "column_default": None,
+            },
+        ]
+        self.pk_rows = [
+            {"table_schema": "survey", "table_name": "测试表", "columns": ["id"]},
+        ]
+        self.counts = {'"survey"."测试表"': 42}
+
+    async def fetch(self, query, *args):
+        if "reltuples" in query or "pg_class" in query:
+            raise AssertionError("行数统计不应使用 reltuples 估计值")
+        if "information_schema.columns" in query:
+            return self.column_rows
+        if "information_schema.table_constraints" in query:
+            return self.pk_rows
+        return []
+
+    async def fetchrow(self, query, *args):
+        for qualified, count in self.counts.items():
+            if qualified in query:
+                return {"row_count": count}
+        return {"row_count": 0}
+
+
+class TestListManageableTables(unittest.IsolatedAsyncioTestCase):
+    async def test_returns_exact_row_counts(self):
+        connection = _ListTablesFakeConnection()
+
+        with patch(
+            "backend.db.data_manager.ensure_pool",
+            new=AsyncMock(return_value=_FakePool(connection)),
+        ):
+            tables = await list_manageable_tables()
+
+        self.assertEqual(len(tables), 1)
+        self.assertEqual(tables[0]["schema_name"], "survey")
+        self.assertEqual(tables[0]["table_name"], "测试表")
+        self.assertEqual(tables[0]["row_count"], 42)
+        self.assertTrue(tables[0]["has_primary_key"])
+        self.assertEqual(tables[0]["primary_key"], ["id"])
 
 
 if __name__ == "__main__":
