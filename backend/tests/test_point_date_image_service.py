@@ -63,6 +63,8 @@ class SavePointDateImagesTest(unittest.IsolatedAsyncioTestCase):
             date_dir = images_dir / "2026-05-26"
             self.assertTrue((date_dir / "MQ001-1.jpg").is_file())
             self.assertTrue((date_dir / "MQ001-2.jpg").is_file())
+            self.assertTrue((date_dir / "MQ001-1.thumb.jpg").is_file())
+            self.assertTrue((date_dir / "MQ001-2.thumb.jpg").is_file())
 
     async def test_save_continues_sequence_from_existing_files(self) -> None:
         with TemporaryDirectory() as tempdir:
@@ -161,6 +163,19 @@ class ListPointDateImagesTest(unittest.TestCase):
                 )
             self.assertEqual(images, [])
 
+    def test_list_date_images_excludes_thumbnail_sidecars(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            images_dir = Path(tempdir) / "images"
+            date_dir = images_dir / "2026-05-26"
+            date_dir.mkdir(parents=True)
+            (date_dir / "MQ001-1.jpg").write_bytes(make_jpeg_bytes())
+            (date_dir / "MQ001-1.thumb.jpg").write_bytes(make_jpeg_bytes("blue"))
+
+            with patch_images_dir(images_dir):
+                images = list_date_images(survey_date="2026-05-26")
+
+            self.assertEqual([item["file_name"] for item in images], ["MQ001-1.jpg"])
+
     def test_list_date_images_returns_all_images_sorted(self) -> None:
         with TemporaryDirectory() as tempdir:
             images_dir = Path(tempdir) / "images"
@@ -222,6 +237,48 @@ class ReadPointDateImageTest(unittest.TestCase):
             read_content, media_type = result
             self.assertEqual(read_content, content)
             self.assertEqual(media_type, "image/jpeg")
+
+    def test_read_thumb_returns_downscaled_jpeg(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            images_dir = Path(tempdir) / "images"
+            date_dir = images_dir / "2026-05-26"
+            date_dir.mkdir(parents=True)
+            buffer = io.BytesIO()
+            Image.new("RGB", (800, 600), color=(45, 120, 80)).save(buffer, format="JPEG")
+            content = buffer.getvalue()
+            (date_dir / "MQ001-1.jpg").write_bytes(content)
+
+            with patch_images_dir(images_dir):
+                result = read_point_date_image(
+                    survey_date="2026-05-26",
+                    file_name="MQ001-1.jpg",
+                    size="thumb",
+                )
+                cached = read_point_date_image(
+                    survey_date="2026-05-26",
+                    file_name="MQ001-1.jpg",
+                    size="thumb",
+                )
+
+            self.assertIsNotNone(result)
+            thumb_content, media_type = result
+            self.assertEqual(media_type, "image/jpeg")
+            self.assertLess(len(thumb_content), len(content))
+            self.assertTrue((date_dir / "MQ001-1.thumb.jpg").is_file())
+            self.assertEqual(cached[0], thumb_content)
+            with Image.open(io.BytesIO(thumb_content)) as thumb:
+                self.assertEqual(thumb.format, "JPEG")
+                self.assertLessEqual(max(thumb.size), 360)
+
+    def test_read_rejects_invalid_size(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            with patch_images_dir(Path(tempdir) / "images"):
+                with self.assertRaisesRegex(ValueError, "预览尺寸"):
+                    read_point_date_image(
+                        survey_date="2026-05-26",
+                        file_name="MQ001-1.jpg",
+                        size="medium",
+                    )
 
 
 class DeletePointDateImageTest(unittest.TestCase):

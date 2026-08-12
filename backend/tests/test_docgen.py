@@ -15,11 +15,14 @@ from backend.schemas import WorkOrderGenerateRequest
 from backend.services.docgen import (
     convert_docx_bytes_to_doc,
     find_dated_location_image_names,
+    find_matching_screenshot_names,
+    find_point_screenshot_name,
     generate_workorder_artifact,
     generate_workorder_batch_artifact,
     get_template_path,
     render_single_document,
     resolve_meiguobaie_images,
+    resolve_record_image_paths,
     sanitize_images_to_temp,
     save_base64_images,
 )
@@ -449,6 +452,46 @@ class DocgenTest(unittest.TestCase):
         self.assertIn("MQ001现场.jpg", dated_image_names)
         self.assertIn("MQ001_2.jpg", dated_image_names)
         self.assertNotIn("AMQ001-1.jpg", dated_image_names)
+
+    def test_find_point_screenshot_name_probes_extensions_without_listing(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            (root / "YF0069.png").write_bytes(b"png")
+            storage = LocalAssetStorage(root)
+            with patch.object(storage, "list", side_effect=AssertionError("不应 list 整目录")):
+                self.assertEqual(find_point_screenshot_name(storage, "YF0069"), "YF0069.png")
+                self.assertEqual(find_matching_screenshot_names(storage, "YF0069"), ["YF0069.png"])
+            self.assertIsNone(find_point_screenshot_name(storage, "missing"))
+
+    def test_resolve_record_image_paths_loads_screenshot_when_images_empty(self) -> None:
+        payload = create_payload()
+        record = payload.records[0]
+        temp_images: list[Path] = []
+
+        with TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            screenshot_dir = root / "points"
+            screenshot_dir.mkdir()
+            content = create_image_bytes("JPEG", size=(32, 32))
+            (screenshot_dir / "YF0069.jpg").write_bytes(content)
+
+            with patch(
+                "backend.services.docgen.images.get_settings",
+                return_value=SimpleNamespace(
+                    point_screenshot_dir=screenshot_dir,
+                    temp_dir=root / "tmp",
+                    workorder_image_max_bytes=5 * 1024 * 1024,
+                    workorder_image_max_total_bytes=20 * 1024 * 1024,
+                    workorder_image_max_dimension=4000,
+                ),
+            ):
+                paths = resolve_record_image_paths(record, "春尺蠖", "row-1", temp_images)
+
+            self.assertEqual(len(paths), 1)
+            self.assertTrue(paths[0].is_file())
+            self.assertEqual(temp_images, paths)
+            for path in temp_images:
+                path.unlink(missing_ok=True)
 
     def test_resolve_other_pest_images_uses_date_folder_and_screenshot(self) -> None:
         from backend.services.docgen import resolve_auto_disk_images

@@ -109,8 +109,11 @@ export function buildPointDateImageUrl({ surveyDate, fileName }) {
 }
 
 /** 通过 apiFetch 拉取图片并返回 Object URL（本地免登场景 <img> 无法携带 bypass 头） */
-export async function fetchPointDateImageBlob({ surveyDate, fileName }) {
-  const response = await apiFetch(buildPointDateImageUrl({ surveyDate, fileName }));
+export async function fetchPointDateImageBlob({ surveyDate, fileName, size = "thumb" }) {
+  const search = new URLSearchParams({ size });
+  const response = await apiFetch(
+    `${buildPointDateImageUrl({ surveyDate, fileName })}?${search.toString()}`,
+  );
   await ensureApiSuccess(response);
   return URL.createObjectURL(await response.blob());
 }

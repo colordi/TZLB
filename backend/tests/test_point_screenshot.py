@@ -132,8 +132,11 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
                 )
 
             target = screenshot_dir / "YB001.png"
+            thumb = screenshot_dir / "YB001.thumb.jpg"
             self.assertTrue(target.is_file())
+            self.assertTrue(thumb.is_file())
             self.assertEqual(target.read_bytes(), content)
+            self.assertLess(thumb.stat().st_size, len(content) + 1024)
             self.assertEqual(
                 result,
                 {"code": "YB001", "filename": "YB001.png", "size": len(content)},
@@ -287,14 +290,45 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
                 )
                 response = await preview_route("美国白蛾", "MQ001", size="thumb")
 
+            # 懒生成会回写持久化缩略图，再次读取应直接命中
+            self.assertTrue((screenshot_dir / "MQ001.thumb.jpg").is_file())
+            with patch(
+                "backend.services.point_screenshot_service.get_screenshot_dir",
+                return_value=screenshot_dir,
+            ):
+                cached_content, _ = read_point_screenshot("美国白蛾", "MQ001", size="thumb")
+
         self.assertEqual(media_type, "image/jpeg")
         self.assertLess(len(thumb_content), len(original))
+        self.assertEqual(cached_content, thumb_content)
         with Image.open(io.BytesIO(thumb_content)) as thumb:
             self.assertEqual(thumb.format, "JPEG")
             self.assertLessEqual(max(thumb.size), THUMB_MAX_EDGE)
             self.assertEqual(thumb.size, (THUMB_MAX_EDGE, 240))
         self.assertEqual(response.body, thumb_content)
         self.assertEqual(response.headers["content-type"].startswith("image/jpeg"), True)
+
+    async def test_list_status_ignores_thumbnail_sidecar(self) -> None:
+        with TemporaryDirectory() as tempdir:
+            screenshot_dir = Path(tempdir)
+            (screenshot_dir / "MQ001.png").write_bytes(build_image_bytes("PNG"))
+            (screenshot_dir / "MQ001.thumb.jpg").write_bytes(build_image_bytes("JPEG"))
+            points = [{"code": "MQ001", "name": "点位", "locality": "梨园镇"}]
+
+            with (
+                patch(
+                    "backend.services.point_screenshot_service.postgres.fetch_site_points",
+                    new=AsyncMock(return_value=points),
+                ),
+                patch(
+                    "backend.services.point_screenshot_service.get_screenshot_dir",
+                    return_value=screenshot_dir,
+                ),
+            ):
+                result = await list_point_screenshot_status("美国白蛾")
+
+        self.assertTrue(result[0]["has_screenshot"])
+        self.assertEqual(result[0]["screenshot_filename"], "MQ001.png")
 
     async def test_preview_rejects_invalid_size(self) -> None:
         with self.assertRaises(ValueError) as context:

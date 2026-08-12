@@ -121,8 +121,12 @@ def serialize_date_value(value: Any) -> str:
 def build_point_screenshot_index(storage: AssetStorage) -> dict[str, str]:
     """列出点位截图存储位置，返回可唯一匹配的点位截图索引（编号 -> 文件名）。"""
 
+    from backend.services.point_screenshot_service import is_preview_thumbnail_name
+
     indexed_names: dict[str, list[str]] = {}
     for obj in sorted(storage.list(), key=lambda item: item.name):
+        if is_preview_thumbnail_name(obj.name):
+            continue
         mime_type, _ = mimetypes.guess_type(obj.name)
         if not mime_type or not mime_type.startswith("image/"):
             continue

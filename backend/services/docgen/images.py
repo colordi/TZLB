@@ -152,22 +152,47 @@ def natural_path_sort_key(path: Path) -> tuple[tuple[int, int | str], ...]:
     )
 
 
-def find_point_screenshot_name(storage: AssetStorage, location_id: str) -> str | None:
-    """在点位截图存储位置中按编号精确匹配（不含扩展名）第一张截图。"""
+# 上传写入统一小写扩展名；探测顺序覆盖常见格式，避免为找一张图而 list 整目录
+SCREENSHOT_PROBE_EXTENSIONS = ("jpg", "jpeg", "png", "webp")
+
+
+def find_matching_screenshot_names(storage: AssetStorage, location_id: str) -> list[str]:
+    """按点位编号匹配全部截图文件名。
+
+    优先按常见扩展名 exists 探测（R2 下为 HeadObject，O(扩展名数)），
+    未命中时再回退 list 整目录以兼容历史大小写/非标准扩展名。
+    """
 
     normalized_location_id = (location_id or "").strip()
     if not normalized_location_id:
-        return None
+        return []
 
-    matches = sorted(
+    probed = [
+        name
+        for ext in SCREENSHOT_PROBE_EXTENSIONS
+        if storage.exists(name := f"{normalized_location_id}.{ext}")
+    ]
+    if probed:
+        return sorted(probed, key=lambda name: natural_path_sort_key(Path(name)))
+
+    from backend.services.point_screenshot_service import is_preview_thumbnail_name
+
+    return sorted(
         (
             obj.name
             for obj in storage.list()
             if is_image_file(Path(obj.name))
+            and not is_preview_thumbnail_name(obj.name)
             and Path(obj.name).stem.strip() == normalized_location_id
         ),
         key=lambda name: natural_path_sort_key(Path(name)),
     )
+
+
+def find_point_screenshot_name(storage: AssetStorage, location_id: str) -> str | None:
+    """在点位截图存储位置中按编号精确匹配（不含扩展名）第一张截图。"""
+
+    matches = find_matching_screenshot_names(storage, location_id)
     return matches[0] if matches else None
 
 
@@ -178,11 +203,14 @@ def find_dated_location_image_names(storage: AssetStorage, location_id: str) -> 
     if not normalized_location_id:
         return []
 
+    from backend.services.point_screenshot_service import is_preview_thumbnail_name
+
     return sorted(
         (
             obj.name
             for obj in storage.list()
             if is_image_file(Path(obj.name))
+            and not is_preview_thumbnail_name(obj.name)
             and Path(obj.name).stem.startswith(normalized_location_id)
         ),
         key=lambda name: natural_path_sort_key(Path(name)),
@@ -219,6 +247,31 @@ def resolve_meiguobaie_images(record: WorkOrderRecord) -> list[tuple[str, bytes]
     return resolve_auto_disk_images(record, "美国白蛾")
 
 
+def _resolve_uploaded_strategy_images(
+    record: WorkOrderRecord,
+    pest_type: str,
+) -> list[tuple[str, bytes]]:
+    """uploaded_images：优先用记录内 Base64；为空时从点位截图存储补一张。"""
+
+    if record.images:
+        return []
+
+    settings = get_settings()
+    config = get_pest_config(pest_type)
+    if not config.screenshot_dir_attr:
+        return []
+
+    screenshot_dir = getattr(settings, config.screenshot_dir_attr, None)
+    if screenshot_dir is None:
+        return []
+
+    storage = get_storage_for_dir(Path(screenshot_dir), settings)
+    screenshot_name = find_point_screenshot_name(storage, record.location_id)
+    if screenshot_name is None:
+        return []
+    return [(screenshot_name, storage.read(screenshot_name))]
+
+
 def resolve_record_image_paths(
     record: WorkOrderRecord,
     pest_type: str,
@@ -234,6 +287,15 @@ def resolve_record_image_paths(
         temp_images.extend(image_paths)
         return image_paths
 
-    image_paths = save_base64_images(record.images, row_id) if record.images else []
+    if record.images:
+        image_paths = save_base64_images(record.images, row_id)
+        temp_images.extend(image_paths)
+        return image_paths
+
+    # 导入列表已不再批量携带截图 Data URL，生成时按点位从存储补图
+    image_paths = sanitize_images_to_temp(
+        _resolve_uploaded_strategy_images(record, pest_type),
+        row_id,
+    )
     temp_images.extend(image_paths)
     return image_paths

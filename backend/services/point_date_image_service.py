@@ -21,8 +21,13 @@ from backend.services.docgen import (
     natural_path_sort_key,
 )
 from backend.services.point_screenshot_service import (
+    delete_preview_thumbnail,
     detect_image_extension,
+    is_preview_thumbnail_name,
+    normalize_preview_size,
+    read_or_build_preview_thumbnail,
     validate_point_code,
+    write_preview_thumbnail,
 )
 from backend.services.storage import AssetStorage, ensure_inside_directory, get_storage_for_dir
 
@@ -65,7 +70,7 @@ def resolve_date_storage(survey_date: str) -> AssetStorage:
 
 
 def list_date_images(*, survey_date: str) -> list[dict[str, Any]]:
-    """列出指定日期存储位置下的全部图片。"""
+    """列出指定日期存储位置下的全部原图（排除持久化缩略图）。"""
 
     storage = resolve_date_storage(survey_date)
     return [
@@ -74,7 +79,7 @@ def list_date_images(*, survey_date: str) -> list[dict[str, Any]]:
             storage.list(),
             key=lambda item: natural_path_sort_key(Path(item.name)),
         )
-        if is_image_file(Path(obj.name))
+        if is_image_file(Path(obj.name)) and not is_preview_thumbnail_name(obj.name)
     ]
 
 
@@ -89,15 +94,38 @@ def list_point_date_images(*, survey_date: str, point_code: str) -> list[dict[st
     ]
 
 
-def read_point_date_image(*, survey_date: str, file_name: str) -> tuple[bytes, str] | None:
-    """读取日期存储位置下的图片内容和媒体类型，不存在时返回 None。"""
+def read_point_date_image(
+    *,
+    survey_date: str,
+    file_name: str,
+    size: str = "full",
+) -> tuple[bytes, str] | None:
+    """读取日期存储位置下的图片内容和媒体类型，不存在时返回 None。
 
+    size:
+      - full: 原图
+      - thumb: 最长边不超过列表预览限制的 JPEG 缩略图
+    """
+
+    normalized_size = normalize_preview_size(size)
     storage = resolve_date_storage(survey_date)
     name = validate_image_file_name(file_name)
-    if not storage.exists(name):
+    if is_preview_thumbnail_name(name):
+        raise ValueError("不能直接按缩略图文件名访问，请使用原图文件名并指定 size")
+
+    if normalized_size == "thumb":
+        try:
+            return read_or_build_preview_thumbnail(storage, name), "image/jpeg"
+        except FileNotFoundError:
+            return None
+
+    try:
+        content = storage.read(name)
+    except FileNotFoundError:
         return None
+
     media_type, _ = mimetypes.guess_type(name)
-    return storage.read(name), media_type or "application/octet-stream"
+    return content, media_type or "application/octet-stream"
 
 
 def validate_image_file_name(file_name: str) -> str:
@@ -160,6 +188,10 @@ async def save_point_date_images(
             filename = f"{normalized_code}-{sequence}.{extension}"
 
         storage.write(filename, content)
+        try:
+            write_preview_thumbnail(storage, filename, content)
+        except ValueError:
+            pass
         saved.append({"file_name": filename, "size_bytes": len(content)})
         sequence += 1
 
@@ -192,5 +224,6 @@ def delete_point_date_image(*, survey_date: str, point_code: str, file_name: str
     if not storage.exists(name):
         raise FileNotFoundError(f"图片不存在：{name}")
 
+    delete_preview_thumbnail(storage, name)
     storage.delete(name)
     logger.info("点位日期图片已删除: date=%s point=%s file=%s", survey_date, normalized_code, name)

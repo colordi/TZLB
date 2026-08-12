@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import mimetypes
 import re
@@ -15,6 +16,7 @@ from backend.services.docgen import (
     SUPPORTED_IMAGE_FORMATS,
     SUPPORTED_IMAGE_FORMAT_LABEL,
     ensure_image_size_limits,
+    find_matching_screenshot_names,
     find_point_screenshot_name,
     image_to_rgb,
     is_image_file,
@@ -32,6 +34,8 @@ POINT_CODE_PATTERN = re.compile(r"^[A-Za-z0-9一-龥_-]+$")
 PREVIEW_SIZES = frozenset({"full", "thumb"})
 THUMB_MAX_EDGE = 360
 THUMB_JPEG_QUALITY = 82
+# 与原图同目录存放：MQ001.jpg → MQ001.thumb.jpg；列表/装配时需排除
+THUMB_NAME_SUFFIX = ".thumb.jpg"
 IMAGE_EXTENSION_BY_FORMAT = {
     "JPEG": "jpg",
     "PNG": "png",
@@ -42,6 +46,59 @@ IMAGE_EXTENSIONS_BY_FORMAT = {
     "PNG": {"png"},
     "WEBP": {"webp"},
 }
+
+
+def is_preview_thumbnail_name(name: str) -> bool:
+    """判断是否为列表预览用持久化缩略图文件名。"""
+
+    return str(name or "").endswith(THUMB_NAME_SUFFIX)
+
+
+def thumbnail_name_for(original_name: str) -> str:
+    """由原图文件名推导缩略图文件名（统一 JPEG）。"""
+
+    stem = Path(original_name).stem
+    if not stem or is_preview_thumbnail_name(original_name):
+        raise ValueError("原图文件名不合法")
+    return f"{stem}{THUMB_NAME_SUFFIX}"
+
+
+def write_preview_thumbnail(storage: AssetStorage, original_name: str, content: bytes) -> None:
+    """由原图字节生成缩略图并写入存储。"""
+
+    storage.write(thumbnail_name_for(original_name), build_preview_thumbnail(content))
+
+
+def delete_preview_thumbnail(storage: AssetStorage, original_name: str) -> None:
+    """删除原图对应的缩略图（不存在时静默忽略）。"""
+
+    try:
+        storage.delete(thumbnail_name_for(original_name))
+    except ValueError:
+        return
+
+
+def read_or_build_preview_thumbnail(
+    storage: AssetStorage,
+    original_name: str,
+    *,
+    original_content: bytes | None = None,
+) -> bytes:
+    """优先读持久化缩略图；缺失时现算并尝试回写。"""
+
+    thumb_name = thumbnail_name_for(original_name)
+    try:
+        return storage.read(thumb_name)
+    except FileNotFoundError:
+        pass
+
+    content = original_content if original_content is not None else storage.read(original_name)
+    thumb_bytes = build_preview_thumbnail(content)
+    try:
+        storage.write(thumb_name, thumb_bytes)
+    except Exception:  # noqa: BLE001 — 回写失败不影响本次预览
+        pass
+    return thumb_bytes
 
 
 def validate_point_code(code: str) -> str:
@@ -92,16 +149,22 @@ def detect_image_extension(content: bytes, filename: str | None) -> str:
 
 
 def list_screenshot_objects(storage: AssetStorage) -> list[AssetObject]:
-    """列出截图存储位置下的图片文件，按文件名自然排序。"""
+    """列出截图存储位置下的原图文件（排除持久化缩略图），按文件名自然排序。"""
 
     return sorted(
-        (obj for obj in storage.list() if is_image_file(Path(obj.name))),
+        (
+            obj
+            for obj in storage.list()
+            if is_image_file(Path(obj.name)) and not is_preview_thumbnail_name(obj.name)
+        ),
         key=lambda obj: natural_path_sort_key(Path(obj.name)),
     )
 
 
 def find_matching_names(storage: AssetStorage, code: str) -> list[str]:
-    return [obj.name for obj in storage.list() if Path(obj.name).stem.strip() == code]
+    """按点位编号匹配截图文件名；优先扩展名探测，避免整目录 list。"""
+
+    return find_matching_screenshot_names(storage, code)
 
 
 async def list_point_screenshot_status(pest_type: str) -> list[dict[str, object]]:
@@ -109,8 +172,9 @@ async def list_point_screenshot_status(pest_type: str) -> list[dict[str, object]
 
     points = await postgres.fetch_site_points(pest_type)
     storage = require_screenshot_storage(pest_type)
+    objects = await asyncio.to_thread(list_screenshot_objects, storage)
     screenshot_index: dict[str, str] = {}
-    for obj in list_screenshot_objects(storage):
+    for obj in objects:
         screenshot_index.setdefault(Path(obj.name).stem.strip(), obj.name)
 
     return [
@@ -140,10 +204,16 @@ async def save_point_screenshot(
     extension = detect_image_extension(content, upload_file.filename)
 
     for existing_name in find_matching_names(storage, normalized_code):
+        delete_preview_thumbnail(storage, existing_name)
         storage.delete(existing_name)
 
     filename = f"{normalized_code}.{extension}"
     storage.write(filename, content)
+    try:
+        write_preview_thumbnail(storage, filename, content)
+    except ValueError:
+        # 缩略图生成失败不阻断原图上传
+        pass
     return {
         "code": normalized_code,
         "filename": filename,
@@ -161,11 +231,12 @@ def delete_point_screenshot(pest_type: str, code: str) -> dict[str, object]:
         raise FileNotFoundError(f"未找到点位 {normalized_code} 的截图")
 
     for name in matching_names:
+        delete_preview_thumbnail(storage, name)
         storage.delete(name)
     return {"code": normalized_code, "deleted": True}
 
 
-def _build_thumbnail_bytes(content: bytes) -> bytes:
+def build_preview_thumbnail(content: bytes) -> bytes:
     """将原图缩放为列表用缩略图，统一输出 JPEG。"""
 
     try:
@@ -187,9 +258,18 @@ def _build_thumbnail_bytes(content: bytes) -> bytes:
                 )
                 return buffer.getvalue()
     except (Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise ValueError("截图像素尺寸过大，无法生成缩略图") from exc
+        raise ValueError("图片像素尺寸过大，无法生成缩略图") from exc
     except (UnidentifiedImageError, OSError, ValueError) as exc:
-        raise ValueError("截图文件损坏，无法生成缩略图") from exc
+        raise ValueError("图片文件损坏，无法生成缩略图") from exc
+
+
+def normalize_preview_size(size: str | None) -> str:
+    """校验预览尺寸参数，仅允许 full / thumb。"""
+
+    normalized = str(size or "full").strip().lower()
+    if normalized not in PREVIEW_SIZES:
+        raise ValueError("预览尺寸仅支持 full 或 thumb")
+    return normalized
 
 
 def read_point_screenshot(
@@ -205,19 +285,16 @@ def read_point_screenshot(
       - thumb: 最长边不超过 THUMB_MAX_EDGE 的 JPEG 缩略图
     """
 
-    normalized_size = str(size or "full").strip().lower()
-    if normalized_size not in PREVIEW_SIZES:
-        raise ValueError("预览尺寸仅支持 full 或 thumb")
-
+    normalized_size = normalize_preview_size(size)
     normalized_code = validate_point_code(code)
     storage = require_screenshot_storage(pest_type)
     screenshot_name = find_point_screenshot_name(storage, normalized_code)
     if screenshot_name is None:
         raise FileNotFoundError(f"未找到点位 {normalized_code} 的截图")
 
-    content = storage.read(screenshot_name)
     if normalized_size == "thumb":
-        return _build_thumbnail_bytes(content), "image/jpeg"
+        return read_or_build_preview_thumbnail(storage, screenshot_name), "image/jpeg"
 
+    content = storage.read(screenshot_name)
     media_type, _ = mimetypes.guess_type(screenshot_name)
     return content, media_type or "application/octet-stream"

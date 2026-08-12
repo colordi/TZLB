@@ -116,7 +116,7 @@ describe("workorder api", () => {
       });
 
       expect(global.fetch.mock.calls[0][0]).toBe(
-        "/api/workorder/point-date-images/2026-05-26/MQ001-1.jpg",
+        "/api/workorder/point-date-images/2026-05-26/MQ001-1.jpg?size=thumb",
       );
       expect(url).toBe("blob:mock-thumb");
     } finally {

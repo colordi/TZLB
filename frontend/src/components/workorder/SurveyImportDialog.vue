@@ -164,6 +164,8 @@ async function handleQuery() {
       pestType: pestType.value,
       year: year.value,
       generation: generation.value,
+      // 列表仅需字段，不批量拉点位截图原图（生成时再按存储装配）
+      includeImages: false,
     });
     candidates.value = Array.isArray(result) ? result : [];
     selectedCandidateKeys.value = candidates.value.map((candidate) => getCandidateKey(candidate));

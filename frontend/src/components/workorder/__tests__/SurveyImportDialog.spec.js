@@ -67,7 +67,7 @@ describe("SurveyImportDialog", () => {
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-04-01&pest_type=%E6%98%A5%E5%B0%BA%E8%A0%96&year=2026",
+      "/api/survey/candidates?date=2026-04-01&pest_type=%E6%98%A5%E5%B0%BA%E8%A0%96&year=2026&include_images=false",
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -149,7 +149,7 @@ describe("SurveyImportDialog", () => {
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "/api/survey/candidates?date=2026-04-17&pest_type=%E5%85%B6%E4%BB%96%E5%AE%B3%E8%99%AB&year=2026",
+      "/api/survey/candidates?date=2026-04-17&pest_type=%E5%85%B6%E4%BB%96%E5%AE%B3%E8%99%AB&year=2026&include_images=false",
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -197,8 +197,12 @@ describe("SurveyImportDialog", () => {
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/survey/candidates?date=2026-05-02&pest_type=%E5%9B%BD%E6%A7%90%E5%B0%BA%E8%A0%96&year=2026"),
+    const requestUrl = global.fetch.mock.calls[0][0];
+    expect(requestUrl).toContain(
+      "/api/survey/candidates?date=2026-05-02&pest_type=%E5%9B%BD%E6%A7%90%E5%B0%BA%E8%A0%96&year=2026",
+    );
+    expect(requestUrl).toContain("include_images=false");
+    expect(global.fetch.mock.calls[0][1]).toEqual(
       expect.objectContaining({
         credentials: "same-origin",
       }),
@@ -250,8 +254,12 @@ describe("SurveyImportDialog", () => {
     await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/survey/candidates?date=2026-05-26&pest_type=%E7%BE%8E%E5%9B%BD%E7%99%BD%E8%9B%BE&year=2026"),
+    const requestUrl = global.fetch.mock.calls[0][0];
+    expect(requestUrl).toContain(
+      "/api/survey/candidates?date=2026-05-26&pest_type=%E7%BE%8E%E5%9B%BD%E7%99%BD%E8%9B%BE&year=2026",
+    );
+    expect(requestUrl).toContain("include_images=false");
+    expect(global.fetch.mock.calls[0][1]).toEqual(
       expect.objectContaining({
         credentials: "same-origin",
       }),

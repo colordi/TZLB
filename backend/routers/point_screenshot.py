@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -44,7 +45,11 @@ async def upload_point_screenshot(
 @router.delete("/", summary="删除点位截图")
 async def delete_point_screenshot(pest_type: str, code: str) -> dict:
     try:
-        return point_screenshot_service.delete_point_screenshot(pest_type, code)
+        return await asyncio.to_thread(
+            point_screenshot_service.delete_point_screenshot,
+            pest_type,
+            code,
+        )
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
     except FileNotFoundError as exc:
@@ -58,7 +63,8 @@ async def preview_point_screenshot(
     size: Literal["full", "thumb"] = "full",
 ) -> Response:
     try:
-        content, media_type = point_screenshot_service.read_point_screenshot(
+        content, media_type = await asyncio.to_thread(
+            point_screenshot_service.read_point_screenshot,
             pest_type,
             code,
             size=size,

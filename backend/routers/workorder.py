@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
@@ -129,11 +130,14 @@ async def list_workorder_point_date_images(
     point_code: str | None = Query(default=None, description="点位编号，缺省时返回当日全部图片"),
 ) -> dict:
     try:
-        images = (
-            list_point_date_images(survey_date=survey_date, point_code=point_code)
-            if point_code
-            else list_date_images(survey_date=survey_date)
-        )
+        if point_code:
+            images = await asyncio.to_thread(
+                list_point_date_images,
+                survey_date=survey_date,
+                point_code=point_code,
+            )
+        else:
+            images = await asyncio.to_thread(list_date_images, survey_date=survey_date)
         return {
             "survey_date": survey_date,
             "point_code": point_code or "",
@@ -160,11 +164,17 @@ async def upload_workorder_point_date_images(
 
 
 @router.get("/point-date-images/{survey_date}/{file_name}", summary="读取点位日期图片")
-async def read_workorder_point_date_image(survey_date: str, file_name: str) -> Response:
+async def read_workorder_point_date_image(
+    survey_date: str,
+    file_name: str,
+    size: Literal["full", "thumb"] = Query(default="full", description="full 原图，thumb 列表缩略图"),
+) -> Response:
     try:
-        result = read_point_date_image(
+        result = await asyncio.to_thread(
+            read_point_date_image,
             survey_date=survey_date,
             file_name=file_name,
+            size=size,
         )
     except ValueError as exc:
         raise BusinessError(str(exc)) from exc
@@ -185,7 +195,8 @@ async def delete_workorder_point_date_image(
     point_code: str = Query(..., description="点位编号"),
 ) -> dict:
     try:
-        delete_point_date_image(
+        await asyncio.to_thread(
+            delete_point_date_image,
             survey_date=survey_date,
             point_code=point_code,
             file_name=file_name,
