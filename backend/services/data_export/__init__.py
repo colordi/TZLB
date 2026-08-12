@@ -29,10 +29,12 @@ from backend.services.data_export.types import (  # noqa: F401
     PestExportMeta,
 )
 from backend.services.data_export.workbook import (  # noqa: F401
+    DATE_LIST_COLUMN_SUFFIX,
     append_summary_sheet,
     append_table_sheet,
     build_export_filename,
     build_unique_sheet_names,
+    normalize_date_list_text,
     normalize_sheet_name,
     serialize_cell_value,
     validate_export_schema,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from io import BytesIO
@@ -7,6 +9,7 @@ from typing import Any
 
 import asyncpg
 from openpyxl import Workbook
+from openpyxl.cell import WriteOnlyCell
 
 from backend.db.postgres import quote_identifier
 from backend.services.data_export.types import (
@@ -61,6 +64,21 @@ def build_export_filename(prefix: str, exported_at: datetime | None = None) -> s
     timestamp = (exported_at or datetime.now()).strftime("%Y%m%d_%H%M%S")
     return f"{prefix}_{timestamp}.xlsx"
 
+
+DATE_LIST_COLUMN_SUFFIX = "日期列表"
+DATE_LIST_TEXT_PATTERN = re.compile(r"(\d{4})/(\d{1,2})/(\d{1,2})")
+
+
+def normalize_date_list_text(value: Any) -> Any:
+    """将日期列表文本中的 ``2026/7/6`` 片段统一为零填充的 ``2026-07-06``。"""
+    if not isinstance(value, str) or not value:
+        return value
+    return DATE_LIST_TEXT_PATTERN.sub(
+        lambda match: f"{match.group(1)}-{int(match.group(2)):02d}-{int(match.group(3)):02d}",
+        value,
+    )
+
+
 async def append_table_sheet(
     workbook: Workbook,
     connection: asyncpg.Connection,
@@ -83,8 +101,28 @@ async def append_table_sheet(
     else:
         rows = await connection.fetch(f"SELECT {column_sql} FROM {qualified_table}")
 
+    date_list_indexes = {
+        index
+        for index, column in enumerate(table.columns)
+        if column.endswith(DATE_LIST_COLUMN_SUFFIX)
+    }
+
     for row in rows:
-        worksheet.append([serialize_cell_value(row[column]) for column in table.columns])
+        values = [serialize_cell_value(row[column]) for column in table.columns]
+        if not date_list_indexes:
+            worksheet.append(values)
+            continue
+
+        cells: list[Any] = []
+        for index, value in enumerate(values):
+            if index in date_list_indexes:
+                # 强制文本格式，避免 Excel 打开时将 2026-07-06 自动识别为日期
+                cell = WriteOnlyCell(worksheet, value=normalize_date_list_text(value))
+                cell.number_format = "@"
+                cells.append(cell)
+            else:
+                cells.append(value)
+        worksheet.append(cells)
 
 
 def append_summary_sheet(

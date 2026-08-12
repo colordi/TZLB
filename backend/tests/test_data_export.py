@@ -5,18 +5,21 @@ from datetime import date
 from io import BytesIO
 from unittest.mock import AsyncMock, patch
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from backend.routers.data_export import build_download_response, get_pest_export_meta
 from backend.services.data_export import (
     DataExportArtifact,
     ExportTableMeta,
+    append_table_sheet,
     build_unique_sheet_names,
     export_all_tables,
     export_pest_type,
     fetch_export_table_metadata,
     fetch_pest_export_metadata,
     fetch_pest_export_metadata_filtered,
+    normalize_date_list_text,
+    workbook_to_bytes,
 )
 
 
@@ -475,6 +478,45 @@ class DataExportRouterTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["pest_type"], "美国白蛾")
         self.assertIn("tables", result)
         self.assertIn("total_row_count", result)
+
+
+class DateListColumnExportTest(unittest.IsolatedAsyncioTestCase):
+    def test_normalize_date_list_text_pads_month_and_day(self) -> None:
+        self.assertEqual(normalize_date_list_text("2026/7/6"), "2026-07-06")
+        self.assertEqual(normalize_date_list_text("2026/7/6、2026/12/18"), "2026-07-06、2026-12-18")
+        self.assertEqual(normalize_date_list_text("2026/11/30"), "2026-11-30")
+
+    def test_normalize_date_list_text_keeps_other_values(self) -> None:
+        self.assertEqual(normalize_date_list_text(""), "")
+        self.assertEqual(normalize_date_list_text("待定"), "待定")
+        self.assertIsNone(normalize_date_list_text(None))
+
+    async def test_append_table_sheet_formats_date_list_columns_as_text(self) -> None:
+        connection = FakeConnection()
+        connection.table_rows = {
+            '"ledger"."美国白蛾问题点位台账"': [
+                {"编号": "MB001", "调查日期列表": "2026/7/6、2026/7/18", "备注": "复查"},
+            ],
+        }
+        table = ExportTableMeta(
+            schema_name="ledger",
+            table_name="美国白蛾问题点位台账",
+            object_type="view",
+            columns=("编号", "调查日期列表", "备注"),
+            row_count=1,
+        )
+
+        workbook = Workbook(write_only=True)
+        await append_table_sheet(workbook, connection, table, "台账")
+
+        loaded = load_workbook(BytesIO(workbook_to_bytes(workbook)))
+        sheet = loaded["台账"]
+        self.assertEqual(sheet.cell(row=1, column=2).value, "调查日期列表")
+        self.assertEqual(sheet.cell(row=2, column=1).value, "MB001")
+        self.assertEqual(sheet.cell(row=2, column=2).value, "2026-07-06、2026-07-18")
+        self.assertEqual(sheet.cell(row=2, column=2).number_format, "@")
+        self.assertEqual(sheet.cell(row=2, column=3).value, "复查")
+        self.assertEqual(sheet.cell(row=2, column=3).number_format, "General")
 
 
 if __name__ == "__main__":
