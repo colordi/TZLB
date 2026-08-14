@@ -284,6 +284,24 @@ def _build_rich_fake_connection():
             "columns": ["编号", "年份"],
         },
         {
+            "table_schema": "survey",
+            "table_name": "杨树食叶害虫调查表",
+            "object_type": "table",
+            "columns": ["编号", "虫害类型", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "杨树食叶害虫问题点位事件流水表",
+            "object_type": "table",
+            "columns": ["编号", "年份"],
+        },
+        {
+            "table_schema": "ledger",
+            "table_name": "杨树食叶害虫问题点位台账",
+            "object_type": "view",
+            "columns": ["编号", "年份"],
+        },
+        {
             "table_schema": "ledger",
             "table_name": "其他害虫问题点位事件流水表",
             "object_type": "table",
@@ -312,6 +330,9 @@ def _build_rich_fake_connection():
         '"ledger"."春尺蠖问题点位台账"': 8,
         '"ledger"."其他害虫问题点位事件流水表"': 6,
         '"ledger"."其他害虫问题点位台账"': 4,
+        '"survey"."杨树食叶害虫调查表"': 7,
+        '"ledger"."杨树食叶害虫问题点位事件流水表"': 3,
+        '"ledger"."杨树食叶害虫问题点位台账"': 2,
     }
     conn.table_rows = {
         '"survey"."春尺蠖幼虫调查表"': [
@@ -347,8 +368,10 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
         pest_types = [pm.pest_type for pm in result]
         self.assertEqual(
             pest_types,
-            ["美国白蛾", "国槐尺蠖", "春尺蠖", "其他害虫", "白蜡蛀干害虫"],
+            ["美国白蛾", "国槐尺蠖", "春尺蠖", "其他害虫", "杨树食叶害虫", "白蜡蛀干害虫"],
         )
+        yangshu_meta = next(pm for pm in result if pm.pest_type == "杨树食叶害虫")
+        self.assertEqual(len(yangshu_meta.tables), 3)
 
     async def test_fetch_pest_export_metadata_filters_by_pest_type(self) -> None:
         connection = _build_rich_fake_connection()

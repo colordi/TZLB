@@ -10,6 +10,9 @@ const apiMocks = vi.hoisted(() => ({
   getWhiteMothLocalitySummary: vi.fn(),
   getWhiteMothHostSummary: vi.fn(),
   getOtherPestSummary: vi.fn(),
+  getYangshuShiyeSummary: vi.fn(),
+  getAshBorerSummary: vi.fn(),
+  getPoplarInchwormSummary: vi.fn(),
   getSophoraGenerationSummary: vi.fn(),
   getSophoraLocalitySummary: vi.fn(),
   error: vi.fn(),
@@ -21,6 +24,9 @@ vi.mock("../../api/statistics.js", () => ({
   getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
   getWhiteMothHostSummary: apiMocks.getWhiteMothHostSummary,
   getOtherPestSummary: apiMocks.getOtherPestSummary,
+  getYangshuShiyeSummary: apiMocks.getYangshuShiyeSummary,
+  getAshBorerSummary: apiMocks.getAshBorerSummary,
+  getPoplarInchwormSummary: apiMocks.getPoplarInchwormSummary,
   getSophoraGenerationSummary: apiMocks.getSophoraGenerationSummary,
   getSophoraLocalitySummary: apiMocks.getSophoraLocalitySummary,
 }));
@@ -265,6 +271,98 @@ function buildOtherPestSummary() {
   };
 }
 
+function buildYangshuShiyeSummary() {
+  return {
+    year: 2026,
+    totals: {
+      survey_records: 20,
+      surveyed_points: 18,
+      problem_records: 6,
+      no_problem_records: 14,
+      problem_points: 5,
+      problem_rate: 30.0,
+      last_survey_date: "2026-08-01",
+      ledger_points: 4,
+      status_counts: [{ status: "待防治", count: 4 }],
+    },
+    pest_types: [
+      {
+        pest_type: "杨小舟蛾",
+        survey_records: 12,
+        problem_records: 5,
+        problem_points: 4,
+        last_survey_date: "2026-07-30",
+      },
+    ],
+  };
+}
+
+function buildAshBorerSummary() {
+  return {
+    year: 2026,
+    totals: {
+      survey_records: 15,
+      surveyed_points: 12,
+      agrilus_damaged_plants: 30,
+      agrilus_holes: 120,
+      cossus_damaged_plants: 8,
+      dead_plants: 5,
+      felled_plants: 3,
+      replanted_plants: 2,
+      last_survey_date: "2026-08-05",
+    },
+    localities: [
+      {
+        locality: "宋庄镇",
+        survey_records: 10,
+        surveyed_points: 8,
+        agrilus_damaged_plants: 20,
+        cossus_damaged_plants: 6,
+        dead_plants: 4,
+        felled_plants: 2,
+        replanted_plants: 1,
+        last_survey_date: "2026-08-05",
+      },
+    ],
+  };
+}
+
+function buildPoplarInchwormSummary() {
+  return {
+    year: 2026,
+    adult: {
+      survey_records: 40,
+      surveyed_points: 36,
+      avg_insect_count: 12.5,
+      total_insect_count: 500,
+      last_survey_date: "2026-04-10",
+      damage_levels: [{ damage_level: "中度", count: 9 }],
+    },
+    larva: {
+      survey_records: 25,
+      surveyed_points: 24,
+      avg_insect_count: 3.2,
+      total_insect_count: 80,
+      last_survey_date: "2026-05-15",
+      damage_levels: [{ damage_level: "轻", count: 7 }],
+    },
+    ring_wrap: {
+      survey_records: 30,
+      surveyed_points: 30,
+      repair_count: 6,
+      adult_count: 88,
+      last_survey_date: "2026-03-01",
+    },
+    ledger: {
+      ledger_points: 5,
+      status_counts: [
+        { status: "已闭环", count: 3 },
+        { status: "待防治", count: 2 },
+      ],
+    },
+  };
+}
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -299,6 +397,9 @@ describe("DataStatisticsView", () => {
       Promise.resolve(byGeneration ? buildHostCompare() : buildHostSummary()),
     );
     apiMocks.getOtherPestSummary.mockResolvedValue(buildOtherPestSummary());
+    apiMocks.getYangshuShiyeSummary.mockResolvedValue(buildYangshuShiyeSummary());
+    apiMocks.getAshBorerSummary.mockResolvedValue(buildAshBorerSummary());
+    apiMocks.getPoplarInchwormSummary.mockResolvedValue(buildPoplarInchwormSummary());
     apiMocks.getSophoraGenerationSummary.mockResolvedValue({
       as_of_date: "2026-08-12",
       year: 2026,
@@ -488,14 +589,92 @@ describe("DataStatisticsView", () => {
     );
   });
 
-  it("春尺蠖入口仍为占位，国槐尺蠖已启用", async () => {
+  it("六个虫种统计入口均已启用", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="data-statistics-pest-white-moth"]').attributes("disabled")).toBeUndefined();
-    expect(wrapper.get('[data-testid="data-statistics-pest-poplar-inchworm"]').attributes("disabled")).toBeDefined();
-    expect(wrapper.get('[data-testid="data-statistics-pest-sophora-inchworm"]').attributes("disabled")).toBeUndefined();
-    expect(wrapper.get('[data-testid="data-statistics-pest-other-pests"]').attributes("disabled")).toBeUndefined();
+    const pests = [
+      "white-moth",
+      "poplar-inchworm",
+      "sophora-inchworm",
+      "other-pests",
+      "yangshu-shiye",
+      "ash-borer",
+    ];
+    for (const pest of pests) {
+      expect(
+        wrapper.get(`[data-testid="data-statistics-pest-${pest}"]`).attributes("disabled"),
+      ).toBeUndefined();
+    }
+  });
+
+  it("春尺蠖统计展示成虫、幼虫、围环与台账汇总", async () => {
+    const { wrapper } = await mountView("/data-statistics/poplar-inchworm");
+    await flushPromises();
+
+    expect(apiMocks.getPoplarInchwormSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
+    const adult = wrapper.get('[data-testid="data-statistics-poplar-inchworm-adult"]').text();
+    expect(adult).toContain("40");
+    expect(adult).toContain("12.5");
+    expect(
+      wrapper.get('[data-testid="data-statistics-poplar-inchworm-adult-levels"]').text(),
+    ).toContain("中度 9");
+    expect(
+      wrapper.get('[data-testid="data-statistics-poplar-inchworm-larva"]').text(),
+    ).toContain("25");
+    const ring = wrapper.get('[data-testid="data-statistics-poplar-inchworm-ring"]').text();
+    expect(ring).toContain("30");
+    expect(ring).toContain("88");
+    const ledger = wrapper.get('[data-testid="data-statistics-poplar-inchworm-ledger"]').text();
+    expect(ledger).toContain("已闭环 3");
+    expect(ledger).toContain("待防治 2");
+  });
+
+  it("杨树食叶害虫统计展示整体汇总与虫害类型计数", async () => {
+    const { wrapper } = await mountView("/data-statistics/yangshu-shiye");
+    await flushPromises();
+
+    expect(apiMocks.getYangshuShiyeSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
+    expect(wrapper.get('[data-testid="data-statistics-yangshu-shiye-kpi-survey"]').text()).toContain(
+      "20",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-yangshu-shiye-kpi-rate"]').text()).toContain(
+      "30.0%",
+    );
+    expect(
+      wrapper.get('[data-testid="data-statistics-yangshu-shiye-kpi-ledger"]').text(),
+    ).toContain("待防治 4");
+    const row = wrapper.get('[data-testid="data-statistics-yangshu-shiye-row-杨小舟蛾"]').text();
+    expect(row).toContain("杨小舟蛾");
+    expect(row).toContain("12");
+    expect(row).toContain("2026-07-30");
+  });
+
+  it("白蜡蛀干害虫统计展示危害合计与属地分布", async () => {
+    const { wrapper } = await mountView("/data-statistics/ash-borer");
+    await flushPromises();
+
+    expect(apiMocks.getAshBorerSummary).toHaveBeenCalledWith({
+      year: new Date().getFullYear(),
+    });
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-survey"]').text()).toContain(
+      "15",
+    );
+    const agrilus = wrapper.get('[data-testid="data-statistics-ash-borer-kpi-agrilus"]').text();
+    expect(agrilus).toContain("30");
+    expect(agrilus).toContain("120");
+    // 伐除 3 + 换植 2 = 5
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-disposal"]').text()).toContain(
+      "5",
+    );
+    const row = wrapper.get('[data-testid="data-statistics-ash-borer-row-宋庄镇"]').text();
+    expect(row).toContain("宋庄镇");
+    expect(row).toContain("20");
+    expect(row).toContain("2026-08-05");
   });
 
   it("国槐尺蠖统计展示世代汇总", async () => {

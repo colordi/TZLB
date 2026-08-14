@@ -111,6 +111,75 @@ describe("api/statistics", () => {
     expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/other-pest/summary");
   });
 
+  it("读取杨树食叶害虫整体汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ totals: {}, pest_types: [] }),
+    });
+    const { getYangshuShiyeSummary } = await import("../statistics.js");
+
+    const result = await getYangshuShiyeSummary({ year: 2026 });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/yangshu-shiye/summary?year=2026",
+    );
+    expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ totals: {}, pest_types: [] });
+  });
+
+  it("读取不携带筛选条件的杨树食叶害虫整体汇总", async () => {
+    const { getYangshuShiyeSummary } = await import("../statistics.js");
+
+    await getYangshuShiyeSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/yangshu-shiye/summary");
+  });
+
+  it("读取白蜡蛀干害虫整体汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ totals: {}, localities: [] }),
+    });
+    const { getAshBorerSummary } = await import("../statistics.js");
+
+    const result = await getAshBorerSummary({ year: 2026 });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/ash-borer/summary?year=2026",
+    );
+    expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ totals: {}, localities: [] });
+  });
+
+  it("读取不携带筛选条件的白蜡蛀干害虫整体汇总", async () => {
+    const { getAshBorerSummary } = await import("../statistics.js");
+
+    await getAshBorerSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/ash-borer/summary");
+  });
+
+  it("读取春尺蠖整体汇总", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ adult: {}, larva: {}, ring_wrap: {}, ledger: {} }),
+    });
+    const { getPoplarInchwormSummary } = await import("../statistics.js");
+
+    const result = await getPoplarInchwormSummary({ year: 2026 });
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith(
+      "/api/statistics/poplar-inchworm/summary?year=2026",
+    );
+    expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ adult: {}, larva: {}, ring_wrap: {}, ledger: {} });
+  });
+
+  it("读取不携带筛选条件的春尺蠖整体汇总", async () => {
+    const { getPoplarInchwormSummary } = await import("../statistics.js");
+
+    await getPoplarInchwormSummary();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/poplar-inchworm/summary");
+  });
+
   it("读取国槐尺蠖世代汇总", async () => {
     httpMocks.apiFetch.mockResolvedValueOnce({
       json: vi.fn().mockResolvedValue({ generations: [] }),

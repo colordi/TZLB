@@ -31,6 +31,10 @@ from backend.services.statistics.sql_locality import (
     WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
 )
+from backend.services.statistics.sql_ash_borer import (
+    ASH_BORER_LOCALITY_SQL,
+    ASH_BORER_TOTALS_SQL,
+)
 from backend.services.statistics.sql_other_pest import (
     OTHER_PEST_PEST_TYPE_SQL,
     OTHER_PEST_STATUS_SQL,
@@ -41,6 +45,19 @@ from backend.services.statistics.sql_sophora import (
     SOPHORA_LOCALITY_ORDER,
     SOPHORA_LOCALITY_SEVERE_SITES_SQL,
     SOPHORA_LOCALITY_SUMMARY_SQL,
+)
+from backend.services.statistics.sql_spring_inchworm import (
+    SPRING_INCHWORM_ADULT_DAMAGE_LEVEL_SQL,
+    SPRING_INCHWORM_ADULT_TOTALS_SQL,
+    SPRING_INCHWORM_LARVA_DAMAGE_LEVEL_SQL,
+    SPRING_INCHWORM_LARVA_TOTALS_SQL,
+    SPRING_INCHWORM_RING_TOTALS_SQL,
+    SPRING_INCHWORM_STATUS_SQL,
+)
+from backend.services.statistics.sql_yangshu_shiye import (
+    YANGSHU_SHIYE_PEST_TYPE_SQL,
+    YANGSHU_SHIYE_STATUS_SQL,
+    YANGSHU_SHIYE_TOTALS_SQL,
 )
 
 
@@ -354,13 +371,13 @@ async def get_sophora_locality_summary(
     }
 
 
-async def get_other_pest_summary(year: int | None = None) -> dict[str, Any]:
-    effective_year = year or date.today().year
-    pool = await ensure_pool()
-    async with pool.acquire() as connection:
-        totals_rows = await connection.fetch(OTHER_PEST_TOTALS_SQL, effective_year)
-        status_rows = await connection.fetch(OTHER_PEST_STATUS_SQL, effective_year)
-        pest_type_rows = await connection.fetch(OTHER_PEST_PEST_TYPE_SQL, effective_year)
+def _assemble_survey_ledger_summary(
+    effective_year: int,
+    totals_rows: list[Any],
+    status_rows: list[Any],
+    pest_type_rows: list[Any],
+) -> dict[str, Any]:
+    """组装「调查表 + 台账」型整体汇总（其他害虫、杨树食叶害虫共用）。"""
 
     totals_row = totals_rows[0] if totals_rows else {}
     survey_records = int(totals_row.get("survey_records") or 0)
@@ -393,4 +410,130 @@ async def get_other_pest_summary(year: int | None = None) -> dict[str, Any]:
             }
             for row in pest_type_rows
         ],
+    }
+
+
+async def get_other_pest_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        totals_rows = await connection.fetch(OTHER_PEST_TOTALS_SQL, effective_year)
+        status_rows = await connection.fetch(OTHER_PEST_STATUS_SQL, effective_year)
+        pest_type_rows = await connection.fetch(OTHER_PEST_PEST_TYPE_SQL, effective_year)
+
+    return _assemble_survey_ledger_summary(
+        effective_year, totals_rows, status_rows, pest_type_rows
+    )
+
+
+async def get_yangshu_shiye_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        totals_rows = await connection.fetch(YANGSHU_SHIYE_TOTALS_SQL, effective_year)
+        status_rows = await connection.fetch(YANGSHU_SHIYE_STATUS_SQL, effective_year)
+        pest_type_rows = await connection.fetch(YANGSHU_SHIYE_PEST_TYPE_SQL, effective_year)
+
+    return _assemble_survey_ledger_summary(
+        effective_year, totals_rows, status_rows, pest_type_rows
+    )
+
+
+def _serialize_ash_borer_counts(row: Any) -> dict[str, Any]:
+    return {
+        "survey_records": int(row.get("survey_records") or 0),
+        "surveyed_points": int(row.get("surveyed_points") or 0),
+        "agrilus_damaged_plants": int(row.get("agrilus_damaged_plants") or 0),
+        "cossus_damaged_plants": int(row.get("cossus_damaged_plants") or 0),
+        "dead_plants": int(row.get("dead_plants") or 0),
+        "felled_plants": int(row.get("felled_plants") or 0),
+        "replanted_plants": int(row.get("replanted_plants") or 0),
+        "last_survey_date": serialize_daily_value(row.get("last_survey_date")),
+    }
+
+
+async def get_ash_borer_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        totals_rows = await connection.fetch(ASH_BORER_TOTALS_SQL, effective_year)
+        locality_rows = await connection.fetch(ASH_BORER_LOCALITY_SQL, effective_year)
+
+    totals_row = totals_rows[0] if totals_rows else {}
+    totals = _serialize_ash_borer_counts(totals_row)
+    totals["agrilus_holes"] = int(totals_row.get("agrilus_holes") or 0)
+
+    return {
+        "year": effective_year,
+        "totals": totals,
+        "localities": [
+            {"locality": row["locality"] or "未知", **_serialize_ash_borer_counts(row)}
+            for row in locality_rows
+        ],
+    }
+
+
+def _serialize_insect_survey_totals(
+    row: Any,
+    damage_level_rows: list[Any],
+) -> dict[str, Any]:
+    return {
+        "survey_records": int(row.get("survey_records") or 0),
+        "surveyed_points": int(row.get("surveyed_points") or 0),
+        "avg_insect_count": _avg_insect(row.get("avg_insect_count")),
+        "total_insect_count": int(row.get("total_insect_count") or 0),
+        "last_survey_date": serialize_daily_value(row.get("last_survey_date")),
+        "damage_levels": [
+            {"damage_level": item["damage_level"] or "未知", "count": int(item["count"] or 0)}
+            for item in damage_level_rows
+        ],
+    }
+
+
+async def get_spring_inchworm_summary(year: int | None = None) -> dict[str, Any]:
+    effective_year = year or date.today().year
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        adult_totals_rows = await connection.fetch(
+            SPRING_INCHWORM_ADULT_TOTALS_SQL, effective_year
+        )
+        adult_level_rows = await connection.fetch(
+            SPRING_INCHWORM_ADULT_DAMAGE_LEVEL_SQL, effective_year
+        )
+        larva_totals_rows = await connection.fetch(
+            SPRING_INCHWORM_LARVA_TOTALS_SQL, effective_year
+        )
+        larva_level_rows = await connection.fetch(
+            SPRING_INCHWORM_LARVA_DAMAGE_LEVEL_SQL, effective_year
+        )
+        ring_totals_rows = await connection.fetch(
+            SPRING_INCHWORM_RING_TOTALS_SQL, effective_year
+        )
+        status_rows = await connection.fetch(SPRING_INCHWORM_STATUS_SQL, effective_year)
+
+    ring_row = ring_totals_rows[0] if ring_totals_rows else {}
+    status_counts = [
+        {"status": row["status"] or "未知", "count": int(row["count"] or 0)}
+        for row in status_rows
+    ]
+
+    return {
+        "year": effective_year,
+        "adult": _serialize_insect_survey_totals(
+            adult_totals_rows[0] if adult_totals_rows else {}, adult_level_rows
+        ),
+        "larva": _serialize_insect_survey_totals(
+            larva_totals_rows[0] if larva_totals_rows else {}, larva_level_rows
+        ),
+        "ring_wrap": {
+            "survey_records": int(ring_row.get("survey_records") or 0),
+            "surveyed_points": int(ring_row.get("surveyed_points") or 0),
+            "repair_count": int(ring_row.get("repair_count") or 0),
+            "adult_count": int(ring_row.get("adult_count") or 0),
+            "last_survey_date": serialize_daily_value(ring_row.get("last_survey_date")),
+        },
+        "ledger": {
+            "ledger_points": sum(item["count"] for item in status_counts),
+            "status_counts": status_counts,
+        },
     }

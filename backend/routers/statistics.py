@@ -5,13 +5,16 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.services.statistics import (
+    get_ash_borer_summary,
     get_other_pest_summary,
     get_sophora_generation_summary,
     get_sophora_locality_summary,
+    get_spring_inchworm_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
     get_white_moth_locality_summary,
+    get_yangshu_shiye_summary,
 )
 
 
@@ -92,6 +95,36 @@ async def get_other_pest_summary_statistics(
         return await get_other_pest_summary(year=year)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"读取其他害虫汇总失败：{exc}") from exc
+
+
+@router.get("/yangshu-shiye/summary", summary="读取杨树食叶害虫整体汇总")
+async def get_yangshu_shiye_summary_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
+    try:
+        return await get_yangshu_shiye_summary(year=year)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取杨树食叶害虫汇总失败：{exc}") from exc
+
+
+@router.get("/ash-borer/summary", summary="读取白蜡蛀干害虫整体汇总")
+async def get_ash_borer_summary_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
+    try:
+        return await get_ash_borer_summary(year=year)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取白蜡蛀干害虫汇总失败：{exc}") from exc
+
+
+@router.get("/poplar-inchworm/summary", summary="读取春尺蠖整体汇总")
+async def get_spring_inchworm_summary_statistics(
+    year: int | None = Query(None, description="年份"),
+) -> dict[str, Any]:
+    try:
+        return await get_spring_inchworm_summary(year=year)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取春尺蠖汇总失败：{exc}") from exc
 
 
 @router.get(

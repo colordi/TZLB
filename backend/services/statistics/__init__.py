@@ -8,13 +8,16 @@ from backend.services.statistics.serializers import (  # noqa: F401
     serialize_white_moth_daily_row,
 )
 from backend.services.statistics.service import (  # noqa: F401
+    get_ash_borer_summary,
     get_other_pest_summary,
     get_sophora_generation_summary,
     get_sophora_locality_summary,
+    get_spring_inchworm_summary,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
     get_white_moth_locality_summary,
+    get_yangshu_shiye_summary,
 )
 from backend.services.statistics.sql_daily import (  # noqa: F401
     WHITE_MOTH_DAILY_COLUMNS,
