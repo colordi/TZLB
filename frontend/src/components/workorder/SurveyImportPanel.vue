@@ -11,19 +11,11 @@ import {
 import { isUnauthorizedError } from "../../api/http.js";
 import { fetchSurveyCandidates } from "../../api/survey.js";
 import { useToast } from "../../composables/useToast.js";
-import { useWorkorderTaskConfig } from "../../composables/workorder/useWorkorderTaskConfig.js";
 import { getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePickerField } from "@/components/ui/date-picker";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
@@ -40,21 +32,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  open: {
+  /** 页面已锁定任务（已有导入记录）：任务配置只读，仅可换日期继续导入 */
+  taskLocked: {
     type: Boolean,
     default: false,
   },
-  /** 页面已锁定的任务；有值时弹窗只读展示并沿用 */
-  lockedTask: {
+  /** 视图持有的唯一任务配置实例，面板直接读写，不再自行创建 */
+  taskConfig: {
     type: Object,
-    default: null,
+    required: true,
   },
 });
 
-const emit = defineEmits(["close", "import"]);
+const emit = defineEmits(["import"]);
 const { error, info } = useToast();
 
-const taskConfig = useWorkorderTaskConfig();
 const {
   PEST_OPTIONS,
   pestType,
@@ -64,7 +56,7 @@ const {
   taskOptions,
   yearOptions,
   canImportSurvey,
-} = taskConfig;
+} = props.taskConfig;
 
 const selectedDate = ref(getTodayDate());
 const loading = ref(false);
@@ -72,7 +64,6 @@ const queried = ref(false);
 const candidates = ref([]);
 const selectedCandidateKeys = ref([]);
 
-const taskLocked = computed(() => Boolean(props.lockedTask));
 const totalCount = computed(() => candidates.value.length);
 const selectedCount = computed(() => selectedCandidateKeys.value.length);
 const hasCandidates = computed(() => totalCount.value > 0);
@@ -86,7 +77,7 @@ const canImport = computed(
     Boolean(taskName.value),
 );
 const surveyImportConfig = computed(() => getSurveyImportConfig(pestType.value));
-const dialogDescription = computed(() => surveyImportConfig.value.description);
+const panelDescription = computed(() => surveyImportConfig.value.description);
 const idleHint = computed(() => surveyImportConfig.value.idleHint);
 const candidateColumns = computed(() => surveyImportConfig.value.columns);
 
@@ -110,45 +101,29 @@ function formatCandidateValue(candidate, column) {
   return text === "" ? column.fallback : text;
 }
 
-function applyLockedTask() {
-  if (!props.lockedTask) {
-    return;
-  }
-  pestType.value = props.lockedTask.pestType;
-  year.value = props.lockedTask.year;
-  taskName.value = props.lockedTask.taskName;
-}
-
-function resetDialogState() {
+function resetQueryState() {
   selectedDate.value = getTodayDate();
   loading.value = false;
   queried.value = false;
   candidates.value = [];
   selectedCandidateKeys.value = [];
-  if (props.lockedTask) {
-    applyLockedTask();
-  } else {
-    taskConfig.resetTaskName();
-  }
 }
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (isOpen) {
-      resetDialogState();
-    }
-  },
-);
-
 watch([pestType, year, taskName], () => {
-  if (!props.open) {
-    return;
-  }
   queried.value = false;
   candidates.value = [];
   selectedCandidateKeys.value = [];
 });
+
+watch(
+  () => props.taskLocked,
+  (locked, wasLocked) => {
+    // 清空点位重新建单后，清掉上一单的查询结果
+    if (wasLocked && !locked) {
+      resetQueryState();
+    }
+  },
+);
 
 async function handleQuery() {
   if (!selectedDate.value) {
@@ -214,33 +189,19 @@ function handleImport() {
     return;
   }
 
-  emit("import", {
-    records: selectedRecords,
-    task: {
-      pestType: pestType.value,
-      year: year.value,
-      taskName: taskName.value,
-      generation: generation.value,
-    },
-  });
-}
-
-function handleOpenChange(value) {
-  if (!value) {
-    emit("close");
-  }
+  emit("import", { records: selectedRecords });
 }
 </script>
 
 <template>
-  <Dialog :open="open" @update:open="handleOpenChange">
-    <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
-      <DialogHeader>
-        <DialogTitle>从数据库导入</DialogTitle>
-        <DialogDescription>{{ dialogDescription }}</DialogDescription>
-      </DialogHeader>
+  <Card aria-label="从数据库导入" data-testid="survey-import-panel">
+    <CardHeader class="pb-3">
+      <CardTitle class="text-base">从数据库导入</CardTitle>
+      <CardDescription>{{ panelDescription }}</CardDescription>
+    </CardHeader>
 
-      <section class="grid gap-3 md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.6fr)_minmax(0,1.45fr)]" data-testid="survey-import-task-panel" aria-label="任务配置">
+    <CardContent class="space-y-4">
+      <section class="survey-task-grid grid gap-3 md:grid-cols-[minmax(0,0.95fr)_minmax(0,0.6fr)_minmax(0,1.45fr)]" data-testid="survey-import-task-panel" aria-label="任务配置">
         <div class="grid gap-1.5">
           <Label for="survey-import-pest-type">害虫类型</Label>
           <NativeSelect
@@ -396,26 +357,28 @@ function handleOpenChange(value) {
         </div>
       </section>
 
-      <DialogFooter class="sm:items-center sm:justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <p class="text-xs text-muted-foreground">导入后仍可在点位清单中继续编辑</p>
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="outline" @click="emit('close')">取消</Button>
-          <Button
-            type="button"
-            :disabled="!canImport"
-            data-testid="survey-import-confirm"
-            @click="handleImport"
-          >
-            导入选中记录
-          </Button>
-        </div>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+        <Button
+          type="button"
+          :disabled="!canImport"
+          data-testid="survey-import-confirm"
+          @click="handleImport"
+        >
+          导入选中记录
+        </Button>
+      </div>
+    </CardContent>
+  </Card>
 </template>
 
 <style scoped>
-/* 结果区在弹窗内独立滚动，粘性表头由此获得真实滚动容器 */
+/* 任务配置三个下拉撑满各自网格列，保持等宽对齐（NativeSelect 包装层默认 w-fit） */
+.survey-task-grid :deep([data-slot="native-select-wrapper"]) {
+  width: 100%;
+}
+
+/* 结果区在卡片内独立滚动，粘性表头由此获得真实滚动容器 */
 .survey-result-table :deep([data-slot="table-container"]) {
   max-height: 22rem;
 }

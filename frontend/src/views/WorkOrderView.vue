@@ -10,7 +10,7 @@ import { useRecordDetailModal } from "../composables/workorder/useRecordDetailMo
 import { useToast } from "../composables/useToast.js";
 import RecordTable from "../components/workorder/RecordTable.vue";
 import RecordDetailModal from "../components/workorder/RecordDetailModal.vue";
-import SurveyImportDialog from "../components/workorder/SurveyImportDialog.vue";
+import SurveyImportPanel from "../components/workorder/SurveyImportPanel.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import PageHeader from "@/components/common/PageHeader.vue";
@@ -31,7 +31,6 @@ const toast = useToast();
 const taskConfig = useWorkorderTaskConfig();
 const {
   pestType, year, taskName,
-  generation, canImportSurvey,
 } = taskConfig;
 
 const recCtrl = useWorkorderRecords(pestType);
@@ -61,7 +60,7 @@ const {
   exportProgressLabel,
 } = exportCtrl;
 
-const surveyImportOpen = ref(false);
+const importExpanded = ref(true);
 const pendingDelete = ref(null);
 const showConfirmDialog = ref(false);
 const sessionLocked = ref(false);
@@ -73,17 +72,6 @@ const {
 } = detailModal;
 
 const hasRecords = computed(() => records.value.length > 0);
-const lockedTask = computed(() => {
-  if (!sessionLocked.value) {
-    return null;
-  }
-  return {
-    pestType: pestType.value,
-    year: year.value,
-    taskName: taskName.value,
-    generation: generation.value,
-  };
-});
 
 const confirmDialogTitle = computed(() => {
   if (pendingDelete.value?.scope === "reset") {
@@ -105,40 +93,19 @@ const confirmDialogMessage = computed(() => {
   return "确认删除当前记录吗？此操作不可撤销。";
 });
 
-function openSurveyImportDialog() {
-  if (generating.value) {
-    return;
-  }
-  if (!sessionLocked.value && !canImportSurvey.value) {
-    // still allow open; dialog owns pest selection and canImportSurvey
-  }
-  surveyImportOpen.value = true;
-}
-
-function closeSurveyImportDialog() {
-  surveyImportOpen.value = false;
-}
-
 function onSurveyImport(payload) {
   const importedRecords = Array.isArray(payload)
     ? payload
     : payload?.records;
-  const task = Array.isArray(payload) ? null : payload?.task;
 
   if (!Array.isArray(importedRecords) || importedRecords.length === 0) {
     toast.info("请至少选择一条调查记录。", "没有可导入项");
     return;
   }
 
-  if (task) {
-    pestType.value = task.pestType;
-    year.value = task.year;
-    taskName.value = task.taskName;
-  }
-
   const count = importRecords(importedRecords).length;
   sessionLocked.value = true;
-  surveyImportOpen.value = false;
+  importExpanded.value = false;
   toast.success(`已导入 ${count} 条调查记录。`, "导入完成");
 }
 
@@ -156,6 +123,7 @@ function resetSession() {
   searchQuery.value = "";
   recordFilter.value = "all";
   sessionLocked.value = false;
+  importExpanded.value = true;
   taskConfig.resetTaskName();
   closeDetail();
 }
@@ -243,8 +211,16 @@ function onGenerate() {
       description="从数据库选取调查记录，校对点位后批量生成工单。"
     />
 
+    <SurveyImportPanel
+      v-show="!sessionLocked || importExpanded"
+      :busy="generating"
+      :task-locked="sessionLocked"
+      :task-config="taskConfig"
+      @import="onSurveyImport"
+    />
+
     <Card
-      v-if="sessionLocked"
+      v-if="sessionLocked && !importExpanded"
       aria-label="本单任务"
       data-testid="workorder-session-task"
     >
@@ -282,7 +258,7 @@ function onGenerate() {
             variant="outline"
             :disabled="generating"
             data-testid="survey-import-button"
-            @click="openSurveyImportDialog"
+            @click="importExpanded = true"
           >
             <Database class="size-4" />
             <span>继续导入</span>
@@ -340,19 +316,9 @@ function onGenerate() {
           v-if="!hasRecords"
           :icon="Database"
           title="暂无点位"
-          description="请从数据库导入调查记录以建立本单。"
+          description="在上方选择虫种与调查日期，查询并导入调查记录以建立本单。"
           data-testid="workorder-empty-state"
-        >
-          <Button
-            type="button"
-            :disabled="generating"
-            data-testid="survey-import-button"
-            @click="openSurveyImportDialog"
-          >
-            <Database class="size-4" />
-            <span>从数据库导入</span>
-          </Button>
-        </EmptyState>
+        />
 
         <RecordTable
           v-else
@@ -492,14 +458,6 @@ function onGenerate() {
       @close="handleCloseDetailModal"
       @update="handleUpdateRecord"
       @delete="handleDeleteRecord"
-    />
-
-    <SurveyImportDialog
-      :busy="generating"
-      :open="surveyImportOpen"
-      :locked-task="lockedTask"
-      @close="closeSurveyImportDialog"
-      @import="onSurveyImport"
     />
 
     <ConfirmDialog

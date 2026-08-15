@@ -175,7 +175,8 @@ Leaflet 运行时需要 JS 侧色值（circleMarker、图例、图层色板、�
 
 ### 6.2 弹窗范式
 
-- 内容弹窗：`DialogContent` 宽度 `sm:max-w-md`（表单）/ `sm:max-w-xl`（宽表单）/ `sm:max-w-3xl`（导入、详情），高内容加 `max-h-[85vh] overflow-y-auto`。
+- 内容弹窗：`DialogContent` 宽度 `sm:max-w-md`（表单）/ `sm:max-w-xl`（宽表单）/ `sm:max-w-3xl`（详情），高内容加 `max-h-[85vh] overflow-y-auto`。
+- 例外：工单录入的「从数据库导入」是主流程第一步，不做弹窗，以页面常驻内联面板（`SurveyImportPanel`，卡片形态）呈现。
 - 副标题必须用 `DialogDescription`，不用裸 `<p>`。
 - 确认弹窗固定结构：`AlertDialogTitle` 一句话说清后果 + `AlertDialogDescription` 补充 + 取消 `AlertDialogCancel` + 确认 `AlertDialogAction variant="destructive"`（危险时）。
 

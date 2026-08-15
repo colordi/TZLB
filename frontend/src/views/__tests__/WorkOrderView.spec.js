@@ -76,20 +76,25 @@ const RecordTableStub = defineComponent({
   `,
 });
 
-const SurveyImportDialogStub = defineComponent({
-  name: "SurveyImportDialog",
+const SurveyImportPanelStub = defineComponent({
+  name: "SurveyImportPanel",
   props: {
-    open: {
+    busy: {
       type: Boolean,
       default: false,
     },
-    lockedTask: {
+    taskLocked: {
+      type: Boolean,
+      default: false,
+    },
+    taskConfig: {
       type: Object,
-      default: null,
+      required: true,
     },
   },
-  emits: ["close", "import"],
-  template: '<div data-testid="survey-import-dialog" :data-open="open ? \'yes\' : \'no\'" />',
+  emits: ["import"],
+  template:
+    '<div data-testid="survey-import-panel" :data-task-locked="taskLocked ? \'yes\' : \'no\'" />',
 });
 
 const RecordDetailModalStub = defineComponent({
@@ -139,7 +144,7 @@ function mountWorkOrderView() {
       stubs: {
         RecordDetailModal: RecordDetailModalStub,
         RecordTable: RecordTableStub,
-        SurveyImportDialog: SurveyImportDialogStub,
+        SurveyImportPanel: SurveyImportPanelStub,
         teleport: true,
       },
     },
@@ -159,16 +164,19 @@ function createValidRecord(overrides = {}) {
 }
 
 async function importRecords(wrapper, nextRecords, task = null) {
-  const payload = {
-    records: nextRecords,
-    task: task || {
-      pestType: "春尺蠖",
-      year: 2026,
-      taskName: "2026春尺蠖防治",
-      generation: null,
-    },
+  const panel = wrapper.getComponent(SurveyImportPanelStub);
+  const taskConfig = panel.props("taskConfig");
+  const nextTask = task || {
+    pestType: "春尺蠖",
+    year: 2026,
+    taskName: "2026春尺蠖防治",
+    generation: null,
   };
-  wrapper.getComponent(SurveyImportDialogStub).vm.$emit("import", payload);
+  // 面板直接读写视图共享的 taskConfig，这里模拟用户的选择
+  taskConfig.pestType.value = nextTask.pestType;
+  taskConfig.year.value = nextTask.year;
+  taskConfig.taskName.value = nextTask.taskName;
+  panel.vm.$emit("import", { records: nextRecords });
   await wrapper.vm.$nextTick();
 }
 
@@ -224,17 +232,20 @@ describe("WorkOrderView", () => {
     apiMocks.downloadBlob.mockResolvedValue({ delivery: "download" });
   });
 
-  it("按设计结构渲染页头与点位清单空态", () => {
+  it("按设计结构渲染页头、导入面板与点位清单空态", () => {
     const wrapper = mountWorkOrderView();
 
     expect(wrapper.text()).toContain("工单录入");
     expect(wrapper.text()).toContain("从数据库选取调查记录，校对点位后批量生成工单。");
-    expect(wrapper.text()).toContain("从数据库导入");
+    expect(wrapper.find('[data-testid="survey-import-panel"]').exists()).toBe(true);
+    expect(
+      wrapper.get('[data-testid="survey-import-panel"]').attributes("style") || "",
+    ).not.toContain("display: none");
     expect(wrapper.text()).toContain("点位清单");
     expect(wrapper.text()).toContain("共 0 个点位");
     expect(wrapper.text()).toContain("暂无点位");
     expect(wrapper.find('[data-testid="workorder-empty-state"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="survey-import-button"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="workorder-link-data-import"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="workorder-link-assets"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="workorder-search"]').exists()).toBe(false);
@@ -244,7 +255,7 @@ describe("WorkOrderView", () => {
     expect(wrapper.find(".workorder-list-card").exists()).toBe(true);
   });
 
-  it("导入后锁定任务，清空后可重新建单", async () => {
+  it("导入后锁定任务并折叠导入面板，清空后可重新建单", async () => {
     const wrapper = mountWorkOrderView();
 
     await importRecords(wrapper, [
@@ -259,10 +270,11 @@ describe("WorkOrderView", () => {
     expect(wrapper.find('[data-testid="workorder-session-task"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("国槐尺蠖");
     expect(wrapper.text()).toContain("2026国槐尺蠖第一代防治");
-    expect(wrapper.getComponent(SurveyImportDialogStub).props("lockedTask")).toMatchObject({
-      pestType: "国槐尺蠖",
-      taskName: "2026国槐尺蠖第一代防治",
-    });
+    expect(wrapper.getComponent(SurveyImportPanelStub).props("taskLocked")).toBe(true);
+    // 导入成功后面板自动折叠（v-show 保留 DOM 但隐藏）
+    expect(
+      wrapper.get('[data-testid="survey-import-panel"]').attributes("style") || "",
+    ).toContain("display: none");
 
     await wrapper.get('[data-testid="workorder-reset-session"]').trigger("click");
     await wrapper.get('[data-testid="confirm-dialog-confirm"]').trigger("click");
@@ -270,6 +282,28 @@ describe("WorkOrderView", () => {
 
     expect(wrapper.find('[data-testid="workorder-session-task"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="workorder-empty-state"]').exists()).toBe(true);
+    expect(wrapper.getComponent(SurveyImportPanelStub).props("taskLocked")).toBe(false);
+    expect(
+      wrapper.get('[data-testid="survey-import-panel"]').attributes("style") || "",
+    ).not.toContain("display: none");
+  });
+
+  it("继续导入重新展开导入面板", async () => {
+    const wrapper = mountWorkOrderView();
+
+    await importRecords(wrapper, [
+      createValidRecord({ location_id: "YF0069", location_name: "神仙村" }),
+    ]);
+    expect(
+      wrapper.get('[data-testid="survey-import-panel"]').attributes("style") || "",
+    ).toContain("display: none");
+
+    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
+
+    expect(
+      wrapper.get('[data-testid="survey-import-panel"]').attributes("style") || "",
+    ).not.toContain("display: none");
+    expect(wrapper.getComponent(SurveyImportPanelStub).props("taskLocked")).toBe(true);
   });
 
 
@@ -281,10 +315,6 @@ describe("WorkOrderView", () => {
 
   it("导入调查记录时会保留自动图片，并在已有记录后继续追加", async () => {
     const wrapper = mountWorkOrderView();
-    const surveyDialog = wrapper.getComponent(SurveyImportDialogStub);
-
-    await wrapper.get('[data-testid="survey-import-button"]').trigger("click");
-    expect(surveyDialog.props("open")).toBe(true);
 
     await importRecords(wrapper, [
       {

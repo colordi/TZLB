@@ -1,7 +1,8 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import SurveyImportDialog from "../SurveyImportDialog.vue";
+import SurveyImportPanel from "../SurveyImportPanel.vue";
+import { useWorkorderTaskConfig } from "../../../composables/workorder/useWorkorderTaskConfig.js";
 
 function buildResponse(payload, ok = true) {
   return {
@@ -12,7 +13,25 @@ function buildResponse(payload, ok = true) {
   };
 }
 
-describe("SurveyImportDialog", () => {
+function mountPanel(extraProps = {}) {
+  const taskConfig = useWorkorderTaskConfig();
+  const wrapper = mount(SurveyImportPanel, {
+    props: {
+      taskConfig,
+      ...extraProps,
+    },
+    global: {
+      // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
+      renderStubDefaultSlot: true,
+      stubs: {
+        teleport: true,
+      },
+    },
+  });
+  return { wrapper, taskConfig };
+}
+
+describe("SurveyImportPanel", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -48,18 +67,7 @@ describe("SurveyImportDialog", () => {
       ]),
     );
 
-    const wrapper = mount(SurveyImportDialog, {
-      props: {
-        open: true,
-      },
-      global: {
-        // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
-        renderStubDefaultSlot: true,
-        stubs: {
-          teleport: true,
-        },
-      },
-    });
+    const { wrapper } = mountPanel();
 
     wrapper.vm.selectedDate = "2026-04-01";
     await wrapper.vm.$nextTick();
@@ -80,26 +88,12 @@ describe("SurveyImportDialog", () => {
     expect(events).toBeTruthy();
     expect(events[0][0].records).toHaveLength(2);
     expect(events[0][0].records[1].location_id).toBe("YF0070");
-    expect(events[0][0].task).toMatchObject({
-      pestType: "春尺蠖",
-    });
   });
 
   it("查询无结果时显示空状态并禁用导入", async () => {
     global.fetch.mockResolvedValue(buildResponse([]));
 
-    const wrapper = mount(SurveyImportDialog, {
-      props: {
-        open: true,
-      },
-      global: {
-        // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
-        renderStubDefaultSlot: true,
-        stubs: {
-          teleport: true,
-        },
-      },
-    });
+    const { wrapper } = mountPanel();
 
     wrapper.vm.selectedDate = "2026-04-02";
     await wrapper.vm.$nextTick();
@@ -129,18 +123,7 @@ describe("SurveyImportDialog", () => {
       ]),
     );
 
-    const wrapper = mount(SurveyImportDialog, {
-      props: {
-        open: true,
-      },
-      global: {
-        // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
-        renderStubDefaultSlot: true,
-        stubs: {
-          teleport: true,
-        },
-      },
-    });
+    const { wrapper } = mountPanel();
 
     await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("其他害虫");
     wrapper.vm.selectedDate = "2026-04-17";
@@ -178,18 +161,7 @@ describe("SurveyImportDialog", () => {
       ]),
     );
 
-    const wrapper = mount(SurveyImportDialog, {
-      props: {
-        open: true,
-      },
-      global: {
-        // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
-        renderStubDefaultSlot: true,
-        stubs: {
-          teleport: true,
-        },
-      },
-    });
+    const { wrapper } = mountPanel();
 
     await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("国槐尺蠖");
     wrapper.vm.selectedDate = "2026-05-02";
@@ -235,18 +207,7 @@ describe("SurveyImportDialog", () => {
       ]),
     );
 
-    const wrapper = mount(SurveyImportDialog, {
-      props: {
-        open: true,
-      },
-      global: {
-        // reka-ui 的 Teleport 组件与内置 teleport 同名，需让默认插槽内容内联渲染
-        renderStubDefaultSlot: true,
-        stubs: {
-          teleport: true,
-        },
-      },
-    });
+    const { wrapper } = mountPanel();
 
     await wrapper.get('[data-testid="survey-import-pest-type"]').setValue("美国白蛾");
     wrapper.vm.selectedDate = "2026-05-26";
@@ -270,5 +231,50 @@ describe("SurveyImportDialog", () => {
     expect(wrapper.text()).toContain("受害株数");
     expect(wrapper.text()).toContain("网幕数量");
     expect(wrapper.text()).toContain("白蜡");
+  });
+
+  it("任务锁定时禁用任务配置并显示锁定提示", async () => {
+    const { wrapper } = mountPanel({ taskLocked: true });
+
+    expect(
+      wrapper.get('[data-testid="survey-import-pest-type"]').attributes("disabled"),
+    ).toBeDefined();
+    expect(
+      wrapper.get('[data-testid="survey-import-year"]').attributes("disabled"),
+    ).toBeDefined();
+    expect(
+      wrapper.get('[data-testid="survey-import-task-name"]').attributes("disabled"),
+    ).toBeDefined();
+    expect(wrapper.text()).toContain("任务已锁定");
+  });
+
+  it("任务解锁后重置查询状态", async () => {
+    global.fetch.mockResolvedValue(
+      buildResponse([
+        {
+          survey_date: "2026-04-01",
+          locality: "于家务乡",
+          location_id: "YF0069",
+          location_name: "神仙村",
+          total_insect_count: 50,
+          damage_level: "重",
+          note: "",
+          description: "描述1",
+        },
+      ]),
+    );
+
+    const { wrapper } = mountPanel({ taskLocked: true });
+
+    wrapper.vm.selectedDate = "2026-04-01";
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="survey-query-button"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("共 1 条，已选 1 条");
+
+    await wrapper.setProps({ taskLocked: false });
+
+    expect(wrapper.text()).toContain("选择日期后点击「查询」");
+    expect(wrapper.text()).not.toContain("共 1 条");
   });
 });
