@@ -42,7 +42,7 @@ const routes = [
     component: WorkOrderView,
     meta: {
       section: "工单录入",
-      blurb: "从数据库选取调查记录，校对点位后批量生成 Word 工单。",
+      blurb: "从事件流水选取下派与复查异常记录，校对点位后批量生成 Word 工单。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },

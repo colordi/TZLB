@@ -27,11 +27,11 @@ async def list_survey_pest_types() -> list[dict[str, str]]:
     ]
 
 
-@router.get("/candidates", summary="读取调查导入候选记录")
+@router.get("/candidates", summary="读取当日下派/复查异常事件作为工单导入候选")
 async def get_survey_candidates(
-    date: date_cls | None = Query(default=None, description="调查日期，格式为 YYYY-MM-DD"),
+    date: date_cls | None = Query(default=None, description="事件日期，格式为 YYYY-MM-DD"),
     pest_type: PestType = Query(default="春尺蠖", description="害虫类型"),
-    year: int | None = Query(default=None, description="年份，默认取调查日期年份"),
+    year: int | None = Query(default=None, description="年份，默认取事件日期年份"),
     generation: str | None = Query(default=None, description="世代，如第一代、第二代"),
     include_images: bool = Query(default=True, description="是否附带点位截图 Data URL"),
 ) -> list[dict[str, Any]]:

@@ -268,7 +268,7 @@ function onFileChange(event) {
             </NativeSelect>
           </label>
           <label class="flex flex-col gap-1.5 text-sm">
-            <span class="text-muted-foreground">调查日期</span>
+            <span class="text-muted-foreground">事件日期</span>
             <Input
               v-model="selectedDate"
               type="date"
@@ -302,7 +302,7 @@ function onFileChange(event) {
       v-else-if="queried && points.length === 0"
       :icon="SearchX"
       title="没有需派单的点位"
-      description="所选日期没有需派单的点位，请先在数据导入中导入当日调查数据。"
+      description="所选日期没有下派或复查异常点位，请先在数据导入中导入当日事件流水。"
       data-testid="date-point-empty"
     />
 

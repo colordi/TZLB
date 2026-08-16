@@ -8,8 +8,23 @@ import {
   uploadPointDateImages,
 } from "../../api/workorder.js";
 
+function uniqueByLocationId(records) {
+  const seen = new Set();
+  const unique = [];
+  for (const record of records) {
+    const code = `${record?.location_id ?? ""}`.trim();
+    const key = code || `__empty_${unique.length}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(record);
+  }
+  return unique;
+}
+
 /**
- * 工单素材-日期现场照片：按日期查询需派单点位，拖拽上传图片到点位，
+ * 工单素材-日期现场照片：按日期查询当日下派 / 复查异常点位，拖拽上传图片到点位，
  * 后端自动按“编号-序号”命名并归档到 images/{日期}/。
  */
 export function useDatePointImages() {
@@ -74,7 +89,7 @@ export function useDatePointImages() {
 
   async function queryPoints({ pestType, year, generation }, toast) {
     if (!selectedDate.value) {
-      toast?.info("请先选择调查日期。", "缺少查询条件");
+      toast?.info("请先选择事件日期。", "缺少查询条件");
       return;
     }
 
@@ -87,11 +102,11 @@ export function useDatePointImages() {
         generation,
         includeImages: false,
       });
-      points.value = Array.isArray(result) ? result : [];
+      points.value = uniqueByLocationId(Array.isArray(result) ? result : []);
       queried.value = true;
       await loadImages(toast);
       if (points.value.length === 0) {
-        toast?.info("所选日期没有需派单的点位。", "暂无数据");
+        toast?.info("所选日期没有下派或复查异常点位。", "暂无数据");
       }
     } catch (queryError) {
       if (isUnauthorizedError(queryError)) {
@@ -115,7 +130,7 @@ export function useDatePointImages() {
       return;
     }
     if (!selectedDate.value) {
-      toast?.info("请先选择调查日期。", "缺少上传条件");
+      toast?.info("请先选择事件日期。", "缺少上传条件");
       return;
     }
 

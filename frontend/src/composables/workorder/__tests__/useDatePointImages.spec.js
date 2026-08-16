@@ -64,6 +64,24 @@ describe("useDatePointImages", () => {
     expect(toast.info).toHaveBeenCalled();
   });
 
+  it("同一编号出现多条下派事件时按点位去重", async () => {
+    fetchSurveyCandidates.mockResolvedValue([
+      { location_id: "YL0033", event_type: "幼虫调查下派" },
+      { location_id: "YL0033", event_type: "复查异常" },
+      { location_id: "YL0036", event_type: "成虫调查下派" },
+    ]);
+    fetchPointDateImages.mockResolvedValue({ images: [] });
+
+    const store = useDatePointImages();
+    store.selectedDate.value = "2026-04-01";
+    await store.queryPoints({ pestType: "春尺蠖" }, buildToast());
+
+    expect(store.points.value.map((point) => point.location_id)).toEqual([
+      "YL0033",
+      "YL0036",
+    ]);
+  });
+
   it("图片按编号前缀归类，编号重叠时归到最长匹配", async () => {
     fetchSurveyCandidates.mockResolvedValue([buildPoint("MQ1"), buildPoint("MQ10")]);
     fetchPointDateImages.mockResolvedValue({

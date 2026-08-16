@@ -99,14 +99,14 @@ function onSurveyImport(payload) {
     : payload?.records;
 
   if (!Array.isArray(importedRecords) || importedRecords.length === 0) {
-    toast.info("请至少选择一条调查记录。", "没有可导入项");
+    toast.info("请至少选择一条下派记录。", "没有可导入项");
     return;
   }
 
   const count = importRecords(importedRecords).length;
   sessionLocked.value = true;
   importExpanded.value = false;
-  toast.success(`已导入 ${count} 条调查记录。`, "导入完成");
+  toast.success(`已导入 ${count} 条下派记录。`, "导入完成");
 }
 
 function requestResetSession() {
@@ -208,7 +208,7 @@ function onGenerate() {
   <section class="mx-auto w-full max-w-6xl space-y-6">
     <PageHeader
       title="工单录入"
-      description="从数据库选取调查记录，校对点位后批量生成工单。"
+      description="从事件流水选取当日下派与复查异常记录，校对点位后批量生成工单。"
     />
 
     <SurveyImportPanel
@@ -316,7 +316,7 @@ function onGenerate() {
           v-if="!hasRecords"
           :icon="Database"
           title="暂无点位"
-          description="在上方选择虫种与调查日期，查询并导入调查记录以建立本单。"
+          description="在上方选择虫种与事件日期，查询并导入下派记录以建立本单。"
           data-testid="workorder-empty-state"
         />
 

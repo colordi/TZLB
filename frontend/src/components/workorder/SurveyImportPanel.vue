@@ -127,7 +127,7 @@ watch(
 
 async function handleQuery() {
   if (!selectedDate.value) {
-    info("请先选择调查日期。", "缺少查询条件");
+    info("请先选择事件日期。", "缺少查询条件");
     return;
   }
 
@@ -147,13 +147,13 @@ async function handleQuery() {
     queried.value = true;
 
     if (candidates.value.length === 0) {
-      info("所选日期没有可导入的调查记录。", "暂无数据");
+      info("所选日期没有可导入的下派记录。", "暂无数据");
     }
   } catch (queryError) {
     if (isUnauthorizedError(queryError)) {
       return;
     }
-    error(`${queryError.message || queryError}`, "查询调查记录失败");
+    error(`${queryError.message || queryError}`, "查询下派记录失败");
   } finally {
     loading.value = false;
   }
@@ -185,7 +185,7 @@ function handleImport() {
   );
 
   if (!selectedRecords.length) {
-    info("请至少选择一条调查记录。", "没有可导入项");
+    info("请至少选择一条下派记录。", "没有可导入项");
     return;
   }
 
@@ -252,7 +252,7 @@ function handleImport() {
 
       <section class="grid gap-4 md:grid-cols-[14rem_minmax(0,1fr)]" aria-label="日期与查询结果">
         <div class="flex flex-col gap-2 md:border-r md:pr-4">
-          <Label for="survey-import-date">调查日期</Label>
+          <Label for="survey-import-date">事件日期</Label>
           <DatePickerField
             id="survey-import-date"
             v-model="selectedDate"
@@ -302,7 +302,7 @@ function handleImport() {
                     <TableHead class="sticky top-0 z-10 w-10 bg-card">
                       <Checkbox
                         :model-value="allSelected ? true : selectedCount > 0 ? 'indeterminate' : false"
-                        aria-label="全选调查记录"
+                        aria-label="全选下派记录"
                         @update:model-value="toggleSelectAll"
                       />
                     </TableHead>

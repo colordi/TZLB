@@ -6,7 +6,7 @@ from typing import Any
 
 import asyncpg
 
-from backend.db.postgres import quote_identifier
+from backend.db.pool import quote_identifier
 from backend.services.survey_import.parsers import is_blank
 from backend.services.survey_import.types import (
     LEDGER_HISTORY_RULES,

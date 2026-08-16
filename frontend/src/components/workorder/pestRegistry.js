@@ -52,16 +52,18 @@ const MEI_GUO_BAI_E_FIELD_KEYS = [
 
 const CHI_HUO_IMPORT_COLUMNS = [
   { key: "location_id", label: "编号", fallback: "—" },
+  { key: "event_type", label: "事件类型", fallback: "—" },
   { key: "locality", label: "属地", fallback: "未匹配" },
   { key: "location_name", label: "点位名称", fallback: "未匹配" },
-  { key: "total_insect_count", label: "总虫口数", fallback: "—" },
+  { key: "total_insect_count", label: "平均虫口数", fallback: "—" },
   { key: "damage_level", label: "受害程度", fallback: "—" },
 ];
 
-const COMMON_IMPORT_KEY_FIELDS = ["survey_date", "location_id", "pest_name"];
+const COMMON_IMPORT_KEY_FIELDS = ["survey_date", "location_id", "event_type", "pest_name"];
 
 const OTHER_PEST_IMPORT_COLUMNS = [
   { key: "location_id", label: "编号", fallback: "—" },
+  { key: "event_type", label: "事件类型", fallback: "—" },
   { key: "locality", label: "属地", fallback: "未匹配" },
   { key: "location_name", label: "点位名称", fallback: "未匹配" },
   { key: "pest_name", label: "虫害类型", fallback: "—" },
@@ -94,8 +96,8 @@ export const PEST_REGISTRY = [
     recordOverrides: { pest_name: "", host_plant: "" },
     imageStrategy: IMAGE_STRATEGY_UPLOADED,
     surveyImport: {
-      description: "按调查日期查询春尺蠖受害点位，并批量导入到当前工单。",
-      idleHint: "当前支持导入春尺蠖幼虫调查数据。",
+      description: "按事件日期查询春尺蠖下派与复查异常点位，并批量导入到当前工单。",
+      idleHint: "当前按事件流水导入春尺蠖下派 / 复查异常记录。",
       columns: CHI_HUO_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     },
@@ -116,8 +118,8 @@ export const PEST_REGISTRY = [
     recordOverrides: { pest_name: "", host_plant: "" },
     imageStrategy: IMAGE_STRATEGY_UPLOADED,
     surveyImport: {
-      description: "按调查日期查询国槐尺蠖受害点位，并批量导入到当前工单。",
-      idleHint: "当前支持导入国槐尺蠖幼虫调查数据。",
+      description: "按事件日期查询国槐尺蠖下派与复查异常点位，并批量导入到当前工单。",
+      idleHint: "当前按事件流水导入国槐尺蠖下派 / 复查异常记录。",
       columns: CHI_HUO_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     },
@@ -144,10 +146,11 @@ export const PEST_REGISTRY = [
     recordOverrides: {},
     imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
     surveyImport: {
-      description: "按调查日期查询美国白蛾第一代问题点位，并批量导入到当前工单。",
-      idleHint: "当前支持按调查日期导入美国白蛾第一代调查数据。",
+      description: "按事件日期与世代查询美国白蛾下派与复查异常点位，并批量导入到当前工单。",
+      idleHint: "当前按事件流水导入美国白蛾下派 / 复查异常记录。",
       columns: [
         { key: "location_id", label: "编号", fallback: "—" },
+        { key: "event_type", label: "事件类型", fallback: "—" },
         { key: "locality", label: "属地", fallback: "未匹配" },
         { key: "location_name", label: "点位名称", fallback: "未匹配" },
         { key: "green_space_type", label: "绿地性质", fallback: "—" },
@@ -179,8 +182,8 @@ export const PEST_REGISTRY = [
     recordOverrides: {},
     imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
     surveyImport: {
-      description: "按调查日期查询其他害虫问题点位，并批量导入到当前工单。",
-      idleHint: "当前支持按调查日期导入其他害虫调查数据。",
+      description: "按事件日期查询其他害虫下派与复查异常点位，并批量导入到当前工单。",
+      idleHint: "当前按事件流水导入其他害虫下派 / 复查异常记录。",
       columns: OTHER_PEST_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     },
@@ -206,8 +209,8 @@ export const PEST_REGISTRY = [
     recordOverrides: {},
     imageStrategy: IMAGE_STRATEGY_AUTO_DISK,
     surveyImport: {
-      description: "按调查日期查询杨树食叶害虫问题点位，并批量导入到当前工单。",
-      idleHint: "当前支持按调查日期导入杨树食叶害虫调查数据。",
+      description: "按事件日期查询杨树食叶害虫下派与复查异常点位，并批量导入到当前工单。",
+      idleHint: "当前按事件流水导入杨树食叶害虫下派 / 复查异常记录。",
       columns: OTHER_PEST_IMPORT_COLUMNS,
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     },
@@ -256,8 +259,8 @@ export function getSurveyImportConfig(pestType) {
   const config = getPestConfig(pestType).surveyImport;
   return (
     config || {
-      description: "当前虫种暂不支持从数据库导入调查记录。",
-      idleHint: "当前虫种暂不支持从数据库导入调查记录。",
+      description: "当前虫种暂不支持从事件流水导入下派记录。",
+      idleHint: "当前虫种暂不支持从事件流水导入下派记录。",
       columns: [],
       candidateKeyFields: COMMON_IMPORT_KEY_FIELDS,
     }

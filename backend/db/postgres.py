@@ -6,7 +6,7 @@ Implementation is split by domain:
 - ``backend.db.map_queries`` — map views, filters, GeoJSON
 - ``backend.db.white_moth_sites`` — white moth site rules and CRUD
 - ``backend.db.other_pest_sites`` — other-pest site rules and CRUD
-- ``backend.db.survey_candidates`` — workorder survey import candidates
+- ``backend.db.survey_candidates`` — workorder dispatch-event import candidates
 
 Importing from ``backend.db.postgres`` remains supported so existing
 routers keep working. Unit tests that mock DB primitives should patch the

@@ -30,7 +30,30 @@ SOPHORA_SITE_TABLE = "国槐点位基础表"
 OTHER_PEST_SITE_TABLE = "其他害虫点位基础表"
 WHITE_MOTH_SITE_TABLE = "美国白蛾点位基础表"
 YANGSHU_SHIYE_SITE_TABLE = "杨树食叶害虫点位基础表"
+LEDGER_SCHEMA = "ledger"
+SPRING_INCHWORM_LEDGER_TABLE = "春尺蠖问题点位事件流水表"
+GUO_HUAI_LEDGER_TABLE = "国槐尺蠖问题点位事件流水表"
+WHITE_MOTH_LEDGER_TABLE = "美国白蛾问题点位事件流水表"
+OTHER_PEST_LEDGER_TABLE = "其他害虫问题点位事件流水表"
+YANGSHU_SHIYE_LEDGER_TABLE = "杨树食叶害虫问题点位事件流水表"
 LOCALITY_COLUMN = "属地"
+LEDGER_TABLE_BY_PEST = {
+    "春尺蠖": SPRING_INCHWORM_LEDGER_TABLE,
+    "国槐尺蠖": GUO_HUAI_LEDGER_TABLE,
+    "美国白蛾": WHITE_MOTH_LEDGER_TABLE,
+    "其他害虫": OTHER_PEST_LEDGER_TABLE,
+    "杨树食叶害虫": YANGSHU_SHIYE_LEDGER_TABLE,
+}
+GENERATION_LEDGER_PESTS = frozenset({"国槐尺蠖", "美国白蛾"})
+# 与 survey_import.LEDGER_HISTORY_RULES 的下派类 + 复查异常保持一致，
+# 不从 survey_import 包导入，避免与 postgres 门面循环依赖。
+DISPATCH_EVENT_TYPES_BY_PEST = {
+    "春尺蠖": ("历史预警下派", "成虫调查下派", "幼虫调查下派", "复查异常"),
+    "国槐尺蠖": ("历史预警下派", "幼虫调查下派", "复查异常"),
+    "美国白蛾": ("调查下派", "复查异常"),
+    "其他害虫": ("调查下派", "复查异常"),
+    "杨树食叶害虫": ("调查下派", "复查异常"),
+}
 
 
 def build_chi_huo_larva_description(
@@ -118,6 +141,47 @@ def serialize_date_value(value: Any) -> str:
     return str(value)
 
 
+def coerce_survey_date(value: date_cls | str) -> date_cls:
+    if isinstance(value, date_cls):
+        return value
+    return date_cls.fromisoformat(str(value))
+
+
+def dispatch_event_types_for_pest(pest_key: str) -> tuple[str, ...]:
+    event_types = DISPATCH_EVENT_TYPES_BY_PEST.get(pest_key)
+    if event_types is None:
+        raise ValueError(f"{pest_key} 暂不支持按事件流水导入工单")
+    return event_types
+
+
+def build_dispatch_fallback_description(
+    *,
+    locality: str,
+    location_name: str,
+    location_id: str,
+    event_type: str,
+    damage_level: str,
+    average_insect_count: int | None,
+) -> str:
+    """流水没有「本次详细情况」时，用下派字段拼一条可写入工单的描述。"""
+
+    location_prefix = "".join(
+        part.strip()
+        for part in [locality, location_name, location_id]
+        if (part or "").strip()
+    )
+    location_text = f"{location_prefix}点位，" if location_prefix else ""
+    event_text = (event_type or "下派").strip() or "下派"
+    level_text = (damage_level or "").strip() or "待判定"
+    if average_insect_count is None:
+        count_text = "未记录"
+    else:
+        count_text = f"{int(average_insect_count)}头"
+    return (
+        f"{location_text}{event_text}，危害程度为{level_text}，平均虫口{count_text}。"
+    )
+
+
 def build_point_screenshot_index(storage: AssetStorage) -> dict[str, str]:
     """列出点位截图存储位置，返回可唯一匹配的点位截图索引（编号 -> 文件名）。"""
 
@@ -186,7 +250,7 @@ async def fetch_survey_candidates(
     generation: str | None = None,
     include_images: bool = True,
 ) -> list[dict[str, Any]]:
-    """读取指定日期可导入为工作单的调查记录。"""
+    """读取指定日期可导入为工作单的下派 / 复查异常事件。"""
 
     return await fetch_survey_candidates_by_type(
         survey_date=survey_date,
@@ -248,9 +312,11 @@ async def fetch_survey_candidates_by_type(
     generation: str | None = None,
     include_images: bool = True,
 ) -> list[dict[str, Any]]:
-    """按害虫类型读取指定日期的工作单导入候选记录。"""
+    """按害虫类型读取指定日期的下派 / 复查异常事件，作为工作单导入候选。"""
 
     config = get_pest_config(pest_type)
+    target_date = coerce_survey_date(survey_date)
+    resolved_year = year if year is not None else target_date.year
     strategy_handlers = {
         SURVEY_IMPORT_OTHER_PEST: fetch_other_pest_survey_candidates,
         SURVEY_IMPORT_SPRING_INCHWORM: fetch_spring_inchworm_survey_candidates,
@@ -260,236 +326,221 @@ async def fetch_survey_candidates_by_type(
     }
     handler = strategy_handlers.get(config.survey_import_strategy or "")
     if handler is None:
-        raise ValueError(f"暂不支持 {config.key} 的调查导入")
-    return await handler(survey_date, include_images=include_images)
+        raise ValueError(f"暂不支持 {config.key} 的工单导入")
+    return await handler(
+        target_date,
+        year=resolved_year,
+        generation=generation,
+        include_images=include_images,
+    )
+
+
+def _qualified_ledger_table(table_name: str) -> str:
+    return f"{quote_identifier(LEDGER_SCHEMA)}.{quote_identifier(table_name)}"
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
+async def fetch_chi_huo_dispatch_candidates(
+    survey_date: date_cls,
+    *,
+    pest_key: str,
+    ledger_table: str,
+    screenshot_dir_attr: str,
+    year: int,
+    generation: str | None,
+    include_images: bool,
+) -> list[dict[str, Any]]:
+    """读取尺蠖类（春尺蠖 / 国槐尺蠖）当日下派与复查异常事件。"""
+
+    event_types = dispatch_event_types_for_pest(pest_key)
+    generation_clause = ""
+    params: list[Any] = [survey_date, list(event_types), year]
+    if pest_key in GENERATION_LEDGER_PESTS and generation:
+        generation_clause = f'\n          AND e.{quote_identifier("世代")} = $4'
+        params.append(generation)
+
+    rows = await fetch(
+        f"""
+        SELECT
+            BTRIM(e."编号") AS location_id,
+            (e."事件时间")::date AS survey_date,
+            e."事件类型"::text AS event_type,
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+            COALESCE(e."点位名称", '') AS location_name,
+            e."本次平均虫口数" AS total_insect_count,
+            BTRIM(COALESCE(e."本次危害程度", '')) AS damage_level,
+            COALESCE(e."本次详细情况", '') AS event_detail,
+            COALESCE(e."备注", '') AS note
+        FROM {_qualified_ledger_table(ledger_table)} AS e
+        WHERE (e."事件时间")::date = $1
+          AND e."事件类型"::text = ANY($2::text[])
+          AND e."年份" = $3{generation_clause}
+        ORDER BY
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, ''),
+            BTRIM(e."编号"),
+            e."事件类型"::text
+        """,
+        *params,
+    )
+
+    settings = get_settings()
+    screenshot_storage = get_storage_for_dir(
+        getattr(settings, screenshot_dir_attr),
+        settings,
+    )
+    screenshot_index = (
+        build_point_screenshot_index(screenshot_storage) if include_images else {}
+    )
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        location_id = str(row["location_id"] or "").strip()
+        locality = (row["locality"] or "").strip()
+        location_name = (row["location_name"] or "").strip()
+        event_type = str(row.get("event_type") or "").strip()
+        insect_count = _optional_int(row["total_insect_count"])
+        damage_level = (row["damage_level"] or "").strip()
+        event_detail = str(row.get("event_detail") or "").strip()
+        candidates.append(
+            {
+                "survey_date": serialize_date_value(row["survey_date"]),
+                "event_type": event_type,
+                "locality": locality,
+                "location_id": location_id,
+                "location_name": location_name,
+                "total_insect_count": insect_count,
+                "damage_level": damage_level,
+                "note": (row["note"] or "").strip(),
+                "images": load_point_screenshot_images(
+                    location_id,
+                    screenshot_index,
+                    screenshot_storage,
+                ),
+                "description": event_detail
+                or build_dispatch_fallback_description(
+                    locality=locality,
+                    location_name=location_name,
+                    location_id=location_id,
+                    event_type=event_type,
+                    damage_level=damage_level,
+                    average_insect_count=insect_count,
+                ),
+            }
+        )
+    return candidates
 
 
 async def fetch_spring_inchworm_survey_candidates(
     survey_date: date_cls,
     include_images: bool = True,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的春尺蠖调查导入候选记录。"""
+    """读取指定日期的春尺蠖下派 / 复查异常事件。"""
 
-    qualified_larva_table = (
-        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(SURVEY_LARVA_TABLE)}"
+    target_date = coerce_survey_date(survey_date)
+    return await fetch_chi_huo_dispatch_candidates(
+        target_date,
+        pest_key="春尺蠖",
+        ledger_table=SPRING_INCHWORM_LEDGER_TABLE,
+        screenshot_dir_attr="point_screenshot_dir",
+        year=year if year is not None else target_date.year,
+        generation=generation,
+        include_images=include_images,
     )
-    qualified_site_table = f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(SITE_TABLE)}"
-
-    rows = await fetch(
-        f"""
-        SELECT
-            l."编号" AS location_id,
-            l."调查日期" AS survey_date,
-            l."总虫口数" AS total_insect_count,
-            BTRIM(l."危害程度") AS damage_level,
-            COALESCE(l."备注", '') AS note,
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
-            COALESCE(s."村", '') AS location_name
-        FROM {qualified_larva_table} AS l
-        JOIN {qualified_site_table} AS s
-          ON l."编号" = s."编号"
-        WHERE l."调查日期" = $1
-          AND l."危害程度" IS NOT NULL
-          AND BTRIM(l."危害程度") NOT IN ('', '白')
-        ORDER BY
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
-            l."编号"
-        """,
-        survey_date,
-    )
-
-    screenshot_storage = get_storage_for_dir(get_settings().point_screenshot_dir, get_settings())
-    screenshot_index = (
-        build_point_screenshot_index(screenshot_storage)
-        if include_images
-        else {}
-    )
-    candidates: list[dict[str, Any]] = []
-    for row in rows:
-        location_id = str(row["location_id"] or "").strip()
-        locality = (row["locality"] or "").strip()
-        location_name = (row["location_name"] or "").strip()
-        insect_count = row["total_insect_count"]
-        if insect_count is not None:
-            insect_count = int(insect_count)
-
-        damage_level = (row["damage_level"] or "").strip()
-        candidates.append(
-            {
-                "survey_date": serialize_date_value(row["survey_date"]),
-                "locality": locality,
-                "location_id": location_id,
-                "location_name": location_name,
-                "total_insect_count": insect_count,
-                "damage_level": damage_level,
-                "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(
-                    location_id,
-                    screenshot_index,
-                    screenshot_storage,
-                ),
-                "description": build_spring_inchworm_description(
-                    locality=locality,
-                    location_name=location_name,
-                    location_id=location_id,
-                    damage_level=damage_level,
-                    total_insect_count=insect_count,
-                ),
-            }
-        )
-
-    return candidates
 
 
 async def fetch_guo_huai_inchworm_survey_candidates(
     survey_date: date_cls,
     include_images: bool = True,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的国槐尺蠖调查导入候选记录。"""
+    """读取指定日期的国槐尺蠖下派 / 复查异常事件。"""
 
-    qualified_larva_table = (
-        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(GUO_HUAI_LARVA_TABLE)}"
+    target_date = coerce_survey_date(survey_date)
+    return await fetch_chi_huo_dispatch_candidates(
+        target_date,
+        pest_key="国槐尺蠖",
+        ledger_table=GUO_HUAI_LEDGER_TABLE,
+        screenshot_dir_attr="sophora_point_screenshot_dir",
+        year=year if year is not None else target_date.year,
+        generation=generation,
+        include_images=include_images,
     )
-    qualified_site_table = (
-        f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(SOPHORA_SITE_TABLE)}"
-    )
-
-    rows = await fetch(
-        f"""
-        SELECT
-            l."编号" AS location_id,
-            l."调查日期" AS survey_date,
-            l."总虫口数" AS total_insect_count,
-            BTRIM(l."危害程度") AS damage_level,
-            COALESCE(l."备注", '') AS note,
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
-            COALESCE(s."村", '') AS location_name
-        FROM {qualified_larva_table} AS l
-        JOIN {qualified_site_table} AS s
-          ON l."编号" = s."编号"
-        WHERE l."调查日期" = $1
-          AND l."危害程度" IS NOT NULL
-          AND BTRIM(l."危害程度") NOT IN ('', '白', '无需防治')
-        ORDER BY
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
-            l."编号"
-        """,
-        survey_date,
-    )
-
-    screenshot_storage = get_storage_for_dir(
-        get_settings().sophora_point_screenshot_dir,
-        get_settings(),
-    )
-    screenshot_index = (
-        build_point_screenshot_index(screenshot_storage)
-        if include_images
-        else {}
-    )
-    candidates: list[dict[str, Any]] = []
-    for row in rows:
-        location_id = str(row["location_id"] or "").strip()
-        locality = (row["locality"] or "").strip()
-        location_name = (row["location_name"] or "").strip()
-        insect_count = row["total_insect_count"]
-        if insect_count is not None:
-            insect_count = int(insect_count)
-
-        damage_level = (row["damage_level"] or "").strip()
-        candidates.append(
-            {
-                "survey_date": serialize_date_value(row["survey_date"]),
-                "locality": locality,
-                "location_id": location_id,
-                "location_name": location_name,
-                "total_insect_count": insect_count,
-                "damage_level": damage_level,
-                "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(
-                    location_id,
-                    screenshot_index,
-                    screenshot_storage,
-                ),
-                "description": build_guo_huai_inchworm_description(
-                    locality=locality,
-                    location_name=location_name,
-                    location_id=location_id,
-                    damage_level=damage_level,
-                    total_insect_count=insect_count,
-                ),
-            }
-        )
-
-    return candidates
 
 
 async def fetch_other_pest_like_survey_candidates(
     survey_date: date_cls,
     *,
-    survey_table: str,
+    pest_key: str,
+    ledger_table: str,
     site_table: str,
     site_name_column: str,
-    site_host_column: str | None,
     site_plot_column: str | None,
     screenshot_storage: AssetStorage,
+    year: int,
     include_images: bool = True,
 ) -> list[dict[str, Any]]:
-    """按"调查结论=发现问题"读取调查导入候选记录（其他害虫、杨树食叶害虫共用）。
+    """按事件流水读取其他害虫 / 杨树食叶害虫的下派与复查异常。"""
 
-    两个虫种的调查表结构一致；点位基础表的名称/寄主/地块列名不同，由参数指定，
-    没有的列传 None，对应字段返回空串。
-    """
-
-    qualified_survey_table = (
-        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(survey_table)}"
-    )
+    event_types = dispatch_event_types_for_pest(pest_key)
+    qualified_ledger = _qualified_ledger_table(ledger_table)
     qualified_site_table = (
         f"{quote_identifier(SITE_SCHEMA)}.{quote_identifier(site_table)}"
     )
-    host_expression = (
-        f"COALESCE(s.{quote_identifier(site_host_column)}, '')" if site_host_column else "''"
-    )
     plot_expression = (
-        f"COALESCE(s.{quote_identifier(site_plot_column)}, '')" if site_plot_column else "''"
+        f"COALESCE(s.{quote_identifier(site_plot_column)}, '')"
+        if site_plot_column
+        else "''"
     )
 
     rows = await fetch(
         f"""
         SELECT
-            i."编号" AS location_id,
-            i."调查日期" AS survey_date,
-            BTRIM(i."虫害类型") AS pest_name,
-            BTRIM(i."调查结论") AS survey_result,
-            COALESCE(i."详细描述", '') AS description,
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+            BTRIM(e."编号") AS location_id,
+            (e."事件时间")::date AS survey_date,
+            e."事件类型"::text AS event_type,
+            BTRIM(e."虫害类型") AS pest_name,
+            BTRIM(COALESCE(e."本次调查结论", '')) AS survey_result,
+            COALESCE(e."本次详细情况", '') AS description,
+            COALESCE(e."备注", '') AS note,
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
             COALESCE(
-                NULLIF(BTRIM(i."点位名称"), ''),
+                NULLIF(BTRIM(e."点位名称"), ''),
                 NULLIF(BTRIM(s.{quote_identifier(site_name_column)}), ''),
                 ''
             ) AS location_name,
-            {host_expression} AS host_plant,
+            COALESCE(e."寄主树种", '') AS host_plant,
             {plot_expression} AS plot_type
-        FROM {qualified_survey_table} AS i
-        JOIN {qualified_site_table} AS s
-          ON i."编号" = s."编号"
-        WHERE i."调查日期" = $1
-          AND BTRIM(COALESCE(i."调查结论", '')) = '发现问题'
+        FROM {qualified_ledger} AS e
+        LEFT JOIN {qualified_site_table} AS s
+          ON e."编号" = s."编号"
+        WHERE (e."事件时间")::date = $1
+          AND e."事件类型"::text = ANY($2::text[])
+          AND e."年份" = $3
         ORDER BY
-            COALESCE(s.{quote_identifier(LOCALITY_COLUMN)}, ''),
-            i."编号",
-            COALESCE(i."虫害类型", '')
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, ''),
+            BTRIM(e."编号"),
+            COALESCE(e."虫害类型", ''),
+            e."事件类型"::text
         """,
         survey_date,
+        list(event_types),
+        year,
     )
 
     screenshot_index = (
-        build_point_screenshot_index(screenshot_storage)
-        if include_images
-        else {}
+        build_point_screenshot_index(screenshot_storage) if include_images else {}
     )
     return [
         {
             "survey_date": serialize_date_value(row["survey_date"]),
+            "event_type": (row["event_type"] or "").strip(),
             "locality": (row["locality"] or "").strip(),
             "location_id": str(row["location_id"] or "").strip(),
             "location_name": (row["location_name"] or "").strip(),
@@ -498,7 +549,7 @@ async def fetch_other_pest_like_survey_candidates(
             "plot_type": (row["plot_type"] or "").strip(),
             "survey_result": (row["survey_result"] or "").strip(),
             "description": (row["description"] or "").strip(),
-            "note": "",
+            "note": (row["note"] or "").strip(),
             "images": load_point_screenshot_images(
                 str(row["location_id"] or "").strip(),
                 screenshot_index,
@@ -512,20 +563,25 @@ async def fetch_other_pest_like_survey_candidates(
 async def fetch_other_pest_survey_candidates(
     survey_date: date_cls,
     include_images: bool = True,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的其他害虫调查导入候选记录。"""
+    """读取指定日期的其他害虫下派 / 复查异常事件。"""
 
+    del generation
+    target_date = coerce_survey_date(survey_date)
     return await fetch_other_pest_like_survey_candidates(
-        survey_date,
-        survey_table=OTHER_PEST_SURVEY_TABLE,
+        target_date,
+        pest_key="其他害虫",
+        ledger_table=OTHER_PEST_LEDGER_TABLE,
         site_table=OTHER_PEST_SITE_TABLE,
         site_name_column="点位名称",
-        site_host_column="寄主树种",
         site_plot_column="地块类型",
         screenshot_storage=get_storage_for_dir(
             get_settings().other_pest_point_screenshot_dir,
             get_settings(),
         ),
+        year=year if year is not None else target_date.year,
         include_images=include_images,
     )
 
@@ -533,20 +589,25 @@ async def fetch_other_pest_survey_candidates(
 async def fetch_yangshu_shiye_survey_candidates(
     survey_date: date_cls,
     include_images: bool = True,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的杨树食叶害虫调查导入候选记录。"""
+    """读取指定日期的杨树食叶害虫下派 / 复查异常事件。"""
 
+    del generation
+    target_date = coerce_survey_date(survey_date)
     return await fetch_other_pest_like_survey_candidates(
-        survey_date,
-        survey_table=YANGSHU_SHIYE_SURVEY_TABLE,
+        target_date,
+        pest_key="杨树食叶害虫",
+        ledger_table=YANGSHU_SHIYE_LEDGER_TABLE,
         site_table=YANGSHU_SHIYE_SITE_TABLE,
         site_name_column="村",
-        site_host_column="杨树类型",
         site_plot_column=None,
         screenshot_storage=get_storage_for_dir(
             get_settings().yangshu_shiye_point_screenshot_dir,
             get_settings(),
         ),
+        year=year if year is not None else target_date.year,
         include_images=include_images,
     )
 
@@ -554,40 +615,46 @@ async def fetch_yangshu_shiye_survey_candidates(
 async def fetch_meiguobaie_survey_candidates(
     survey_date: date_cls,
     include_images: bool = True,
+    year: int | None = None,
+    generation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """读取指定日期的美国白蛾调查导入候选记录。"""
+    """读取指定日期的美国白蛾下派 / 复查异常事件。"""
 
-    qualified_survey_table = (
-        f"{quote_identifier(SURVEY_SCHEMA)}.{quote_identifier(MEI_GUO_BAI_E_SURVEY_TABLE)}"
-    )
+    target_date = coerce_survey_date(survey_date)
+    resolved_year = year if year is not None else target_date.year
+    event_types = dispatch_event_types_for_pest("美国白蛾")
+    generation_clause = ""
+    params: list[Any] = [target_date, list(event_types), resolved_year]
+    if generation:
+        generation_clause = f'\n          AND e.{quote_identifier("世代")} = $4'
+        params.append(generation)
 
     rows = await fetch(
         f"""
         SELECT
-            BTRIM(i."编号") AS location_id,
-            i."调查日期" AS survey_date,
-            COALESCE(NULLIF(BTRIM(i."区域"), ''), '乡镇') AS region,
-            COALESCE(i.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
-            COALESCE(i."点位名称", '') AS location_name,
-            COALESCE(i."发生位置", '') AS occurrence_position,
-            COALESCE(i."绿地性质", '') AS green_space_type,
-            COALESCE(i."危害寄主", '') AS pest_hosts,
-            COALESCE(i."受害株数", 0) AS damaged_plant_count,
-            COALESCE(i."网幕数量", 0) AS web_nest_count,
-            COALESCE(i."详细描述", '') AS description,
-            COALESCE(i."备注", '') AS note
-        FROM {qualified_survey_table} AS i
-        WHERE i."调查日期" = $1
-          AND BTRIM(COALESCE(i."详细描述", '')) <> ''
-          AND (
-              COALESCE(i."受害株数", 0) > 0
-              OR COALESCE(i."网幕数量", 0) > 0
-          )
+            BTRIM(e."编号") AS location_id,
+            (e."事件时间")::date AS survey_date,
+            e."事件类型"::text AS event_type,
+            COALESCE(NULLIF(BTRIM(e."区域"), ''), '乡镇') AS region,
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, '') AS locality,
+            COALESCE(e."点位名称", '') AS location_name,
+            COALESCE(e."发生位置", '') AS occurrence_position,
+            COALESCE(e."绿地性质", '') AS green_space_type,
+            COALESCE(e."危害寄主", '') AS pest_hosts,
+            COALESCE(e."受害株数", 0) AS damaged_plant_count,
+            COALESCE(e."网幕数量", 0) AS web_nest_count,
+            COALESCE(e."本次详细情况", '') AS description,
+            COALESCE(e."备注", '') AS note
+        FROM {_qualified_ledger_table(WHITE_MOTH_LEDGER_TABLE)} AS e
+        WHERE (e."事件时间")::date = $1
+          AND e."事件类型"::text = ANY($2::text[])
+          AND e."年份" = $3{generation_clause}
         ORDER BY
-            COALESCE(i.{quote_identifier(LOCALITY_COLUMN)}, ''),
-            BTRIM(i."编号")
+            COALESCE(e.{quote_identifier(LOCALITY_COLUMN)}, ''),
+            BTRIM(e."编号"),
+            e."事件类型"::text
         """,
-        survey_date,
+        *params,
     )
 
     screenshot_storage = get_storage_for_dir(
@@ -595,35 +662,28 @@ async def fetch_meiguobaie_survey_candidates(
         get_settings(),
     )
     screenshot_index = (
-        build_point_screenshot_index(screenshot_storage)
-        if include_images
-        else {}
+        build_point_screenshot_index(screenshot_storage) if include_images else {}
     )
-    candidates: list[dict[str, Any]] = []
-    for row in rows:
-        location_id = str(row["location_id"] or "").strip()
-        damaged_plant_count = row["damaged_plant_count"]
-        web_nest_count = row["web_nest_count"]
-        candidates.append(
-            {
-                "survey_date": serialize_date_value(row["survey_date"]),
-                "region": (row["region"] or "").strip(),
-                "locality": (row["locality"] or "").strip(),
-                "location_id": location_id,
-                "location_name": (row["location_name"] or "").strip(),
-                "occurrence_position": (row["occurrence_position"] or "").strip(),
-                "green_space_type": (row["green_space_type"] or "").strip(),
-                "pest_hosts": (row["pest_hosts"] or "").strip(),
-                "damaged_plant_count": int(damaged_plant_count or 0),
-                "web_nest_count": int(web_nest_count or 0),
-                "description": (row["description"] or "").strip(),
-                "note": (row["note"] or "").strip(),
-                "images": load_point_screenshot_images(
-                    location_id,
-                    screenshot_index,
-                    screenshot_storage,
-                ),
-            }
-        )
-
-    return candidates
+    return [
+        {
+            "survey_date": serialize_date_value(row["survey_date"]),
+            "event_type": (row["event_type"] or "").strip(),
+            "region": (row["region"] or "").strip(),
+            "locality": (row["locality"] or "").strip(),
+            "location_id": str(row["location_id"] or "").strip(),
+            "location_name": (row["location_name"] or "").strip(),
+            "occurrence_position": (row["occurrence_position"] or "").strip(),
+            "green_space_type": (row["green_space_type"] or "").strip(),
+            "pest_hosts": (row["pest_hosts"] or "").strip(),
+            "damaged_plant_count": int(row["damaged_plant_count"] or 0),
+            "web_nest_count": int(row["web_nest_count"] or 0),
+            "description": (row["description"] or "").strip(),
+            "note": (row["note"] or "").strip(),
+            "images": load_point_screenshot_images(
+                str(row["location_id"] or "").strip(),
+                screenshot_index,
+                screenshot_storage,
+            ),
+        }
+        for row in rows
+    ]

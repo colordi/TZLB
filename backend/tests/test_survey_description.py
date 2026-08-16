@@ -12,6 +12,7 @@ from backend.db.postgres import (
     build_spring_inchworm_description,
     fetch_survey_candidates,
 )
+from backend.db.survey_candidates import dispatch_event_types_for_pest
 
 
 class BuildSpringInchwormDescriptionTest(unittest.TestCase):
@@ -169,6 +170,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "location_id": "YF0069",
                                 "survey_date": "2026-04-01",
+                                "event_type": "幼虫调查下派",
+                                "event_detail": "",
                                 "total_insect_count": 50,
                                 "damage_level": "重",
                                 "note": "树冠北侧虫口集中",
@@ -207,6 +210,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                             {
                                 "location_id": "1001-1",
                                 "survey_date": "2026-05-02",
+                                "event_type": "幼虫调查下派",
+                                "event_detail": "",
                                 "total_insect_count": 45,
                                 "damage_level": "重",
                                 "note": "树冠中上部虫口集中",
@@ -239,6 +244,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "location_id": "YF0069",
                     "survey_date": "2026-04-01",
+                    "event_type": "幼虫调查下派",
+                    "event_detail": "",
                     "total_insect_count": 50,
                     "damage_level": "重",
                     "note": "树冠北侧虫口集中",
@@ -258,17 +265,25 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             candidates = await fetch_survey_candidates("2026-04-01")
 
         self.assertEqual(candidates[0]["note"], "树冠北侧虫口集中")
+        self.assertEqual(candidates[0]["event_type"], "幼虫调查下派")
         self.assertEqual(candidates[0]["images"], [])
         self.assertEqual(
             candidates[0]["description"],
-            "于家务乡神仙村YF0069点位，调查发现春尺蠖幼虫危害程度为重，平均每标准枝10头。"
-            "建议立即组织防治作业，并优先复核周边相邻点位。",
+            "于家务乡神仙村YF0069点位，幼虫调查下派，危害程度为重，平均虫口50头。",
         )
         self.assertNotIn("树冠北侧虫口集中", candidates[0]["description"])
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
-        self.assertNotIn('s."乡镇"', query)
+        self.assertIn('ledger"."春尺蠖问题点位事件流水表', query)
+        self.assertIn('(e."事件时间")::date = $1', query)
+        self.assertIn('e."年份" = $3', query)
+        self.assertNotIn("survey.", query)
+        args = mocked_fetch.call_args.args
+        self.assertIn("幼虫调查下派", args[2])
+        self.assertIn("成虫调查下派", args[2])
+        self.assertIn("历史预警下派", args[2])
+        self.assertIn("复查异常", args[2])
+        self.assertEqual(args[3], 2026)
 
     async def test_other_pest_candidates_include_template_required_fields(self) -> None:
         mocked_fetch = AsyncMock(
@@ -276,9 +291,11 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "location_id": "QT0001",
                     "survey_date": "2026-04-17",
+                    "event_type": "调查下派",
                     "pest_name": "蚜虫",
                     "survey_result": "发现问题",
                     "description": "潞城镇畅和东路，北京学校西侧，发现行道树栾树上蚜虫危害严重。",
+                    "note": "",
                     "locality": "潞城镇",
                     "location_name": "畅和东路北京学校西侧",
                     "host_plant": "栾树",
@@ -287,9 +304,12 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch(
+        with TemporaryDirectory() as tempdir, patch(
             "backend.db.survey_candidates.fetch",
             new=mocked_fetch,
+        ), patch(
+            "backend.db.survey_candidates.get_settings",
+            return_value=SimpleNamespace(other_pest_point_screenshot_dir=Path(tempdir)),
         ):
             candidates = await fetch_survey_candidates("2026-04-17", pest_type="其他害虫")
 
@@ -298,6 +318,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             [
                 {
                     "survey_date": "2026-04-17",
+                    "event_type": "调查下派",
                     "locality": "潞城镇",
                     "location_id": "QT0001",
                     "location_name": "畅和东路北京学校西侧",
@@ -313,9 +334,12 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
-        self.assertIn('BTRIM(i."点位名称")', query)
-        self.assertNotIn('s."乡镇"', query)
+        self.assertIn('ledger"."其他害虫问题点位事件流水表', query)
+        self.assertIn('LEFT JOIN "sites"."其他害虫点位基础表"', query)
+        self.assertIn('e."年份" = $3', query)
+        self.assertNotIn("发现问题", query)
+        self.assertIn("复查异常", mocked_fetch.call_args.args[2])
+        self.assertIn("调查下派", mocked_fetch.call_args.args[2])
 
     async def test_guo_huai_candidates_include_template_required_fields(self) -> None:
         mocked_fetch = AsyncMock(
@@ -323,6 +347,8 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "location_id": "1001-1",
                     "survey_date": "2026-05-02",
+                    "event_type": "幼虫调查下派",
+                    "event_detail": "",
                     "total_insect_count": 45,
                     "damage_level": "重",
                     "note": "树冠中上部虫口集中",
@@ -349,6 +375,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             [
                 {
                     "survey_date": "2026-05-02",
+                    "event_type": "幼虫调查下派",
                     "locality": "宋庄镇",
                     "location_id": "1001-1",
                     "location_name": "管头村",
@@ -356,18 +383,22 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                     "damage_level": "重",
                     "note": "树冠中上部虫口集中",
                     "images": [],
-                    "description": "宋庄镇管头村1001-1点位，调查发现国槐尺蠖幼虫危害程度为重，平均每标准枝9头。"
-                    "建议立即组织防治作业，并优先复核周边相邻点位。",
+                    "description": "宋庄镇管头村1001-1点位，幼虫调查下派，危害程度为重，平均虫口45头。",
                 }
             ],
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('survey"."国槐尺蠖幼虫调查表', query)
-        self.assertIn('sites"."国槐点位基础表', query)
-        self.assertIn('COALESCE(s."属地", \'\') AS locality', query)
-        self.assertNotIn('s."乡镇"', query)
-        self.assertIn("NOT IN ('', '白', '无需防治')", query)
+        self.assertIn('ledger"."国槐尺蠖问题点位事件流水表', query)
+        self.assertIn('e."年份" = $3', query)
+        self.assertNotIn("survey.", query)
+        self.assertNotIn("无需防治", query)
+        args = mocked_fetch.call_args.args
+        self.assertIn("幼虫调查下派", args[2])
+        self.assertIn("历史预警下派", args[2])
+        self.assertIn("复查异常", args[2])
+        self.assertNotIn("成虫调查下派", args[2])
+        self.assertEqual(args[3], 2026)
 
     async def test_meiguobaie_candidates_include_template_required_fields(self) -> None:
         image_bytes = b"fake-meiguobaie-jpeg-bytes"
@@ -376,6 +407,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
                 {
                     "location_id": "MQ001",
                     "survey_date": "2026-05-26",
+                    "event_type": "调查下派",
                     "region": "城区",
                     "locality": "梨园镇",
                     "location_name": "玉桥东路",
@@ -414,6 +446,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             [
                 {
                     "survey_date": "2026-05-26",
+                    "event_type": "调查下派",
                     "region": "城区",
                     "locality": "梨园镇",
                     "location_id": "MQ001",
@@ -431,12 +464,82 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         )
 
         query = mocked_fetch.call_args.args[0]
-        self.assertIn('survey"."美国白蛾调查表', query)
-        self.assertIn('COALESCE(i."属地", \'\') AS locality', query)
-        self.assertNotIn('i."乡镇"', query)
-        self.assertIn('BTRIM(COALESCE(i."详细描述", \'\')) <> \'\'', query)
-        self.assertIn('COALESCE(i."受害株数", 0) > 0', query)
-        self.assertIn('OR COALESCE(i."网幕数量", 0) > 0', query)
+        self.assertIn('ledger"."美国白蛾问题点位事件流水表', query)
+        self.assertIn('e."年份" = $3', query)
+        self.assertIn('e."本次详细情况"', query)
+        self.assertNotIn("survey.", query)
+        self.assertNotIn("详细描述", query)
+        args = mocked_fetch.call_args.args
+        self.assertIn("调查下派", args[2])
+        self.assertIn("复查异常", args[2])
+        self.assertEqual(args[3], 2026)
+
+    async def test_ledger_event_detail_is_used_as_description(self) -> None:
+        mocked_fetch = AsyncMock(
+            return_value=[
+                {
+                    "location_id": "YF0069",
+                    "survey_date": "2026-04-01",
+                    "event_type": "复查异常",
+                    "event_detail": "复查仍见大量幼虫，需再次下派防治。",
+                    "total_insect_count": 40,
+                    "damage_level": "重",
+                    "note": "",
+                    "locality": "于家务乡",
+                    "location_name": "神仙村",
+                }
+            ]
+        )
+
+        with TemporaryDirectory() as tempdir, patch(
+            "backend.db.survey_candidates.fetch",
+            new=mocked_fetch,
+        ), patch(
+            "backend.db.survey_candidates.get_settings",
+            return_value=SimpleNamespace(point_screenshot_dir=Path(tempdir)),
+        ):
+            candidates = await fetch_survey_candidates("2026-04-01", year=2026)
+
+        self.assertEqual(
+            candidates[0]["description"],
+            "复查仍见大量幼虫，需再次下派防治。",
+        )
+        self.assertEqual(candidates[0]["event_type"], "复查异常")
+
+    async def test_guo_huai_filters_generation_when_provided(self) -> None:
+        mocked_fetch = AsyncMock(return_value=[])
+
+        with TemporaryDirectory() as tempdir, patch(
+            "backend.db.survey_candidates.fetch",
+            new=mocked_fetch,
+        ), patch(
+            "backend.db.survey_candidates.get_settings",
+            return_value=SimpleNamespace(sophora_point_screenshot_dir=Path(tempdir)),
+        ):
+            await fetch_survey_candidates(
+                "2026-05-02",
+                pest_type="国槐尺蠖",
+                year=2026,
+                generation="第二代",
+            )
+
+        query = mocked_fetch.call_args.args[0]
+        self.assertIn('e."世代" = $4', query)
+        self.assertEqual(mocked_fetch.call_args.args[4], "第二代")
+
+    def test_dispatch_event_types_are_symmetric_for_chi_huo_except_adult(self) -> None:
+        spring_types = set(dispatch_event_types_for_pest("春尺蠖"))
+        guo_huai_types = set(dispatch_event_types_for_pest("国槐尺蠖"))
+        self.assertEqual(
+            spring_types - {"成虫调查下派"},
+            guo_huai_types,
+        )
+        self.assertIn("复查异常", spring_types)
+        self.assertIn("复查异常", set(dispatch_event_types_for_pest("美国白蛾")))
+        self.assertEqual(
+            set(dispatch_event_types_for_pest("其他害虫")),
+            set(dispatch_event_types_for_pest("杨树食叶害虫")),
+        )
 
 
 if __name__ == "__main__":

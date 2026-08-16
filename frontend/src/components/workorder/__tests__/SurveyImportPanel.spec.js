@@ -179,9 +179,10 @@ describe("SurveyImportPanel", () => {
         credentials: "same-origin",
       }),
     );
-    expect(wrapper.text()).toContain("国槐尺蠖受害点位");
-    expect(wrapper.text()).toContain("总虫口数");
+    expect(wrapper.text()).toContain("国槐尺蠖下派与复查异常点位");
+    expect(wrapper.text()).toContain("平均虫口数");
     expect(wrapper.text()).toContain("受害程度");
+    expect(wrapper.text()).toContain("事件类型");
     expect(wrapper.text()).toContain("1001-1");
     expect(wrapper.text()).toContain("重");
   });
@@ -225,7 +226,7 @@ describe("SurveyImportPanel", () => {
         credentials: "same-origin",
       }),
     );
-    expect(wrapper.text()).toContain("美国白蛾第一代问题点位");
+    expect(wrapper.text()).toContain("美国白蛾下派与复查异常点位");
     expect(wrapper.text()).toContain("绿地性质");
     expect(wrapper.text()).toContain("危害寄主");
     expect(wrapper.text()).toContain("受害株数");

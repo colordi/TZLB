@@ -35,7 +35,20 @@ LEDGER_HISTORY_RULES = {
         {"历史预警下派", "成虫调查下派", "幼虫调查下派"},
     ),
     ("ledger", "其他害虫问题点位事件流水表"): (("编号", "虫害类型", "年份"), {"调查下派"}),
+    ("ledger", "杨树食叶害虫问题点位事件流水表"): (
+        ("编号", "虫害类型", "年份"),
+        {"调查下派"},
+    ),
 }
+def ledger_dispatch_event_types(schema_name: str, table_name: str) -> tuple[str, ...]:
+    """工单候选使用的下派事件：历史纠正规则中的下派类型，外加复查异常。"""
+
+    rule = LEDGER_HISTORY_RULES.get((schema_name, table_name))
+    if rule is None:
+        raise ValueError(f"未配置 {schema_name}.{table_name} 的下派事件类型")
+    return tuple(sorted(rule[1] | {RECHECK_ABNORMAL_EVENT_TYPE}))
+
+
 LOCALITY_FIELD = "属地"
 EVENT_TYPE_FIELD = "事件类型"
 DAMAGED_PLANT_COUNT_FIELD = "受害株数"
