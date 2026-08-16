@@ -9,7 +9,7 @@ BEGIN;
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sites."白蜡点位基础表" (
     gid integer NOT NULL,
-    geom geometry(MultiPolygon, 3857),
+    geom geometry(MultiPolygonZ, 3857),
     "编号" character varying,
     "属地" character varying,
     "村" character varying,
