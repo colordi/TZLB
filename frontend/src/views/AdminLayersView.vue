@@ -207,7 +207,7 @@ const dragOverKey = ref(null);
 const dragOverPos = ref(null);
 
 const layerTypeLabel = {
-  view: "点位图层",
+  view: "任务图层",
   reference: "参考图层",
 };
 
@@ -463,7 +463,7 @@ onMounted(() => {
 <template>
   <div class="mx-auto w-full max-w-6xl space-y-6">
     <PageHeader
-      title="图层管理"
+      title="任务图层"
       :description="`拖拽调整图层显示顺序，编辑别名与启用状态，共 ${totalCount} 项`"
     >
       <template #actions>
@@ -683,7 +683,7 @@ onMounted(() => {
         <DialogHeader>
           <DialogTitle>新建任务图层</DialogTitle>
           <DialogDescription>
-            选择基础点位表与可选的调查/台账关联表，发布后自动出现在点位图层列表中。
+            选择基础点位表与可选的调查/台账关联表，发布后自动出现在任务图层列表中。
           </DialogDescription>
         </DialogHeader>
 

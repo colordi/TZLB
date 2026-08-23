@@ -32,7 +32,7 @@ const kpiCards = [
     label: "图层元数据",
     fields: [
       { label: "总数", valueKey: "total" },
-      { label: "点位图层", valueKey: "view_count" },
+      { label: "任务图层", valueKey: "view_count" },
       { label: "参考图层", valueKey: "reference_count" },
     ],
   },

@@ -207,7 +207,7 @@ function onGenerate() {
 <template>
   <section class="mx-auto w-full max-w-6xl space-y-6">
     <PageHeader
-      title="工单录入"
+      title="工单生成"
       description="从事件流水选取当日下派与复查异常记录，校对点位后批量生成工单。"
     />
 

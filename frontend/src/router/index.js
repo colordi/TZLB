@@ -41,7 +41,7 @@ const routes = [
     name: "workorder",
     component: WorkOrderView,
     meta: {
-      section: "工单录入",
+      section: "工单生成",
       blurb: "从事件流水选取下派与复查异常记录，校对点位后批量生成 Word 工单。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
@@ -66,7 +66,7 @@ const routes = [
     component: DataImportView,
     meta: {
       section: "数据导入",
-      blurb: "通过 Excel 将调查/台账数据写入数据库，供工单录入时从库中选取。",
+      blurb: "通过 Excel 将调查/台账数据写入数据库，供工单生成时从库中选取。",
       requiredRoles: [USER_ROLES.ADMIN],
     },
   },
@@ -139,7 +139,7 @@ const routes = [
     name: "admin-layers",
     component: AdminLayersView,
     meta: {
-      section: "图层管理",
+      section: "任务图层",
       blurb: "管理地图图层元数据。",
       requiredRoles: [USER_ROLES.ADMIN],
     },

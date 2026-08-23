@@ -61,7 +61,7 @@ async function mountApp(initialPath = "/workorder", options = {}) {
         path: "/workorder",
         component: WorkorderStub,
         meta: {
-          section: "工单录入",
+          section: "工单生成",
         },
       },
       {
@@ -160,8 +160,8 @@ describe("App 壳层导航", () => {
     const activeSidebar = wrapper.get(
       '[data-testid="sidebar-link-workorder"].router-link-active',
     );
-    expect(activeSidebar.text()).toContain("工单录入");
-    expect(wrapper.get(".site-section-title").text()).toContain("工单录入");
+    expect(activeSidebar.text()).toContain("工单生成");
+    expect(wrapper.get(".site-section-title").text()).toContain("工单生成");
     expect(wrapper.text()).not.toContain("当前页面");
   });
 
@@ -216,11 +216,11 @@ describe("App 壳层导航", () => {
 
     expect(wrapper.find('[data-mobile="true"]').exists()).toBe(true);
     expect(wrapper.get('[data-testid="sidebar-link-workorder"]').text()).toContain(
-      "工单录入",
+      "工单生成",
     );
   });
 
-  it("调查员账号不展示工单录入入口", async () => {
+  it("调查员账号不展示工单生成入口", async () => {
     const { wrapper } = await mountApp("/map", {
       user: {
         id: 2,

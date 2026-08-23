@@ -291,6 +291,28 @@ defineExpose({
           <span>卫星地图</span>
         </Button>
         <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="map-base-layer-option"
+          :class="{ 'is-active': showPointLabels }"
+          data-testid="map-layer-labels"
+          :aria-pressed="showPointLabels"
+          @click="togglePointLabels"
+        >
+          <Checkbox
+            :model-value="showPointLabels"
+            as="span"
+            tabindex="-1"
+            aria-hidden="true"
+            class="pointer-events-none"
+          />
+          <span>编号标签</span>
+        </Button>
+      </section>
+      <section v-if="referenceLayerEntries.length" class="map-layer-panel-group">
+        <h3>参考图层</h3>
+        <Button
           v-for="layer in referenceLayerEntries"
           :key="layer.key"
           type="button"
@@ -312,28 +334,9 @@ defineExpose({
           <span>{{ layer.label }}</span>
           <span v-if="layer.loading" class="map-layer-count">加载中</span>
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          class="map-base-layer-option"
-          :class="{ 'is-active': showPointLabels }"
-          data-testid="map-layer-labels"
-          :aria-pressed="showPointLabels"
-          @click="togglePointLabels"
-        >
-          <Checkbox
-            :model-value="showPointLabels"
-            as="span"
-            tabindex="-1"
-            aria-hidden="true"
-            class="pointer-events-none"
-          />
-          <span>编号标签</span>
-        </Button>
       </section>
       <section class="map-layer-panel-group">
-        <h3>点位图层</h3>
+        <h3>任务图层</h3>
         <Button
           v-for="layer in pointLayerEntries"
           :key="layer.key"

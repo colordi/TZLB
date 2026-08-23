@@ -378,14 +378,16 @@ describe("LeafletMap 底图图层", () => {
     await wrapper.get('[data-testid="map-layer-button"]').trigger("click");
     expect(wrapper.get("#map-layer-panel").text()).toContain("地图图层");
     expect(wrapper.get("#map-layer-panel").text()).toContain("基础图层");
-    expect(wrapper.get("#map-layer-panel").text()).toContain("点位图层");
+    expect(wrapper.get("#map-layer-panel").text()).toContain("参考图层");
+    expect(wrapper.get("#map-layer-panel").text()).toContain("任务图层");
     expect(wrapper.get('[data-testid="map-layer-labels"]').classes()).toContain(
       "map-base-layer-option",
     );
     const baseLayerTestIds = wrapper
       .findAll("#map-layer-panel .map-base-layer-option")
       .map((item) => item.attributes("data-testid"));
-    expect(baseLayerTestIds.at(-1)).toBe("map-layer-labels");
+    expect(baseLayerTestIds).toContain("map-layer-labels");
+    expect(baseLayerTestIds.at(-1)).toBe("map-reference-layer-通州区小区边界");
     expect(wrapper.find(".map-reference-layer-dot").exists()).toBe(false);
 
     await wrapper.get('[data-testid="map-layer-standard"]').trigger("click");
@@ -423,7 +425,7 @@ describe("LeafletMap 底图图层", () => {
     ]);
   });
 
-  it("图层面板的点位图层可以切换当前地图视图", async () => {
+  it("图层面板的任务图层可以切换当前地图视图", async () => {
     const wrapper = mountLeafletMap({
       viewName: "虫情总览",
       views: [
@@ -450,7 +452,7 @@ describe("LeafletMap 底图图层", () => {
     expect(wrapper.emitted("update:viewName")).toEqual([["美国白蛾点位"]]);
   });
 
-  it("点位图层优先显示视图别名", async () => {
+  it("任务图层优先显示视图别名", async () => {
     const wrapper = mountLeafletMap({
       viewName: "task_guohuai_2026_gen1",
       views: [

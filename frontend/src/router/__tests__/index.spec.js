@@ -50,7 +50,7 @@ describe("router", () => {
     expect(router.currentRoute.value.fullPath).toBe("/login?redirect=/map");
   });
 
-  it("调查员访问工单录入时会跳转到地图页", async () => {
+  it("调查员访问工单生成时会跳转到地图页", async () => {
     resetAuthSessionState();
     mockCurrentUser({
       id: 2,

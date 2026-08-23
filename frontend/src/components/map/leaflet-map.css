@@ -202,13 +202,13 @@
   color: var(--primary);
 }
 
+/* 图层名称允许换行完整显示，避免长名称被省略号截断 */
 .map-base-layer-option span:nth-child(2),
 .map-point-layer span:nth-child(2) {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .map-point-layer:hover,

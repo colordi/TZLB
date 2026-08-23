@@ -31,7 +31,7 @@ export const HAZARD_POINT_COLOR = "#ff0000";
 export const POINT_OUTLINE_COLOR = "#1F2933";
 
 /**
- * 点位图层色板（6 色）：仅用于图层面板区分图层，
+ * 任务图层色板（6 色）：仅用于图层面板区分图层，
  * 与危害程度色职责分离（规范 §7），不参与点位渲染。
  */
 export const POINT_LAYER_COLORS = [

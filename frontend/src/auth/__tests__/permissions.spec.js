@@ -7,7 +7,7 @@ import {
 } from "../permissions.js";
 
 describe("auth/permissions", () => {
-  it("管理员默认进入工单录入，调查员默认进入地图", () => {
+  it("管理员默认进入工单生成，调查员默认进入地图", () => {
     expect(getDefaultRouteForUser({ role: USER_ROLES.ADMIN })).toBe("/workorder");
     expect(getDefaultRouteForUser({ role: USER_ROLES.INVESTIGATOR })).toBe("/map");
   });

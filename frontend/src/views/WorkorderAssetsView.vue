@@ -13,7 +13,7 @@ const activeTab = ref("screenshots");
   <div class="mx-auto w-full max-w-6xl space-y-6">
     <PageHeader
       title="工单素材"
-      description="管理点位截图与按日期归档的现场图片。素材写入磁盘后，供「工单录入」导入预填或生成时自动取用；上传本身不会向工单清单添加点位。"
+      description="管理点位截图与按日期归档的现场图片。素材写入磁盘后，供「工单生成」导入预填或生成时自动取用；上传本身不会向工单清单添加点位。"
     />
 
     <Tabs v-model="activeTab">

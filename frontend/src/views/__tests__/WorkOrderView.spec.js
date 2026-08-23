@@ -235,7 +235,7 @@ describe("WorkOrderView", () => {
   it("按设计结构渲染页头、导入面板与点位清单空态", () => {
     const wrapper = mountWorkOrderView();
 
-    expect(wrapper.text()).toContain("工单录入");
+    expect(wrapper.text()).toContain("工单生成");
     expect(wrapper.text()).toContain("从事件流水选取当日下派与复查异常记录，校对点位后批量生成工单。");
     expect(wrapper.find('[data-testid="survey-import-panel"]').exists()).toBe(true);
     expect(

@@ -18,20 +18,39 @@ import { USER_ROLES } from "../auth/permissions.js";
 /** 主导航分组（壳层侧栏 / 顶栏 / 移动菜单共用） */
 export const NAV_GROUPS = [
   {
-    label: "业务管理",
+    label: "工单管理",
     items: [
       {
         to: "/workorder",
-        label: "工单录入",
+        label: "工单生成",
         icon: Upload,
         testId: "workorder",
         requiredRoles: [USER_ROLES.ADMIN],
       },
       {
+        to: "/workorder-assets",
+        label: "工单素材",
+        icon: Images,
+        testId: "workorder-assets",
+        requiredRoles: [USER_ROLES.ADMIN],
+      },
+    ],
+  },
+  {
+    label: "调查任务",
+    items: [
+      {
         to: "/map",
         label: "调查点位",
         icon: MapPin,
         testId: "map",
+      },
+      {
+        to: "/admin/layers",
+        label: "任务图层",
+        icon: Layers,
+        testId: "admin-layers",
+        requiredRoles: [USER_ROLES.ADMIN],
       },
     ],
   },
@@ -43,13 +62,6 @@ export const NAV_GROUPS = [
         label: "数据导入",
         icon: FileSpreadsheet,
         testId: "data-import",
-        requiredRoles: [USER_ROLES.ADMIN],
-      },
-      {
-        to: "/workorder-assets",
-        label: "工单素材",
-        icon: Images,
-        testId: "workorder-assets",
         requiredRoles: [USER_ROLES.ADMIN],
       },
       {
@@ -90,13 +102,6 @@ export const NAV_GROUPS = [
         label: "用户管理",
         icon: Users,
         testId: "admin-users",
-        requiredRoles: [USER_ROLES.ADMIN],
-      },
-      {
-        to: "/admin/layers",
-        label: "图层管理",
-        icon: Layers,
-        testId: "admin-layers",
         requiredRoles: [USER_ROLES.ADMIN],
       },
       {

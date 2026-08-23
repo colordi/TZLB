@@ -211,7 +211,7 @@ async function handleConfirm() {
   <div class="mx-auto w-full max-w-6xl space-y-6">
     <PageHeader
       title="数据导入"
-      description="将 Excel 写入数据库；入库后请到「工单录入」中生成工单。"
+      description="将 Excel 写入数据库；入库后请到「工单生成」中生成工单。"
     />
 
     <Card>
