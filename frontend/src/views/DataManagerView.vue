@@ -1,5 +1,8 @@
 <script setup>
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Bug,
   Database,
   Pencil,
@@ -56,7 +59,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataManager } from "../composables/datamanager/useDataManager.js";
 
 const {
-  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, tableColumns, formColumns, hasPrimaryKey, filterValues, filterRanges, appliedFilters, filterSpecs, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
+  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, sortState, tableColumns, formColumns, hasPrimaryKey, filterValues, filterRanges, appliedFilters, filterSpecs, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, toggleSort, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
 } = useDataManager();
 </script>
 
@@ -212,7 +215,24 @@ const {
                   <TableHeader>
                     <TableRow class="hover:bg-transparent">
                       <TableHead v-for="col in tableColumns" :key="col.name">
-                        {{ col.name }}
+                        <button
+                          type="button"
+                          class="inline-flex cursor-pointer items-center gap-1 hover:text-foreground"
+                          :title="`按${col.name}排序`"
+                          :data-testid="`sort-header-${col.name}`"
+                          @click="toggleSort(col)"
+                        >
+                          <span>{{ col.name }}</span>
+                          <ArrowUp
+                            v-if="sortState.column === col.name && sortState.direction === 'asc'"
+                            class="size-3.5"
+                          />
+                          <ArrowDown
+                            v-else-if="sortState.column === col.name && sortState.direction === 'desc'"
+                            class="size-3.5"
+                          />
+                          <ArrowUpDown v-else class="size-3.5 text-muted-foreground/50" />
+                        </button>
                       </TableHead>
                       <TableHead
                         v-if="hasPrimaryKey"

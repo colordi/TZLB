@@ -70,6 +70,9 @@ export function useDataManager() {
   const page = ref(1);
   const pageSize = 20;
 
+  // 表头排序：column 为空表示不排序（后端回退为主键升序）
+  const sortState = ref({ column: "", direction: "" });
+
   const tableColumns = computed(() => gridColumns(columns.value));
   const formColumns = computed(() => editableColumns(columns.value));
   const hasPrimaryKey = computed(() => Boolean(selectedTable.value?.has_primary_key));
@@ -214,6 +217,7 @@ export function useDataManager() {
     rows.value = [];
     rowsTotal.value = 0;
     page.value = 1;
+    sortState.value = { column: "", direction: "" };
     appliedFilters.value = {};
     for (const key of Object.keys(filterValues)) {
       delete filterValues[key];
@@ -252,7 +256,14 @@ export function useDataManager() {
       const payload = await fetchTableRows(
         selectedTable.value.schema_name,
         selectedTable.value.table_name,
-        { page: page.value, pageSize, filters: appliedFilters.value },
+        {
+          page: page.value,
+          pageSize,
+          filters: appliedFilters.value,
+          sort: sortState.value.column
+            ? `${sortState.value.direction === "desc" ? "-" : ""}${sortState.value.column}`
+            : undefined,
+        },
       );
       rows.value = payload.rows || [];
       rowsTotal.value = payload.total || 0;
@@ -262,6 +273,20 @@ export function useDataManager() {
     } finally {
       rowsLoading.value = false;
     }
+  }
+
+  // 点击表头循环切换：升序 → 降序 → 取消排序，并回到第一页
+  function toggleSort(col) {
+    if (!col || col.is_geometry) return;
+    if (sortState.value.column !== col.name) {
+      sortState.value = { column: col.name, direction: "asc" };
+    } else if (sortState.value.direction === "asc") {
+      sortState.value = { column: col.name, direction: "desc" };
+    } else {
+      sortState.value = { column: "", direction: "" };
+    }
+    page.value = 1;
+    loadRows();
   }
 
   function applyFilters() {
@@ -444,6 +469,7 @@ export function useDataManager() {
     rowsLoading,
     page,
     pageSize,
+    sortState,
     tableColumns,
     formColumns,
     hasPrimaryKey,
@@ -478,6 +504,7 @@ export function useDataManager() {
     selectTable,
     loadColumns,
     loadRows,
+    toggleSort,
     applyFilters,
     resetFilters,
     openCreate,
