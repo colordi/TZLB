@@ -13,7 +13,7 @@ import HostLocalityHeatmap from "./host/HostLocalityHeatmap.vue";
 import HostRankingBar from "./host/HostRankingBar.vue";
 import HostTreemap from "./host/HostTreemap.vue";
 import { formatNumber, formatShare } from "./host/hostChartOptions.js";
-import { buildYearOptions, handleStatisticsLoadError } from "./statisticsShared.js";
+import { handleStatisticsLoadError, useStatisticsYearOptions } from "./statisticsShared.js";
 
 const EMPTY_SUMMARY = {
   totals: { host_species: 0, damaged_plants: 0, damaged_points: 0, top_host: null },
@@ -25,11 +25,10 @@ const loading = ref(false);
 const summary = ref({ ...EMPTY_SUMMARY });
 const compareGenerations = ref([]);
 
-const YEAR_OPTIONS = buildYearOptions();
 const GENERATION_OPTIONS = ["第一代", "第二代", "第三代"];
 
 const viewMode = ref("single");
-const selectedYear = ref(new Date().getFullYear());
+const { yearOptions, selectedYear } = useStatisticsYearOptions("white-moth");
 const selectedGeneration = ref("");
 const selectedMetric = ref("plants");
 
@@ -159,7 +158,7 @@ onMounted(loadSummary);
         </label>
         <StatisticsYearFilter
           v-model="selectedYear"
-          :year-options="YEAR_OPTIONS"
+          :year-options="yearOptions"
           testid="data-statistics-host-year-filter"
         />
       </div>

@@ -23,7 +23,7 @@ import {
 import { getSophoraLocalitySummary } from "../../api/statistics.js";
 import { useToast } from "../../composables/useToast.js";
 import StatisticsYearFilter from "./StatisticsYearFilter.vue";
-import { buildYearOptions, handleStatisticsLoadError } from "./statisticsShared.js";
+import { handleStatisticsLoadError, useStatisticsYearOptions } from "./statisticsShared.js";
 
 const EMPTY = {
   year: null,
@@ -44,10 +44,9 @@ const { error } = useToast();
 const loading = ref(false);
 const summary = ref({ ...EMPTY });
 
-const YEAR_OPTIONS = buildYearOptions();
 const GENERATION_OPTIONS = ["", "第一代", "第二代", "第三代"];
 
-const selectedYear = ref(new Date().getFullYear());
+const { yearOptions, selectedYear } = useStatisticsYearOptions("sophora-inchworm");
 const selectedGeneration = ref("");
 
 watch([selectedYear, selectedGeneration], () => {
@@ -172,7 +171,7 @@ onMounted(loadSummary);
     <div class="flex flex-wrap items-end gap-3">
       <StatisticsYearFilter
         v-model="selectedYear"
-        :year-options="YEAR_OPTIONS"
+        :year-options="yearOptions"
         testid="data-statistics-sophora-locality-year-filter"
       />
       <label class="flex flex-col gap-1 text-sm">

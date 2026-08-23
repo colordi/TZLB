@@ -5,17 +5,16 @@ import { getWhiteMothDailyStatistics } from "../../api/statistics.js";
 import { useToast } from "../../composables/useToast.js";
 import DailyStatisticsTable from "./DailyStatisticsTable.vue";
 import StatisticsYearFilter from "./StatisticsYearFilter.vue";
-import { buildYearOptions, handleStatisticsLoadError } from "./statisticsShared.js";
+import { handleStatisticsLoadError, useStatisticsYearOptions } from "./statisticsShared.js";
 
 const { error } = useToast();
 const loading = ref(false);
 const columns = ref([]);
 const rows = ref([]);
 
-const YEAR_OPTIONS = buildYearOptions();
 const GENERATION_OPTIONS = ["第一代", "第二代", "第三代"];
 
-const selectedYear = ref(new Date().getFullYear());
+const { yearOptions, selectedYear } = useStatisticsYearOptions("white-moth");
 const selectedGeneration = ref("");
 
 watch([selectedYear, selectedGeneration], () => {
@@ -47,7 +46,7 @@ onMounted(loadStatistics);
   <div class="flex flex-col gap-4">
     <StatisticsYearFilter
       v-model="selectedYear"
-      :year-options="YEAR_OPTIONS"
+      :year-options="yearOptions"
       testid="data-statistics-daily-year-filter"
     />
     <DailyStatisticsTable

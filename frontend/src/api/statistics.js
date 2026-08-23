@@ -1,5 +1,11 @@
 import { apiFetch, ensureApiSuccess } from "./http.js";
 
+export async function fetchStatisticsYears() {
+  const response = await apiFetch("/api/statistics/years");
+  await ensureApiSuccess(response);
+  return response.json();
+}
+
 export async function getWhiteMothDailyStatistics({ year, generation } = {}) {
   const params = new URLSearchParams();
   if (year !== undefined && year !== null && year !== "") {

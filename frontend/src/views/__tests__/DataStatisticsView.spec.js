@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DataStatisticsView from "../DataStatisticsView.vue";
 
 const apiMocks = vi.hoisted(() => ({
+  fetchStatisticsYears: vi.fn(),
   getWhiteMothDailyStatistics: vi.fn(),
   getWhiteMothGenerationSummary: vi.fn(),
   getWhiteMothLocalitySummary: vi.fn(),
@@ -19,6 +20,7 @@ const apiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../api/statistics.js", () => ({
+  fetchStatisticsYears: apiMocks.fetchStatisticsYears,
   getWhiteMothDailyStatistics: apiMocks.getWhiteMothDailyStatistics,
   getWhiteMothGenerationSummary: apiMocks.getWhiteMothGenerationSummary,
   getWhiteMothLocalitySummary: apiMocks.getWhiteMothLocalitySummary,
@@ -390,6 +392,16 @@ async function mountView(path = "/data-statistics/white-moth") {
 describe("DataStatisticsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 年份选项来自实际数据年份接口：默认提供当前年与上一年，覆盖筛选交互
+    const currentYear = new Date().getFullYear();
+    apiMocks.fetchStatisticsYears.mockResolvedValue({
+      "white-moth": [currentYear - 1, currentYear],
+      "poplar-inchworm": [currentYear - 1, currentYear],
+      "sophora-inchworm": [currentYear - 1, currentYear],
+      "other-pests": [currentYear - 1, currentYear],
+      "yangshu-shiye": [currentYear - 1, currentYear],
+      "ash-borer": [currentYear - 1, currentYear],
+    });
     apiMocks.getWhiteMothDailyStatistics.mockResolvedValue(buildPayload());
     apiMocks.getWhiteMothGenerationSummary.mockResolvedValue(buildGenerationSummary());
     apiMocks.getWhiteMothLocalitySummary.mockResolvedValue(buildLocalitySummary());

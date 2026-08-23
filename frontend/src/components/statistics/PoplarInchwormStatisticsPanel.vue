@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPoplarInchwormSummary } from "../../api/statistics.js";
 import { useToast } from "../../composables/useToast.js";
 import StatisticsYearFilter from "./StatisticsYearFilter.vue";
-import { buildYearOptions, handleStatisticsLoadError } from "./statisticsShared.js";
+import { handleStatisticsLoadError, useStatisticsYearOptions } from "./statisticsShared.js";
 
 const { error } = useToast();
 
@@ -38,8 +38,7 @@ const EMPTY_SUMMARY = {
 
 const summary = ref({ ...EMPTY_SUMMARY });
 
-const YEAR_OPTIONS = buildYearOptions();
-const selectedYear = ref(new Date().getFullYear());
+const { yearOptions, selectedYear } = useStatisticsYearOptions("poplar-inchworm");
 
 watch(selectedYear, () => {
   loadSummary();
@@ -75,7 +74,7 @@ onMounted(loadSummary);
   <div class="flex flex-col gap-4">
     <StatisticsYearFilter
       v-model="selectedYear"
-      :year-options="YEAR_OPTIONS"
+      :year-options="yearOptions"
       testid="data-statistics-poplar-inchworm-year-filter"
     />
 

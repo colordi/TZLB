@@ -10,6 +10,7 @@ from backend.services.statistics import (
     get_sophora_generation_summary,
     get_sophora_locality_summary,
     get_spring_inchworm_summary,
+    get_statistics_years,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,
@@ -19,6 +20,14 @@ from backend.services.statistics import (
 
 
 router = APIRouter()
+
+
+@router.get("/years", summary="读取各统计模块实际数据年份")
+async def get_statistics_available_years() -> dict[str, list[int]]:
+    try:
+        return await get_statistics_years()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"读取统计年份失败：{exc}") from exc
 
 
 @router.get("/white-moth/daily", summary="读取美国白蛾每日信息统计")

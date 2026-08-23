@@ -6,9 +6,9 @@ import { useToast } from "../../composables/useToast.js";
 import LocalityDamagePanel from "./LocalityDamagePanel.vue";
 import StatisticsYearFilter from "./StatisticsYearFilter.vue";
 import {
-  buildYearOptions,
   formatTodayIso,
   handleStatisticsLoadError,
+  useStatisticsYearOptions,
 } from "./statisticsShared.js";
 
 const EMPTY_LOCALITY_SUMMARY = {
@@ -31,10 +31,9 @@ const { error } = useToast();
 const loading = ref(false);
 const summary = ref({ ...EMPTY_LOCALITY_SUMMARY });
 
-const YEAR_OPTIONS = buildYearOptions();
 const GENERATION_OPTIONS = ["第一代", "第二代", "第三代"];
 
-const selectedYear = ref(new Date().getFullYear());
+const { yearOptions, selectedYear } = useStatisticsYearOptions("white-moth");
 const selectedGeneration = ref("");
 const selectedAsOfDate = ref(formatTodayIso());
 const selectedSevereThreshold = ref(10);
@@ -92,7 +91,7 @@ onMounted(loadSummary);
   <div class="flex flex-col gap-4">
     <StatisticsYearFilter
       v-model="selectedYear"
-      :year-options="YEAR_OPTIONS"
+      :year-options="yearOptions"
       testid="data-statistics-locality-year-filter"
     />
     <LocalityDamagePanel

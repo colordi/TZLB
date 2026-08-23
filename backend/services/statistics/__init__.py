@@ -13,6 +13,7 @@ from backend.services.statistics.service import (  # noqa: F401
     get_sophora_generation_summary,
     get_sophora_locality_summary,
     get_spring_inchworm_summary,
+    get_statistics_years,
     get_white_moth_daily_statistics,
     get_white_moth_generation_summary,
     get_white_moth_host_summary,

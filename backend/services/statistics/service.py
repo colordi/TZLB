@@ -59,6 +59,10 @@ from backend.services.statistics.sql_yangshu_shiye import (
     YANGSHU_SHIYE_STATUS_SQL,
     YANGSHU_SHIYE_TOTALS_SQL,
 )
+from backend.services.statistics.sql_years import (
+    STATISTICS_MODULE_KEYS,
+    STATISTICS_YEARS_SQL,
+)
 
 
 async def get_white_moth_daily_statistics(
@@ -537,3 +541,18 @@ async def get_spring_inchworm_summary(year: int | None = None) -> dict[str, Any]
             "status_counts": status_counts,
         },
     }
+
+
+async def get_statistics_years() -> dict[str, list[int]]:
+    """各统计模块的实际数据年份（升序），无数据的模块返回空列表。"""
+
+    pool = await ensure_pool()
+    async with pool.acquire() as connection:
+        rows = await connection.fetch(STATISTICS_YEARS_SQL)
+
+    years_by_module: dict[str, list[int]] = {key: [] for key in STATISTICS_MODULE_KEYS}
+    for row in rows:
+        module = row["module"]
+        if module in years_by_module:
+            years_by_module[module].append(int(row["year"]))
+    return years_by_module

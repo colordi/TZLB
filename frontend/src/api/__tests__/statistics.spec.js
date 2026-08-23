@@ -19,6 +19,19 @@ describe("api/statistics", () => {
     httpMocks.ensureApiSuccess.mockResolvedValue();
   });
 
+  it("读取各统计模块实际数据年份", async () => {
+    httpMocks.apiFetch.mockResolvedValueOnce({
+      json: vi.fn().mockResolvedValue({ "white-moth": [2025, 2026] }),
+    });
+    const { fetchStatisticsYears } = await import("../statistics.js");
+
+    const result = await fetchStatisticsYears();
+
+    expect(httpMocks.apiFetch).toHaveBeenCalledWith("/api/statistics/years");
+    expect(httpMocks.ensureApiSuccess).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ "white-moth": [2025, 2026] });
+  });
+
   it("读取美国白蛾每日统计", async () => {
     const { getWhiteMothDailyStatistics } = await import("../statistics.js");
 
