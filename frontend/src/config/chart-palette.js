@@ -24,6 +24,14 @@ const TOKEN_FALLBACKS = {
   card: "oklch(1 0 0)",
 };
 
+/** 危害程度四色 fallback：与 CSS --severity-* / map-palette.js 锁定值一致。 */
+const SEVERITY_FALLBACKS = {
+  none: "#ffffff",
+  light: "#0033ff",
+  medium: "#fbff05",
+  high: "#ff0000",
+};
+
 let probeContext;
 const normalizedColorCache = new Map();
 
@@ -93,6 +101,16 @@ export function getChartColors() {
   );
 }
 
+/** 危害程度四色（--severity-none/light/medium/high），图表与地图共用行业约定。 */
+export function getSeverityChartColors() {
+  return {
+    none: resolveChartToken("--severity-none", SEVERITY_FALLBACKS.none),
+    light: resolveChartToken("--severity-light", SEVERITY_FALLBACKS.light),
+    medium: resolveChartToken("--severity-medium", SEVERITY_FALLBACKS.medium),
+    high: resolveChartToken("--severity-high", SEVERITY_FALLBACKS.high),
+  };
+}
+
 /** ECharts option 常用文本/边框色，全部来自语义 token。 */
 export function getChartTheme() {
   return {
@@ -102,5 +120,6 @@ export function getChartTheme() {
     muted: resolveChartToken("--muted", TOKEN_FALLBACKS.muted),
     border: resolveChartToken("--border", TOKEN_FALLBACKS.border),
     card: resolveChartToken("--card", TOKEN_FALLBACKS.card),
+    severity: getSeverityChartColors(),
   };
 }

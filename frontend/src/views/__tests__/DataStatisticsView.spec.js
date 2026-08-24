@@ -302,15 +302,22 @@ function buildYangshuShiyeSummary() {
 function buildAshBorerSummary() {
   return {
     year: 2026,
+    trees_per_point: 30,
     totals: {
       survey_records: 15,
       surveyed_points: 12,
+      surveyed_trees: 360,
+      excluded_points: 3,
       agrilus_damaged_plants: 30,
       agrilus_holes: 120,
       cossus_damaged_plants: 8,
       dead_plants: 5,
       felled_plants: 3,
-      replanted_plants: 2,
+      mortality_rate: 2.2,
+      agrilus_infestation_rate: 8.3,
+      cossus_infestation_rate: 2.2,
+      agrilus_damage_levels: { none: 6, light: 4, medium: 1, high: 1 },
+      cossus_damage_levels: { none: 2, light: 5, medium: 3, high: 2 },
       last_survey_date: "2026-08-05",
     },
     localities: [
@@ -318,11 +325,17 @@ function buildAshBorerSummary() {
         locality: "宋庄镇",
         survey_records: 10,
         surveyed_points: 8,
+        surveyed_trees: 240,
+        excluded_points: 2,
         agrilus_damaged_plants: 20,
         cossus_damaged_plants: 6,
         dead_plants: 4,
         felled_plants: 2,
-        replanted_plants: 1,
+        mortality_rate: 2.5,
+        agrilus_infestation_rate: 8.3,
+        cossus_infestation_rate: 2.5,
+        agrilus_damage_levels: { none: 4, light: 2, medium: 1, high: 1 },
+        cossus_damage_levels: { none: 1, light: 3, medium: 2, high: 2 },
         last_survey_date: "2026-08-05",
       },
     ],
@@ -666,27 +679,41 @@ describe("DataStatisticsView", () => {
     expect(row).toContain("2026-07-30");
   });
 
-  it("白蜡蛀干害虫统计展示危害合计与属地分布", async () => {
+  it("白蜡蛀干害虫统计展示率值合计与属地图表", async () => {
     const { wrapper } = await mountView("/data-statistics/ash-borer");
     await flushPromises();
 
     expect(apiMocks.getAshBorerSummary).toHaveBeenCalledWith({
       year: new Date().getFullYear(),
     });
-    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-survey"]').text()).toContain(
-      "15",
+    const survey = wrapper.get('[data-testid="data-statistics-ash-borer-kpi-survey"]').text();
+    expect(survey).toContain("12");
+    expect(survey).toContain("3");
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-mortality"]').text()).toContain(
+      "2.2%",
     );
     const agrilus = wrapper.get('[data-testid="data-statistics-ash-borer-kpi-agrilus"]').text();
-    expect(agrilus).toContain("30");
+    expect(agrilus).toContain("8.3%");
     expect(agrilus).toContain("120");
-    // 伐除 3 + 换植 2 = 5
-    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-disposal"]').text()).toContain(
-      "5",
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-kpi-cossus"]').text()).toContain(
+      "2.2%",
     );
-    const row = wrapper.get('[data-testid="data-statistics-ash-borer-row-宋庄镇"]').text();
-    expect(row).toContain("宋庄镇");
-    expect(row).toContain("20");
-    expect(row).toContain("2026-08-05");
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-locality-chart"]').text()).toContain(
+      "各属地危害率对比",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-mortality-ranking"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-damage-overall"]').text()).toContain(
+      "各虫种危害程度构成",
+    );
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-damage-agrilus"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.get('[data-testid="data-statistics-ash-borer-damage-cossus"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="data-statistics-ash-borer-row-宋庄镇"]').exists()).toBe(false);
   });
 
   it("国槐尺蠖统计展示世代汇总", async () => {

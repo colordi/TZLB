@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getChartColors, getChartTheme, normalizeChartColor } from "../chart-palette.js";
+import {
+  getChartColors,
+  getChartTheme,
+  getSeverityChartColors,
+  normalizeChartColor,
+} from "../chart-palette.js";
 
 describe("chart-palette", () => {
   it("jsdom 无 canvas 环境时 normalizeChartColor 原样透传", () => {
@@ -22,5 +27,12 @@ describe("chart-palette", () => {
       expect(typeof theme[key]).toBe("string");
       expect(theme[key].length).toBeGreaterThan(0);
     }
+    expect(theme.severity).toEqual(getSeverityChartColors());
+    expect(theme.severity).toMatchObject({
+      none: "#ffffff",
+      light: "#0033ff",
+      medium: "#fbff05",
+      high: "#ff0000",
+    });
   });
 });

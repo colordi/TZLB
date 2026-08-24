@@ -34,6 +34,7 @@ from backend.services.statistics.sql_locality import (
 from backend.services.statistics.sql_ash_borer import (
     ASH_BORER_LOCALITY_SQL,
     ASH_BORER_TOTALS_SQL,
+    ASH_BORER_TREES_PER_POINT,
 )
 from backend.services.statistics.sql_other_pest import (
     OTHER_PEST_PEST_TYPE_SQL,
@@ -443,15 +444,43 @@ async def get_yangshu_shiye_summary(year: int | None = None) -> dict[str, Any]:
     )
 
 
+ASH_BORER_DAMAGE_LEVEL_KEYS = ("none", "light", "medium", "high")
+ASH_BORER_DAMAGE_LEVEL_THRESHOLDS = {
+    "none": 0,
+    "light": 10,
+    "medium": 20,
+}
+
+
+def _serialize_ash_borer_damage_levels(row: Any, prefix: str) -> dict[str, int]:
+    return {
+        key: int(row.get(f"{prefix}_{key}") or 0) for key in ASH_BORER_DAMAGE_LEVEL_KEYS
+    }
+
+
 def _serialize_ash_borer_counts(row: Any) -> dict[str, Any]:
+    """序列化白蜡蛀干害虫合计：率值分母为有效点位数 × 每点位 30 株。"""
+
+    points = int(row.get("surveyed_points") or 0)
+    dead_plants = int(row.get("dead_plants") or 0)
+    felled_plants = int(row.get("felled_plants") or 0)
+    agrilus_damaged_plants = int(row.get("agrilus_damaged_plants") or 0)
+    cossus_damaged_plants = int(row.get("cossus_damaged_plants") or 0)
+    surveyed_trees = points * ASH_BORER_TREES_PER_POINT
     return {
         "survey_records": int(row.get("survey_records") or 0),
-        "surveyed_points": int(row.get("surveyed_points") or 0),
-        "agrilus_damaged_plants": int(row.get("agrilus_damaged_plants") or 0),
-        "cossus_damaged_plants": int(row.get("cossus_damaged_plants") or 0),
-        "dead_plants": int(row.get("dead_plants") or 0),
-        "felled_plants": int(row.get("felled_plants") or 0),
-        "replanted_plants": int(row.get("replanted_plants") or 0),
+        "surveyed_points": points,
+        "surveyed_trees": surveyed_trees,
+        "excluded_points": int(row.get("excluded_points") or 0),
+        "agrilus_damaged_plants": agrilus_damaged_plants,
+        "cossus_damaged_plants": cossus_damaged_plants,
+        "dead_plants": dead_plants,
+        "felled_plants": felled_plants,
+        "mortality_rate": _rate(dead_plants + felled_plants, surveyed_trees),
+        "agrilus_infestation_rate": _rate(agrilus_damaged_plants, surveyed_trees),
+        "cossus_infestation_rate": _rate(cossus_damaged_plants, surveyed_trees),
+        "agrilus_damage_levels": _serialize_ash_borer_damage_levels(row, "agrilus"),
+        "cossus_damage_levels": _serialize_ash_borer_damage_levels(row, "cossus"),
         "last_survey_date": serialize_daily_value(row.get("last_survey_date")),
     }
 
@@ -469,6 +498,8 @@ async def get_ash_borer_summary(year: int | None = None) -> dict[str, Any]:
 
     return {
         "year": effective_year,
+        "trees_per_point": ASH_BORER_TREES_PER_POINT,
+        "damage_level_thresholds": dict(ASH_BORER_DAMAGE_LEVEL_THRESHOLDS),
         "totals": totals,
         "localities": [
             {"locality": row["locality"] or "未知", **_serialize_ash_borer_counts(row)}
