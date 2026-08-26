@@ -367,6 +367,7 @@ async def fetch_chi_huo_dispatch_candidates(
     rows = await fetch(
         f"""
         SELECT
+            e."id" AS event_id,
             BTRIM(e."编号") AS location_id,
             (e."事件时间")::date AS survey_date,
             e."事件类型"::text AS event_type,
@@ -407,6 +408,7 @@ async def fetch_chi_huo_dispatch_candidates(
         event_detail = str(row.get("event_detail") or "").strip()
         candidates.append(
             {
+                "id": _optional_int(row.get("event_id")),
                 "survey_date": serialize_date_value(row["survey_date"]),
                 "event_type": event_type,
                 "locality": locality,
@@ -502,6 +504,7 @@ async def fetch_other_pest_like_survey_candidates(
     rows = await fetch(
         f"""
         SELECT
+            e."id" AS event_id,
             BTRIM(e."编号") AS location_id,
             (e."事件时间")::date AS survey_date,
             e."事件类型"::text AS event_type,
@@ -539,6 +542,7 @@ async def fetch_other_pest_like_survey_candidates(
     )
     return [
         {
+            "id": _optional_int(row.get("event_id")),
             "survey_date": serialize_date_value(row["survey_date"]),
             "event_type": (row["event_type"] or "").strip(),
             "locality": (row["locality"] or "").strip(),
@@ -632,6 +636,7 @@ async def fetch_meiguobaie_survey_candidates(
     rows = await fetch(
         f"""
         SELECT
+            e."id" AS event_id,
             BTRIM(e."编号") AS location_id,
             (e."事件时间")::date AS survey_date,
             e."事件类型"::text AS event_type,
@@ -666,6 +671,7 @@ async def fetch_meiguobaie_survey_candidates(
     )
     return [
         {
+            "id": _optional_int(row.get("event_id")),
             "survey_date": serialize_date_value(row["survey_date"]),
             "event_type": (row["event_type"] or "").strip(),
             "region": (row["region"] or "").strip(),

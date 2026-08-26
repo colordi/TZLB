@@ -289,6 +289,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         mocked_fetch = AsyncMock(
             return_value=[
                 {
+                    "event_id": 11,
                     "location_id": "QT0001",
                     "survey_date": "2026-04-17",
                     "event_type": "调查下派",
@@ -317,6 +318,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             candidates,
             [
                 {
+                    "id": 11,
                     "survey_date": "2026-04-17",
                     "event_type": "调查下派",
                     "locality": "潞城镇",
@@ -345,6 +347,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         mocked_fetch = AsyncMock(
             return_value=[
                 {
+                    "event_id": 7,
                     "location_id": "1001-1",
                     "survey_date": "2026-05-02",
                     "event_type": "幼虫调查下派",
@@ -374,6 +377,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             candidates,
             [
                 {
+                    "id": 7,
                     "survey_date": "2026-05-02",
                     "event_type": "幼虫调查下派",
                     "locality": "宋庄镇",
@@ -405,6 +409,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
         mocked_fetch = AsyncMock(
             return_value=[
                 {
+                    "event_id": 23,
                     "location_id": "MQ001",
                     "survey_date": "2026-05-26",
                     "event_type": "调查下派",
@@ -445,6 +450,7 @@ class FetchSurveyCandidatesTest(unittest.IsolatedAsyncioTestCase):
             candidates,
             [
                 {
+                    "id": 23,
                     "survey_date": "2026-05-26",
                     "event_type": "调查下派",
                     "region": "城区",

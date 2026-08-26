@@ -102,7 +102,10 @@ export function useDatePointImages() {
         generation,
         includeImages: false,
       });
-      points.value = uniqueByLocationId(Array.isArray(result) ? result : []);
+      // 按事件流水 id（导入/录入顺序）排序，拖照片时与流水清单逐行对应
+      points.value = uniqueByLocationId(Array.isArray(result) ? result : []).sort(
+        (a, b) => (a?.id ?? Number.MAX_SAFE_INTEGER) - (b?.id ?? Number.MAX_SAFE_INTEGER),
+      );
       queried.value = true;
       await loadImages(toast);
       if (points.value.length === 0) {

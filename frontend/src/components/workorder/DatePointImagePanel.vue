@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { CalendarDays, ImagePlus, LoaderCircle, Search, SearchX, Trash2 } from "@lucide/vue";
+import { CalendarCheck, CalendarDays, ImagePlus, LoaderCircle, Search, SearchX, Trash2 } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../../api/http.js";
 import { fetchPointDateImageBlob } from "../../api/workorder.js";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -60,8 +61,16 @@ const autoAssemblyHint = computed(() =>
     : "提示：自动装配日期图片的虫种会在生成工单时按编号装配现场图；其余虫种请使用点位截图或清单内图片。",
 );
 
+const listTab = ref("all");
+const missingPoints = computed(() => points.value.filter((point) => pointImageCount(point) === 0));
+const missingCount = computed(() => missingPoints.value.length);
+const displayedPoints = computed(() =>
+  listTab.value === "missing" ? missingPoints.value : points.value,
+);
+
 watch([pestType, year, taskName, selectedDate], () => {
   dateImages.resetResults();
+  listTab.value = "all";
 });
 
 function pointCode(point) {
@@ -308,10 +317,31 @@ function onFileChange(event) {
 
     <template v-else>
       <p class="text-sm text-muted-foreground" aria-live="polite">
-        共 {{ totalCount }} 个需派单点位<template v-if="imagesLoading">，正在读取已上传图片…</template>
+        共 {{ totalCount }} 个需派单点位<template v-if="!imagesLoading">
+          ，其中 {{ missingCount }} 个尚无现场照片</template
+        ><template v-else>，正在读取已上传图片…</template>
       </p>
 
-      <div class="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <Tabs v-model="listTab">
+        <TabsList aria-label="点位筛选">
+          <TabsTrigger value="all" data-testid="date-point-list-tab-all">
+            全部点位（{{ totalCount }}）
+          </TabsTrigger>
+          <TabsTrigger value="missing" data-testid="date-point-list-tab-missing">
+            缺失照片（{{ missingCount }}）
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <EmptyState
+        v-if="listTab === 'missing' && displayedPoints.length === 0 && !imagesLoading"
+        :icon="CalendarCheck"
+        title="没有缺失照片的点位"
+        description="当日需派单点位均已上传现场照片。"
+        data-testid="date-point-missing-empty"
+      />
+
+      <div v-else class="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow class="hover:bg-transparent">
@@ -325,7 +355,7 @@ function onFileChange(event) {
           </TableHeader>
           <TableBody>
             <TableRow
-              v-for="point in points"
+              v-for="point in displayedPoints"
               :key="pointCode(point)"
               :class="{ 'bg-primary/10 hover:bg-primary/10': dragOverCode === pointCode(point) }"
               :data-testid="`date-point-row-${pointCode(point)}`"
