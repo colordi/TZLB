@@ -239,7 +239,8 @@ def _build_filter_params(
 
     if year is not None and "年份" in columns_set:
         idx += 1
-        conditions.append(f'"年份" = ${idx}::text')
+        # “年份”在库中是 integer，列侧转 text 比较，避免 integer = text 报操作符不存在
+        conditions.append(f'"年份"::text = ${idx}')
         params.append(year)
 
     if generation is not None and "世代" in columns_set:

@@ -469,7 +469,7 @@ class PestExportServiceTest(unittest.IsolatedAsyncioTestCase):
 
         # 验证按条件过滤后执行了带 WHERE 的 COUNT 查询
         count_queries = [q for q in connection.fetchrow_calls if "COUNT(*)" in q]
-        self.assertTrue(any('"年份" = $1::text' in q for q in count_queries))
+        self.assertTrue(any('"年份"::text = $1' in q for q in count_queries))
         self.assertTrue(any('"世代" = $2::text' in q for q in count_queries))
 
     async def test_fetch_pest_export_metadata_filtered_unknown_pest_raises(self) -> None:
