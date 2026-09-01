@@ -1,15 +1,17 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { CalendarCheck, CalendarDays, ImagePlus, LoaderCircle, Search, SearchX, Trash2 } from "@lucide/vue";
+import { CalendarDays, CircleCheck, ImagePlus, LoaderCircle, RotateCcw, Search, SearchX, Trash2 } from "@lucide/vue";
 
 import { isUnauthorizedError } from "../../api/http.js";
 import { fetchPointDateImageBlob } from "../../api/workorder.js";
 import { useToast } from "../../composables/useToast.js";
 import { useDatePointImages } from "../../composables/workorder/useDatePointImages.js";
+import { usePointCompleteMarks } from "../../composables/workorder/usePointCompleteMarks.js";
 import { useWorkorderTaskConfig } from "../../composables/workorder/useWorkorderTaskConfig.js";
 import { getPestConfig, getSurveyImportConfig, getTodayDate } from "./fieldConfig.js";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,17 +63,55 @@ const autoAssemblyHint = computed(() =>
     : "提示：自动装配日期图片的虫种会在生成工单时按编号装配现场图；其余虫种请使用点位截图或清单内图片。",
 );
 
-const listTab = ref("all");
-const missingPoints = computed(() => points.value.filter((point) => pointImageCount(point) === 0));
-const missingCount = computed(() => missingPoints.value.length);
+const listTab = ref("pending");
+const completeMarks = usePointCompleteMarks();
+const resetMarksDialogOpen = ref(false);
+
+/** 标记按查询范围隔离：换虫种/年份/世代/日期互不影响 */
+const scopeKey = computed(() =>
+  [pestType.value, year.value, generation.value || "", selectedDate.value].join("|"),
+);
+
+/** 有效拍齐 = 已标记且照片数 > 0；照片删光后点位自动回到未拍齐 */
+function isEffectivelyComplete(point) {
+  return pointImageCount(point) > 0 && completeMarks.isComplete(scopeKey.value, pointCode(point));
+}
+
+const missingCount = computed(
+  () => points.value.filter((point) => pointImageCount(point) === 0).length,
+);
+const pendingPoints = computed(() =>
+  points.value.filter((point) => !isEffectivelyComplete(point)),
+);
+const pendingCount = computed(() => pendingPoints.value.length);
+const completeCount = computed(() => totalCount.value - pendingCount.value);
 const displayedPoints = computed(() =>
-  listTab.value === "missing" ? missingPoints.value : points.value,
+  listTab.value === "pending" ? pendingPoints.value : points.value,
 );
 
 watch([pestType, year, taskName, selectedDate], () => {
   dateImages.resetResults();
-  listTab.value = "all";
+  listTab.value = "pending";
 });
+
+function toggleComplete(point) {
+  completeMarks.toggleComplete(scopeKey.value, pointCode(point));
+}
+
+function requestResetMarks() {
+  if (completeCount.value === 0) {
+    return;
+  }
+  resetMarksDialogOpen.value = true;
+}
+
+function confirmResetMarks() {
+  const cleared = completeMarks.resetScope(scopeKey.value);
+  resetMarksDialogOpen.value = false;
+  if (cleared > 0) {
+    toast.success(`已清除当前查询范围的 ${cleared} 个拍齐标记。`, "标记已重置");
+  }
+}
 
 function pointCode(point) {
   return `${point?.location_id ?? ""}`.trim();
@@ -316,29 +356,43 @@ function onFileChange(event) {
     />
 
     <template v-else>
-      <p class="text-sm text-muted-foreground" aria-live="polite">
-        共 {{ totalCount }} 个需派单点位<template v-if="!imagesLoading">
-          ，其中 {{ missingCount }} 个尚无现场照片</template
-        ><template v-else>，正在读取已上传图片…</template>
-      </p>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-muted-foreground" aria-live="polite">
+          共 {{ totalCount }} 个需派单点位<template v-if="!imagesLoading">
+            ，其中 {{ missingCount }} 个尚无现场照片，已拍齐 {{ completeCount }} 个</template
+          ><template v-else>，正在读取已上传图片…</template>
+        </p>
+        <Button
+          v-if="completeCount > 0"
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="text-muted-foreground"
+          data-testid="date-point-reset-marks"
+          @click="requestResetMarks"
+        >
+          <RotateCcw class="size-3.5" />
+          清除拍齐标记
+        </Button>
+      </div>
 
       <Tabs v-model="listTab">
         <TabsList aria-label="点位筛选">
+          <TabsTrigger value="pending" data-testid="date-point-list-tab-pending">
+            未拍齐（{{ pendingCount }}）
+          </TabsTrigger>
           <TabsTrigger value="all" data-testid="date-point-list-tab-all">
             全部点位（{{ totalCount }}）
-          </TabsTrigger>
-          <TabsTrigger value="missing" data-testid="date-point-list-tab-missing">
-            缺失照片（{{ missingCount }}）
           </TabsTrigger>
         </TabsList>
       </Tabs>
 
       <EmptyState
-        v-if="listTab === 'missing' && displayedPoints.length === 0 && !imagesLoading"
-        :icon="CalendarCheck"
-        title="没有缺失照片的点位"
-        description="当日需派单点位均已上传现场照片。"
-        data-testid="date-point-missing-empty"
+        v-if="listTab === 'pending' && displayedPoints.length === 0 && !imagesLoading"
+        :icon="CircleCheck"
+        title="全部点位已拍齐"
+        description="当日需派单点位均已标记拍齐；如需重新处理，可在「全部点位」中取消标记。"
+        data-testid="date-point-pending-empty"
       />
 
       <div v-else class="overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -363,7 +417,18 @@ function onFileChange(event) {
               @dragleave="onDragLeave(point)"
               @drop="onDrop($event, point)"
             >
-              <TableCell class="font-medium">{{ pointCode(point) || "未填写编号" }}</TableCell>
+              <TableCell class="font-medium">
+                <div class="flex items-center gap-1.5">
+                  <span>{{ pointCode(point) || "未填写编号" }}</span>
+                  <Badge
+                    v-if="isEffectivelyComplete(point)"
+                    variant="secondary"
+                    :data-testid="`date-point-complete-badge-${pointCode(point)}`"
+                  >
+                    已拍齐
+                  </Badge>
+                </div>
+              </TableCell>
               <TableCell
                 v-for="column in candidateColumns"
                 :key="column.key"
@@ -415,6 +480,24 @@ function onFileChange(event) {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    class="w-28"
+                    :class="
+                      isEffectivelyComplete(point)
+                        ? 'text-primary hover:bg-primary/10'
+                        : 'text-muted-foreground'
+                    "
+                    :disabled="Boolean(uploadingCode) || Boolean(deletingCode) || pointImageCount(point) === 0"
+                    :title="pointImageCount(point) === 0 ? '请先上传至少一张现场照片' : ''"
+                    :data-testid="`date-point-toggle-complete-${pointCode(point)}`"
+                    @click="toggleComplete(point)"
+                  >
+                    <CircleCheck class="size-3.5" />
+                    {{ isEffectivelyComplete(point) ? "取消拍齐" : "标记拍齐" }}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     class="w-28 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     :disabled="Boolean(uploadingCode) || Boolean(deletingCode) || pointImageCount(point) === 0"
                     :data-testid="`date-point-delete-all-${pointCode(point)}`"
@@ -452,6 +535,15 @@ function onFileChange(event) {
       confirm-text="确认全部删除"
       @close="closeRemoveAllDialog"
       @confirm="confirmRemoveAll"
+    />
+
+    <ConfirmDialog
+      :open="resetMarksDialogOpen"
+      title="清除拍齐标记"
+      :message="`确认清除当前查询条件（${pestType} / ${year} / ${selectedDate}）下的 ${completeCount} 个拍齐标记吗？标记仅保存在本机浏览器，清除后点位将重新回到「未拍齐」列表。`"
+      confirm-text="确认清除"
+      @close="resetMarksDialogOpen = false"
+      @confirm="confirmResetMarks"
     />
   </section>
 </template>
