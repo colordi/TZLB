@@ -59,7 +59,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataManager } from "../composables/datamanager/useDataManager.js";
 
 const {
-  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, sortState, tableColumns, formColumns, hasPrimaryKey, filterValues, filterRanges, appliedFilters, filterSpecs, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, toggleSort, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
+  PREFERRED_FILTER_COLUMNS, MAX_FILTER_INPUTS, ACTION_LABELS, ACTION_BADGE_VARIANTS, tables, tablesLoading, selectedTable, activePest, pestGroups, currentPestTables, columns, columnsLoading, rows, rowsTotal, rowsLoading, page, pageSize, sortState, tableColumns, stickyColumnMap, lastStickyColumn, stickyCellStyle, formColumns, hasPrimaryKey, filterValues, filterRanges, appliedFilters, filterSpecs, showForm, formMode, editingRow, formValues, formErrors, saving, showDelete, deletingRow, deleting, activeTab, logs, logsTotal, logsLoading, logsPage, logsPageSize, logsTotalPages, formatNumber, formatCell, pkOf, formatPk, formatTime, pestOfTable, loadTables, selectPest, selectTable, loadColumns, loadRows, toggleSort, applyFilters, resetFilters, openCreate, openEdit, isPkColumn, submitForm, openDelete, confirmDelete, loadLogs, goLogsPage, shortTableLabel, isRequiredColumn, diffChangeLog
 } = useDataManager();
 </script>
 
@@ -214,7 +214,15 @@ const {
                 <Table class="min-w-[56rem]">
                   <TableHeader>
                     <TableRow class="hover:bg-transparent">
-                      <TableHead v-for="col in tableColumns" :key="col.name">
+                      <TableHead
+                        v-for="col in tableColumns"
+                        :key="col.name"
+                        :class="[
+                          stickyColumnMap[col.name] ? 'sticky z-10 bg-card' : '',
+                          col.name === lastStickyColumn ? 'border-r' : '',
+                        ]"
+                        :style="stickyCellStyle(col.name)"
+                      >
                         <button
                           type="button"
                           class="inline-flex cursor-pointer items-center gap-1 hover:text-foreground"
@@ -248,6 +256,13 @@ const {
                         v-for="col in tableColumns"
                         :key="col.name"
                         class="max-w-56 truncate"
+                        :class="[
+                          stickyColumnMap[col.name]
+                            ? 'sticky z-10 bg-card transition-colors group-hover:bg-muted/50'
+                            : '',
+                          col.name === lastStickyColumn ? 'border-r' : '',
+                        ]"
+                        :style="stickyCellStyle(col.name)"
                         :title="formatCell(row[col.name])"
                       >
                         {{ formatCell(row[col.name]) }}

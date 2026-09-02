@@ -21,6 +21,10 @@ import {
   diffChangeLog,
 } from "../../components/datamanager/formModel.js";
 import {
+  orderGridColumns,
+  stickyColumnLayout,
+} from "../../components/datamanager/columnLayout.js";
+import {
   groupTablesByPest,
   shortTableLabel,
 } from "../../components/datamanager/tableGroups.js";
@@ -73,9 +77,35 @@ export function useDataManager() {
   // 表头排序：column 为空表示不排序（后端回退为主键升序）
   const sortState = ref({ column: "", direction: "" });
 
-  const tableColumns = computed(() => gridColumns(columns.value));
+  const tableColumns = computed(() =>
+    orderGridColumns(selectedTable.value, gridColumns(columns.value)),
+  );
   const formColumns = computed(() => editableColumns(columns.value));
   const hasPrimaryKey = computed(() => Boolean(selectedTable.value?.has_primary_key));
+
+  // 事件流水表的左侧冻结列：[{ name, widthRem, leftRem }]，其他表为空
+  const stickyColumns = computed(() =>
+    stickyColumnLayout(selectedTable.value, tableColumns.value),
+  );
+  const stickyColumnMap = computed(() =>
+    Object.fromEntries(stickyColumns.value.map((item) => [item.name, item])),
+  );
+  const lastStickyColumn = computed(() =>
+    stickyColumns.value.length > 0
+      ? stickyColumns.value[stickyColumns.value.length - 1].name
+      : "",
+  );
+
+  // 冻结列单元格的内联样式：固定宽度 + 左侧偏移；非冻结列返回 null
+  function stickyCellStyle(colName) {
+    const item = stickyColumnMap.value[colName];
+    if (!item) return null;
+    return {
+      left: `${item.leftRem}rem`,
+      width: `${item.widthRem}rem`,
+      minWidth: `${item.widthRem}rem`,
+    };
+  }
 
   const filterValues = reactive({});
   const filterRanges = reactive({});
@@ -471,6 +501,9 @@ export function useDataManager() {
     pageSize,
     sortState,
     tableColumns,
+    stickyColumnMap,
+    lastStickyColumn,
+    stickyCellStyle,
     formColumns,
     hasPrimaryKey,
     filterValues,
