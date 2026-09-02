@@ -32,8 +32,8 @@ from backend.services.statistics.sql_generation import (  # noqa: F401
 from backend.services.statistics.sql_locality import (  # noqa: F401
     WHITE_MOTH_CANONICAL_LOCALITIES,
     WHITE_MOTH_LOCALITY_ORDER,
-    WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
+    WHITE_MOTH_LOCALITY_UNFEEDBACK_SITES_SQL,
     WHITE_MOTH_SEVERE_PLANT_THRESHOLD,
 )
 from backend.services.statistics.sql_sophora import (  # noqa: F401

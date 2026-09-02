@@ -43,6 +43,7 @@ _LOCALITY_CASE_SQL = "\n        ".join(
 # 纳入：首次调查日（无则首次下派日）<= 截止日 —— 圈定「截至该日已发现」的点位
 # 完成：台账最新状态已完成（剪网彻底→有首次调查日；否则有防治→有首次防治日）
 #       完成日不再与截止日比较，避免「先调查后防治」在截止调查日后完成的点被误判未完成
+# 未反馈：与防治完成率互补 —— 受害点位中 completion_date IS NULL（既无彻底剪网也无防治记录）
 _LOCALITY_BASE_CTE = f"""
 ledger_base AS (
     SELECT
@@ -118,6 +119,9 @@ SELECT
         WHERE damaged_plants >= $3
     )::integer AS severe_points,
     COUNT(*) FILTER (
+        WHERE completion_date IS NULL
+    )::integer AS unfeedback_points,
+    COUNT(*) FILTER (
         WHERE is_collab
     )::integer AS collab_points
 FROM
@@ -129,20 +133,22 @@ ORDER BY
     locality;
 """
 
-WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL = f"""
-WITH {_LOCALITY_BASE_CTE}
+# 未反馈名单不用严重阈值，CTE 中的截止日参数 $4 前移为 $3，
+# 该查询参数为 ($1 年份, $2 世代, $3 截止日期)
+_UNFEEDBACK_BASE_CTE = _LOCALITY_BASE_CTE.replace("$4::date", "$3::date")
+
+WHITE_MOTH_LOCALITY_UNFEEDBACK_SITES_SQL = f"""
+WITH {_UNFEEDBACK_BASE_CTE}
 SELECT
     locality,
     code,
-    name,
-    damaged_plants
+    name
 FROM
     ledger_base
 WHERE
-    damaged_plants >= $3
+    completion_date IS NULL
     AND code <> ''
 ORDER BY
     locality,
-    damaged_plants DESC,
     code;
 """

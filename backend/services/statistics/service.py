@@ -28,8 +28,8 @@ from backend.services.statistics.sql_host import (
     WHITE_MOTH_HOST_RAW_SQL,
 )
 from backend.services.statistics.sql_locality import (
-    WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
     WHITE_MOTH_LOCALITY_SUMMARY_SQL,
+    WHITE_MOTH_LOCALITY_UNFEEDBACK_SITES_SQL,
 )
 from backend.services.statistics.sql_ash_borer import (
     ASH_BORER_LOCALITY_SQL,
@@ -137,15 +137,14 @@ async def get_white_moth_locality_summary(
             effective_threshold,
             effective_as_of,
         )
-        severe_site_rows = await connection.fetch(
-            WHITE_MOTH_LOCALITY_SEVERE_SITES_SQL,
+        unfeedback_site_rows = await connection.fetch(
+            WHITE_MOTH_LOCALITY_UNFEEDBACK_SITES_SQL,
             effective_year,
             generation,
-            effective_threshold,
             effective_as_of,
         )
 
-    localities = merge_locality_summary_rows(rows, severe_site_rows)
+    localities = merge_locality_summary_rows(rows, unfeedback_site_rows)
     damaged_points = sum(item["damaged_points"] for item in localities)
     completed_points = sum(item["completed_points"] for item in localities)
     totals = {
@@ -154,6 +153,7 @@ async def get_white_moth_locality_summary(
         "completed_points": completed_points,
         "completion_rate": _completion_rate(completed_points, damaged_points),
         "severe_points": sum(item["severe_points"] for item in localities),
+        "unfeedback_points": sum(item["unfeedback_points"] for item in localities),
         "collab_points": sum(item["collab_points"] for item in localities),
     }
 

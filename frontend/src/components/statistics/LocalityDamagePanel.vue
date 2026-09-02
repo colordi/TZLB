@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   HandHelping,
   MapPinned,
+  MessageSquareOff,
   Trees,
 } from "@lucide/vue";
 
@@ -147,8 +148,8 @@ function completionBarClass(rate) {
   return "bg-destructive";
 }
 
-function severeSites(item) {
-  return Array.isArray(item?.severe_sites) ? item.severe_sites : [];
+function unfeedbackSites(item) {
+  return Array.isArray(item?.unfeedback_sites) ? item.unfeedback_sites : [];
 }
 
 function handleGenerationChange(event) {
@@ -320,22 +321,22 @@ function handleThresholdChange(event) {
               </div>
             </div>
 
-            <!-- 右侧：严重点位名单 -->
+            <!-- 右侧：未反馈点位名单（与防治完成率互补：既无彻底剪网也无防治记录） -->
             <div
               class="min-w-0 flex-1 border-t pt-3 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-4"
-              :data-testid="`data-statistics-locality-severe-${item.locality}`"
+              :data-testid="`data-statistics-locality-unfeedback-${item.locality}`"
             >
               <div class="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <AlertTriangle class="size-3.5 shrink-0 text-destructive" />
+                <MessageSquareOff class="size-3.5 shrink-0 text-warning-foreground" />
                 <span>
-                  严重点位
+                  未反馈点位
                   <span class="tabular-nums font-medium text-foreground">
-                    {{ formatNumber(item.severe_points) }}
+                    {{ formatNumber(item.unfeedback_points) }}
                   </span>
                 </span>
               </div>
               <div
-                v-if="severeSites(item).length === 0"
+                v-if="unfeedbackSites(item).length === 0"
                 class="text-xs text-muted-foreground"
               >
                 无
@@ -345,13 +346,13 @@ function handleThresholdChange(event) {
                 class="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto"
               >
                 <li
-                  v-for="site in severeSites(item)"
-                  :key="site.code"
+                  v-for="(site, siteIndex) in unfeedbackSites(item)"
+                  :key="siteIndex"
                 >
                   <Badge
                     variant="outline"
-                    class="max-w-full gap-1 font-normal border-destructive/25 bg-destructive/5 text-foreground"
-                    :title="`${site.code} ${site.name}（${site.damaged_plants} 株）`"
+                    class="max-w-full gap-1 font-normal border-warning/40 bg-warning/10 text-foreground"
+                    :title="`${site.code} ${site.name}`"
                   >
                     <span class="shrink-0 font-mono text-[11px] tabular-nums">{{ site.code }}</span>
                     <span class="truncate text-muted-foreground">{{ site.name }}</span>

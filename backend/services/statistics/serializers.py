@@ -38,22 +38,22 @@ def serialize_locality_summary_row(row: Any) -> dict[str, Any]:
         "completed_points": completed_points,
         "completion_rate": _completion_rate(completed_points, damaged_points),
         "severe_points": int(row["severe_points"] or 0),
+        "unfeedback_points": int(row["unfeedback_points"] or 0),
         "collab_points": int(row["collab_points"] or 0),
-        "severe_sites": [],
+        "unfeedback_sites": [],
     }
 
 
-def serialize_severe_site_row(row: Any) -> dict[str, Any]:
+def serialize_unfeedback_site_row(row: Any) -> dict[str, Any]:
     return {
         "code": row["code"] or "",
         "name": row["name"] or "--",
-        "damaged_plants": int(row["damaged_plants"] or 0),
     }
 
 
 def merge_locality_summary_rows(
     rows: list[Any],
-    severe_site_rows: list[Any] | None = None,
+    unfeedback_site_rows: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     by_locality = {
         serialized["locality"]: serialized
@@ -65,22 +65,25 @@ def merge_locality_summary_rows(
         "completed_points": 0,
         "completion_rate": 0.0,
         "severe_points": 0,
+        "unfeedback_points": 0,
         "collab_points": 0,
-        "severe_sites": [],
+        "unfeedback_sites": [],
     }
 
-    severe_by_locality: dict[str, list[dict[str, Any]]] = {}
-    for row in severe_site_rows or []:
+    unfeedback_by_locality: dict[str, list[dict[str, Any]]] = {}
+    for row in unfeedback_site_rows or []:
         locality = row["locality"]
-        severe_by_locality.setdefault(locality, []).append(serialize_severe_site_row(row))
+        unfeedback_by_locality.setdefault(locality, []).append(
+            serialize_unfeedback_site_row(row)
+        )
 
     localities: list[dict[str, Any]] = []
     for locality in WHITE_MOTH_LOCALITY_ORDER:
         item = {"locality": locality, **by_locality.get(locality, empty)}
-        sites = severe_by_locality.get(locality, [])
-        item["severe_sites"] = sites
+        sites = unfeedback_by_locality.get(locality, [])
+        item["unfeedback_sites"] = sites
         # 以名单长度为准，避免汇总与明细偶发不一致
-        item["severe_points"] = len(sites) if sites else int(item.get("severe_points") or 0)
+        item["unfeedback_points"] = len(sites) if sites else int(item.get("unfeedback_points") or 0)
         localities.append(item)
     return localities
 

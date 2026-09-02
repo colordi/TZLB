@@ -123,6 +123,7 @@ function buildLocalitySummary() {
       completed_points: 9,
       completion_rate: 60,
       severe_points: 4,
+      unfeedback_points: 3,
       collab_points: 2,
     },
     localities: [
@@ -133,8 +134,9 @@ function buildLocalitySummary() {
         completed_points: 3,
         completion_rate: 60,
         severe_points: 1,
+        unfeedback_points: 1,
         collab_points: 1,
-        severe_sites: [{ code: "SZ001", name: "村口绿地", damaged_plants: 15 }],
+        unfeedback_sites: [{ code: "SZ001", name: "村口绿地" }],
       },
       {
         locality: "永顺镇",
@@ -143,8 +145,9 @@ function buildLocalitySummary() {
         completed_points: 0,
         completion_rate: 0,
         severe_points: 0,
+        unfeedback_points: 0,
         collab_points: 0,
-        severe_sites: [],
+        unfeedback_sites: [],
       },
       {
         locality: "张家湾镇",
@@ -153,10 +156,11 @@ function buildLocalitySummary() {
         completed_points: 6,
         completion_rate: 60,
         severe_points: 2,
+        unfeedback_points: 2,
         collab_points: 1,
-        severe_sites: [
-          { code: "ZW001", name: "示范点", damaged_plants: 20 },
-          { code: "ZW002", name: "公园", damaged_plants: 12 },
+        unfeedback_sites: [
+          { code: "ZW001", name: "示范点" },
+          { code: "ZW002", name: "公园" },
         ],
       },
     ],
@@ -542,7 +546,7 @@ describe("DataStatisticsView", () => {
     );
   });
 
-  it("展示各属地受害情况 KPI 与榜单", async () => {
+  it("展示各属地受害情况 KPI 与未反馈点位名单", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 
@@ -570,10 +574,13 @@ describe("DataStatisticsView", () => {
     expect(wrapper.get('[data-testid="data-statistics-locality-row-张家湾镇"]').text()).toContain(
       "张家湾镇",
     );
-    const severeText = wrapper.get('[data-testid="data-statistics-locality-severe-张家湾镇"]').text();
-    expect(severeText).toContain("ZW001");
-    expect(severeText).toContain("示范点");
-    expect(severeText).toContain("ZW002");
+    const unfeedbackText = wrapper.get(
+      '[data-testid="data-statistics-locality-unfeedback-张家湾镇"]',
+    ).text();
+    expect(unfeedbackText).toContain("未反馈点位");
+    expect(unfeedbackText).toContain("ZW001");
+    expect(unfeedbackText).toContain("示范点");
+    expect(unfeedbackText).toContain("ZW002");
     expect(wrapper.get('[data-testid="data-statistics-locality-rate-宋庄镇"]').text()).toContain(
       "60%",
     );
@@ -810,7 +817,7 @@ describe("DataStatisticsView", () => {
       "世代汇总",
     );
     expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-locality"]').text()).toContain(
-      "属地受害",
+      "属地情况",
     );
     expect(wrapper.get('[data-testid="data-statistics-white-moth-tab-host"]').text()).toContain(
       "寄主分布",
@@ -870,7 +877,7 @@ describe("DataStatisticsView", () => {
     expect(apiMocks.getWhiteMothLocalitySummary).toHaveBeenCalledTimes(1);
   });
 
-  it("属地受害 tab 的筛选器独立生效", async () => {
+  it("属地情况 tab 的筛选器独立生效", async () => {
     const { wrapper } = await mountView();
     await flushPromises();
 

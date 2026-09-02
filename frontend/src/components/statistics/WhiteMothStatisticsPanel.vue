@@ -15,7 +15,7 @@ import WhiteMothLocalityTab from "./WhiteMothLocalityTab.vue";
         世代汇总
       </TabsTrigger>
       <TabsTrigger value="locality" data-testid="data-statistics-white-moth-tab-locality">
-        属地受害
+        属地情况
       </TabsTrigger>
       <TabsTrigger value="host" data-testid="data-statistics-white-moth-tab-host">
         寄主分布
