@@ -10,7 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from backend.auth.dependencies import require_authenticated_user, require_user_role
-from backend.auth.store import USER_ROLE_ADMIN, ensure_auth_storage
+from backend.auth.store import (
+    USER_ROLE_ADMIN,
+    USER_ROLE_INVESTIGATOR,
+    ensure_auth_storage,
+)
 from backend.config import get_settings
 from backend.db.admin import ensure_operation_log_storage
 from backend.db.app_settings import ensure_app_settings_storage
@@ -177,13 +181,12 @@ app.include_router(
     workorder_router.router,
     prefix="/api/workorder",
     tags=["工作单"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(
     point_screenshot_router.router,
     prefix="/api/point-screenshots",
     tags=["点位截图"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))],
 )
 app.include_router(
     map_router.router,
@@ -195,13 +198,12 @@ app.include_router(
     survey_router.router,
     prefix="/api/survey",
     tags=["调查导入"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
 )
 app.include_router(
     data_export_router.router,
     prefix="/api/data-export",
     tags=["数据导出"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))],
 )
 app.include_router(
     admin_router.router,
@@ -213,13 +215,13 @@ app.include_router(
     data_manager_router.router,
     prefix="/api/data-manager",
     tags=["数据管理"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))],
 )
 app.include_router(
     statistics_router.router,
     prefix="/api/statistics",
     tags=["数据统计"],
-    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN))],
+    dependencies=[Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))],
 )
 
 

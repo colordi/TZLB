@@ -13,7 +13,7 @@ import {
   Users,
 } from "@lucide/vue";
 
-import { USER_ROLES } from "../auth/permissions.js";
+import { ROLES_ADMIN_AND_INVESTIGATOR, USER_ROLES } from "../auth/permissions.js";
 
 /** 主导航分组（壳层侧栏 / 顶栏 / 移动菜单共用） */
 export const NAV_GROUPS = [
@@ -32,7 +32,7 @@ export const NAV_GROUPS = [
         label: "工单素材",
         icon: Images,
         testId: "workorder-assets",
-        requiredRoles: [USER_ROLES.ADMIN],
+        requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
       },
     ],
   },
@@ -69,21 +69,21 @@ export const NAV_GROUPS = [
         label: "数据导出",
         icon: Database,
         testId: "data-export",
-        requiredRoles: [USER_ROLES.ADMIN],
+        requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
       },
       {
         to: "/data-manager",
         label: "数据管理",
         icon: Table2,
         testId: "data-manager",
-        requiredRoles: [USER_ROLES.ADMIN],
+        requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
       },
       {
         to: "/data-statistics",
         label: "数据统计",
         icon: ChartColumn,
         testId: "data-statistics",
-        requiredRoles: [USER_ROLES.ADMIN],
+        requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
       },
     ],
   },

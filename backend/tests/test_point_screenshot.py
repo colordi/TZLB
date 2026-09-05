@@ -335,7 +335,7 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
             read_point_screenshot("美国白蛾", "MQ001", size="medium")
         self.assertIn("full 或 thumb", str(context.exception))
 
-    async def test_main_routes_require_admin_role(self) -> None:
+    async def test_main_routes_allow_admin_and_investigator(self) -> None:
         from backend.main import app
 
         expected_paths = {
@@ -354,11 +354,11 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
         }
         self.assertEqual(openapi_paths, expected_paths)
 
-        admin_dependencies = []
+        role_dependencies = []
         for route in app.routes:
             route_path = getattr(route, "path", None)
             if isinstance(route_path, str) and route_path.startswith("/api/point-screenshots"):
-                admin_dependencies.extend(getattr(route, "dependencies", []) or [])
+                role_dependencies.extend(getattr(route, "dependencies", []) or [])
                 continue
 
             include_context = getattr(route, "include_context", None)
@@ -366,24 +366,27 @@ class PointScreenshotTest(unittest.IsolatedAsyncioTestCase):
                 continue
             if getattr(include_context, "prefix", None) != "/api/point-screenshots":
                 continue
-            admin_dependencies.extend(getattr(include_context, "dependencies", []) or [])
+            role_dependencies.extend(getattr(include_context, "dependencies", []) or [])
 
-        self.assertGreaterEqual(len(admin_dependencies), 1, "点位截图路由应挂载 admin 依赖")
+        self.assertGreaterEqual(len(role_dependencies), 1, "点位截图路由应挂载角色依赖")
 
-        admin_dependency = admin_dependencies[0].dependency
-        with self.assertRaises(HTTPException) as context:
-            await admin_dependency(
-                {
-                    "id": 2,
-                    "username": "investigator",
-                    "display_name": "调查员",
-                    "role": "investigator",
-                    "is_active": True,
-                }
-            )
-
-        self.assertEqual(context.exception.status_code, 403)
-        self.assertEqual(context.exception.detail, "当前账号无权访问该功能")
+        role_dependency = role_dependencies[0].dependency
+        investigator = {
+            "id": 2,
+            "username": "investigator",
+            "display_name": "调查员",
+            "role": "investigator",
+            "is_active": True,
+        }
+        admin = {
+            "id": 1,
+            "username": "admin",
+            "display_name": "管理员",
+            "role": "admin",
+            "is_active": True,
+        }
+        self.assertIs(await role_dependency(investigator), investigator)
+        self.assertIs(await role_dependency(admin), admin)
 
 
 if __name__ == "__main__":

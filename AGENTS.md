@@ -117,7 +117,7 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - 会话通过 Cookie（默认名 `tzlb_session`）传递，使用 `AUTH_SECRET_KEY` 签名。
 
-- 角色有两种：`admin` 和 `investigator`。`admin` 可访问所有功能；`investigator` 只能访问地图点位。
+- 角色有两种：`admin` 和 `investigator`。`admin` 可访问所有功能；`investigator` 可访问地图点位、工单素材、数据导出、数据统计和数据管理。
 
 - 本地开发可设置 `AUTH_BYPASS_LOCALHOST=true`，并在请求头中携带 `x-tzlb-local-auth-bypass: 1` 跳过登录。生产环境必须关闭该选项。
 
@@ -133,7 +133,13 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 
 - `/api/map`：需要登录
 
-- `/api/workorder`、`/api/survey`、`/api/data-export`、`/api/statistics`、`/api/data-manager`、`/api/admin`：需要 `admin`
+- `/api/point-screenshots`、`/api/data-export`、`/api/statistics`、`/api/data-manager`：需要 `admin` 或 `investigator`
+
+- `/api/workorder`：`/point-date-images*` 端点需要 `admin` 或 `investigator`（工单素材页），`/generate*` 端点需要 `admin`（端点级 `Depends`）
+
+- `/api/survey`：`/candidates` 端点需要 `admin` 或 `investigator`（工单素材页），`/pest-types`、`/excel-import`、`/import-template` 需要 `admin`（端点级 `Depends`）
+
+- `/api/admin`：需要 `admin`
 
 前端路由守卫在 `frontend/src/router/index.js` 中实现，权限逻辑在 `frontend/src/auth/permissions.js` 中。
 

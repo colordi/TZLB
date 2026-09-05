@@ -3,6 +3,11 @@ export const USER_ROLES = Object.freeze({
   INVESTIGATOR: "investigator",
 });
 
+export const ROLES_ADMIN_AND_INVESTIGATOR = Object.freeze([
+  USER_ROLES.ADMIN,
+  USER_ROLES.INVESTIGATOR,
+]);
+
 const DEFAULT_ROUTE_BY_ROLE = Object.freeze({
   [USER_ROLES.ADMIN]: "/workorder",
   [USER_ROLES.INVESTIGATOR]: "/map",

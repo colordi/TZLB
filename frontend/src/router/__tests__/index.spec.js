@@ -82,10 +82,10 @@ describe("router", () => {
     await router.isReady();
 
     expect(router.currentRoute.value.fullPath).toBe("/workorder-assets");
-    expect(router.currentRoute.value.meta.requiredRoles).toEqual(["admin"]);
+    expect(router.currentRoute.value.meta.requiredRoles).toEqual(["admin", "investigator"]);
   });
 
-  it("调查员访问工单素材页面时会跳转到地图页", async () => {
+  it("调查员可以访问工单素材页面", async () => {
     resetAuthSessionState();
     mockCurrentUser({
       id: 2,
@@ -100,7 +100,7 @@ describe("router", () => {
     await router.push("/workorder-assets");
     await router.isReady();
 
-    expect(router.currentRoute.value.fullPath).toBe("/map");
+    expect(router.currentRoute.value.fullPath).toBe("/workorder-assets");
   });
 
   it("已登录调查员从登录页携带工单重定向时仍进入地图页", async () => {
@@ -154,7 +154,7 @@ describe("router", () => {
     expect(router.currentRoute.value.fullPath).toBe("/data-statistics/white-moth");
   });
 
-  it("调查员访问数据导出时会跳转到地图页", async () => {
+  it("调查员可以访问数据导出页面", async () => {
     await router.push("/map");
     await router.isReady();
 
@@ -171,10 +171,10 @@ describe("router", () => {
     await router.push("/data-export");
     await router.isReady();
 
-    expect(router.currentRoute.value.fullPath).toBe("/map");
+    expect(router.currentRoute.value.fullPath).toBe("/data-export");
   });
 
-  it("调查员访问数据统计时会跳转到地图页", async () => {
+  it("调查员可以访问数据统计页面", async () => {
     await router.push("/map");
     await router.isReady();
 
@@ -191,6 +191,26 @@ describe("router", () => {
     await router.push("/data-statistics");
     await router.isReady();
 
-    expect(router.currentRoute.value.fullPath).toBe("/map");
+    expect(router.currentRoute.value.fullPath).toBe("/data-statistics/white-moth");
+  });
+
+  it("调查员可以访问数据管理页面", async () => {
+    await router.push("/map");
+    await router.isReady();
+
+    resetAuthSessionState();
+    mockCurrentUser({
+      id: 2,
+      username: "dc01",
+      display_name: "调查员 dc01",
+      role: "investigator",
+      is_active: true,
+      last_login_at: null,
+    });
+
+    await router.push("/data-manager");
+    await router.isReady();
+
+    expect(router.currentRoute.value.fullPath).toBe("/data-manager");
   });
 });

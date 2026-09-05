@@ -4,9 +4,11 @@ from datetime import date as date_cls
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
+from backend.auth.dependencies import require_user_role
+from backend.auth.store import USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR
 from backend.db.postgres import fetch_survey_candidates_by_type
 from backend.exceptions import BusinessError
 from backend.schemas import PestType
@@ -18,8 +20,11 @@ from backend.services.survey_template import generate_import_template_bytes
 
 router = APIRouter()
 
+ADMIN_ONLY = Depends(require_user_role(USER_ROLE_ADMIN))
+ASSET_ACCESS = Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))
 
-@router.get("/pest-types", summary="读取已注册害虫类型列表")
+
+@router.get("/pest-types", summary="读取已注册害虫类型列表", dependencies=[ADMIN_ONLY])
 async def list_survey_pest_types() -> list[dict[str, str]]:
     return [
         {"key": entry.key, "label": entry.label}
@@ -27,7 +32,7 @@ async def list_survey_pest_types() -> list[dict[str, str]]:
     ]
 
 
-@router.get("/candidates", summary="读取当日下派/复查异常事件作为工单导入候选")
+@router.get("/candidates", summary="读取当日下派/复查异常事件作为工单导入候选", dependencies=[ASSET_ACCESS])
 async def get_survey_candidates(
     date: date_cls | None = Query(default=None, description="事件日期，格式为 YYYY-MM-DD"),
     pest_type: PestType = Query(default="春尺蠖", description="害虫类型"),
@@ -56,7 +61,7 @@ async def get_survey_candidates(
         raise HTTPException(status_code=500, detail=f"读取调查导入候选数据失败：{exc}") from exc
 
 
-@router.post("/excel-import", summary="上传 Excel 并导入 survey/ledger 表")
+@router.post("/excel-import", summary="上传 Excel 并导入 survey/ledger 表", dependencies=[ADMIN_ONLY])
 async def import_survey_excel_file(
     dry_run: bool = Query(default=True, description="true 为只预览校验，false 为确认入库"),
     file: UploadFile = File(..., description="调查 Excel 文件，仅支持 .xlsx"),
@@ -79,7 +84,7 @@ async def import_survey_excel_file(
         raise BusinessError(str(exc)) from exc
 
 
-@router.get("/import-template", summary="下载数据导入模板")
+@router.get("/import-template", summary="下载数据导入模板", dependencies=[ADMIN_ONLY])
 async def download_survey_import_template(
     pest_type: str = Query(..., description="害虫类型，如 美国白蛾"),
 ) -> Response:

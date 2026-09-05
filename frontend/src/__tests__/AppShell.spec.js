@@ -276,7 +276,7 @@ describe("App 壳层导航", () => {
     );
   });
 
-  it("调查员账号不展示数据导出入口", async () => {
+  it("调查员账号展示工单素材与数据管理入口", async () => {
     const { wrapper } = await mountApp("/map", {
       user: {
         id: 2,
@@ -288,10 +288,18 @@ describe("App 壳层导航", () => {
       },
     });
 
-    expect(wrapper.find('[data-testid="sidebar-link-data-export"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="sidebar-link-workorder-assets"]').text()).toContain(
+      "工单素材",
+    );
+    expect(wrapper.get('[data-testid="sidebar-link-data-export"]').text()).toContain(
+      "数据导出",
+    );
+    expect(wrapper.get('[data-testid="sidebar-link-data-manager"]').text()).toContain(
+      "数据管理",
+    );
   });
 
-  it("调查员账号不展示数据统计入口", async () => {
+  it("调查员账号展示数据统计入口", async () => {
     const { wrapper } = await mountApp("/map", {
       user: {
         id: 2,
@@ -303,8 +311,8 @@ describe("App 壳层导航", () => {
       },
     });
 
-    expect(wrapper.find('[data-testid="sidebar-link-data-statistics"]').exists()).toBe(
-      false,
+    expect(wrapper.get('[data-testid="sidebar-link-data-statistics"]').text()).toContain(
+      "数据统计",
     );
   });
 

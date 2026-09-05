@@ -4,9 +4,11 @@ import asyncio
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 
+from backend.auth.dependencies import require_user_role
+from backend.auth.store import USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR
 from backend.exceptions import BusinessError, ConfigurationError
 from backend.schemas import (
     WorkOrderBatchGenerateRequest,
@@ -30,8 +32,11 @@ MULTI_RECORD_EXPORT_MESSAGE = "批量压缩导出已取消，请改为逐条导�
 
 router = APIRouter()
 
+ADMIN_ONLY = Depends(require_user_role(USER_ROLE_ADMIN))
+ASSET_ACCESS = Depends(require_user_role(USER_ROLE_ADMIN, USER_ROLE_INVESTIGATOR))
 
-@router.post("/generate", summary="生成单条工作单")
+
+@router.post("/generate", summary="生成单条工作单", dependencies=[ADMIN_ONLY])
 async def generate_workorder(payload: WorkOrderGenerateRequest) -> Response:
     if len(payload.records) != 1:
         raise BusinessError(MULTI_RECORD_EXPORT_MESSAGE)
@@ -53,7 +58,7 @@ async def generate_workorder(payload: WorkOrderGenerateRequest) -> Response:
     )
 
 
-@router.post("/generate-batch", summary="批量生成工作单并打包为 zip")
+@router.post("/generate-batch", summary="批量生成工作单并打包为 zip", dependencies=[ADMIN_ONLY])
 async def generate_workorder_batch(payload: WorkOrderBatchGenerateRequest) -> Response:
     try:
         artifact = generate_workorder_batch_artifact(payload)
@@ -76,6 +81,7 @@ async def generate_workorder_batch(payload: WorkOrderBatchGenerateRequest) -> Re
     "/generate-batch-jobs",
     summary="创建批量导出任务（支持进度查询）",
     response_model=WorkOrderBatchJobCreateResponse,
+    dependencies=[ADMIN_ONLY],
 )
 async def create_workorder_batch_job(
     payload: WorkOrderBatchGenerateRequest,
@@ -93,6 +99,7 @@ async def create_workorder_batch_job(
     "/generate-batch-jobs/{job_id}",
     summary="查询批量导出任务进度",
     response_model=WorkOrderBatchJobStatusResponse,
+    dependencies=[ADMIN_ONLY],
 )
 async def get_workorder_batch_job_status(job_id: str) -> WorkOrderBatchJobStatusResponse:
     job = batch_job_store.get(job_id)
@@ -104,6 +111,7 @@ async def get_workorder_batch_job_status(job_id: str) -> WorkOrderBatchJobStatus
 @router.get(
     "/generate-batch-jobs/{job_id}/download",
     summary="下载已完成的批量导出文件",
+    dependencies=[ADMIN_ONLY],
 )
 async def download_workorder_batch_job(job_id: str) -> Response:
     job = batch_job_store.get(job_id)
@@ -124,7 +132,7 @@ async def download_workorder_batch_job(job_id: str) -> Response:
     )
 
 
-@router.get("/point-date-images", summary="列出指定日期的图片，可按点位编号过滤")
+@router.get("/point-date-images", summary="列出指定日期的图片，可按点位编号过滤", dependencies=[ASSET_ACCESS])
 async def list_workorder_point_date_images(
     survey_date: str = Query(..., description="调查日期，格式 YYYY-MM-DD"),
     point_code: str | None = Query(default=None, description="点位编号，缺省时返回当日全部图片"),
@@ -147,7 +155,7 @@ async def list_workorder_point_date_images(
         raise BusinessError(str(exc)) from exc
 
 
-@router.post("/point-date-images", summary="上传点位日期图片（自动按编号命名）")
+@router.post("/point-date-images", summary="上传点位日期图片（自动按编号命名）", dependencies=[ASSET_ACCESS])
 async def upload_workorder_point_date_images(
     survey_date: str = Form(..., description="调查日期，格式 YYYY-MM-DD"),
     point_code: str = Form(..., description="点位编号"),
@@ -163,7 +171,7 @@ async def upload_workorder_point_date_images(
         raise BusinessError(str(exc)) from exc
 
 
-@router.get("/point-date-images/{survey_date}/{file_name}", summary="读取点位日期图片")
+@router.get("/point-date-images/{survey_date}/{file_name}", summary="读取点位日期图片", dependencies=[ASSET_ACCESS])
 async def read_workorder_point_date_image(
     survey_date: str,
     file_name: str,
@@ -188,7 +196,7 @@ async def read_workorder_point_date_image(
     )
 
 
-@router.delete("/point-date-images/{survey_date}/{file_name}", summary="删除点位日期图片")
+@router.delete("/point-date-images/{survey_date}/{file_name}", summary="删除点位日期图片", dependencies=[ASSET_ACCESS])
 async def delete_workorder_point_date_image(
     survey_date: str,
     file_name: str,

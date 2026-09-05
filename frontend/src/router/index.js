@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import {
   canAccessRoute,
   getDefaultRouteForUser,
+  ROLES_ADMIN_AND_INVESTIGATOR,
   USER_ROLES,
 } from "../auth/permissions.js";
 import { ensureSessionLoaded } from "../composables/useAuthSession.js";
@@ -57,7 +58,7 @@ const routes = [
     meta: {
       section: "工单素材",
       blurb: "管理点位截图与按日期归档的现场图片，供工单生成取用。",
-      requiredRoles: [USER_ROLES.ADMIN],
+      requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
     },
   },
   {
@@ -87,7 +88,7 @@ const routes = [
     meta: {
       section: "数据导出",
       blurb: "导出 survey 和 ledger 下的最新数据表。",
-      requiredRoles: [USER_ROLES.ADMIN],
+      requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
     },
   },
   {
@@ -97,7 +98,7 @@ const routes = [
     meta: {
       section: "数据管理",
       blurb: "在线浏览与维护调查、台账和点位数据。",
-      requiredRoles: [USER_ROLES.ADMIN],
+      requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
     },
   },
   {
@@ -111,7 +112,7 @@ const routes = [
     meta: {
       section: "数据统计",
       blurb: "查看各虫种的核心统计指标。",
-      requiredRoles: [USER_ROLES.ADMIN],
+      requiredRoles: ROLES_ADMIN_AND_INVESTIGATOR,
     },
   },
   {
